@@ -1,0 +1,14 @@
+# 외부 서브모듈
+mcp-shrimp-task-manager/
+
+# Next.js 빌드 산출물
+.next/
+out/
+build/
+
+# 자동 생성 파일
+next-env.d.ts
+*.tsbuildinfo
+
+# 패키지
+node_modules/
