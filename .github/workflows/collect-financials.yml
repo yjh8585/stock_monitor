@@ -28,9 +28,13 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements-phase3.txt
 
+      - name: Playwright Chromium 설치
+        run: playwright install chromium --with-deps
+
       - name: 재무 데이터 수집
         run: python collect_financials.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          VALLEY_EMAIL: ${{ secrets.VALLEY_EMAIL }}
+          VALLEY_PASSWORD: ${{ secrets.VALLEY_PASSWORD }}

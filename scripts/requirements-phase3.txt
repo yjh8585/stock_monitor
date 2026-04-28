@@ -1,5 +1,4 @@
 # Phase 3 재무 수집 전용
-# finance-datareader는 Ubuntu GitHub Actions에서는 정상 빌드됨 (Windows에서는 Visual C++ Build Tools 필요)
-# OpenDartReader 제거 — DART REST API를 requests로 직접 호출
+# DART/OpenDartReader 제거 — valley.town Playwright + yfinance로 교체
 -r requirements.txt
-finance-datareader>=0.9.60
+playwright>=1.44.0

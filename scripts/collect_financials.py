@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 """
 21개사 분기·연간 재무제표를 수집해 financials 테이블에 upsert한다.
-- DART REST API 직접 호출: 한국 8개사 (fnlttSinglAcntAll, DART_API_KEY 필수)
+- valley.town Playwright: 한국 8개사 (VALLEY_EMAIL, VALLEY_PASSWORD 필수)
 - yfinance: 글로벌 13개사 (최근 5년 분기·연간)
 단위: 원본 통화 기준 백만(MILLION) 단위로 정규화 후 저장.
 """
-import io
 import os
+import re
 import sys
-import time
-import zipfile
-import xml.etree.ElementTree as ET
 from calendar import monthrange
 from datetime import date
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-import requests
 import yfinance as yf
 from dotenv import load_dotenv
 from loguru import logger
@@ -26,7 +22,6 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.accounts_map import (
-    DART_TO_DB,
     YF_BALANCE_TO_DB,
     YF_CURRENT_ASSETS_KEY,
     YF_CURRENT_LIABILITIES_KEY,
@@ -36,40 +31,69 @@ from lib.companies import get_global_companies, get_kr_companies
 from lib.db import get_client, upsert_rows
 
 MILLION = 1_000_000
-HISTORY_YEARS = 5
-DART_DELAY = 0.5           # DART API 요청 간격 (초) — 초당 2회 제한 준수
-DART_TIMEOUT = 30          # HTTP 타임아웃 (초)
-DART_CORP_CODE_URL = 'https://opendart.fss.or.kr/api/corpCode.xml'
-DART_FINSTATE_URL  = 'https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json'
+
+# valley.town 상수
+VALLEY_BASE_URL    = 'https://www.valley.town'
+VALLEY_LOGIN_URL   = f'{VALLEY_BASE_URL}/login'
+VALLEY_FINSTATE_URL = f'{VALLEY_BASE_URL}/financials/quote/{{ticker}}:KRX/financial-statement'
+VALLEY_PAGE_TIMEOUT = 30_000   # 30초 (ms)
+VALLEY_TAB_WAIT_MS  = 2_500    # 탭 전환 후 대기 (ms)
 
 # DB generated columns — INSERT 페이로드에서 제외
 GENERATED_COLS = frozenset({'operating_margin', 'gross_margin', 'net_margin', 'debt_ratio'})
 
-# (reprt_code, period_type, fiscal_quarter)
-DART_REPORTS: list[tuple[str, str, Optional[int]]] = [
-    ('11013', 'quarterly', 1),   # 1분기보고서
-    ('11012', 'quarterly', 2),   # 반기보고서 (누적)
-    ('11014', 'quarterly', 3),   # 3분기보고서 (누적)
-    ('11011', 'annual',    None), # 사업보고서
-]
+# valley.town 계정명 → DB 컬럼 (연결 재무제표 기준)
+VALLEY_TO_DB: dict[str, str] = {
+    '매출액':              'revenue',
+    '매출원가':            'cogs',
+    '매출총이익':          'gross_profit',
+    '판매비와관리비':      'sga',
+    '영업이익':            'operating_income',
+    'EBITDA':              'ebitda',
+    '당기순이익':          'net_income',
+    '지배기업주주귀속순이익': 'net_income',
+    '당기순이익(지배)':    'net_income',
+    '자산총계':            'total_assets',
+    '부채총계':            'total_liabilities',
+    '자본총계':            'total_equity',
+    # 유동 항목은 current_ratio 계산 후 버림 (DB 컬럼 없음)
+    '유동자산':            '_ca',
+    '유동부채':            '_cl',
+}
 
 
-def _parse_dart_amount(value) -> Optional[float]:
-    """DART API 금액 문자열을 float으로 파싱한다."""
-    if value is None:
-        return None
-    s = str(value).strip()
-    if s in ('', '-', 'None', 'nan', 'NaN'):
-        return None
-    try:
-        return float(s.replace(',', '').replace(' ', ''))
-    except (ValueError, TypeError):
-        return None
-
+# ──────────────────────────────────────────────
+# 공통 유틸
+# ──────────────────────────────────────────────
 
 def _month_to_quarter(month: int) -> int:
     """월을 분기 번호(1~4)로 변환한다."""
     return (month - 1) // 3 + 1
+
+
+def _parse_number(text: str) -> Optional[float]:
+    """숫자 문자열을 float으로 파싱한다."""
+    s = str(text).strip().replace(',', '').replace(' ', '')
+    if s in ('', '-', 'N/A', 'NA', '--', 'None', 'null'):
+        return None
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_period(header: str) -> Optional[date]:
+    """'2024/03', '2024.03', '2024-03' 형태를 month 말일 date로 변환한다."""
+    m = re.search(r'(\d{4})[/.\-](\d{1,2})', header.strip())
+    if not m:
+        return None
+    try:
+        year, month = int(m.group(1)), int(m.group(2))
+        if not (1 <= month <= 12):
+            return None
+        return date(year, month, monthrange(year, month)[1])
+    except (ValueError, OverflowError):
+        return None
 
 
 def _load_company_maps() -> tuple[dict[str, str], dict[str, str]]:
@@ -81,141 +105,231 @@ def _load_company_maps() -> tuple[dict[str, str], dict[str, str]]:
     )
 
 
-def _fetch_dart_corp_codes(api_key: str) -> dict[str, str]:
-    """DART corpCode.xml에서 stock_code(6자리) → corp_code(8자리) 매핑을 다운로드한다."""
-    r = requests.get(DART_CORP_CODE_URL, params={'crtfc_key': api_key}, timeout=DART_TIMEOUT)
-    r.raise_for_status()
-    zf = zipfile.ZipFile(io.BytesIO(r.content))
-    xml_data = zf.read('CORPCODE.xml')
-    tree = ET.XML(xml_data)
-    result: dict[str, str] = {}
-    for item in tree.findall('list'):
-        sc = (item.findtext('stock_code') or '').strip().zfill(6)
-        cc = (item.findtext('corp_code') or '').strip()
-        if sc and sc != '000000' and cc:
-            result[sc] = cc
-    return result
+# ──────────────────────────────────────────────
+# valley.town Playwright 수집
+# ──────────────────────────────────────────────
+
+def _valley_login(playwright, email: str, password: str):
+    """valley.town에 로그인하고 (browser, page)를 반환한다."""
+    browser = playwright.chromium.launch(headless=True)
+    page = browser.new_context().new_page()
+
+    page.goto(VALLEY_LOGIN_URL, timeout=VALLEY_PAGE_TIMEOUT)
+    page.wait_for_load_state('networkidle', timeout=VALLEY_PAGE_TIMEOUT)
+
+    page.fill('input[type="email"]', email)
+    page.fill('input[type="password"]', password)
+    page.click('button[type="submit"]')
+    page.wait_for_load_state('networkidle', timeout=VALLEY_PAGE_TIMEOUT)
+
+    if 'login' in page.url:
+        raise RuntimeError(f"로그인 실패: 여전히 로그인 페이지 ({page.url})")
+
+    logger.info("valley.town 로그인 성공")
+    return browser, page
 
 
-def _fetch_dart_finstate(
-    api_key: str, corp_code: str, year: int, reprt_code: str
-) -> list[dict]:
-    """DART fnlttSinglAcntAll API로 단일회사 전체 재무제표(연결)를 가져온다."""
-    params = {
-        'crtfc_key': api_key,
-        'corp_code':  corp_code,
-        'bsns_year':  year,
-        'reprt_code': reprt_code,
-        'fs_div':     'CFS',  # 연결재무제표
-    }
+def _get_unit_multiplier(page) -> float:
+    """페이지 텍스트에서 금액 단위를 감지해 백만원 변환 승수를 반환한다.
+
+    억원 → 백만원 변환 시 ×100 필요.
+    단위를 감지 못하면 억원(×100)으로 가정한다.
+    """
     try:
-        r = requests.get(DART_FINSTATE_URL, params=params, timeout=DART_TIMEOUT)
-        r.raise_for_status()
-        jo = r.json()
-        if jo.get('status') != '000':
-            logger.debug(f"DART {corp_code}/{year}/{reprt_code}: status={jo.get('status')} {jo.get('message')}")
-            return []
-        return jo.get('list', [])
+        body = page.inner_text('body')
+        if '백만원' in body or '백만 원' in body:
+            return 1.0
+        if '억원' in body or '억 원' in body:
+            return 100.0
+    except Exception:
+        pass
+    return 100.0   # 기본: 억원
+
+
+def _extract_all_tables(page) -> list[dict]:
+    """페이지의 모든 <table>에서 headers/rows를 추출한다."""
+    return page.evaluate("""
+        () => Array.from(document.querySelectorAll('table')).map(tbl => ({
+            headers: Array.from(
+                tbl.querySelectorAll('thead tr:last-child th, thead tr:last-child td')
+            ).map(el => el.innerText.trim()),
+            rows: Array.from(tbl.querySelectorAll('tbody tr')).map(tr =>
+                Array.from(tr.querySelectorAll('td, th')).map(td => td.innerText.trim())
+            ),
+        }))
+    """)
+
+
+def _click_tab(page, label: str) -> None:
+    """텍스트가 label인 버튼/탭을 클릭하고 로딩을 기다린다."""
+    try:
+        btn = page.locator(
+            f'button:has-text("{label}"), [role="tab"]:has-text("{label}")'
+        )
+        if btn.count() > 0:
+            btn.first.click()
+            page.wait_for_timeout(VALLEY_TAB_WAIT_MS)
     except Exception as e:
-        logger.debug(f"DART {corp_code}/{year}/{reprt_code}: {e}")
-        return []
+        logger.debug(f"탭 '{label}' 클릭 실패: {e}")
 
 
-def _extract_dart_values(
-    api_key: str, corp_code: str, year: int, reprt_code: str
-) -> dict[str, float]:
-    """DART API 응답에서 DB 컬럼명 → 값(백만원) 딕셔너리를 추출한다."""
-    items = _fetch_dart_finstate(api_key, corp_code, year, reprt_code)
-    if not items:
-        return {}
+def _parse_tables_to_period_dict(
+    tables: list[dict],
+    unit: float,
+) -> dict[str, dict]:
+    """추출된 tables를 period_end(isodate) → {db_col: val} 딕셔너리로 변환한다."""
+    period_data: dict[str, dict] = {}
 
-    values: dict[str, float] = {}
-    ca = cl = None
-    for item in items:
-        nm = str(item.get('account_nm') or '').strip()
-        raw = _parse_dart_amount(item.get('thstrm_amount'))
-        if raw is None:
+    for tbl in tables:
+        headers = tbl['headers']
+        if len(headers) < 2:
             continue
-        if nm in DART_TO_DB:
-            col = DART_TO_DB[nm]
-            if col not in GENERATED_COLS and col not in ('current_ratio', 'roe', 'roa'):
-                values[col] = raw / MILLION
-        elif nm == '유동자산':
-            ca = raw
-        elif nm == '유동부채':
-            cl = raw
 
-    if ca is not None and cl and cl != 0:
-        values['current_ratio'] = round(ca / cl, 4)
-    ni    = values.get('net_income')
-    eq    = values.get('total_equity')
-    assets = values.get('total_assets')
-    if ni is not None and eq and eq != 0:
-        values['roe'] = round(ni / eq * 100, 4)
-    if ni is not None and assets and assets != 0:
-        values['roa'] = round(ni / assets * 100, 4)
-    return values
+        for row in tbl['rows']:
+            if len(row) < 2:
+                continue
+            metric = row[0].strip()
+            db_col = VALLEY_TO_DB.get(metric)
+            if db_col is None or db_col in GENERATED_COLS:
+                continue
+
+            for i, hdr in enumerate(headers[1:], 1):
+                if i >= len(row):
+                    break
+                period_end = _parse_period(hdr)
+                if period_end is None:
+                    continue
+                val = _parse_number(row[i])
+                if val is None:
+                    continue
+
+                key = period_end.isoformat()
+                if key not in period_data:
+                    period_data[key] = {'_period_end': period_end}
+
+                # 내부 컬럼(_ca, _cl)은 단위 변환만, 나머지는 백만 단위로 저장
+                stored = round(val * unit, 4)
+                if db_col not in period_data[key]:
+                    period_data[key][db_col] = stored
+
+    return period_data
 
 
-def _build_dart_row(
+def _build_kr_rows(
     company_id: str,
     currency: str,
-    year: int,
     period_type: str,
-    fiscal_quarter: Optional[int],
-    values: dict[str, float],
-) -> dict:
-    """DART 수집 데이터로 financials DB 행을 생성한다."""
-    month_map: dict[Optional[int], int] = {1: 3, 2: 6, 3: 9, None: 12}
-    month = month_map[fiscal_quarter]
-    last_day = monthrange(year, month)[1]
-    row: dict = {
-        'company_id':    company_id,
-        'period_type':   period_type,
-        'fiscal_year':   year,
-        'fiscal_quarter': fiscal_quarter,
-        'period_end_date': date(year, month, last_day).isoformat(),
-        'currency':      currency,
-    }
-    row.update(values)
-    return row
+    period_data: dict[str, dict],
+) -> list[dict]:
+    """period_data를 financials DB 행 목록으로 변환한다."""
+    rows: list[dict] = []
+    for vals in period_data.values():
+        period_end: date = vals['_period_end']
+        fiscal_quarter = _month_to_quarter(period_end.month) if period_type == 'quarterly' else None
+
+        row: dict = {
+            'company_id':     company_id,
+            'period_type':    period_type,
+            'fiscal_year':    period_end.year,
+            'fiscal_quarter': fiscal_quarter,
+            'period_end_date': period_end.isoformat(),
+            'currency':       currency,
+        }
+
+        for col, val in vals.items():
+            if col.startswith('_'):
+                continue
+            row[col] = val
+
+        # current_ratio
+        ca = vals.get('_ca')
+        cl = vals.get('_cl')
+        if ca and cl and cl != 0:
+            row['current_ratio'] = round(ca / cl, 4)
+
+        # ROE / ROA
+        ni     = row.get('net_income')
+        eq     = row.get('total_equity')
+        assets = row.get('total_assets')
+        if ni is not None and eq and eq != 0:
+            row['roe'] = round(ni / eq * 100, 4)
+        if ni is not None and assets and assets != 0:
+            row['roa'] = round(ni / assets * 100, 4)
+
+        rows.append(row)
+    return rows
 
 
 def _collect_kr_financials(
-    api_key: str,
-    corp_map: dict[str, str],
     id_map: dict[str, str],
     cur_map: dict[str, str],
 ) -> list[dict]:
-    """DART REST API로 한국 8개사 재무데이터를 수집한다."""
-    rows: list[dict] = []
-    current_year = date.today().year
-    years = range(current_year - HISTORY_YEARS, current_year + 1)
+    """valley.town Playwright로 한국 8개사 연결 재무데이터를 수집한다."""
+    email    = os.environ.get('VALLEY_EMAIL')
+    password = os.environ.get('VALLEY_PASSWORD')
+    if not email or not password:
+        logger.warning("VALLEY_EMAIL/VALLEY_PASSWORD 없음 — 한국 기업 재무 수집 스킵")
+        return []
 
-    for company in get_kr_companies():
-        ticker = company['ticker']
-        corp_code = corp_map.get(ticker)
-        company_id = id_map.get(ticker)
-        if not corp_code:
-            logger.warning(f"KR {ticker}: DART corp_code 없음, 스킵")
-            continue
-        if not company_id:
-            logger.warning(f"KR {ticker}: company_id 없음, 스킵")
-            continue
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.error("playwright 미설치 — pip install playwright && playwright install chromium")
+        return []
 
-        currency = cur_map.get(ticker, 'KRW')
-        collected = 0
-        for year in years:
-            for reprt_code, period_type, fiscal_quarter in DART_REPORTS:
-                time.sleep(DART_DELAY)
-                values = _extract_dart_values(api_key, corp_code, year, reprt_code)
-                if not values:
+    all_rows: list[dict] = []
+
+    with sync_playwright() as pw:
+        try:
+            browser, page = _valley_login(pw, email, password)
+        except Exception as e:
+            logger.error(f"valley.town 로그인 실패: {e}")
+            return []
+
+        try:
+            for company in get_kr_companies():
+                ticker     = company['ticker']
+                company_id = id_map.get(ticker)
+                if not company_id:
+                    logger.warning(f"KR {ticker}: company_id 없음, 스킵")
                     continue
-                rows.append(_build_dart_row(company_id, currency, year, period_type, fiscal_quarter, values))
-                collected += 1
-        logger.info(f"KR {ticker} ({company['name_kr']}): {collected}개 기간 수집")
-    return rows
 
+                currency  = cur_map.get(ticker, 'KRW')
+                collected = 0
+
+                try:
+                    url = VALLEY_FINSTATE_URL.format(ticker=ticker)
+                    page.goto(url, timeout=VALLEY_PAGE_TIMEOUT)
+                    page.wait_for_load_state('networkidle', timeout=VALLEY_PAGE_TIMEOUT)
+
+                    # 연결 탭 선택 (기본값 아닐 경우 대비)
+                    _click_tab(page, '연결')
+
+                    unit = _get_unit_multiplier(page)
+                    logger.debug(f"KR {ticker}: 단위 승수={unit}")
+
+                    for period_type, btn_label in [('annual', '연간'), ('quarterly', '분기')]:
+                        _click_tab(page, btn_label)
+                        tables      = _extract_all_tables(page)
+                        period_data = _parse_tables_to_period_dict(tables, unit)
+                        rows        = _build_kr_rows(company_id, currency, period_type, period_data)
+                        all_rows.extend(rows)
+                        collected  += len(rows)
+
+                    logger.info(f"KR {ticker} ({company['name_kr']}): {collected}개 기간 수집")
+
+                except Exception as e:
+                    logger.error(f"KR {ticker} 수집 실패: {e}")
+
+        finally:
+            browser.close()
+
+    return all_rows
+
+
+# ──────────────────────────────────────────────
+# yfinance 글로벌 수집 (변경 없음)
+# ──────────────────────────────────────────────
 
 def _get_yf_value(series: pd.Series, key: str) -> Optional[float]:
     """yfinance Series에서 키 값을 float으로 안전하게 추출한다."""
@@ -240,12 +354,12 @@ def _build_yf_row(
     """yfinance 재무 데이터 컬럼을 financials DB 행으로 변환한다."""
     fiscal_quarter = _month_to_quarter(period_end.month) if period_type == 'quarterly' else None
     row: dict = {
-        'company_id':    company_id,
-        'period_type':   period_type,
-        'fiscal_year':   period_end.year,
+        'company_id':     company_id,
+        'period_type':    period_type,
+        'fiscal_year':    period_end.year,
         'fiscal_quarter': fiscal_quarter,
         'period_end_date': period_end.isoformat(),
-        'currency':      currency,
+        'currency':       currency,
     }
     for yf_key, db_col in YF_INCOME_TO_DB.items():
         if db_col in GENERATED_COLS:
@@ -264,6 +378,7 @@ def _build_yf_row(
     cl = _get_yf_value(balance_col, YF_CURRENT_LIABILITIES_KEY)
     if ca is not None and cl and cl != 0:
         row['current_ratio'] = round(ca / cl, 4)
+
     ni, eq, assets = row.get('net_income'), row.get('total_equity'), row.get('total_assets')
     if ni is not None and eq and eq != 0:
         row['roe'] = round(ni / eq * 100, 4)
@@ -305,12 +420,11 @@ def _collect_global_financials(
         if company['status'] != 'active':
             logger.debug(f"글로벌 {company['ticker']}: status={company['status']}, 스킵")
             continue
-        ticker = company['ticker']
+        ticker     = company['ticker']
         company_id = id_map.get(ticker)
         if not company_id:
             logger.warning(f"글로벌 {ticker}: company_id 없음, 스킵")
             continue
-
         try:
             t = yf.Ticker(ticker)
             period_rows = _process_yf_frames(
@@ -327,25 +441,17 @@ def _collect_global_financials(
     return rows
 
 
+# ──────────────────────────────────────────────
+# 메인
+# ──────────────────────────────────────────────
+
 def collectFinancials() -> None:
     """21개사 재무데이터를 수집해 financials 테이블에 upsert한다."""
     id_map, cur_map = _load_company_maps()
 
-    kr_rows: list[dict] = []
-    dart_api_key = os.environ.get('DART_API_KEY')
-    if dart_api_key:
-        try:
-            logger.info("DART corp_code 목록 다운로드 중...")
-            corp_map = _fetch_dart_corp_codes(dart_api_key)
-            logger.info(f"DART corp_code 로드 완료: {len(corp_map)}개사")
-            kr_rows = _collect_kr_financials(dart_api_key, corp_map, id_map, cur_map)
-        except Exception as e:
-            logger.error(f"DART 수집 실패: {e}")
-    else:
-        logger.warning("DART_API_KEY 없음 — 한국 기업 재무 수집 스킵")
-
+    kr_rows     = _collect_kr_financials(id_map, cur_map)
     global_rows = _collect_global_financials(id_map, cur_map)
-    all_rows = kr_rows + global_rows
+    all_rows    = kr_rows + global_rows
 
     if not all_rows:
         logger.warning("수집된 재무 데이터 없음")
