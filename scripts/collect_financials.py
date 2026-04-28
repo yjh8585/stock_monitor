@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
 21개사 분기·연간 재무제표를 수집해 financials 테이블에 upsert한다.
-- DART API: 한국 8개사 (최근 5년 연간 + 분기, DART_API_KEY 필수)
+- DART REST API 직접 호출: 한국 8개사 (fnlttSinglAcntAll, DART_API_KEY 필수)
 - yfinance: 글로벌 13개사 (최근 5년 분기·연간)
 단위: 원본 통화 기준 백만(MILLION) 단위로 정규화 후 저장.
 """
+import io
 import os
 import sys
 import time
+import zipfile
+import xml.etree.ElementTree as ET
 from calendar import monthrange
 from datetime import date
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import requests
 import yfinance as yf
 from dotenv import load_dotenv
 from loguru import logger
@@ -33,18 +37,20 @@ from lib.db import get_client, upsert_rows
 
 MILLION = 1_000_000
 HISTORY_YEARS = 5
-DART_DELAY = 0.5  # DART API 요청 간격 (초) — 초당 2회 제한 준수
+DART_DELAY = 0.5           # DART API 요청 간격 (초) — 초당 2회 제한 준수
+DART_TIMEOUT = 30          # HTTP 타임아웃 (초)
+DART_CORP_CODE_URL = 'https://opendart.fss.or.kr/api/corpCode.xml'
+DART_FINSTATE_URL  = 'https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json'
 
-# generated columns: DB가 자동 계산하므로 INSERT 페이로드에서 제외
+# DB generated columns — INSERT 페이로드에서 제외
 GENERATED_COLS = frozenset({'operating_margin', 'gross_margin', 'net_margin', 'debt_ratio'})
 
 # (reprt_code, period_type, fiscal_quarter)
-# H1/9M는 누적(cumulative) 분기 데이터로 저장
 DART_REPORTS: list[tuple[str, str, Optional[int]]] = [
-    ('11013', 'quarterly', 1),
-    ('11012', 'quarterly', 2),
-    ('11014', 'quarterly', 3),
-    ('11011', 'annual', None),
+    ('11013', 'quarterly', 1),   # 1분기보고서
+    ('11012', 'quarterly', 2),   # 반기보고서 (누적)
+    ('11014', 'quarterly', 3),   # 3분기보고서 (누적)
+    ('11011', 'annual',    None), # 사업보고서
 ]
 
 
@@ -75,39 +81,59 @@ def _load_company_maps() -> tuple[dict[str, str], dict[str, str]]:
     )
 
 
-def _get_dart_corp_map(dart) -> dict[str, str]:
-    """DART corp_codes에서 stock_code(6자리) → corp_code(8자리) 매핑을 반환한다."""
-    try:
-        df = dart.corp_codes
-    except Exception as e:
-        logger.error(f"DART corp_codes 로드 실패: {e}")
-        return {}
-    if df is None or df.empty:
-        return {}
+def _fetch_dart_corp_codes(api_key: str) -> dict[str, str]:
+    """DART corpCode.xml에서 stock_code(6자리) → corp_code(8자리) 매핑을 다운로드한다."""
+    r = requests.get(DART_CORP_CODE_URL, params={'crtfc_key': api_key}, timeout=DART_TIMEOUT)
+    r.raise_for_status()
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    xml_data = zf.read('CORPCODE.xml')
+    tree = ET.XML(xml_data)
     result: dict[str, str] = {}
-    for _, row in df.iterrows():
-        sc = str(row.get('stock_code') or '').strip().zfill(6)
-        cc = str(row.get('corp_code') or '').strip()
+    for item in tree.findall('list'):
+        sc = (item.findtext('stock_code') or '').strip().zfill(6)
+        cc = (item.findtext('corp_code') or '').strip()
         if sc and sc != '000000' and cc:
             result[sc] = cc
     return result
 
 
-def _extract_dart_values(dart, corp_code: str, year: int, reprt_code: str) -> dict[str, float]:
-    """DART finstate에서 DB 컬럼명 → 값(백만원) 딕셔너리를 추출한다."""
+def _fetch_dart_finstate(
+    api_key: str, corp_code: str, year: int, reprt_code: str
+) -> list[dict]:
+    """DART fnlttSinglAcntAll API로 단일회사 전체 재무제표(연결)를 가져온다."""
+    params = {
+        'crtfc_key': api_key,
+        'corp_code':  corp_code,
+        'bsns_year':  year,
+        'reprt_code': reprt_code,
+        'fs_div':     'CFS',  # 연결재무제표
+    }
     try:
-        df = dart.finstate(corp_code, year, reprt_code=reprt_code, fs_div='CFS')
+        r = requests.get(DART_FINSTATE_URL, params=params, timeout=DART_TIMEOUT)
+        r.raise_for_status()
+        jo = r.json()
+        if jo.get('status') != '000':
+            logger.debug(f"DART {corp_code}/{year}/{reprt_code}: status={jo.get('status')} {jo.get('message')}")
+            return []
+        return jo.get('list', [])
     except Exception as e:
         logger.debug(f"DART {corp_code}/{year}/{reprt_code}: {e}")
-        return {}
-    if df is None or df.empty:
+        return []
+
+
+def _extract_dart_values(
+    api_key: str, corp_code: str, year: int, reprt_code: str
+) -> dict[str, float]:
+    """DART API 응답에서 DB 컬럼명 → 값(백만원) 딕셔너리를 추출한다."""
+    items = _fetch_dart_finstate(api_key, corp_code, year, reprt_code)
+    if not items:
         return {}
 
     values: dict[str, float] = {}
     ca = cl = None
-    for _, row in df.iterrows():
-        nm = str(row.get('account_nm') or '').strip()
-        raw = _parse_dart_amount(row.get('thstrm_amount'))
+    for item in items:
+        nm = str(item.get('account_nm') or '').strip()
+        raw = _parse_dart_amount(item.get('thstrm_amount'))
         if raw is None:
             continue
         if nm in DART_TO_DB:
@@ -121,8 +147,8 @@ def _extract_dart_values(dart, corp_code: str, year: int, reprt_code: str) -> di
 
     if ca is not None and cl and cl != 0:
         values['current_ratio'] = round(ca / cl, 4)
-    ni = values.get('net_income')
-    eq = values.get('total_equity')
+    ni    = values.get('net_income')
+    eq    = values.get('total_equity')
     assets = values.get('total_assets')
     if ni is not None and eq and eq != 0:
         values['roe'] = round(ni / eq * 100, 4)
@@ -144,24 +170,24 @@ def _build_dart_row(
     month = month_map[fiscal_quarter]
     last_day = monthrange(year, month)[1]
     row: dict = {
-        'company_id': company_id,
-        'period_type': period_type,
-        'fiscal_year': year,
+        'company_id':    company_id,
+        'period_type':   period_type,
+        'fiscal_year':   year,
         'fiscal_quarter': fiscal_quarter,
         'period_end_date': date(year, month, last_day).isoformat(),
-        'currency': currency,
+        'currency':      currency,
     }
     row.update(values)
     return row
 
 
 def _collect_kr_financials(
-    dart,
+    api_key: str,
     corp_map: dict[str, str],
     id_map: dict[str, str],
     cur_map: dict[str, str],
 ) -> list[dict]:
-    """DART API로 한국 8개사 재무데이터를 수집한다."""
+    """DART REST API로 한국 8개사 재무데이터를 수집한다."""
     rows: list[dict] = []
     current_year = date.today().year
     years = range(current_year - HISTORY_YEARS, current_year + 1)
@@ -182,7 +208,7 @@ def _collect_kr_financials(
         for year in years:
             for reprt_code, period_type, fiscal_quarter in DART_REPORTS:
                 time.sleep(DART_DELAY)
-                values = _extract_dart_values(dart, corp_code, year, reprt_code)
+                values = _extract_dart_values(api_key, corp_code, year, reprt_code)
                 if not values:
                     continue
                 rows.append(_build_dart_row(company_id, currency, year, period_type, fiscal_quarter, values))
@@ -214,12 +240,12 @@ def _build_yf_row(
     """yfinance 재무 데이터 컬럼을 financials DB 행으로 변환한다."""
     fiscal_quarter = _month_to_quarter(period_end.month) if period_type == 'quarterly' else None
     row: dict = {
-        'company_id': company_id,
-        'period_type': period_type,
-        'fiscal_year': period_end.year,
+        'company_id':    company_id,
+        'period_type':   period_type,
+        'fiscal_year':   period_end.year,
         'fiscal_quarter': fiscal_quarter,
         'period_end_date': period_end.isoformat(),
-        'currency': currency,
+        'currency':      currency,
     }
     for yf_key, db_col in YF_INCOME_TO_DB.items():
         if db_col in GENERATED_COLS:
@@ -288,9 +314,11 @@ def _collect_global_financials(
         try:
             t = yf.Ticker(ticker)
             period_rows = _process_yf_frames(
-                t.quarterly_income_stmt, t.quarterly_balance_sheet, company_id, cur_map.get(ticker, 'USD'), 'quarterly'
+                t.quarterly_income_stmt, t.quarterly_balance_sheet,
+                company_id, cur_map.get(ticker, 'USD'), 'quarterly',
             ) + _process_yf_frames(
-                t.income_stmt, t.balance_sheet, company_id, cur_map.get(ticker, 'USD'), 'annual'
+                t.income_stmt, t.balance_sheet,
+                company_id, cur_map.get(ticker, 'USD'), 'annual',
             )
             rows.extend(period_rows)
             logger.info(f"글로벌 {ticker} ({company['name_kr']}): {len(period_rows)}개 기간 수집")
@@ -307,11 +335,10 @@ def collectFinancials() -> None:
     dart_api_key = os.environ.get('DART_API_KEY')
     if dart_api_key:
         try:
-            # import OpenDartReader 하면 모듈이 아닌 클래스가 직접 바인딩됨
-            import OpenDartReader
-            dart = OpenDartReader(dart_api_key)
-            corp_map = _get_dart_corp_map(dart)
-            kr_rows = _collect_kr_financials(dart, corp_map, id_map, cur_map)
+            logger.info("DART corp_code 목록 다운로드 중...")
+            corp_map = _fetch_dart_corp_codes(dart_api_key)
+            logger.info(f"DART corp_code 로드 완료: {len(corp_map)}개사")
+            kr_rows = _collect_kr_financials(dart_api_key, corp_map, id_map, cur_map)
         except Exception as e:
             logger.error(f"DART 수집 실패: {e}")
     else:
