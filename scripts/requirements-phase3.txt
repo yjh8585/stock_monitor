@@ -1,0 +1,5 @@
+# Phase 3 재무 수집 전용 (DART API + FinanceDataReader)
+# finance-datareader는 Ubuntu GitHub Actions에서는 정상 빌드됨 (Windows에서는 Visual C++ Build Tools 필요)
+-r requirements.txt
+OpenDartReader>=0.2.2
+finance-datareader>=0.9.60

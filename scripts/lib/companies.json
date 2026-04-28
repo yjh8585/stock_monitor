@@ -1,0 +1,23 @@
+[
+  {"ticker": "005380", "name": "Hyundai Motor", "name_kr": "현대차", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "000270", "name": "Kia", "name_kr": "기아", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "012330", "name": "Hyundai Mobis", "name_kr": "현대모비스", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "011210", "name": "Hyundai WIA", "name_kr": "현대위아", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "018880", "name": "Hanon Systems", "name_kr": "한온시스템", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "204320", "name": "HL Mando", "name_kr": "HL만도", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "003620", "name": "KGM (KG Mobility)", "name_kr": "KGM(KG모빌리티)", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "010100", "name": "Korea Movenex", "name_kr": "한국무브넥스", "market": "KOSPI", "country": "KR", "currency": "KRW", "data_source": "pykrx+dart", "status": "active", "is_seed": true},
+  {"ticker": "GM", "name": "General Motors", "name_kr": "GM", "market": "NYSE", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "F", "name": "Ford Motor", "name_kr": "포드", "market": "NYSE", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "RIVN", "name": "Rivian Automotive", "name_kr": "리비안", "market": "NASDAQ", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "VFS", "name": "VinFast Auto", "name_kr": "빈패스트", "market": "NASDAQ", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "AXL", "name": "AAM (American Axle)", "name_kr": "AAM", "market": "NYSE", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "PII", "name": "Polaris Inc.", "name_kr": "폴라리스", "market": "NYSE", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "STLA", "name": "Stellantis", "name_kr": "스텔란티스", "market": "NYSE", "country": "US", "currency": "USD", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "VOW3.DE", "name": "Volkswagen AG", "name_kr": "폭스바겐", "market": "XETRA", "country": "DE", "currency": "EUR", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "DWL.L", "name": "Dowlais Group", "name_kr": "다우레이스", "market": "LSE", "country": "GB", "currency": "GBP", "data_source": "yfinance", "status": "delisted", "is_seed": true},
+  {"ticker": "BMW.DE", "name": "BMW AG", "name_kr": "BMW", "market": "XETRA", "country": "DE", "currency": "EUR", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "MBG.DE", "name": "Mercedes-Benz Group", "name_kr": "메르세데스-벤츠", "market": "XETRA", "country": "DE", "currency": "EUR", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "6473.T", "name": "JTEKT Corporation", "name_kr": "JTEKT", "market": "TSE", "country": "JP", "currency": "JPY", "data_source": "yfinance", "status": "active", "is_seed": true},
+  {"ticker": "1316.HK", "name": "Nexteer Automotive", "name_kr": "넥스티어", "market": "HKEX", "country": "HK", "currency": "HKD", "data_source": "yfinance", "status": "active", "is_seed": true}
+]

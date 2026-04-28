@@ -21,32 +21,32 @@
 
 ---
 
-## Phase 1 — DB 스키마 + Python 수집 인프라
+## Phase 1 — DB 스키마 + Python 수집 인프라 ✅ 완료
 
 **목표**: Supabase DB 구조 설계 및 Python 데이터 수집 기반 마련
 
-- [ ] Supabase 마이그레이션 — 7개 테이블 생성
-  - `companies`, `stock_prices`, `stock_prices_live`
-  - `fx_rates`, `fx_rates_live`, `financials`, `news`
-- [ ] 21개사 시드 데이터 (`companies.json` → DB upsert)
-- [ ] Python 가상환경 설정 (`scripts/venv`) + `requirements.txt`
-- [ ] `scripts/lib/db.py` — Supabase Python 클라이언트 공통 모듈
-- [ ] `scripts/lib/accounts_map.py` — 재무 계정과목 매핑 상수
-- [ ] `scripts/lib/fx.py` — 환율 변환 공통 유틸리티
+- [x] Supabase 마이그레이션 — 7개 테이블 생성
+  - `companies`, `stock_prices`, `financials`, `news`, `watchlist`
+  - `exchange_rates`, `exchange_rates_live`, `companies_with_latest` 뷰
+- [x] 21개사 시드 데이터 (`companies.json` → DB upsert)
+- [x] Python 가상환경 설정 (`scripts/venv`) + `requirements.txt`
+- [x] `scripts/lib/db.py` — PostgREST Python 클라이언트 공통 모듈
+- [x] `scripts/lib/accounts_map.py` — 재무 계정과목 매핑 상수
+- [x] `scripts/lib/fx.py` — 환율 변환 공통 유틸리티
 
 ---
 
-## Phase 2 — 주가·환율 수집 (일봉 + 시간별)
+## Phase 2 — 주가·환율 수집 (일봉 + 시간별) ✅ 완료
 
 **목표**: 자동 시세 수집 파이프라인 구축
 
-- [ ] `scripts/collect_prices.py`
+- [x] `scripts/collect_prices.py`
   - pykrx: 한국 8개사 5년 일봉
   - yfinance: 글로벌 13개사 5년 일봉
-- [ ] `scripts/collect_prices_live.py` — 1시간 간격 현재가 수집
-- [ ] `scripts/collect_fx.py` — 6개 환율 쌍 5년 일봉
-- [ ] `scripts/collect_fx_live.py` — 6개 환율 현재값 수집
-- [ ] GitHub Actions 워크플로우 4개
+- [x] `scripts/collect_prices_live.py` — 1시간 간격 현재가 수집
+- [x] `scripts/collect_fx.py` — 6개 환율 쌍 5년 일봉
+- [x] `scripts/collect_fx_live.py` — 6개 환율 현재값 수집
+- [x] GitHub Actions 워크플로우 4개
   - `collect-prices.yml` (매일 06:00 KST)
   - `collect-prices-live.yml` (매시간)
   - `collect-fx.yml` (매일 06:00 KST)
@@ -54,15 +54,18 @@
 
 ---
 
-## Phase 3 — 분기·연간 실적
+## Phase 3 — 분기·연간 실적 ✅ 완료
 
 **목표**: 재무제표 자동 수집 파이프라인 구축
 
-- [ ] `scripts/collect_financials.py`
-  - DART API: 한국 8개사 분기/연간 재무제표
-  - yfinance: 글로벌 13개사 분기/연간 실적
-  - 16개 계정과목 수집 (매출, 영업이익, 순이익 등)
-- [ ] GitHub Actions: `collect-financials.yml` (분기별 자동 실행)
+- [x] `scripts/collect_financials.py`
+  - DART API: 한국 8개사 분기/연간 재무제표 (DART_API_KEY 필요, GitHub Actions Ubuntu에서 실행)
+  - yfinance: 글로벌 13개사 분기/연간 실적 (95행 수집 확인)
+  - 13개 계정과목 수집 (매출, 영업이익, 순이익, 자산, 부채, 자본 등)
+  - ROE, ROA, 유동비율 계산 후 저장
+- [x] `supabase/migrations/20260428000008_financials_nulls_not_distinct.sql`
+  - UNIQUE NULLS NOT DISTINCT — 연간(fiscal_quarter=NULL) upsert 충돌 감지
+- [x] GitHub Actions: `collect-financials.yml` (1/4/7/10월 15일 분기별 자동 실행)
 
 ---
 
