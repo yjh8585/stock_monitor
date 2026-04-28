@@ -307,9 +307,9 @@ def collectFinancials() -> None:
     dart_api_key = os.environ.get('DART_API_KEY')
     if dart_api_key:
         try:
-            # OpenDartReader >= 0.2.2: import 시 패키지가 클래스로 직접 바인딩됨
-            from OpenDartReader import OpenDartReader as _ODR
-            dart = _ODR(dart_api_key)
+            # import OpenDartReader 하면 모듈이 아닌 클래스가 직접 바인딩됨
+            import OpenDartReader
+            dart = OpenDartReader(dart_api_key)
             corp_map = _get_dart_corp_map(dart)
             kr_rows = _collect_kr_financials(dart, corp_map, id_map, cur_map)
         except Exception as e:
