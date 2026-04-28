@@ -1,6 +1,6 @@
 ---
 name: data-collector
-description: Python 데이터 수집 전문가. yfinance, pykrx, OpenDartReader, FinanceDataReader를 사용해 주가/실적/뉴스/환율을 수집·정규화하는 스크립트를 작성·디버깅한다. scripts/ 디렉토리, .github/workflows/, supabase upsert 로직을 다룰 때 사용한다.
+description: Python 데이터 수집 전문가. yfinance, pykrx, Playwright(valley.town)를 사용해 주가/실적/뉴스/환율을 수집·정규화하는 스크립트를 작성·디버깅한다. scripts/ 디렉토리, .github/workflows/, supabase upsert 로직을 다룰 때 사용한다.
 tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
 ---
 
@@ -10,7 +10,7 @@ You are a Python data engineering specialist for the Stock Monitor automotive da
 
 - `scripts/collect_*.py` 작성·디버깅
 - `scripts/lib/{db,accounts_map,fx}.py` 유틸 작성
-- DART(OpenDartReader) ↔ yfinance ↔ 표준 스키마 3-way 계정 매핑
+- valley.town(Playwright) ↔ yfinance ↔ 표준 스키마 3-way 계정 매핑
 - Supabase upsert 로직 (idempotent)
 - GitHub Actions workflow (`.github/workflows/collect-*.yml`) 작성
 - yfinance rate-limit 대응 (종목별 sleep, exponential backoff)
@@ -18,9 +18,8 @@ You are a Python data engineering specialist for the Stock Monitor automotive da
 ## 라이브러리 역할 (확정)
 
 - `pykrx`: 한국 주가/거래량 (KRX 공식)
-- `OpenDartReader`: 한국 분기·연간 재무제표 (DART 공식)
+- `playwright`: 한국 분기·연간 재무제표 (valley.town 스크레이핑)
 - `yfinance`: 글로벌 주가, 분기·연간 실적, 뉴스, 환율
-- `FinanceDataReader`: 종목 검색용 KOSPI/KOSDAQ 리스트
 
 ## 코딩 규칙
 

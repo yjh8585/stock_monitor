@@ -20,13 +20,14 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 ---
 
-## 2. DART API 키 발급
+## 2. valley.town 계정 설정
 
-1. [https://opendart.fss.or.kr/](https://opendart.fss.or.kr/) 접속 → 회원가입 → API 키 발급
+1. [https://www.valley.town](https://www.valley.town) 접속 → 회원가입
 2. `.env.local`에 추가:
 
 ```env
-DART_API_KEY=your-dart-api-key
+VALLEY_EMAIL=your@email.com
+VALLEY_PASSWORD=yourpassword
 ```
 
 ---
@@ -48,7 +49,8 @@ git push -u origin master
 | --------------------------- | ------------------------- |
 | `SUPABASE_URL`              | Supabase 프로젝트 URL     |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key |
-| `DART_API_KEY`              | DART Open API 키          |
+| `VALLEY_EMAIL`              | valley.town 로그인 이메일 |
+| `VALLEY_PASSWORD`           | valley.town 로그인 비밀번호 |
 
 ---
 
@@ -95,5 +97,6 @@ pip install -r requirements.txt
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-DART_API_KEY=your-dart-api-key
+VALLEY_EMAIL=your@email.com
+VALLEY_PASSWORD=yourpassword
 ```

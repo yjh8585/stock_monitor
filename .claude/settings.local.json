@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__list_tables",
+      "PowerShell(py *)",
+      "mcp__supabase__execute_sql",
+      "mcp__github__get_file_contents"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase",
+    "github",
+    "shrimp-task-manager"
+  ]
+}

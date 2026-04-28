@@ -59,7 +59,7 @@
 **목표**: 재무제표 자동 수집 파이프라인 구축
 
 - [x] `scripts/collect_financials.py`
-  - DART API: 한국 8개사 분기/연간 재무제표 (DART_API_KEY 필요, GitHub Actions Ubuntu에서 실행)
+  - valley.town Playwright: 한국 8개사 연결 재무제표 (VALLEY_EMAIL/PASSWORD 필요)
   - yfinance: 글로벌 13개사 분기/연간 실적 (95행 수집 확인)
   - 13개 계정과목 수집 (매출, 영업이익, 순이익, 자산, 부채, 자본 등)
   - ROE, ROA, 유동비율 계산 후 저장

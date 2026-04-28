@@ -1,4 +1,3 @@
-# Phase 3 재무 수집 전용
-# DART/OpenDartReader 제거 — valley.town Playwright + yfinance로 교체
+# Phase 3 재무 수집 전용 — valley.town Playwright + yfinance
 -r requirements.txt
 playwright>=1.44.0
