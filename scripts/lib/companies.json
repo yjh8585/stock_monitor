@@ -229,5 +229,27 @@
     "data_source": "yfinance",
     "status": "active",
     "is_seed": true
+  },
+  {
+    "ticker": "6472.T",
+    "name": "NTN Corporation",
+    "name_kr": "NTN",
+    "market": "TSE",
+    "country": "JP",
+    "currency": "JPY",
+    "data_source": "yfinance",
+    "status": "active",
+    "is_seed": true
+  },
+  {
+    "ticker": "남양넥스모",
+    "name": "Namyang Nexmo",
+    "name_kr": "남양넥스모",
+    "market": null,
+    "country": "KR",
+    "currency": "KRW",
+    "data_source": "dart",
+    "status": "active",
+    "is_seed": true
   }
 ]
