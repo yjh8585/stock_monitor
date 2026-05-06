@@ -43,6 +43,7 @@ export interface RelatedStockRow {
   market_cap: number | null;
   business_summary: string | null;
   summary_updated_at: string | null;
+  homepage_url: string | null;
   fx_to_krw: number | null;
   financials_by_year: Record<string, FinancialYear> | null;
 }

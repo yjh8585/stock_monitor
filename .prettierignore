@@ -1,3 +1,6 @@
+# Claude Code 로컬 설정
+.claude/
+
 # 외부 서브모듈
 mcp-shrimp-task-manager/
 

@@ -22,9 +22,16 @@ interface StockRowProps {
   row: RelatedStockRow;
 }
 
-/** 회사명 클릭: KR 상장사 → 내부 팝업, 해외 → Yahoo Finance 새창, 비상장(market=null) → 없음 */
-function openPopup(row: RelatedStockRow) {
-  if (!row.market) return;
+/** 회사명 클릭 동작 결정:
+ * - KR 상장사 → 내부 팝업
+ * - 해외 상장사 → Yahoo Finance 새창
+ * - 비상장(market=null) + homepage_url → 홈페이지 새창
+ * - 비상장 + homepage_url 없음 → 클릭 불가 */
+function openCompanyLink(row: RelatedStockRow) {
+  if (!row.market) {
+    if (row.homepage_url) window.open(row.homepage_url, '_blank');
+    return;
+  }
   if (row.country === 'KR') {
     window.open(
       `/stock-popup/${row.id}`,
@@ -101,13 +108,15 @@ const StockRow = memo(function StockRow({ row }: StockRowProps) {
         <td className={TD} style={frozenStyle(1, frozenBg)}>
           <div className="flex items-center gap-0.5">
             <button
-              onClick={() => openPopup(row)}
+              onClick={() => openCompanyLink(row)}
               className={`font-medium text-left truncate ${
                 row.status === 'delisted'
                   ? 'line-through text-muted-foreground cursor-default'
                   : row.market
                     ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer'
-                    : 'cursor-default'
+                    : row.homepage_url
+                      ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer'
+                      : 'cursor-default'
               }`}
             >
               {row.name_kr}

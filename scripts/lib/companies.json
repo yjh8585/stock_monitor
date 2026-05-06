@@ -132,14 +132,14 @@
     "is_seed": true
   },
   {
-    "ticker": "AXL",
-    "name": "AAM (American Axle)",
-    "name_kr": "AAM",
+    "ticker": "DCH",
+    "name": "DAUCH",
+    "name_kr": "DAUCH",
     "market": "NYSE",
     "country": "US",
     "currency": "USD",
     "data_source": "yfinance",
-    "status": "delisted",
+    "status": "active",
     "is_seed": true
   },
   {
@@ -173,17 +173,6 @@
     "currency": "EUR",
     "data_source": "yfinance",
     "status": "active",
-    "is_seed": true
-  },
-  {
-    "ticker": "DWL.L",
-    "name": "Dowlais Group",
-    "name_kr": "다우레이스",
-    "market": "LSE",
-    "country": "GB",
-    "currency": "GBP",
-    "data_source": "yfinance",
-    "status": "delisted",
     "is_seed": true
   },
   {
