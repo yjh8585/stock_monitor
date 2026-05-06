@@ -26,10 +26,10 @@ export interface CustomerItem {
 /** related_stocks_view 한 행 */
 export interface RelatedStockRow {
   id: string;
-  ticker: string;
+  ticker: string | null;
   name: string;
   name_kr: string;
-  market: string;
+  market: string | null;
   country: string;
   currency: string;
   status: string;

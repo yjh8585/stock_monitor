@@ -22,9 +22,18 @@ interface StockRowProps {
   row: RelatedStockRow;
 }
 
-/** 주식 상세 팝업 창 열기 (3/4 주식 페이지 + 1/4 뉴스) */
-function openPopup(id: string) {
-  window.open(`/stock-popup/${id}`, '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes');
+/** 회사명 클릭: KR 상장사 → 내부 팝업, 해외 → Yahoo Finance 새창, 비상장(market=null) → 없음 */
+function openPopup(row: RelatedStockRow) {
+  if (!row.market) return;
+  if (row.country === 'KR') {
+    window.open(
+      `/stock-popup/${row.id}`,
+      '_blank',
+      'width=1400,height=900,scrollbars=yes,resizable=yes'
+    );
+  } else {
+    window.open(`https://finance.yahoo.com/quote/${row.ticker ?? ''}`, '_blank');
+  }
 }
 
 const TD = 'px-2 py-1.5 whitespace-nowrap overflow-hidden text-ellipsis';
@@ -92,11 +101,11 @@ const StockRow = memo(function StockRow({ row }: StockRowProps) {
         <td className={TD} style={frozenStyle(1, frozenBg)}>
           <div className="flex items-center gap-0.5">
             <button
-              onClick={() => row.status !== 'unlisted' && openPopup(row.id)}
+              onClick={() => openPopup(row)}
               className={`font-medium text-left truncate ${
                 row.status === 'delisted'
-                  ? 'line-through text-muted-foreground'
-                  : row.status === 'active'
+                  ? 'line-through text-muted-foreground cursor-default'
+                  : row.market
                     ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer'
                     : 'cursor-default'
               }`}
