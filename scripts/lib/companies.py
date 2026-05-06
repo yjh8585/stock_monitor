@@ -30,8 +30,8 @@ def get_active_companies() -> list[CompanyInfo]:
 
 
 def get_kr_companies() -> list[CompanyInfo]:
-  """한국 기업(pykrx+dart 소스)만 반환한다."""
-  return [c for c in load_companies() if c['data_source'] == 'pykrx+dart']
+  """한국 기업(fnguide 소스)만 반환한다."""
+  return [c for c in load_companies() if c['data_source'] == 'fnguide']
 
 
 def get_global_companies() -> list[CompanyInfo]:

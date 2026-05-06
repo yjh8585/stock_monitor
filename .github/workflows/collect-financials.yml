@@ -5,7 +5,7 @@ on:
     # KST 1/4/7/10월 15일 06:00 (UTC 14일 21:00)
     # DART 보고서 제출 기한(Q1=5/15, H1=8/14, Q3=11/14, Annual=3/31) 이후
     - cron: '0 21 14 1,4,7,10 *'
-  workflow_dispatch:  # 수동 실행 허용
+  workflow_dispatch: # 수동 실행 허용
 
 jobs:
   collect:

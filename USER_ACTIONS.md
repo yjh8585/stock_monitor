@@ -45,11 +45,11 @@ git push -u origin master
 
 저장소 > Settings > Secrets and variables > Actions에 다음 시크릿 추가:
 
-| 시크릿 이름                 | 값                        |
-| --------------------------- | ------------------------- |
-| `SUPABASE_URL`              | Supabase 프로젝트 URL     |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key |
-| `VALLEY_EMAIL`              | valley.town 로그인 이메일 |
+| 시크릿 이름                 | 값                          |
+| --------------------------- | --------------------------- |
+| `SUPABASE_URL`              | Supabase 프로젝트 URL       |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key   |
+| `VALLEY_EMAIL`              | valley.town 로그인 이메일   |
 | `VALLEY_PASSWORD`           | valley.town 로그인 비밀번호 |
 
 ---

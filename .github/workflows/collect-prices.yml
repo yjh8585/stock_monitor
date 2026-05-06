@@ -2,8 +2,8 @@ name: 주가 히스토리 수집 (일봉)
 
 on:
   schedule:
-    - cron: '0 21 * * *'  # KST 06:00 (UTC 21:00 전일)
-  workflow_dispatch:       # 수동 실행 허용
+    - cron: '0 21 * * *' # KST 06:00 (UTC 21:00 전일)
+  workflow_dispatch: # 수동 실행 허용
 
 jobs:
   collect:

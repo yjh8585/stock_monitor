@@ -2,7 +2,7 @@ name: 환율 히스토리 수집 (일봉)
 
 on:
   schedule:
-    - cron: '0 21 * * *'  # KST 06:00 (UTC 21:00 전일)
+    - cron: '0 21 * * *' # KST 06:00 (UTC 21:00 전일)
   workflow_dispatch:
 
 jobs:

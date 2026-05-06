@@ -2,7 +2,7 @@ name: 주가 현재가 수집 (실시간)
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 매시간 정각
+    - cron: '0 * * * *' # 매시간 정각
   workflow_dispatch:
 
 jobs:
