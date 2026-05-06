@@ -4,6 +4,7 @@
 - KR 8개사: pykrx
 - 글로벌 13개사: yfinance (active 종목만)
 """
+import math
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -20,6 +21,15 @@ from lib.companies import get_global_companies, get_kr_companies
 from lib.db import get_client, upsert_rows
 
 HISTORY_YEARS = 5
+
+
+def _sf(v) -> float | None:
+  """float 변환 + NaN/Inf 방어."""
+  try:
+    f = float(v)
+    return None if (math.isnan(f) or math.isinf(f)) else f
+  except (TypeError, ValueError):
+    return None
 
 
 def _load_company_id_map() -> dict[str, str]:
@@ -91,18 +101,18 @@ def _collect_global_prices(company_id_map: dict[str, str], start: str, end: str)
         continue
 
       for dt, row in hist.iterrows():
-        close_val = row.get('Close')
+        close_val = _sf(row.get('Close'))
         if close_val is None:
           continue
         rows.append({
           'company_id': company_id,
           'trade_date': dt.date().isoformat() if hasattr(dt, 'date') else str(dt),
-          'open': float(row.get('Open')) if row.get('Open') is not None else None,
-          'high': float(row.get('High')) if row.get('High') is not None else None,
-          'low': float(row.get('Low')) if row.get('Low') is not None else None,
-          'close': float(close_val),
-          'adj_close': float(close_val),  # yfinance auto_adjust=True → 이미 수정주가
-          'volume': int(row.get('Volume')) if row.get('Volume') is not None else None,
+          'open': _sf(row.get('Open')),
+          'high': _sf(row.get('High')),
+          'low': _sf(row.get('Low')),
+          'close': close_val,
+          'adj_close': close_val,  # yfinance auto_adjust=True → 이미 수정주가
+          'volume': int(row.get('Volume')) if row.get('Volume') is not None and not math.isnan(float(row.get('Volume', 0))) else None,
         })
       logger.info(f"글로벌 {ticker} ({company['name_kr']}): {len(hist)}행 수집")
     except Exception as e:

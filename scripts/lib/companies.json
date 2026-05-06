@@ -139,7 +139,7 @@
     "country": "US",
     "currency": "USD",
     "data_source": "yfinance",
-    "status": "active",
+    "status": "delisted",
     "is_seed": true
   },
   {
