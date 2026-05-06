@@ -11,11 +11,54 @@ interface NewsItem {
   published_at: string;
 }
 
-function getExternalUrl(ticker: string, country: string): string {
-  if (country === 'KR') {
-    return `https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A${ticker}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701`;
+function getFnguideUrl(ticker: string): string {
+  return `https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A${ticker}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701`;
+}
+
+/** 거래소(market) → TradingView 심볼 변환 후 widgetembed URL 반환 */
+function getTradingViewUrl(ticker: string, market: string): string {
+  const t = ticker.toUpperCase();
+  let symbol: string;
+  switch (market.toUpperCase()) {
+    case 'KOSPI':
+    case 'KOSDAQ':
+      symbol = `KRX:${t}`;
+      break;
+    case 'XETRA':
+      symbol = `XETR:${t.replace(/\.DE$/i, '')}`;
+      break;
+    case 'TSE':
+      symbol = `TSE:${t.replace(/\.T$/i, '')}`;
+      break;
+    case 'HKEX':
+      symbol = `HKEX:${t.replace(/\.HK$/i, '')}`;
+      break;
+    case 'LSE':
+      symbol = `LSE:${t.replace(/\.L$/i, '')}`;
+      break;
+    case 'NYSE':
+      symbol = `NYSE:${t}`;
+      break;
+    case 'NASDAQ':
+      symbol = `NASDAQ:${t}`;
+      break;
+    default:
+      symbol = t;
   }
-  return `https://finance.yahoo.com/quote/${ticker}`;
+  const params = new URLSearchParams({
+    symbol,
+    interval: 'D',
+    hidesidetoolbar: '0',
+    hidetoptoolbar: '0',
+    symboledit: '1',
+    saveimage: '1',
+    toolbarbg: 'f1f3f6',
+    studies: '[]',
+    hidevolume: '0',
+    theme: 'light',
+    locale: 'ko',
+  });
+  return `https://www.tradingview.com/widgetembed/?${params.toString()}`;
 }
 
 export default async function StockPopupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +67,7 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
 
   const { data: company, error } = await supabase
     .from('companies')
-    .select('id, ticker, name_kr, country')
+    .select('id, ticker, name_kr, country, market')
     .eq('id', id)
     .single();
 
@@ -38,7 +81,12 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
     .limit(10);
 
   const news = (newsData ?? []) as NewsItem[];
-  const externalUrl = getExternalUrl(company.ticker as string, company.country as string);
+  const ticker = company.ticker as string;
+  const market = (company.market as string) ?? 'NYSE';
+  const isKR = company.country === 'KR';
+
+  const iframeUrl = isKR ? getFnguideUrl(ticker) : getTradingViewUrl(ticker, market);
+  const externalUrl = isKR ? getFnguideUrl(ticker) : `https://finance.yahoo.com/quote/${ticker}`;
 
   return (
     <div className="flex h-full overflow-hidden bg-background">
@@ -46,7 +94,7 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
       <div className="flex flex-col border-r border-border" style={{ width: '75%' }}>
         <header className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0 bg-muted/40">
           <span className="font-semibold text-sm">{company.name_kr as string}</span>
-          <span className="text-xs text-muted-foreground">{company.ticker as string}</span>
+          <span className="text-xs text-muted-foreground">{ticker}</span>
           <a
             href={externalUrl}
             target="_blank"
@@ -58,7 +106,7 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
           </a>
         </header>
         <div className="flex-1 overflow-hidden">
-          <IframePanel src={externalUrl} title={company.name_kr as string} />
+          <IframePanel src={iframeUrl} title={company.name_kr as string} />
         </div>
       </div>
 

@@ -92,9 +92,13 @@ const StockRow = memo(function StockRow({ row }: StockRowProps) {
         <td className={TD} style={frozenStyle(1, frozenBg)}>
           <div className="flex items-center gap-0.5">
             <button
-              onClick={() => openPopup(row.id)}
-              className={`font-medium hover:underline text-left truncate ${
-                row.status === 'delisted' ? 'line-through text-muted-foreground' : ''
+              onClick={() => row.status !== 'unlisted' && openPopup(row.id)}
+              className={`font-medium text-left truncate ${
+                row.status === 'delisted'
+                  ? 'line-through text-muted-foreground'
+                  : row.status === 'active'
+                    ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer'
+                    : 'cursor-default'
               }`}
             >
               {row.name_kr}
