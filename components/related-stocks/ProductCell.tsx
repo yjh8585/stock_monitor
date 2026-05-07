@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { ProductItem } from '@/lib/types';
 
@@ -8,7 +9,7 @@ interface ProductCellProps {
 }
 
 /** 제품 셀: 주요 제품 목록 + ▼ 펼침 버튼 */
-export default function ProductCell({ products, expanded, onToggle }: ProductCellProps) {
+const ProductCell = memo(function ProductCell({ products, expanded, onToggle }: ProductCellProps) {
   const label = products.map((p) => p.name).join(', ');
 
   return (
@@ -25,4 +26,6 @@ export default function ProductCell({ products, expanded, onToggle }: ProductCel
       </button>
     </div>
   );
-}
+});
+
+export default ProductCell;

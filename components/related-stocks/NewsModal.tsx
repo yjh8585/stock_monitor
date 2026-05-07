@@ -10,25 +10,22 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-
-interface NewsItem {
-  id: string;
-  title: string;
-  url: string;
-  source: string | null;
-  published_at: string;
-}
+import { NewsItem } from '@/lib/types';
 
 interface NewsModalProps {
   companyId: string;
   companyName: string;
+  ticker?: string | null;
+  country?: string;
 }
 
 /** 종목 뉴스 Dialog */
-export default function NewsModal({ companyId, companyName }: NewsModalProps) {
+export default function NewsModal({ companyId, companyName, ticker, country }: NewsModalProps) {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [opened, setOpened] = useState(false);
+
+  const isKR = country === 'KR';
 
   const loadNews = async () => {
     if (opened) return;
@@ -40,7 +37,7 @@ export default function NewsModal({ companyId, companyName }: NewsModalProps) {
       .select('id, title, url, source, published_at')
       .eq('company_id', companyId)
       .order('published_at', { ascending: false })
-      .limit(5);
+      .limit(10);
     setNews((data as NewsItem[]) ?? []);
     setLoading(false);
   };
@@ -61,9 +58,19 @@ export default function NewsModal({ companyId, companyName }: NewsModalProps) {
         {loading ? (
           <p className="text-xs text-muted-foreground py-4 text-center">로딩 중…</p>
         ) : news.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">
-            수집된 뉴스가 없습니다. (수집 예정)
-          </p>
+          <div className="py-4">
+            <p className="text-xs text-muted-foreground text-center">수집된 뉴스가 없습니다.</p>
+            {isKR && ticker && (
+              <a
+                href={`https://finance.naver.com/item/news_news.naver?code=${ticker}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline block text-center mt-2"
+              >
+                네이버 금융에서 뉴스 보기 ↗
+              </a>
+            )}
+          </div>
         ) : (
           <ul className="space-y-2">
             {news.map((n) => (

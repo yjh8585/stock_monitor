@@ -2,7 +2,8 @@ name: 환율 현재값 수집 (실시간)
 
 on:
   schedule:
-    - cron: '0 * * * *' # 매시간 정각
+    # 환율은 24/5 거래(주말 휴장) — 평일만 매시간 실행 (연 ~6,260회)
+    - cron: '0 * * * 1-5'
   workflow_dispatch:
 
 jobs:

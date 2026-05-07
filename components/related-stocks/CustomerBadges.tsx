@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { CustomerItem } from '@/lib/types';
 import { CUSTOMER_LOGOS } from '@/lib/customerLogos';
 
@@ -46,7 +46,7 @@ interface CustomerBadgesProps {
 }
 
 /** 고객사 로고 목록 (부품사 행에서만 표시) */
-export default function CustomerBadges({ customers }: CustomerBadgesProps) {
+const CustomerBadges = memo(function CustomerBadges({ customers }: CustomerBadgesProps) {
   if (!customers || customers.length === 0) {
     return <span className="text-muted-foreground">—</span>;
   }
@@ -58,4 +58,6 @@ export default function CustomerBadges({ customers }: CustomerBadgesProps) {
       ))}
     </div>
   );
-}
+});
+
+export default CustomerBadges;

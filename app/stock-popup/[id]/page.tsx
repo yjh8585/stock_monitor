@@ -2,14 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { ExternalLink } from 'lucide-react';
 import IframePanel from '@/components/stock-popup/IframePanel';
-
-interface NewsItem {
-  id: string;
-  title: string;
-  url: string;
-  source: string | null;
-  published_at: string;
-}
+import { NewsItem } from '@/lib/types';
 
 function getFnguideUrl(ticker: string): string {
   return `https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A${ticker}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701`;
@@ -117,9 +110,9 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
         </header>
         <div className="flex-1 overflow-y-auto">
           {news.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground">
-              수집된 뉴스가 없습니다. (수집 예정)
-            </p>
+            <div className="px-3 py-4">
+              <p className="text-xs text-muted-foreground">수집된 뉴스가 없습니다.</p>
+            </div>
           ) : (
             <ul className="divide-y divide-border">
               {news.map((item) => (

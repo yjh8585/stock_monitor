@@ -1,65 +1,83 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
-import { X } from 'lucide-react';
+import { ExchangeRates } from '@/lib/types';
+import ToggleFilterBar, { ToggleFilterGroup } from '@/components/common/ToggleFilterBar';
 
 export type CompanyTypeFilter = 'OEM' | '부품사';
+export type ListingFilter = '상장' | '비상장';
+export type RegionFilter = '국내' | '해외';
 
 interface FilterBarProps {
   typeFilter: CompanyTypeFilter[];
+  listingFilter: ListingFilter[];
+  regionFilter: RegionFilter[];
   productQuery: string;
   onTypeToggle: (type: CompanyTypeFilter) => void;
+  onListingToggle: (type: ListingFilter) => void;
+  onRegionToggle: (type: RegionFilter) => void;
   onProductChange: (q: string) => void;
+  rates: ExchangeRates;
 }
 
-const TYPE_OPTIONS: CompanyTypeFilter[] = ['OEM', '부품사'];
+const TYPE_OPTIONS: readonly CompanyTypeFilter[] = ['OEM', '부품사'];
+const LISTING_OPTIONS: readonly ListingFilter[] = ['상장', '비상장'];
+const REGION_OPTIONS: readonly RegionFilter[] = ['국내', '해외'];
 
-/** 구분(OEM/부품사) 멀티토글 + 제품 텍스트 검색 필터 바 */
+/** 환율 안내 문자열 — 통화별 누락 시 해당 항목 생략 */
+function formatRateLabel(rates: ExchangeRates): string {
+  const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
+  const parts: string[] = [];
+  if (rates.USD != null) parts.push(`${fmt(rates.USD)}원/달러`);
+  if (rates.EUR != null) parts.push(`${fmt(rates.EUR)}원/유로`);
+  if (rates.CNY != null) parts.push(`${fmt(rates.CNY)}원/위안`);
+  return parts.join(', ');
+}
+
+/** 관련회사 페이지 전용 필터 바 — ToggleFilterBar 위에 페이지 고유 환율 슬롯을 얹는다. */
 export default function FilterBar({
   typeFilter,
+  listingFilter,
+  regionFilter,
   productQuery,
   onTypeToggle,
+  onListingToggle,
+  onRegionToggle,
   onProductChange,
+  rates,
 }: FilterBarProps) {
+  const rateLabel = formatRateLabel(rates);
+
+  const groups: ToggleFilterGroup[] = [
+    {
+      label: '구분',
+      options: TYPE_OPTIONS,
+      selected: typeFilter,
+      onToggle: (v) => onTypeToggle(v as CompanyTypeFilter),
+    },
+    {
+      label: '상장',
+      options: LISTING_OPTIONS,
+      selected: listingFilter,
+      onToggle: (v) => onListingToggle(v as ListingFilter),
+    },
+    {
+      label: '지역',
+      options: REGION_OPTIONS,
+      selected: regionFilter,
+      onToggle: (v) => onRegionToggle(v as RegionFilter),
+    },
+  ];
+
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/20 flex-wrap">
-      <span className="text-xs font-medium text-muted-foreground shrink-0">구분</span>
-      {TYPE_OPTIONS.map((type) => {
-        const active = typeFilter.includes(type);
-        return (
-          <button
-            key={type}
-            onClick={() => onTypeToggle(type)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              active
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border text-muted-foreground hover:border-primary/50'
-            }`}
-          >
-            {type}
-          </button>
-        );
-      })}
-      <span className="text-xs font-medium text-muted-foreground shrink-0 ml-3">제품</span>
-      <div className="relative">
-        <Input
-          value={productQuery}
-          onChange={(e) => onProductChange(e.target.value)}
-          placeholder="제품 검색…"
-          className="h-7 w-36 text-xs pr-6"
-        />
-        {productQuery && (
-          <button
-            onClick={() => onProductChange('')}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X size={12} />
-          </button>
-        )}
-      </div>
-      <span className="ml-auto text-xs text-muted-foreground shrink-0">
-        (매출 : 십억원, 시가총액 : 조원, 현재환율 적용)
-      </span>
-    </div>
+    <ToggleFilterBar
+      groups={groups}
+      search={{
+        label: '제품',
+        placeholder: '제품 검색…',
+        value: productQuery,
+        onChange: onProductChange,
+      }}
+      rightSlot={`(매출 : 십억원, 시가총액 : 조원${rateLabel ? `, ${rateLabel}` : ''})`}
+    />
   );
 }

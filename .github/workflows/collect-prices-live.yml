@@ -2,7 +2,9 @@ name: 주가 현재가 수집 (실시간)
 
 on:
   schedule:
-    - cron: '0 * * * *' # 매시간 정각
+    # 평일 + 시장 시간만 실행해 자원 절감 (연 ~3,900회)
+    # KR 시장 KST 09-15 = UTC 0-6, US 시장 KST 22-06 = UTC 13-21
+    - cron: '0 0-6,13-21 * * 1-5'
   workflow_dispatch:
 
 jobs:
