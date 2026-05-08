@@ -66,7 +66,10 @@ DART_KEY = os.environ.get('DART_API_KEY', '')
 MILLION = 1_000_000
 
 LISTED_TARGETS: list[str] = ['070080', '091090']
-PRIVATE_REVENUE_TARGETS: list[str] = ['우수정기', '한국엔에스케이', '희성촉매']
+PRIVATE_REVENUE_TARGETS: list[str] = [
+  '우수정기', '한국엔에스케이', '희성촉매',
+  '신원자동차', '디에이치글로벌', '디에이치정공',
+]
 
 DART_TO_DB: dict[str, str] = {
   '매출액': 'revenue',
