@@ -62,3 +62,16 @@ docs_cache/
 # env
 .env.local
 .env*.local
+
+# Claude Code 로컬 상태 (사용자 권한 설정 / 스케줄 lock)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# 로그 / 임시 디렉토리
+*.log
+dev.log
+tmp/
+supabase/.temp/
+
+# 사용자 참고 자료 (PDF/외부 문서)
+참고/
