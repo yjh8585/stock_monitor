@@ -10,6 +10,7 @@
 """
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -53,6 +54,15 @@ ACCT_TO_DB: dict[str, str] = {
 
 # 감사보고서 유형 키워드 (결산감사보고서 우선)
 AUDIT_REPORT_KEYWORDS = ['결산감사보고서', '감사보고서']
+
+# 수집 대상 회계연도 — 직전 회계연도부터 과거 N년치
+YEARS_BACK = 4
+
+
+def _target_years() -> list[int]:
+  """직전 회계연도부터 과거 YEARS_BACK 년치 (최신 우선)."""
+  this_year = datetime.now().year
+  return list(range(this_year - 1, this_year - 1 - YEARS_BACK, -1))
 
 
 def _get_dart():
@@ -109,10 +119,25 @@ def _match_acct(raw: str) -> str | None:
   return None
 
 
+def _detect_unit_divider(tbl_text: str) -> int:
+  """표 본문 텍스트에서 단위(백만원/천원/원) 인식 → 백만원 환산 divider 반환.
+
+  - "백만원" 표기 → divider=1 (이미 백만원)
+  - "천원"   표기 → divider=1000 (천원 → 백만원)
+  - 기본(원)        → divider=MILLION
+  """
+  if '백만원' in tbl_text:
+    return 1
+  if '천원' in tbl_text:
+    return 1000
+  return MILLION
+
+
 def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
   """
   재무제표 테이블 목록에서 {db_col: {current, prior}} 형태로 파싱한다.
   테이블 열 구조: 계정명 | 당기세부 | 당기합계 | 전기세부 | 전기합계
+  단위는 표별로 인식 — 표 텍스트에 '백만원'/'천원' 표기가 있으면 그에 맞춰 환산.
   """
   result: dict[str, dict[str, float | None]] = {}
   seen: set[str] = set()
@@ -121,6 +146,8 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
     tbl_text = _normalize(tbl.get_text())
     if not any(kw in tbl_text for kw in ACCT_TO_DB):
       continue
+
+    divider = _detect_unit_divider(tbl_text)
 
     rows = tbl.find_all('tr')
     for row in rows:
@@ -132,20 +159,53 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
       if db_col is None or db_col in GENERATED_COLS or db_col in seen:
         continue
 
-      # 당기: col2(합계) 우선, 없으면 col1(세부)
+      # 셀 길이별 컬럼 위치 분기 (DART 감사보고서 표준 구조).
+      # 6 cells: [계정명, 주석, 당기세부, 당기합계, 전기세부, 전기합계]
+      # 5 cells: [계정명, 당기세부, 당기합계, 전기세부, 전기합계]
+      # 4 cells: [계정명, 주석, 당기, 전기]
+      # 3 cells: [계정명, 당기, 전기]
+      # 2 cells: [계정명, 당기]
+      # 주석 컬럼(cells[1])에 '25,26' 같은 주석 번호가 있으면 _parse_num이 2526으로
+      # 잘못 파싱하므로, 6 cells일 때는 cells[1]을 항상 skip한다.
       curr: float | None = None
       prior: float | None = None
-      if len(cells) >= 3:
+      if len(cells) >= 6:
+        curr = _parse_num(cells[3]) or _parse_num(cells[2])
+        prior = _parse_num(cells[5]) or _parse_num(cells[4])
+      elif len(cells) == 5:
         curr = _parse_num(cells[2]) or _parse_num(cells[1])
-        prior = _parse_num(cells[4]) if len(cells) >= 5 else _parse_num(cells[3])
+        prior = _parse_num(cells[4]) or _parse_num(cells[3])
+      elif len(cells) == 4:
+        curr = _parse_num(cells[2])
+        prior = _parse_num(cells[3])
+      elif len(cells) == 3:
+        curr = _parse_num(cells[1])
+        prior = _parse_num(cells[2])
       else:
         curr = _parse_num(cells[1])
 
       if curr is not None:
-        result[db_col] = {'current': curr / MILLION, 'prior': prior / MILLION if prior else None}
+        result[db_col] = {'current': curr / divider, 'prior': prior / divider if prior else None}
         seen.add(db_col)
 
-  return result
+  return _correct_unit_heuristic(result)
+
+
+def _correct_unit_heuristic(parsed: dict[str, dict[str, float | None]]) -> dict[str, dict[str, float | None]]:
+  """단위 미표기 표 휴리스틱 보정.
+
+  자동차 부품사는 거의 모두 매출 100백만원(1억) 이상이므로,
+  revenue가 100 미만이면 표가 "천원" 단위였는데 단위 분기가 "원"으로 잡힌 케이스로 가정 → 모든 값을 ×1000 보정.
+  """
+  rev = (parsed.get('revenue') or {}).get('current')
+  if rev is None or rev <= 0 or rev >= 100:
+    return parsed
+  for col, vals in parsed.items():
+    if vals.get('current') is not None:
+      vals['current'] = vals['current'] * 1000
+    if vals.get('prior') is not None:
+      vals['prior'] = vals['prior'] * 1000
+  return parsed
 
 
 def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> str | None:
@@ -286,7 +346,7 @@ def collectDartAudit() -> None:
       continue
 
     logger.info(f'{name}: corp_code={corp_code}')
-    rows = _collect_company(dart, company_id, corp_code, years=[2025, 2024, 2023, 2022])
+    rows = _collect_company(dart, company_id, corp_code, years=_target_years())
     all_rows.extend(rows)
     logger.info(f'{name}({corp_code}): {len(rows)}행 수집')
 
