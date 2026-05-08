@@ -41,8 +41,13 @@ HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 # DART 계정명 → DB 컬럼 매핑 (부분 일치 우선)
 ACCT_TO_DB: dict[str, str] = {
   '매출액': 'revenue',
+  '매출': 'revenue',
+  '영업수익': 'revenue',
+  '수익(매출액)': 'revenue',
+  '매출(영업수익)': 'revenue',
   '영업이익': 'operating_income',
   '영업이익(손실)': 'operating_income',
+  '영업손실': 'operating_income',
   '당기순이익': 'net_income',
   '당기순이익(손실)': 'net_income',
   '지배기업주주귀속순이익': 'net_income',
@@ -51,6 +56,14 @@ ACCT_TO_DB: dict[str, str] = {
   '자본총계': 'total_equity',
   '재고자산': 'inventory',
 }
+
+# 매출/영업이익 키워드와 충돌하는 비손익 항목 — 부분 일치 시 거부
+ACCT_REJECT = frozenset({
+  '매출원가', '매출총이익', '매출채권', '매출채권및기타채권',
+  '영업외수익', '영업외비용', '기타수익', '기타영업수익',
+  '금융수익', '금융비용', '미실현수익', '이연수익',
+  '영업이익률', '영업비용',
+})
 
 # 감사보고서 유형 키워드 (결산감사보고서 우선)
 AUDIT_REPORT_KEYWORDS = ['결산감사보고서', '감사보고서']
@@ -109,8 +122,12 @@ def _clean_acct(raw: str) -> str:
 
 
 def _match_acct(raw: str) -> str | None:
-  """계정명을 ACCT_TO_DB에서 찾는다 (공백 정규화 후 매칭)."""
+  """계정명을 ACCT_TO_DB에서 찾는다 (공백 정규화 후 매칭).
+  ACCT_REJECT에 포함된 비손익 항목은 부분 일치를 차단한다.
+  """
   clean = _clean_acct(raw)
+  if clean in ACCT_REJECT or any(rej in clean for rej in ACCT_REJECT):
+    return None
   if clean in ACCT_TO_DB:
     return ACCT_TO_DB[clean]
   for key, col in ACCT_TO_DB.items():
