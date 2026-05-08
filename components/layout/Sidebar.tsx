@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { label: '관련주식', href: '/related-stocks', Icon: BarChart2 },
+  { label: '관련회사', href: '/related-stocks', Icon: BarChart2 },
   { label: '비교', href: '/compare', Icon: ArrowLeftRight },
   { label: '국내자동차', href: '/domestic', Icon: Car },
   { label: 'OEM', href: '/oem', Icon: Factory },

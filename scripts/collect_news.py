@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
 21개사 최신 뉴스를 수집해 news 테이블에 upsert한다.
-- 글로벌(yfinance): Ticker.news → 최근 20건
-- 한국 상장사(yfinance): {ticker}.KS 심볼로 최근 20건
-- 비상장사(DART 소스): 수집 생략
+- 한국 상장사: Naver Finance 모바일 API — 종목별 큐레이션 (관련성 100%)
+- 글로벌 상장사(yfinance): Ticker.news → 최근 20건
+- 비상장사: 수집 생략
 """
+import html
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import requests
 import yfinance as yf
 from dotenv import load_dotenv
 from loguru import logger
@@ -20,14 +22,57 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 from lib.db import get_client
 
 MAX_NEWS = 20  # 회사당 최대 수집 건수
+_HTTP_HEADERS = {'User-Agent': 'Mozilla/5.0'}
+_KST = timezone(timedelta(hours=9))
 
 
-def _yf_ticker(ticker: str, country: str, market: str | None) -> str:
-  """DB ticker → yfinance 조회용 심볼 반환."""
-  if country == 'KR' and market in ('KOSPI', 'KOSDAQ'):
-    suffix = 'KS' if market == 'KOSPI' else 'KQ'
-    return f'{ticker}.{suffix}'
-  return ticker
+# ── 한국 상장사: Naver Finance 모바일 API (종목별 큐레이션) ────────
+
+
+def _fetch_kr_news_naver(ticker: str, name_kr: str) -> list[dict]:
+  """Naver Finance 모바일 API로 종목 큐레이션 뉴스 항목을 반환한다."""
+  url = f'https://m.stock.naver.com/api/news/stock/{ticker}?pageSize={MAX_NEWS}'
+  try:
+    resp = requests.get(url, timeout=10, headers=_HTTP_HEADERS)
+    resp.raise_for_status()
+    groups = resp.json()
+    if not isinstance(groups, list):
+      return []
+    items: list[dict] = []
+    for g in groups:
+      items.extend(g.get('items', []))
+    return items[:MAX_NEWS]
+  except Exception as e:
+    logger.warning(f'{name_kr}({ticker}) Naver Finance API 오류: {e}')
+    return []
+
+
+def _naver_item_to_row(item: dict, company_id: str) -> dict | None:
+  """Naver Finance API item → news 테이블 행으로 변환한다."""
+  title = html.unescape((item.get('title') or '').strip())
+  url = (item.get('mobileNewsUrl') or '').strip()
+  source = (item.get('officeName') or '').strip()
+  dt_str = (item.get('datetime') or '').strip()  # YYYYMMDDHHMM
+  try:
+    published_at = datetime.strptime(dt_str, '%Y%m%d%H%M').replace(tzinfo=_KST).isoformat()
+  except (ValueError, TypeError):
+    published_at = datetime.now(timezone.utc).isoformat()
+
+  if not title or not url:
+    return None
+
+  return {
+    'id': str(uuid.uuid4()),
+    'company_id': company_id,
+    'title': title[:500],
+    'url': url[:1000],
+    'source': source[:100],
+    'summary': '',
+    'published_at': published_at,
+  }
+
+
+# ── 글로벌 상장사: yfinance ──────────────────────────────────────
 
 
 def _fetch_news(yf_symbol: str) -> list[dict]:
@@ -44,7 +89,6 @@ def _fetch_news(yf_symbol: str) -> list[dict]:
 def _to_news_row(item: dict, company_id: str) -> dict | None:
   """yfinance 뉴스 아이템을 news 테이블 행으로 변환한다.
   신형(content 중첩) / 구형(flat) 양쪽 포맷을 지원한다."""
-  # 신형 yfinance 뉴스 포맷 처리 (content 중첩)
   content = item.get('content') or {}
   if content:
     title = content.get('title') or ''
@@ -107,25 +151,38 @@ def collectNews() -> None:
       logger.debug(f'{name}: 비상장/비대상 — 뉴스 스킵')
       continue
 
-    yf_sym = _yf_ticker(ticker, country, market)
-    raw_news = _fetch_news(yf_sym)
-    if not raw_news:
-      logger.info(f'{name}({yf_sym}): 뉴스 없음')
-      continue
-
     rows = []
-    for item in raw_news:
-      row = _to_news_row(item, company['id'])
-      if row and row['url'] not in existing_urls:
-        rows.append(row)
-        existing_urls.add(row['url'])  # 이번 배치 내 중복도 방지
+
+    if country == 'KR' and market in ('KOSPI', 'KOSDAQ'):
+      # 한국 상장사: Naver Finance 모바일 API (종목별 큐레이션)
+      naver_items = _fetch_kr_news_naver(ticker, name)
+      if not naver_items:
+        logger.info(f'{name}({ticker}): 뉴스 없음 (Naver)')
+        continue
+      for item in naver_items:
+        row = _naver_item_to_row(item, company['id'])
+        if row and row['url'] not in existing_urls:
+          rows.append(row)
+          existing_urls.add(row['url'])
+    else:
+      # 글로벌 상장사: yfinance
+      yf_sym = ticker
+      raw_news = _fetch_news(yf_sym)
+      if not raw_news:
+        logger.info(f'{name}({yf_sym}): 뉴스 없음')
+        continue
+      for item in raw_news:
+        row = _to_news_row(item, company['id'])
+        if row and row['url'] not in existing_urls:
+          rows.append(row)
+          existing_urls.add(row['url'])
 
     if rows:
       client.table('news').insert(rows).execute()
       total += len(rows)
-      logger.info(f'{name}({yf_sym}): {len(rows)}건 저장')
+      logger.info(f'{name}({ticker}): {len(rows)}건 저장')
     else:
-      logger.info(f'{name}({yf_sym}): 신규 뉴스 없음')
+      logger.info(f'{name}({ticker}): 신규 뉴스 없음')
 
   logger.info(f'뉴스 수집 완료 — 총 {total}건')
 

@@ -26,9 +26,20 @@ export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
   },
   폭스바겐: { iconUrl: SI('volkswagen', '001e50'), abbr: 'VW', color: '#001e50' },
   도요타: { iconUrl: SI('toyota', 'EB0A1E'), abbr: '도요타', color: '#EB0A1E' },
+  혼다: { iconUrl: SI('honda', 'E40521'), abbr: '혼다', color: '#E40521' },
   닛산: { iconUrl: SI('nissan', 'C3002F'), abbr: '닛산', color: '#C3002F' },
   현대모비스: { iconUrl: null, abbr: '모비스', color: '#005bac' },
-  리비안: { iconUrl: SI('rivian', '009b4d'), abbr: 'RIV', color: '#009b4d' },
-  빈패스트: { iconUrl: null, abbr: 'VF', color: '#003087' },
+  // 워드마크 대신 심볼 마크만 — 로컬 SVG 사용
+  리비안: { iconUrl: '/logos/rivian.svg', abbr: 'RIV', color: '#151515' },
+  // SimpleIcons 미지원 → Wikimedia "V" 심볼 SVG (481×481)
+  빈패스트: {
+    iconUrl:
+      'https://upload.wikimedia.org/wikipedia/commons/4/43/VinFast_logo_%28simple_variant%29.svg',
+    abbr: 'VF',
+    color: '#003087',
+  },
+  // 워드마크 대신 심볼 엠블럼만 — 로컬 SVG 사용
+  KGM: { iconUrl: '/logos/kg-mobility.svg', abbr: 'KGM', color: '#0a2240' },
+  KG모빌리티: { iconUrl: '/logos/kg-mobility.svg', abbr: 'KGM', color: '#0a2240' },
   폴라리스: { iconUrl: null, abbr: 'POL', color: '#1a2d5a' },
 };

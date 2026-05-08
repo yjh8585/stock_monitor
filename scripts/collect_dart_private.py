@@ -7,7 +7,7 @@
 """
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,6 +20,15 @@ from lib.db import get_client, upsert_rows
 
 DART_KEY = os.environ.get('DART_API_KEY', '')
 MILLION = 1_000_000
+
+# 수집 대상 연간 범위 — 직전 회계연도부터 과거 5년치
+YEARS_BACK = 5
+
+
+def _target_years() -> list[int]:
+  """직전 회계연도부터 과거 YEARS_BACK 년치 (오래된 순)."""
+  this_year = datetime.now().year
+  return list(range(this_year - YEARS_BACK, this_year))
 
 # DART 연결재무제표 계정명 → DB 컬럼 매핑
 DART_TO_DB: dict[str, str] = {
@@ -152,7 +161,7 @@ def collectDartPrivate() -> None:
       logger.warning(f'{name}: DART 코드 없음 — 스킵')
       continue
 
-    rows = _collect_company(dart, company_id, corp_code, years=[2022, 2023, 2024])
+    rows = _collect_company(dart, company_id, corp_code, years=_target_years())
     all_rows.extend(rows)
     logger.info(f'{name}({corp_code}): {len(rows)}년치 수집')
 

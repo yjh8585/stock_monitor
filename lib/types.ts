@@ -83,6 +83,52 @@ export type SortKey =
   | 'pbr'
   | 'ev_ebitda';
 
+/** /domestic 페이지 행: company_type/region 대신 group_name + sales_rank */
+export interface DomesticStockRow {
+  id: string;
+  ticker: string | null;
+  name: string;
+  name_kr: string;
+  market: string | null;
+  country: string;
+  currency: string;
+  status: string;
+  group_name: string | null;
+  products: ProductItem[];
+  customers: CustomerItem[];
+  last_price: number | null;
+  last_change_pct: number | null;
+  last_updated_at: string | null;
+  market_cap: number | null;
+  business_summary: string | null;
+  summary_updated_at: string | null;
+  homepage_url: string | null;
+  fx_to_krw: number | null;
+  fx_fin_to_krw: number | null;
+  financials_by_year: Record<string, FinancialYear> | null;
+  latest_quarter: LatestQuarter | null;
+  /** 최근 연도 매출 KRW환산 (정렬용 내부 키) */
+  latest_revenue_krw: number | null;
+  /** ROW_NUMBER OVER (ORDER BY 매출 DESC) — 1=매출 1위 */
+  sales_rank: number | null;
+}
+
+/** /domestic 정렬 키 (구분/지역 제거 + 그룹/매출순위 추가) */
+export type DomesticSortKey =
+  | 'group_name'
+  | 'sales_rank'
+  | 'name_kr'
+  | `rev_${string}`
+  | 'cagr'
+  | `op_${string}`
+  | 'debt_ratio'
+  | 'inv_turnover'
+  | 'last_price'
+  | 'market_cap_t'
+  | 'per'
+  | 'pbr'
+  | 'ev_ebitda';
+
 export type SortDir = 'asc' | 'desc';
 
 /** 통화 환율 (1단위 → KRW) */

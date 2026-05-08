@@ -81,6 +81,12 @@ BALANCE_ACCOUNTS: list[AccountMapping] = [
     'db_col': 'total_equity',
   },
   {
+    'dart_key': '재고자산',
+    'yf_income': None,
+    'yf_balance': 'Inventory',
+    'db_col': 'inventory',
+  },
+  {
     'dart_key': '유동비율',
     'yf_income': None,
     'yf_balance': None,  # 계산: current_assets / current_liabilities

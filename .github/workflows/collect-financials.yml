@@ -31,10 +31,24 @@ jobs:
       - name: Playwright Chromium 설치
         run: playwright install chromium --with-deps
 
-      - name: 재무 데이터 수집
+      - name: 재무 데이터 수집 (상장사 — fnguide + yfinance)
         run: python collect_financials.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VALLEY_EMAIL: ${{ secrets.VALLEY_EMAIL }}
           VALLEY_PASSWORD: ${{ secrets.VALLEY_PASSWORD }}
+
+      - name: 비상장사 재무 데이터 수집 (DART 결산감사보고서)
+        run: python collect_dart_audit.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+
+      - name: 국내자동차(/domestic) DART 자동 갱신 + 외감 검증 + 재무 수집
+        run: python collect_dart_domestic.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
