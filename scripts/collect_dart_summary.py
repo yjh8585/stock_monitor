@@ -74,9 +74,12 @@ FETCH_TIMEOUT = 30
 
 # ── DART 본문 페치 ───────────────────────────────────────────────────────
 def _list_recent_report(odr, corp_code: str, kind: str) -> str | None:
-  """가장 최근 보고서 rcpt_no 반환. kind ∈ {'사업보고서','감사보고서'}."""
+  """가장 최근 보고서 rcpt_no 반환. kind ∈ {'사업보고서','감사보고서'}.
+  final=False — [기재정정] 보고서를 포함해 조회한다. 기본 final=True 는 정정된
+  보고서가 안 잡혀 일부 회사가 누락되는 사례 발견.
+  """
   try:
-    df = odr.list(corp_code, kind='A', start='2022-01-01')
+    df = odr.list(corp_code, kind='A', start='2022-01-01', final=False)
   except Exception as e:
     logger.debug(f'list({corp_code}) 실패: {e}')
     return None

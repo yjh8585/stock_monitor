@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-21개사 최신 뉴스를 수집해 news 테이블에 upsert한다.
+모든 active 상장사의 최신 뉴스를 수집해 news 테이블에 upsert한다.
 - 한국 상장사: Naver Finance 모바일 API — 종목별 큐레이션 (관련성 100%)
 - 글로벌 상장사(yfinance): Ticker.news → 최근 20건
-- 비상장사: 수집 생략
+- 비상장사: 수집 생략 (data_source='dart' 또는 market=NULL)
+
+환경변수:
+  TARGET_TICKERS  콤마 구분 ticker (옵션) — 신규 회사 추가 직후 즉시 수집용
+  NEWS_RETENTION_DAYS  뉴스 보존 일수 (default 90, 0 이하면 삭제 skip)
+  NEWS_SLEEP_SEC  회사 간 sleep 초 (default 0.5) — Naver/yfinance rate limit 회피
 """
 import html
+import os
 import sys
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,6 +31,8 @@ from lib.db import get_client
 MAX_NEWS = 20  # 회사당 최대 수집 건수
 _HTTP_HEADERS = {'User-Agent': 'Mozilla/5.0'}
 _KST = timezone(timedelta(hours=9))
+SLEEP_SEC = float(os.environ.get('NEWS_SLEEP_SEC', '0.5'))
+RETENTION_DAYS = int(os.environ.get('NEWS_RETENTION_DAYS', '90'))
 
 
 # ── 한국 상장사: Naver Finance 모바일 API (종목별 큐레이션) ────────
@@ -129,7 +138,18 @@ def _to_news_row(item: dict, company_id: str) -> dict | None:
 
 def collectNews() -> None:
   client = get_client()
-  companies = client.table('companies').select('id,ticker,name_kr,country,market,data_source').execute().data
+
+  # active 회사만 (delisted 제외) + 선택적 TARGET_TICKERS 필터
+  raw = os.environ.get('TARGET_TICKERS', '').strip()
+  target_filter = {t.strip() for t in raw.split(',') if t.strip()}
+  q = client.table('companies').select(
+    'id,ticker,name_kr,country,market,data_source,status'
+  ).eq('status', 'active')
+  if target_filter:
+    q = q.in_('ticker', list(target_filter))
+    logger.info(f'TARGET_TICKERS 필터 적용: {sorted(target_filter)}')
+  companies = q.execute().data or []
+  logger.info(f'대상 회사 {len(companies)}개')
 
   # 기존 URL 전체 로드 (회사 구분 없이 전역 중복 방지)
   existing_urls: set[str] = {
@@ -184,7 +204,23 @@ def collectNews() -> None:
     else:
       logger.info(f'{name}({ticker}): 신규 뉴스 없음')
 
+    # rate limit 회피 — Naver 모바일 API/yfinance 호출 분산
+    if SLEEP_SEC > 0:
+      time.sleep(SLEEP_SEC)
+
   logger.info(f'뉴스 수집 완료 — 총 {total}건')
+
+  # 보존 정책: N일 이전 뉴스 자동 삭제 (DB 누적량 제한)
+  if RETENTION_DAYS > 0:
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)).isoformat()
+    try:
+      deleted = (
+        client.table('news').delete().lt('published_at', cutoff).execute().data
+      )
+      n = len(deleted) if isinstance(deleted, list) else 0
+      logger.info(f'{RETENTION_DAYS}일 이전 뉴스 {n}건 삭제 (cutoff={cutoff[:10]})')
+    except Exception as e:
+      logger.warning(f'오래된 뉴스 삭제 실패: {e}')
 
 
 if __name__ == '__main__':

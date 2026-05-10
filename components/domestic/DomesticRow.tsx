@@ -116,15 +116,22 @@ const DomesticRow = memo(function DomesticRow({ row, latestYear, colCount }: Dom
         onMouseLeave={() => setHovered(false)}
         onClick={handleRowClick}
       >
-        {/* 그룹 — frozen 0 */}
+        {/* 그룹 — frozen 0 (왼쪽 매출 순위 번호 + 그룹 뱃지) */}
         <td className={TD} style={stickyLeftStyle(0, frozenBg)}>
-          {row.group_name ? (
-            <span
-              className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${groupBadgeStyle(row.group_name)}`}
-            >
-              {row.group_name}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-1.5">
+            {row.sales_rank != null && (
+              <span className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-5 text-right">
+                {row.sales_rank}
+              </span>
+            )}
+            {row.group_name ? (
+              <span
+                className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${groupBadgeStyle(row.group_name)}`}
+              >
+                {row.group_name}
+              </span>
+            ) : null}
+          </div>
         </td>
 
         {/* 회사명 + 뉴스 — frozen 1 */}

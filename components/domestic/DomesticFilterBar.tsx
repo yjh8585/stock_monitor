@@ -19,6 +19,8 @@ interface DomesticFilterBarProps {
   onListingToggle: (v: DomesticListingFilter) => void;
   onProductChange: (q: string) => void;
   rates: ExchangeRates;
+  /** 그룹 다중선택 드롭다운 라벨 (default '그룹'). /parts-top100에서는 '국가' 사용. */
+  groupLabel?: string;
 }
 
 function formatRateLabel(rates: ExchangeRates): string {
@@ -32,11 +34,13 @@ function formatRateLabel(rates: ExchangeRates): string {
 
 /** 그룹 다중선택 드롭다운 — 외부 클릭 시 닫힘 */
 function GroupMultiSelect({
+  label,
   options,
   selected,
   onToggle,
   onReset,
 }: {
+  label: string;
   options: readonly string[];
   selected: readonly string[];
   onToggle: (g: string) => void;
@@ -71,7 +75,9 @@ function GroupMultiSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span>그룹: {summary}</span>
+        <span>
+          {label}: {summary}
+        </span>
         {selected.length > 0 && (
           <X
             size={12}
@@ -121,12 +127,14 @@ export default function DomesticFilterBar({
   onListingToggle,
   onProductChange,
   rates,
+  groupLabel = '그룹',
 }: DomesticFilterBarProps) {
   const rateLabel = formatRateLabel(rates);
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/20 flex-wrap">
       <GroupMultiSelect
+        label={groupLabel}
         options={groupOptions}
         selected={groupFilter}
         onToggle={onGroupToggle}

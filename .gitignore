@@ -56,6 +56,11 @@ scripts/logs/
 scripts/debug_*.png
 docs_cache/
 
+# 브라우저 자동화: Marklines 봇 산출물 (사용자 Chrome 프로파일은 OS 영역이라 별도 ignore 불필요)
+scripts/_marklines_state.json
+scripts/_debug_bosch_body.txt
+scripts/_marklines_direct_log.json
+
 # MCP 로컬 설정 (토큰 포함 — 커밋 금지)
 .mcp.json
 
@@ -75,3 +80,6 @@ supabase/.temp/
 
 # 사용자 참고 자료 (PDF/외부 문서)
 참고/
+
+# 코드 리뷰 임시/실패 산출물 (정식 리뷰 결과는 추적)
+review/*.tmp.md

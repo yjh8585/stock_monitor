@@ -226,8 +226,16 @@ def _correct_unit_heuristic(parsed: dict[str, dict[str, float | None]]) -> dict[
 
 
 def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> str | None:
-  """특정 회계연도의 결산감사보고서 rcpNo를 반환한다."""
-  filings = dart.list(corp_code, start=f'{fiscal_year}-01-01', end=f'{fiscal_year + 1}-06-30')
+  """특정 회계연도의 결산감사보고서 rcpNo를 반환한다.
+  final=False — [기재정정] 보고서를 포함해 조회한다. OpenDartReader 기본 final=True 는
+  정정 처리된 보고서가 안 잡혀 동희그룹 등 일부 회사가 누락되는 사례 발견.
+  """
+  filings = dart.list(
+    corp_code,
+    start=f'{fiscal_year}-01-01',
+    end=f'{fiscal_year + 1}-06-30',
+    final=False,
+  )
   if filings is None or filings.empty:
     return None
   for kw in AUDIT_REPORT_KEYWORDS:
@@ -336,10 +344,16 @@ def collectDartAudit() -> None:
     sys.exit(1)
 
   client = get_client()
+  raw = os.environ.get('TARGET_TICKERS', '').strip()
+  target_filter: set[str] = {t.strip() for t in raw.split(',') if t.strip()}
+
   companies = [
     r for r in client.table('companies').select('id,ticker,name_kr,data_source').execute().data
     if r.get('data_source') == 'dart'
+    and (not target_filter or r.get('ticker') in target_filter)
   ]
+  if target_filter:
+    logger.info(f'TARGET_TICKERS 필터 적용: {sorted(target_filter)} → {len(companies)}개')
 
   if not companies:
     logger.info('DART 수집 대상 기업 없음')

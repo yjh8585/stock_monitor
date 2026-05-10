@@ -10,6 +10,8 @@ import DomesticRow from './DomesticRow';
 interface DomesticTableProps {
   rows: DomesticStockRow[];
   rates: ExchangeRates;
+  /** 그룹 컬럼 라벨 (default '그룹'). /parts-top100에서는 '국가' 전달. */
+  groupLabel?: string;
 }
 
 const FROZEN_COUNT = 3;
@@ -22,14 +24,14 @@ function resolveLatestYear(rows: DomesticStockRow[]): string {
   return '2025';
 }
 
-function buildColumns(latestYear: string): StickyColumn<DomesticSortKey>[] {
+function buildColumns(latestYear: string, groupLabel: string): StickyColumn<DomesticSortKey>[] {
   const yr = parseInt(latestYear);
   const y2 = latestYear.slice(2);
   const revenueYears = [yr - 2, yr - 1, yr];
   const opYears = [yr - 2, yr - 1, yr];
 
   return [
-    { key: 'group_name', label: '그룹', defaultWidth: 100 },
+    { key: 'group_name', label: groupLabel, defaultWidth: 120 },
     { key: 'name_kr', label: '회사명', defaultWidth: 124 },
     { key: 'name_kr', label: '제품', defaultWidth: 280 },
     { key: 'name_kr', label: '고객사', defaultWidth: 280 },
@@ -109,7 +111,7 @@ function getSortValue(
 }
 
 /** 도메스틱 표 — 디폴트 정렬: sales_rank ASC (매출 1위가 위) */
-export default function DomesticTable({ rows, rates }: DomesticTableProps) {
+export default function DomesticTable({ rows, rates, groupLabel = '그룹' }: DomesticTableProps) {
   const [sortKey, setSortKey] = useState<DomesticSortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
@@ -117,7 +119,10 @@ export default function DomesticTable({ rows, rates }: DomesticTableProps) {
   const [productQuery, setProductQuery] = useState('');
 
   const latestDataYear = useMemo(() => resolveLatestYear(rows), [rows]);
-  const columns = useMemo(() => buildColumns(latestDataYear), [latestDataYear]);
+  const columns = useMemo(
+    () => buildColumns(latestDataYear, groupLabel),
+    [latestDataYear, groupLabel]
+  );
 
   // 그룹 옵션: rows에 등장하는 group_name (NULL 제외)
   const groupOptions = useMemo(() => {
@@ -188,6 +193,7 @@ export default function DomesticTable({ rows, rates }: DomesticTableProps) {
         onListingToggle={handleListingToggle}
         onProductChange={setProductQuery}
         rates={rates}
+        groupLabel={groupLabel}
       />
       <StickyTable
         rows={sorted}

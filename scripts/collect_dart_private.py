@@ -140,11 +140,18 @@ def collectDartPrivate() -> None:
     sys.exit(1)
 
   client = get_client()
-  # data_source='dart'인 회사 목록
+  # 선택적 ticker 필터: TARGET_TICKERS='한국지엠,르노코리아' → 해당 회사만
+  raw = os.environ.get('TARGET_TICKERS', '').strip()
+  target_filter: set[str] = {t.strip() for t in raw.split(',') if t.strip()}
+
+  # data_source='dart'인 회사 목록 (필요 시 ticker 필터 적용)
   companies = [
     r for r in client.table('companies').select('id,ticker,name_kr,data_source').execute().data
     if r.get('data_source') == 'dart'
+    and (not target_filter or r.get('ticker') in target_filter)
   ]
+  if target_filter:
+    logger.info(f'TARGET_TICKERS 필터 적용: {sorted(target_filter)} → {len(companies)}개')
 
   if not companies:
     logger.info('DART 수집 대상 기업 없음')
