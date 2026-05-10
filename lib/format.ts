@@ -77,6 +77,17 @@ export function fmtChange(n: number | null): string {
 }
 
 /**
+ * 안전한 날짜 포매터 — null/invalid 시 빈 문자열 반환.
+ * 외부 API/DB의 날짜 필드가 잘못된 값일 때 'Invalid Date' 노출 방지.
+ */
+export function safeDateLabel(s: string | null | undefined, locale = 'ko-KR'): string {
+  if (!s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(locale);
+}
+
+/**
  * 환율 안내 문자열 — "1,234원/달러, 1,456원/유로, …"
  * 통화별 누락 시 해당 항목 생략. FilterBar 우측 슬롯 라벨용.
  */

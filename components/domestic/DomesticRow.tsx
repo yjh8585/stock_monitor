@@ -67,7 +67,7 @@ const DomesticRow = memo(function DomesticRow({ row, latestYear, colCount }: Dom
   const [hovered, setHovered] = useState(false);
   const [highlighted, setHighlighted] = useState(false);
 
-  const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
+  const handleRowClick = (e: React.SyntheticEvent<HTMLTableRowElement>) => {
     const t = e.target as HTMLElement;
     if (t.closest('button, a, input, [role="button"], [role="link"]')) return;
     setHighlighted((v) => !v);
@@ -109,12 +109,22 @@ const DomesticRow = memo(function DomesticRow({ row, latestYear, colCount }: Dom
   return (
     <>
       <tr
-        className={`border-b border-border text-xs align-middle cursor-pointer ${
+        className={`border-b border-border text-xs align-middle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           highlighted ? 'bg-yellow-100/70 dark:bg-yellow-900/30' : 'hover:bg-muted/30'
         }`}
+        tabIndex={0}
+        role="button"
+        aria-pressed={highlighted}
+        aria-label={`${row.name_kr} 행 — Enter/Space로 강조 토글`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={handleRowClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleRowClick(e);
+          }
+        }}
       >
         {/* 그룹 — frozen 0 (왼쪽 매출 순위 번호 + 그룹 뱃지) */}
         <td className={TD} style={stickyLeftStyle(0, frozenBg)}>

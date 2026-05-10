@@ -139,6 +139,8 @@ export default function DomesticFilterBar({
         return (
           <button
             key={opt}
+            type="button"
+            aria-pressed={active}
             onClick={() => onListingToggle(opt)}
             className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
               active

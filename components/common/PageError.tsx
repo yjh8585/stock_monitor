@@ -15,7 +15,11 @@ interface PageErrorProps {
  * - logger.error는 server side에만 동작하므로 여기선 console.error로 클라이언트 측 흔적 남김
  * - reset()으로 라우트 segment 다시 렌더링 시도
  */
-export default function PageError({ error, reset, title = '데이터를 불러오지 못했습니다' }: PageErrorProps) {
+export default function PageError({
+  error,
+  reset,
+  title = '데이터를 불러오지 못했습니다',
+}: PageErrorProps) {
   useEffect(() => {
     console.error('[PageError]', error);
   }, [error]);

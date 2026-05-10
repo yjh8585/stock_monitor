@@ -33,10 +33,13 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
 
   return (
     <div>
-      <div className="flex gap-1 mb-3">
+      <div role="tablist" aria-label="PowerTrain 선택" className="flex gap-1 mb-3">
         {TABS.map((pt) => (
           <button
             key={pt}
+            role="tab"
+            type="button"
+            aria-selected={active === pt}
             onClick={() => setActive(pt)}
             className={`px-3 py-1 text-xs rounded-md border transition-colors ${
               active === pt
@@ -53,6 +56,9 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
         {PT_ORDER.filter((p) => !TABS.includes(p as PowerTrain)).map((pt) => (
           <button
             key={pt}
+            role="tab"
+            type="button"
+            aria-selected={active === pt}
             onClick={() => setActive(pt as PowerTrain)}
             className={`px-3 py-1 text-xs rounded-md border transition-colors ${
               active === pt
@@ -88,8 +94,8 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
               }}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
-              {data.map((d, i) => (
-                <Cell key={i} fill={d.color} />
+              {data.map((d) => (
+                <Cell key={d.name} fill={d.color} />
               ))}
             </Bar>
           </BarChart>

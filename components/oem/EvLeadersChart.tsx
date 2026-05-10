@@ -88,8 +88,8 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
               }}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
-              {sales.map((d, i) => (
-                <Cell key={i} fill={d.color} />
+              {sales.map((d) => (
+                <Cell key={d.name} fill={d.color} />
               ))}
             </Bar>
           </BarChart>
@@ -126,8 +126,8 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
               }}
             />
             <Bar dataKey="ratio" radius={[0, 4, 4, 0]}>
-              {ratio.map((d, i) => (
-                <Cell key={i} fill={d.color} />
+              {ratio.map((d) => (
+                <Cell key={d.name} fill={d.color} />
               ))}
             </Bar>
           </BarChart>

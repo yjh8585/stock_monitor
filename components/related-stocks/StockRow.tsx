@@ -50,10 +50,10 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount }: StockRowP
   const [hovered, setHovered] = useState(false);
   const [highlighted, setHighlighted] = useState(false);
 
-  // 셀 빈 공간 클릭 시 음영 토글. 버튼/링크/입력 등은 자체 동작 우선.
-  const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
+  // 셀 빈 공간 클릭/키보드 토글. 버튼/링크/입력 등은 자체 동작 우선.
+  const handleRowClick = (e: React.SyntheticEvent<HTMLTableRowElement>) => {
     const t = e.target as HTMLElement;
-    if (t.closest('button, a, input, [role="button"], [role="link"]')) return;
+    if (t.closest('button, a, input, [role="link"]')) return;
     setHighlighted((v) => !v);
   };
 
@@ -99,12 +99,22 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount }: StockRowP
   return (
     <>
       <tr
-        className={`border-b border-border text-xs align-middle cursor-pointer ${
+        className={`border-b border-border text-xs align-middle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           highlighted ? 'bg-yellow-100/70 dark:bg-yellow-900/30' : 'hover:bg-muted/30'
         }`}
+        tabIndex={0}
+        role="button"
+        aria-pressed={highlighted}
+        aria-label={`${row.name_kr} 행 — Enter/Space로 강조 토글`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={handleRowClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleRowClick(e);
+          }
+        }}
       >
         {/* 구분 — frozen 0 */}
         <td className={TD} style={stickyLeftStyle(0, frozenBg)}>

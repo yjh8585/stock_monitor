@@ -35,6 +35,8 @@ function ToggleGroup({ label, options, selected, onToggle }: ToggleFilterGroup) 
         return (
           <button
             key={opt}
+            type="button"
+            aria-pressed={active}
             onClick={() => onToggle(opt)}
             className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
               active

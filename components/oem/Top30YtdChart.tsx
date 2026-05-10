@@ -70,8 +70,8 @@ export default function Top30YtdChart({ groupMonth }: Props) {
               }}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
-              {chartData.map((entry, i) => (
-                <Cell key={i} fill={entry.color} />
+              {chartData.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
               ))}
             </Bar>
           </BarChart>

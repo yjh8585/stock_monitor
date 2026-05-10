@@ -1,23 +1,63 @@
 'use client';
 
-import type {
-  OemSalesGroupMonth,
-  OemSalesGroupPtMonth,
-  OemSalesTypeSegMonth,
-} from '@/lib/types';
+import dynamic from 'next/dynamic';
+import type { OemSalesGroupMonth, OemSalesGroupPtMonth, OemSalesTypeSegMonth } from '@/lib/types';
 import KpiCards from './KpiCards';
-import MarketTrendChart from './MarketTrendChart';
-import Top30YtdChart from './Top30YtdChart';
-import Top40YearlyTable from './Top40YearlyTable';
-import Top10AnnualBars from './Top10AnnualBars';
-import Top10MonthlyLines from './Top10MonthlyLines';
-import PowertrainMix from './PowertrainMix';
-import PowertrainTopOems from './PowertrainTopOems';
-import CountryTop15, { type CountryTop15Row } from './CountryTop15';
-import EvLeadersChart from './EvLeadersChart';
-import YoyWinnersLosers from './YoyWinnersLosers';
-import TypeSegmentChart from './TypeSegmentChart';
-import OemCountryHeatmap, { type OemCountryMatrix } from './OemCountryHeatmap';
+import type { CountryTop15Row } from './CountryTop15';
+import type { OemCountryMatrix } from './OemCountryHeatmap';
+
+// 차트 컴포넌트는 모두 recharts 의존 — 클라이언트 번들 최소화 위해 동적 import.
+// KpiCards는 가벼운 div 카드라 정적 import.
+const ChartFallback = () => <div className="h-[400px] bg-muted/20 animate-pulse rounded" />;
+
+const MarketTrendChart = dynamic(() => import('./MarketTrendChart'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const Top30YtdChart = dynamic(() => import('./Top30YtdChart'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const Top40YearlyTable = dynamic(() => import('./Top40YearlyTable'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const Top10AnnualBars = dynamic(() => import('./Top10AnnualBars'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const Top10MonthlyLines = dynamic(() => import('./Top10MonthlyLines'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const PowertrainMix = dynamic(() => import('./PowertrainMix'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const PowertrainTopOems = dynamic(() => import('./PowertrainTopOems'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const CountryTop15 = dynamic(() => import('./CountryTop15'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const EvLeadersChart = dynamic(() => import('./EvLeadersChart'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const YoyWinnersLosers = dynamic(() => import('./YoyWinnersLosers'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const TypeSegmentChart = dynamic(() => import('./TypeSegmentChart'), {
+  ssr: false,
+  loading: ChartFallback,
+});
+const OemCountryHeatmap = dynamic(() => import('./OemCountryHeatmap'), {
+  ssr: false,
+  loading: ChartFallback,
+});
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];

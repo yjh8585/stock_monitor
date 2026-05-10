@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { RelatedStockRow, SortKey, ExchangeRates } from '@/lib/types';
-import { calcCagr, invTurnover } from '@/lib/format';
+import { buildFinancialColumns, getFinancialSortValue, resolveLatestYear } from '@/lib/stockSort';
 import StickyTable, { StickyColumn, SortDir } from '@/components/common/StickyTable';
 import FilterBar, {
   CompanyTypeFilter,
@@ -34,72 +34,24 @@ interface StockTableProps {
 /** 고정 열 수 (구분 / 회사명 / 제품) */
 const FROZEN_COUNT = 3;
 
-/** 데이터가 존재하는 가장 최근 연도 결정 */
-function resolveLatestYear(rows: RelatedStockRow[]): string {
-  const candidates = ['2026', '2025', '2024', '2023'];
-  for (const year of candidates) {
-    if (rows.some((r) => r.financials_by_year?.[year]?.revenue != null)) return year;
-  }
-  return '2025';
-}
-
-/** latestYear 기반으로 컬럼 정의 생성 */
+/** /related-stocks 고유 좌측 컬럼 + 공통 재무 컬럼 결합 */
 function buildColumns(latestYear: string): StickyColumn<SortKey>[] {
-  const yr = parseInt(latestYear);
-  const y2 = latestYear.slice(2); // '25'
-  const revenueYears = [yr - 2, yr - 1, yr];
-  const opYears = [yr - 2, yr - 1, yr];
-
   return [
     { key: 'company_type', label: '구분', defaultWidth: 58 },
     { key: 'name_kr', label: '회사명', defaultWidth: 104 },
     { key: 'name_kr', label: '제품', defaultWidth: 280 },
     { key: 'name_kr', label: '고객사', defaultWidth: 280 },
     { key: 'region', label: '지역', defaultWidth: 60 },
-    ...revenueYears.map((y) => ({
-      key: `rev_${y}` as SortKey,
-      label: `'${String(y).slice(2)} 매출`,
-      defaultWidth: 88,
-    })),
-    { key: 'cagr', label: '3yr CAGR', defaultWidth: 74 },
-    ...opYears.map((y) => ({
-      key: `op_${y}` as SortKey,
-      label: `'${String(y).slice(2)} OP%`,
-      defaultWidth: 68,
-    })),
-    { key: 'debt_ratio', label: `'${y2} 부채비율`, defaultWidth: 80 },
-    { key: 'inv_turnover', label: `'${y2} 재고회전율`, defaultWidth: 92 },
-    { key: 'last_price', label: '주가', defaultWidth: 80 },
-    { key: 'market_cap_t', label: '시가총액', defaultWidth: 72 },
-    { key: 'per', label: `'${y2} PER`, defaultWidth: 60 },
-    { key: 'pbr', label: `'${y2} PBR`, defaultWidth: 60 },
-    { key: 'ev_ebitda', label: `'${y2} EV/EBITDA`, defaultWidth: 90 },
+    ...buildFinancialColumns<SortKey>(latestYear),
   ];
 }
 
-/** 행에서 정렬용 숫자 추출 */
+/** 페이지 고유 키만 분기 후 공통 헬퍼에 위임 */
 function getSortValue(
   row: RelatedStockRow,
   key: SortKey,
   latestYear: string
 ): string | number | null {
-  const fy = row.financials_by_year;
-  const fxFin = row.fx_fin_to_krw ?? row.fx_to_krw ?? 1; // 매출/이익 환산
-  const fxPrice = row.fx_to_krw ?? 1; // 주가 환산
-  const yr = parseInt(latestYear);
-
-  const revKrw = (year: string) => {
-    const r = fy?.[year]?.revenue;
-    return r != null ? r * fxFin : null;
-  };
-
-  if (key.startsWith('rev_')) {
-    return revKrw(key.slice(4));
-  }
-  if (key.startsWith('op_')) {
-    return fy?.[key.slice(3)]?.operating_margin ?? null;
-  }
-
   switch (key) {
     case 'company_type':
       return row.company_type ?? '';
@@ -107,28 +59,10 @@ function getSortValue(
       return row.name_kr;
     case 'region':
       return row.region ?? '';
-    case 'cagr': {
-      const r3ago = revKrw(String(yr - 3));
-      const rLatest = revKrw(latestYear);
-      if (r3ago != null && rLatest != null) return calcCagr(r3ago, rLatest, 3);
-      return calcCagr(revKrw(String(yr - 2)), rLatest, 2);
+    default: {
+      const v = getFinancialSortValue(row, key, latestYear);
+      return v === undefined ? null : v;
     }
-    case 'debt_ratio':
-      return fy?.[latestYear]?.debt_ratio ?? null;
-    case 'inv_turnover':
-      return invTurnover(fy?.[latestYear]);
-    case 'last_price':
-      return row.last_price != null ? row.last_price * fxPrice : null;
-    case 'market_cap_t':
-      return row.market_cap;
-    case 'per':
-      return fy?.[latestYear]?.per ?? null;
-    case 'pbr':
-      return fy?.[latestYear]?.pbr ?? null;
-    case 'ev_ebitda':
-      return fy?.[latestYear]?.ev_ebitda ?? null;
-    default:
-      return null;
   }
 }
 

@@ -64,8 +64,14 @@ function aggregateOemCountryMatrix(rows: OemSalesGroupCountryMonth[]) {
     oemTotal.set(r.oem_group, (oemTotal.get(r.oem_group) ?? 0) + r.sales);
     countryTotal.set(r.country, (countryTotal.get(r.country) ?? 0) + r.sales);
   }
-  const oems = [...oemTotal.entries()].sort((a, b) => b[1] - a[1]).slice(0, HEATMAP_TOP_N).map(([n]) => n);
-  const countries = [...countryTotal.entries()].sort((a, b) => b[1] - a[1]).slice(0, HEATMAP_TOP_N).map(([n]) => n);
+  const oems = [...oemTotal.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, HEATMAP_TOP_N)
+    .map(([n]) => n);
+  const countries = [...countryTotal.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, HEATMAP_TOP_N)
+    .map(([n]) => n);
   const oemSet = new Set(oems);
   const countrySet = new Set(countries);
   const cell = new Map<string, number>();

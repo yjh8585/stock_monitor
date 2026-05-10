@@ -72,8 +72,8 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
               }}
             />
             <Bar dataKey="yoy" radius={[0, 4, 4, 0]}>
-              {winners.map((_, i) => (
-                <Cell key={i} fill="#2563eb" />
+              {winners.map((d) => (
+                <Cell key={d.name} fill="#2563eb" />
               ))}
             </Bar>
           </BarChart>
@@ -111,8 +111,8 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
               }}
             />
             <Bar dataKey="yoy" radius={[0, 4, 4, 0]}>
-              {losers.map((_, i) => (
-                <Cell key={i} fill="#dc2626" />
+              {losers.map((d) => (
+                <Cell key={d.name} fill="#dc2626" />
               ))}
             </Bar>
           </BarChart>

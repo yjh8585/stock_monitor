@@ -161,20 +161,33 @@ export default function StickyTable<R, K extends string>({
             {columns.map((col, i) => {
               const isFrozen = i < frozenCount;
               const isLastFrozen = i === frozenCount - 1;
+              const ariaSort: React.AriaAttributes['aria-sort'] =
+                col.key === sortKey ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
               return (
                 <th
                   key={`${col.key}-${i}`}
-                  onClick={() => onSort(col.key)}
+                  scope="col"
+                  aria-sort={ariaSort}
                   style={
                     isFrozen ? { position: 'sticky', left: stickyLefts[i], zIndex: 20 } : undefined
                   }
-                  className={`relative px-2 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap border-b border-border hover:text-foreground transition-colors overflow-hidden backdrop-blur-sm ${
+                  className={`relative px-2 py-2 text-left font-medium text-muted-foreground select-none whitespace-nowrap border-b border-border overflow-hidden backdrop-blur-sm ${
                     isFrozen ? 'bg-muted' : 'bg-muted/80'
                   } ${isLastFrozen ? 'shadow-[2px_0_6px_rgba(0,0,0,0.12)]' : ''}`}
                 >
-                  <span>{col.label}</span>
-                  <SortIcon colKey={col.key} sortKey={sortKey} sortDir={sortDir} />
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.key)}
+                    className="flex items-center gap-0.5 cursor-pointer hover:text-foreground transition-colors w-full text-left"
+                    aria-label={`${col.label} 기준으로 정렬`}
+                  >
+                    <span>{col.label}</span>
+                    <SortIcon colKey={col.key} sortKey={sortKey} sortDir={sortDir} />
+                  </button>
                   <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`${col.label} 열 너비 조정`}
                     className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 select-none z-10"
                     onMouseDown={(e) => handleResizeMouseDown(i, e)}
                     onClick={(e) => e.stopPropagation()}

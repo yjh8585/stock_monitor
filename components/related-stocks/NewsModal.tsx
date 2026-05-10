@@ -10,6 +10,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { safeDateLabel } from '@/lib/format';
 import { NewsItem } from '@/lib/types';
 
 interface NewsModalProps {
@@ -58,6 +59,7 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
   const [news, setNews] = useState<NewsItem[]>([]);
   const [external, setExternal] = useState<ExternalNewsItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
 
   const isKR = country === 'KR';
@@ -67,32 +69,45 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
     if (opened) return;
     setOpened(true);
     setLoading(true);
-    const supabase = createSupabaseBrowserClient();
-    const { data } = await supabase
-      .from('news')
-      .select('id, title, url, source, published_at')
-      .eq('company_id', companyId)
-      .order('published_at', { ascending: false })
-      .limit(10);
-    const items = (data as NewsItem[]) ?? [];
-    setNews(items);
-
-    if (items.length === 0) {
-      try {
-        const params = new URLSearchParams({
-          q: companyName,
-          country: isKR ? 'kr' : 'global',
-        });
-        const r = await fetch(`/api/news/search?${params}`);
-        if (r.ok) {
-          const j = (await r.json()) as { items?: ExternalNewsItem[] };
-          setExternal(j.items ?? []);
-        }
-      } catch {
-        // 네트워크 오류 — 외부 링크 fallback 만 표시
+    setErrorMsg(null);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase
+        .from('news')
+        .select('id, title, url, source, published_at')
+        .eq('company_id', companyId)
+        .order('published_at', { ascending: false })
+        .limit(10);
+      if (error) {
+        console.error('[NewsModal] supabase error', error);
+        setErrorMsg('뉴스를 불러오지 못했습니다.');
+        return;
       }
+      const items = (data as NewsItem[]) ?? [];
+      setNews(items);
+
+      if (items.length === 0) {
+        try {
+          const params = new URLSearchParams({
+            q: companyName,
+            country: isKR ? 'kr' : 'global',
+          });
+          const r = await fetch(`/api/news/search?${params}`);
+          if (r.ok) {
+            const j = (await r.json()) as { items?: ExternalNewsItem[] };
+            setExternal(j.items ?? []);
+          } else if (r.status >= 500) {
+            console.error('[NewsModal] /api/news/search', r.status);
+            // 외부 API 실패는 fallback 링크가 있으니 사용자 표시 X
+          }
+        } catch (e) {
+          console.error('[NewsModal] /api/news/search network', e);
+          // 네트워크 오류 — 외부 링크 fallback만 표시
+        }
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -110,47 +125,54 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
         </DialogHeader>
         {loading ? (
           <p className="text-xs text-muted-foreground py-4 text-center">로딩 중…</p>
+        ) : errorMsg ? (
+          <p className="text-xs text-red-500 py-4 text-center">{errorMsg}</p>
         ) : (
           <div className="space-y-3">
             {news.length > 0 && (
               <ul className="space-y-2">
-                {news.map((n) => (
-                  <li key={n.id}>
-                    <a
-                      href={n.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-foreground hover:underline block"
-                    >
-                      {n.title}
-                    </a>
-                    <span className="text-[10px] text-muted-foreground">
-                      {n.source} · {new Date(n.published_at).toLocaleDateString('ko-KR')}
-                    </span>
-                  </li>
-                ))}
+                {news.map((n) => {
+                  const dateLabel = safeDateLabel(n.published_at);
+                  return (
+                    <li key={n.id}>
+                      <a
+                        href={n.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-foreground hover:underline block"
+                      >
+                        {n.title}
+                      </a>
+                      <span className="text-[10px] text-muted-foreground">
+                        {n.source}
+                        {dateLabel && ` · ${dateLabel}`}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {news.length === 0 && external.length > 0 && (
               <ul className="space-y-2">
-                {external.map((n, i) => (
-                  <li key={i}>
-                    <a
-                      href={n.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-foreground hover:underline block"
-                    >
-                      {n.title}
-                    </a>
-                    <span className="text-[10px] text-muted-foreground">
-                      {n.source}
-                      {n.published_at
-                        ? ` · ${new Date(n.published_at).toLocaleDateString('ko-KR')}`
-                        : ''}
-                    </span>
-                  </li>
-                ))}
+                {external.map((n) => {
+                  const dateLabel = safeDateLabel(n.published_at);
+                  return (
+                    <li key={n.url}>
+                      <a
+                        href={n.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-foreground hover:underline block"
+                      >
+                        {n.title}
+                      </a>
+                      <span className="text-[10px] text-muted-foreground">
+                        {n.source}
+                        {dateLabel && ` · ${dateLabel}`}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {news.length === 0 && external.length === 0 && (

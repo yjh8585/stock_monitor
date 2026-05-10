@@ -103,8 +103,8 @@ function ChartCard({
             stroke="var(--card)"
             strokeWidth={1}
           >
-            {data.map((_, i) => (
-              <Cell key={i} fill={colors[i % colors.length]} />
+            {data.map((d, i) => (
+              <Cell key={d.name} fill={colors[i % colors.length]} />
             ))}
           </Pie>
           <Tooltip
