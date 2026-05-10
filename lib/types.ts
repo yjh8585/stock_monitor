@@ -146,3 +146,56 @@ export interface NewsItem {
   source: string | null;
   published_at: string;
 }
+
+// ============================================================
+// /oem 페이지 — MarkLines 글로벌 OEM 판매량 차트
+// ============================================================
+
+/** PowerTrain 정규화 6종 (적재 스크립트와 동일) */
+export type PowerTrain = 'ICE' | 'HV' | 'PHEV' | 'EV' | 'FCV' | 'Other';
+
+/** oem_sales_group_month 한 행 */
+export interface OemSalesGroupMonth {
+  oem_group: string;
+  year_month: number; // YYYYMM
+  sales: number;
+}
+
+/** oem_sales_group_pt_month 한 행 */
+export interface OemSalesGroupPtMonth {
+  oem_group: string;
+  powertrain: PowerTrain | string;
+  year_month: number;
+  sales: number;
+}
+
+/** oem_sales_group_country_month 한 행 */
+export interface OemSalesGroupCountryMonth {
+  oem_group: string;
+  country: string;
+  year_month: number;
+  sales: number;
+}
+
+/** oem_sales_type_seg_month 한 행 */
+export interface OemSalesTypeSegMonth {
+  vehicle_type: string;
+  segment: string;
+  year_month: number;
+  sales: number;
+}
+
+/** OEM 순위 행 (TOP30 YTD / TOP40 등 공통) */
+export interface OemRankRow {
+  rank: number;
+  oem_group: string;
+  sales: number;
+  /** 비교 기간(전년 등) 판매량 — YoY 계산용 */
+  sales_prev: number;
+  /** YoY 변화율 (%, sales_prev=0이면 null) */
+  yoy: number | null;
+  /** 비교 기간 순위 — 등락 표시용 */
+  rank_prev?: number;
+  /** 순위 등락 (양수=상승, 음수=하락, 0=유지, null=신규/소실) */
+  rank_change?: number | null;
+}
