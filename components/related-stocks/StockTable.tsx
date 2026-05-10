@@ -4,8 +4,27 @@ import { useMemo, useState } from 'react';
 import { RelatedStockRow, SortKey, ExchangeRates } from '@/lib/types';
 import { calcCagr, invTurnover } from '@/lib/format';
 import StickyTable, { StickyColumn, SortDir } from '@/components/common/StickyTable';
-import FilterBar, { CompanyTypeFilter, ListingFilter, RegionFilter } from './FilterBar';
+import FilterBar, {
+  CompanyTypeFilter,
+  ListingFilter,
+  RegionFilter,
+  ProductCategoryFilter,
+} from './FilterBar';
 import StockRow from './StockRow';
+
+/** 제품군별 회사 매핑 — name_kr 기준 (DB 데이터와 정확히 일치해야 함) */
+const PRODUCT_CATEGORY_COMPANIES: Record<ProductCategoryFilter, ReadonlySet<string>> = {
+  하프샤프트: new Set([
+    'JTEKT',
+    'NTN',
+    '넥스티어',
+    '서한이노빌리티',
+    '한국무브넥스',
+    '현대위아',
+    '한세모빌리티',
+  ]),
+  조향: new Set(['현대모비스', 'HL만도', '남양넥스모', '한세모빌리티']),
+};
 
 interface StockTableProps {
   rows: RelatedStockRow[];
@@ -120,7 +139,7 @@ export default function StockTable({ rows, rates }: StockTableProps) {
   const [typeFilter, setTypeFilter] = useState<CompanyTypeFilter[]>(['OEM', '부품사']);
   const [listingFilter, setListingFilter] = useState<ListingFilter[]>(['상장', '비상장']);
   const [regionFilter, setRegionFilter] = useState<RegionFilter[]>(['국내', '해외']);
-  const [productQuery, setProductQuery] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<ProductCategoryFilter[]>([]);
 
   // 데이터가 존재하는 최근 연도 (2026년 데이터 수집 시 자동 반영)
   const latestDataYear = useMemo(() => resolveLatestYear(rows), [rows]);
@@ -150,6 +169,11 @@ export default function StockTable({ rows, rates }: StockTableProps) {
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
 
+  const handleProductCategoryToggle = (type: ProductCategoryFilter) =>
+    setProductCategoryFilter((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+
   const filtered = useMemo(() => {
     let result = rows;
     if (typeFilter.length > 0) {
@@ -165,15 +189,33 @@ export default function StockTable({ rows, rates }: StockTableProps) {
       const wantDomestic = regionFilter.includes('국내');
       result = result.filter((r) => (r.country === 'KR') === wantDomestic);
     }
-    if (productQuery.trim()) {
-      const q = productQuery.trim().toLowerCase();
-      result = result.filter((r) => r.products.some((p) => p.name.toLowerCase().includes(q)));
+    if (productCategoryFilter.length > 0) {
+      const allowed = new Set<string>();
+      for (const cat of productCategoryFilter) {
+        for (const name of PRODUCT_CATEGORY_COMPANIES[cat]) allowed.add(name);
+      }
+      result = result.filter((r) => allowed.has(r.name_kr));
     }
     return result;
-  }, [rows, typeFilter, listingFilter, regionFilter, productQuery]);
+  }, [rows, typeFilter, listingFilter, regionFilter, productCategoryFilter]);
 
   const sorted = useMemo(() => {
-    if (!sortKey) return filtered;
+    // 기본 정렬(sortKey=null): OEM 먼저(매출 내림차순) → 부품사(매출 내림차순)
+    if (!sortKey) {
+      const revKey = `rev_${latestDataYear}` as SortKey;
+      const typeRank = (t: RelatedStockRow['company_type']) =>
+        t === 'OEM' ? 0 : t === '부품사' ? 1 : 2;
+      return [...filtered].sort((a, b) => {
+        const tr = typeRank(a.company_type) - typeRank(b.company_type);
+        if (tr !== 0) return tr;
+        const av = getSortValue(a, revKey, latestDataYear);
+        const bv = getSortValue(b, revKey, latestDataYear);
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return av < bv ? 1 : av > bv ? -1 : 0;
+      });
+    }
     return [...filtered].sort((a, b) => {
       const av = getSortValue(a, sortKey, latestDataYear);
       const bv = getSortValue(b, sortKey, latestDataYear);
@@ -191,11 +233,11 @@ export default function StockTable({ rows, rates }: StockTableProps) {
         typeFilter={typeFilter}
         listingFilter={listingFilter}
         regionFilter={regionFilter}
-        productQuery={productQuery}
+        productCategoryFilter={productCategoryFilter}
         onTypeToggle={handleTypeToggle}
         onListingToggle={handleListingToggle}
         onRegionToggle={handleRegionToggle}
-        onProductChange={setProductQuery}
+        onProductCategoryToggle={handleProductCategoryToggle}
         rates={rates}
       />
       <StickyTable

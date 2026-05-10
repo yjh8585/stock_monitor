@@ -1,0 +1,610 @@
+{
+  "matched": [
+    {
+      "ml_rank": 1,
+      "ml_name": "Bosch (Robert Bosch GmbH)",
+      "ml_slug": "bosch",
+      "our_ticker": "Bosch",
+      "our_name": "Robert Bosch GmbH"
+    },
+    {
+      "ml_rank": 2,
+      "ml_name": "Valeo Group",
+      "ml_slug": "valeo-group",
+      "our_ticker": "FR.PA",
+      "our_name": "Valeo SE"
+    },
+    {
+      "ml_rank": 4,
+      "ml_name": "ZF Friedrichshafen AG",
+      "ml_slug": "zf-friedrichshafen",
+      "our_ticker": "ZF Friedrichshafen",
+      "our_name": "ZF Friedrichshafen AG"
+    },
+    {
+      "ml_rank": 5,
+      "ml_name": "Denso Corporation",
+      "ml_slug": "denso",
+      "our_ticker": "6902.T",
+      "our_name": "Denso Corporation"
+    },
+    {
+      "ml_rank": 6,
+      "ml_name": "Marelli Corporation (Formerly Calsonic Kansei Corporation)",
+      "ml_slug": "marelli",
+      "our_ticker": "Marelli",
+      "our_name": "Marelli Holdings Co Ltd"
+    },
+    {
+      "ml_rank": 7,
+      "ml_name": "Schaeffler AG",
+      "ml_slug": "schaeffler",
+      "our_ticker": "SHA0.DE",
+      "our_name": "Schaeffler AG"
+    },
+    {
+      "ml_rank": 9,
+      "ml_name": "Continental AG",
+      "ml_slug": "continental",
+      "our_ticker": "CON.DE",
+      "our_name": "Continental AG"
+    },
+    {
+      "ml_rank": 10,
+      "ml_name": "Hyundai Mobis Co., Ltd.",
+      "ml_slug": "hyundai-mobis",
+      "our_ticker": "012330",
+      "our_name": "Hyundai Mobis"
+    },
+    {
+      "ml_rank": 11,
+      "ml_name": "Magna International Inc.",
+      "ml_slug": "magna-international",
+      "our_ticker": "MGA",
+      "our_name": "Magna International Inc"
+    },
+    {
+      "ml_rank": 12,
+      "ml_name": "Aisin Corporation (Formerly Aisin Seiki Co., Ltd.)",
+      "ml_slug": "aisin",
+      "our_ticker": "7259.T",
+      "our_name": "Aisin Corporation"
+    },
+    {
+      "ml_rank": 13,
+      "ml_name": "Mitsubishi Electric Corporation",
+      "ml_slug": "mitsubishi-electric",
+      "our_ticker": "6503.T",
+      "our_name": "Mitsubishi Electric Corporation"
+    },
+    {
+      "ml_rank": 15,
+      "ml_name": "BorgWarner Inc.",
+      "ml_slug": "borgwarner",
+      "our_ticker": "BWA",
+      "our_name": "BorgWarner Inc"
+    },
+    {
+      "ml_rank": 16,
+      "ml_name": "Adient plc (Formerly Automotive seating business division of Johnson Controls In",
+      "ml_slug": "adient",
+      "our_ticker": "ADNT",
+      "our_name": "Adient PLC"
+    },
+    {
+      "ml_rank": 17,
+      "ml_name": "Linamar Corporation",
+      "ml_slug": "linamar",
+      "our_ticker": "LNR.TO",
+      "our_name": "Linamar Corporation"
+    },
+    {
+      "ml_rank": 19,
+      "ml_name": "Astemo, Ltd. (Formerly Hitachi Astemo, Ltd. )",
+      "ml_slug": "astemo",
+      "our_ticker": "Astemo",
+      "our_name": "Hitachi Astemo, Ltd"
+    },
+    {
+      "ml_rank": 21,
+      "ml_name": "JTEKT Corporation",
+      "ml_slug": "jtekt",
+      "our_ticker": "6473.T",
+      "our_name": "JTEKT Corporation"
+    },
+    {
+      "ml_rank": 22,
+      "ml_name": "Lear Corporation",
+      "ml_slug": "lear",
+      "our_ticker": "LEA",
+      "our_name": "Lear Corporation"
+    },
+    {
+      "ml_rank": 23,
+      "ml_name": "Aptiv PLC (Formerly Delphi Automotive PLC)",
+      "ml_slug": "aptiv",
+      "our_ticker": "APTV",
+      "our_name": "Aptiv PLC"
+    },
+    {
+      "ml_rank": 24,
+      "ml_name": "MANN+HUMMEL GmbH",
+      "ml_slug": "mann-hummel",
+      "our_ticker": "Mann Hummel",
+      "our_name": "Mann + Hummel GmbH"
+    },
+    {
+      "ml_rank": 25,
+      "ml_name": "Toyoda Gosei Co., Ltd.",
+      "ml_slug": "toyoda-gosei",
+      "our_ticker": "7282.T",
+      "our_name": "Toyoda Gosei Co Ltd"
+    },
+    {
+      "ml_rank": 26,
+      "ml_name": "Brembo N.V. (Formerly Brembo S.p.A.)",
+      "ml_slug": "brembo",
+      "our_ticker": "BRE.MI",
+      "our_name": "Brembo NV"
+    },
+    {
+      "ml_rank": 31,
+      "ml_name": "OPmobility SE (Formerly Compagnie Plastic Omnium SE)",
+      "ml_slug": "opmobility",
+      "our_ticker": "OPM.PA",
+      "our_name": "OPmobility SE"
+    },
+    {
+      "ml_rank": 32,
+      "ml_name": "Toyota Boshoku Corporation",
+      "ml_slug": "toyota-boshoku",
+      "our_ticker": "3116.T",
+      "our_name": "Toyota Boshoku Corporation"
+    },
+    {
+      "ml_rank": 33,
+      "ml_name": "Webasto SE",
+      "ml_slug": "webasto",
+      "our_ticker": "Webasto",
+      "our_name": "Webasto SE"
+    },
+    {
+      "ml_rank": 34,
+      "ml_name": "Grupo Antolin-Irausa, S.A.",
+      "ml_slug": "grupo-antolin-irausa",
+      "our_ticker": "Grupo Antolin",
+      "our_name": "Grupo Antolin Irausa SA"
+    },
+    {
+      "ml_rank": 35,
+      "ml_name": "Harman International Industries, Inc.",
+      "ml_slug": "harman-international-industries",
+      "our_ticker": "Harman",
+      "our_name": "Harman International Industries"
+    },
+    {
+      "ml_rank": 37,
+      "ml_name": "Samvardhana Motherson Group",
+      "ml_slug": "samvardhana-motherson-group",
+      "our_ticker": "MOTHERSON.NS",
+      "our_name": "Samvardhana Motherson International"
+    },
+    {
+      "ml_rank": 39,
+      "ml_name": "Visteon Corporation",
+      "ml_slug": "visteon",
+      "our_ticker": "VC",
+      "our_name": "Visteon Corporation"
+    },
+    {
+      "ml_rank": 44,
+      "ml_name": "Toyota Industries Corporation",
+      "ml_slug": "toyota-industries",
+      "our_ticker": "3116.T",
+      "our_name": "Toyota Boshoku Corporation"
+    },
+    {
+      "ml_rank": 46,
+      "ml_name": "Yazaki Corporation",
+      "ml_slug": "yazaki",
+      "our_ticker": "Yazaki",
+      "our_name": "Yazaki Corporation"
+    },
+    {
+      "ml_rank": 47,
+      "ml_name": "Brose Fahrzeugteile SE & Co. KG, Coburg",
+      "ml_slug": "brose-fahrzeugteile",
+      "our_ticker": "Brose",
+      "our_name": "Brose Fahrzeugteile SE"
+    },
+    {
+      "ml_rank": 48,
+      "ml_name": "Huayu Automotive Systems Co., Ltd.",
+      "ml_slug": "huayu-automotive-systems",
+      "our_ticker": "600741.SS",
+      "our_name": "Huayu Automotive Systems Co Ltd"
+    },
+    {
+      "ml_rank": 50,
+      "ml_name": "Panasonic Holdings Corporation (Formerly Panasonic Corporation)",
+      "ml_slug": "panasonic",
+      "our_ticker": "6752.T",
+      "our_name": "Panasonic Holdings Corporation"
+    },
+    {
+      "ml_rank": 51,
+      "ml_name": "MAHLE GmbH",
+      "ml_slug": "mahle",
+      "our_ticker": "Mahle",
+      "our_name": "MAHLE GmbH"
+    },
+    {
+      "ml_rank": 52,
+      "ml_name": "MICHELIN (Compagnie Generale des Etablissements Michelin S.C.A.)",
+      "ml_slug": "michelin",
+      "our_ticker": "ML.PA",
+      "our_name": "Compagnie Générale des Établissements Michelin"
+    },
+    {
+      "ml_rank": 57,
+      "ml_name": "Dauch Corporation (Formerly American Axle & Manufacturing Holdings, Inc.)",
+      "ml_slug": "dauch-corporation",
+      "our_ticker": "DCH",
+      "our_name": "DAUCH"
+    },
+    {
+      "ml_rank": 59,
+      "ml_name": "Futaba Industrial Co., Ltd.",
+      "ml_slug": "futaba-industrial",
+      "our_ticker": "7241.T",
+      "our_name": "Futaba Industrial Co Ltd"
+    },
+    {
+      "ml_rank": 62,
+      "ml_name": "Ningbo Tuopu Group Co., Ltd.(Formerly Ningbo Tuopu Brake System Co., Ltd.)",
+      "ml_slug": "ningbo-tuopu-group",
+      "our_ticker": "601689.SS",
+      "our_name": "Ningbo Tuopu Group Co Ltd"
+    },
+    {
+      "ml_rank": 64,
+      "ml_name": "NXP Semiconductors N.V.",
+      "ml_slug": "nxp-semiconductors",
+      "our_ticker": "NXPI",
+      "our_name": "NXP Semiconductors NV"
+    },
+    {
+      "ml_rank": 66,
+      "ml_name": "Huawei Technologies Co., Ltd.",
+      "ml_slug": "huawei",
+      "our_ticker": "Huawei",
+      "our_name": "Huawei Technologies Co Ltd"
+    },
+    {
+      "ml_rank": 71,
+      "ml_name": "Tokai Rika Co., Ltd.",
+      "ml_slug": "tokai-rika",
+      "our_ticker": "6995.T",
+      "our_name": "Tokai Rika Co Ltd"
+    },
+    {
+      "ml_rank": 72,
+      "ml_name": "Gestamp Automocion S.A.",
+      "ml_slug": "gestamp-automocion",
+      "our_ticker": "GEST.MC",
+      "our_name": "Gestamp Automoción SA"
+    },
+    {
+      "ml_rank": 74,
+      "ml_name": "Huizhou Desay SV Automotive Co., Ltd.",
+      "ml_slug": "huizhou-desay-sv-automotive",
+      "our_ticker": "002920.SZ",
+      "our_name": "Huizhou Desay SV Automotive"
+    },
+    {
+      "ml_rank": 78,
+      "ml_name": "Marelli Europe S.p.A. (Formerly Magneti Marelli S.p.A.)",
+      "ml_slug": "marelli-europe",
+      "our_ticker": "Marelli",
+      "our_name": "Marelli Holdings Co Ltd"
+    },
+    {
+      "ml_rank": 79,
+      "ml_name": "Schaeffler Group (China)",
+      "ml_slug": "schaeffler-group-china",
+      "our_ticker": "SHA0.DE",
+      "our_name": "Schaeffler AG"
+    },
+    {
+      "ml_rank": 81,
+      "ml_name": "Tenneco Inc.",
+      "ml_slug": "tenneco",
+      "our_ticker": "Tenneco",
+      "our_name": "Tenneco Inc"
+    },
+    {
+      "ml_rank": 82,
+      "ml_name": "Aisin (China) Investment Co., Ltd.",
+      "ml_slug": "aisin-group-china",
+      "our_ticker": "7259.T",
+      "our_name": "Aisin Corporation"
+    },
+    {
+      "ml_rank": 83,
+      "ml_name": "Alps Alpine Co., Ltd. (Formerly Alps Electric Co., Ltd.)",
+      "ml_slug": "alps-alpine",
+      "our_ticker": "6770.T",
+      "our_name": "Alps Alpine Co Ltd"
+    },
+    {
+      "ml_rank": 84,
+      "ml_name": "Benteler Group (Benteler Automobiltechnik GmbH)",
+      "ml_slug": "benteler-group",
+      "our_ticker": "Benteler",
+      "our_name": "Benteler International AG"
+    },
+    {
+      "ml_rank": 85,
+      "ml_name": "Dräxlmaier Group (Fritz Dräxlmaier GmbH & Co. KG)",
+      "ml_slug": "draexlmaier-group",
+      "our_ticker": "Draexlmaier",
+      "our_name": "Lisa Dräxlmaier GmbH"
+    },
+    {
+      "ml_rank": 86,
+      "ml_name": "Compagnie de Saint-Gobain S.A.",
+      "ml_slug": "saint-gobain",
+      "our_ticker": "SGO.PA",
+      "our_name": "Compagnie de Saint-Gobain"
+    },
+    {
+      "ml_rank": 90,
+      "ml_name": "Autoliv Inc.",
+      "ml_slug": "autoliv",
+      "our_ticker": "ALV",
+      "our_name": "Autoliv Inc"
+    },
+    {
+      "ml_rank": 91,
+      "ml_name": "Bridgestone Corporation",
+      "ml_slug": "bridgestone",
+      "our_ticker": "5108.T",
+      "our_name": "Bridgestone Corporation"
+    },
+    {
+      "ml_rank": 94,
+      "ml_name": "Hyundai WIA Corporation (Formerly WIA Corporation)",
+      "ml_slug": "hyundai-wia",
+      "our_ticker": "012330",
+      "our_name": "Hyundai Mobis"
+    },
+    {
+      "ml_rank": 96,
+      "ml_name": "Koito Manufacturing Co., Ltd.",
+      "ml_slug": "koito-manufacturing",
+      "our_ticker": "7276.T",
+      "our_name": "Koito Manufacturing Co Ltd"
+    },
+    {
+      "ml_rank": 97,
+      "ml_name": "Ningbo Joyson Electronic Corp.",
+      "ml_slug": "ningbo-joyson-electronic",
+      "our_ticker": "601689.SS",
+      "our_name": "Ningbo Tuopu Group Co Ltd"
+    },
+    {
+      "ml_rank": 99,
+      "ml_name": "TACHI-S Co., Ltd.",
+      "ml_slug": "tachi-s",
+      "our_ticker": "Astemo",
+      "our_name": "Hitachi Astemo, Ltd"
+    }
+  ],
+  "missing": [
+    {
+      "rank": 3,
+      "name": "FORVIA SE (FORVIA faurecia) (Formerly Faurecia SE)",
+      "slug": "faurecia"
+    },
+    {
+      "rank": 8,
+      "name": "Nidec Corporation",
+      "slug": "nidec"
+    },
+    {
+      "rank": 14,
+      "name": "ElringKlinger AG",
+      "slug": "elringklinger"
+    },
+    {
+      "rank": 18,
+      "name": "Aumovio SE",
+      "slug": "aumovio"
+    },
+    {
+      "rank": 20,
+      "name": "CATL (Contemporary Amperex Technology Co., Ltd.)",
+      "slug": "catl"
+    },
+    {
+      "rank": 27,
+      "name": "Hanon Systems (Formerly Halla Visteon Climate Control)",
+      "slug": "hanon-systems"
+    },
+    {
+      "rank": 28,
+      "name": "Leopold Kostal GmbH & Co. KG",
+      "slug": "leopold-kostal"
+    },
+    {
+      "rank": 29,
+      "name": "Pioneer Corporation",
+      "slug": "pioneer"
+    },
+    {
+      "rank": 30,
+      "name": "Shenzhen Inovance Technology Co., Ltd.",
+      "slug": "inovance-technology"
+    },
+    {
+      "rank": 36,
+      "name": "Minth Group Limited",
+      "slug": "minth-group"
+    },
+    {
+      "rank": 38,
+      "name": "AAPICO Hitech Public Co., Ltd.",
+      "slug": "aapico-hitech-public"
+    },
+    {
+      "rank": 40,
+      "name": "Zhejiang Asia-Pacific Mechanical & Electronic Co., Ltd.",
+      "slug": "zhejiang-asia-pacific-mechanical-electronic"
+    },
+    {
+      "rank": 41,
+      "name": "Garrett Motion Inc. (Formerly Honeywell Turbo Technologies Inc.)",
+      "slug": "garrett-motion"
+    },
+    {
+      "rank": 42,
+      "name": "HASCO Vision Technology (Shanghai) Co., Ltd. (Formerly Shanghai Koito Automotive",
+      "slug": "hasco-vision-technology-shanghai"
+    },
+    {
+      "rank": 43,
+      "name": "Hella GmbH & Co. KGaA (FORVIA HELLA)",
+      "slug": "hella"
+    },
+    {
+      "rank": 45,
+      "name": "Hoerbiger Holding AG",
+      "slug": "hoerbiger-holding"
+    },
+    {
+      "rank": 49,
+      "name": "Miba AG",
+      "slug": "miba"
+    },
+    {
+      "rank": 53,
+      "name": "T.RAD Co., Ltd.",
+      "slug": "t-rad"
+    },
+    {
+      "rank": 54,
+      "name": "UNO Minda Ltd. (Formerly Minda Industries Ltd.)",
+      "slug": "uno-minda"
+    },
+    {
+      "rank": 55,
+      "name": "EXEDY Corporation",
+      "slug": "exedy"
+    },
+    {
+      "rank": 56,
+      "name": "Mobileye Vision Technologies Ltd.",
+      "slug": "mobileye"
+    },
+    {
+      "rank": 58,
+      "name": "Ficosa International, S.A. / Headquarters",
+      "slug": "ficosa-international"
+    },
+    {
+      "rank": 60,
+      "name": "IAC (International Automotive Components) Group",
+      "slug": "iac"
+    },
+    {
+      "rank": 61,
+      "name": "Maxion Wheels Holding GmbH (Formerly Hayes Lemmerz International Inc.)",
+      "slug": "maxion-wheels"
+    },
+    {
+      "rank": 63,
+      "name": "NVIDIA Corporation",
+      "slug": "nvidia"
+    },
+    {
+      "rank": 65,
+      "name": "Gentex Corporation",
+      "slug": "gentex"
+    },
+    {
+      "rank": 68,
+      "name": "LS Automotive Technologies (Formerly LS Automotive Corp.)",
+      "slug": "ls-automotive-technologies"
+    },
+    {
+      "rank": 69,
+      "name": "Mitsuba Corporation",
+      "slug": "mitsuba"
+    },
+    {
+      "rank": 70,
+      "name": "Stanley Electric Co., Ltd.",
+      "slug": "stanley-electric"
+    },
+    {
+      "rank": 75,
+      "name": "Ikuyo Co., Ltd.",
+      "slug": "ikuyo"
+    },
+    {
+      "rank": 76,
+      "name": "Inteva Products, LLC",
+      "slug": "inteva-products"
+    },
+    {
+      "rank": 77,
+      "name": "Lingyun Industrial Corporation Limited",
+      "slug": "lingyun-industrial"
+    },
+    {
+      "rank": 80,
+      "name": "SL Corporation",
+      "slug": "sl"
+    },
+    {
+      "rank": 87,
+      "name": "ABC Technologies Inc. (Formerly ABC Group, Inc.)",
+      "slug": "abc-group"
+    },
+    {
+      "rank": 88,
+      "name": "ADVICS Co., Ltd.",
+      "slug": "advics"
+    },
+    {
+      "rank": 89,
+      "name": "Ahresty Corporation",
+      "slug": "ahresty"
+    },
+    {
+      "rank": 92,
+      "name": "CALB Group Co., Ltd. (Formerly CALB Co., Ltd.)",
+      "slug": "calb"
+    },
+    {
+      "rank": 93,
+      "name": "Changzhou Xingyu Automotive Lighting Systems Co., Ltd.",
+      "slug": "changzhou-xingyu-automotive-lighting-systems"
+    },
+    {
+      "rank": 95,
+      "name": "Johnson Electric Industrial Manufactory, Ltd. (Formerly Johnson Electric Group)",
+      "slug": "johnson-electric-machinery-factory"
+    },
+    {
+      "rank": 98,
+      "name": "Niterra Co., Ltd. (Formerly NGK Spark Plug Co., Ltd.)",
+      "slug": "niterra"
+    },
+    {
+      "rank": 100,
+      "name": "The Goodyear Tire & Rubber Company",
+      "slug": "the-goodyear-tire-rubber"
+    }
+  ]
+}

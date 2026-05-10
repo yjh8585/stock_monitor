@@ -1,0 +1,3856 @@
+[
+  {
+    "name_kr": "에스케이온",
+    "company_id": "25368554-18c8-4e11-aa4d-1dade59bb996",
+    "data": {
+      "business_summary": "SK ON은 전기차용 중대형 리튬이온 배터리를 개발·제조하는 글로벌 배터리 회사로, 고니켈 NCM, LFP, 전고체 배터리 등 다양한 포트폴리오를 갖춘 세계 5위 배터리 공급업체입니다.",
+      "products": [
+        {
+          "name": "NCM9 배터리(고니켈)"
+        },
+        {
+          "name": "LFP 배터리(리튬인산철)"
+        },
+        {
+          "name": "SF 배터리(Advanced Super-Fast)"
+        },
+        {
+          "name": "에너지저장장치(ESS) 배터리"
+        },
+        {
+          "name": "전고체 배터리(개발중)"
+        },
+        {
+          "name": "무선 BMS 및 액침냉각 기술"
+        }
+      ],
+      "customers": [
+        {
+          "name": "현대차"
+        },
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "페라리"
+        },
+        {
+          "name": "닛산"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "보쉬",
+    "company_id": "2c204ff3-51f3-4fd9-aeeb-92645db37ee7",
+    "data": {
+      "business_summary": "세계 최대 자동차 부품 공급업체로, 모빌리티·산업기술·소비자상품·에너지건물기술 4개 부문에서 혁신적인 전자제어·센서·소프트웨어 솔루션을 제공합니다.",
+      "products": [
+        {
+          "name": "브레이크 시스템"
+        },
+        {
+          "name": "연료분사 및 파워트레인 제어"
+        },
+        {
+          "name": "센서 및 반도체"
+        },
+        {
+          "name": "EV 배터리 및 전자화 솔루션"
+        },
+        {
+          "name": "ADAS 및 자동운전 소프트웨어"
+        },
+        {
+          "name": "조향 및 안전 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐 (Volkswagen)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠 (Mercedes-Benz)"
+        },
+        {
+          "name": "아우디 (Audi)"
+        },
+        {
+          "name": "볼보 (Volvo)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "덴소",
+    "company_id": "4e2e9619-f4b3-4c0e-a0b1-178e958dbe73",
+    "data": {
+      "business_summary": "덴소는 일본 카리야에 본사를 둔 글로벌 Tier-1 자동차 부품 공급사로, 엔진·파워트레인·공조·전기화 시스템 등 다양한 OEM 부품을 제조 공급합니다. 세계 2위 규모의 자동차 부품업체로 155개국 200개 제조시설을 운영하고 있습니다.",
+      "products": [
+        {
+          "name": "스파크플러그"
+        },
+        {
+          "name": "공조 시스템"
+        },
+        {
+          "name": "에어백 시스템"
+        },
+        {
+          "name": "파워트레인 부품"
+        },
+        {
+          "name": "레이더 센서"
+        },
+        {
+          "name": "전기화 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Volkswagen"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "콘티넨탈",
+    "company_id": "ce57083b-739d-4c33-83f4-1228364132e9",
+    "data": {
+      "business_summary": "독일 전자동 부품 및 타이어 제조사로, 자동차용 타이어, 브레이크 시스템, 자동주행 및 전자제어 솔루션을 공급하는 세계 선도적 공급업체입니다.",
+      "products": [
+        {
+          "name": "타이어"
+        },
+        {
+          "name": "브레이크 시스템"
+        },
+        {
+          "name": "파워트레인 부품"
+        },
+        {
+          "name": "섀시 및 안전 시스템"
+        },
+        {
+          "name": "드라이버 어시스턴스 시스템"
+        },
+        {
+          "name": "전자 아키텍처 솔루션"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "다임러(벤츠)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "GM(제너럴모터스)"
+        },
+        {
+          "name": "도요타"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "마그나",
+    "company_id": "b7203371-8214-44ea-813f-9bdc06dadb52",
+    "data": {
+      "business_summary": "마그나는 북미 최대 자동차 부품 공급업체로서 완성차 OEM에 자동차 시스템, 모듈, 부품을 공급하는 캐나다 기반 글로벌 이동성 기술 회사이다. 바디, 파워트레인, 전자 시스템, ADAS 등 전 분야에서 원천 기술 기반 풀-스택 솔루션을 제공한다.",
+      "products": [
+        {
+          "name": "바디 외장 및 구조물 (Body Exteriors & Structures)"
+        },
+        {
+          "name": "파워 및 비전 시스템 (Power & Vision Systems)"
+        },
+        {
+          "name": "시트/시팅 시스템 (Seating Systems)"
+        },
+        {
+          "name": "ADAS 및 자동주행 (ADAS & Automated Driving)"
+        },
+        {
+          "name": "파워트레인 (Powertrain)"
+        },
+        {
+          "name": "완성차 제조 (Complete Vehicle Manufacturing)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Tesla"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "ZF프리드리히샤펜",
+    "company_id": "ad6bf608-9a84-4dbb-9e5b-a2340023e821",
+    "data": {
+      "business_summary": "ZF Friedrichshafen AG는 독일의 글로벌 자동차 부품 공급업체로, 승용차, 상용차, 산업기술용 파워트레인, 섀시, 안전기술, 전기 이동성 시스템 등을 개발·제조하며 세계 3위 규모의 자동차 부품 공급사이다.",
+      "products": [
+        {
+          "name": "자동변속기"
+        },
+        {
+          "name": "섀시 시스템"
+        },
+        {
+          "name": "안전기술 시스템"
+        },
+        {
+          "name": "전기 드라이드라이브"
+        },
+        {
+          "name": "ADAS 및 센서"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Stellantis"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "CATL",
+    "company_id": "57b2911f-b24d-4318-8afe-b846f8a5ebd2",
+    "data": {
+      "business_summary": "2011년 설립된 CATL은 전 세계 최대 규모의 전기차 배터리 및 에너지저장 배터리 제조업체로, 리튬이온 배터리, 배터리 관리 시스템(BMS) 등 친환경 에너지 솔루션을 공급하며 글로벌 EV 배터리 시장의 약 37%를 차지하고 있다.",
+      "products": [
+        {
+          "name": "EV 배터리 (리튬이온)"
+        },
+        {
+          "name": "LFP 배터리 (리튬철인산화물)"
+        },
+        {
+          "name": "NCM 배터리 (니켈코발트망간)"
+        },
+        {
+          "name": "나트륨이온 배터리"
+        },
+        {
+          "name": "에너지저장 배터리"
+        },
+        {
+          "name": "배터리 관리 시스템(BMS)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "테슬라"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "다임러(메르세데스-벤츠)"
+        },
+        {
+          "name": "현대차"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "아이신",
+    "company_id": "c4fe79b3-8fc2-49eb-9c1a-d1d11784267c",
+    "data": {
+      "business_summary": "아이신은 자동변속기 세계 최대 제조업체로, 도요타를 비롯한 주요 완성차 OEM들에 엔진, 파워트레인, 바디-섀시 등 자동차 부품 및 시스템을 공급하는 일본의 글로벌 자동차부품 1차 협력업체이다.",
+      "products": [
+        {
+          "name": "자동변속기 (Automatic Transmission)"
+        },
+        {
+          "name": "브레이크 (Brake Systems)"
+        },
+        {
+          "name": "e-Axle (전동 구동축)"
+        },
+        {
+          "name": "네비게이션 시스템 (Navigation Systems)"
+        },
+        {
+          "name": "하이브리드 시스템 (Hybrid Drive Systems)"
+        },
+        {
+          "name": "섀시 및 바디 부품 (Chassis & Body Components)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota (도요타)"
+        },
+        {
+          "name": "Honda (혼다)"
+        },
+        {
+          "name": "Nissan (닛산)"
+        },
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Daimler (다임러)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "미쉐린",
+    "company_id": "49683414-025f-4923-9a70-14d7b7e5655d",
+    "data": {
+      "business_summary": "미쉐린은 승용차, 경트럭, 상용차 등 모든 유형의 차량용 타이어 설계 및 제조 분야의 선두 제조사이며, 2023년 14.4% 글로벌 시장점유율로 세계 최대 타이어 제조업체입니다.",
+      "products": [
+        {
+          "name": "승용차 타이어"
+        },
+        {
+          "name": "사계절 타이어"
+        },
+        {
+          "name": "겨울 타이어"
+        },
+        {
+          "name": "고성능 스포츠 타이어"
+        },
+        {
+          "name": "연비효율 타이어"
+        },
+        {
+          "name": "런플랫 타이어"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Tesla"
+        },
+        {
+          "name": "Volkswagen Group"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "BMW Group"
+        },
+        {
+          "name": "Mercedes-Benz"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "포비아",
+    "company_id": "6b5991a7-7349-480c-b109-4eb8af18043a",
+    "data": {
+      "business_summary": "FORVIA SE는 프랑스의 글로벌 자동차 공급업체로, Faurecia와 HELLA의 합병으로 구성되며 좌석, 배기시스템, 내장재, 조명, 전자 및 클린모빌리티 솔루션을 제공한다. 현재 생산되는 자동차 2대 중 1대가 FORVIA로 장착되어 있으며, 2025년 매출은 약 €26.2억이다.",
+      "products": [
+        {
+          "name": "자동차 좌석 (시트 프레임, 쿠션, 트림)"
+        },
+        {
+          "name": "내장재 (대시보드, 도어패널, 센터 콘솔)"
+        },
+        {
+          "name": "배기시스템 (촉매변환기, 머플러)"
+        },
+        {
+          "name": "조명 (LED 헤드램프, 어댑티브 라이팅)"
+        },
+        {
+          "name": "수소 연료탱크"
+        },
+        {
+          "name": "전자 및 코크핏 솔루션"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "스텔란티스"
+        },
+        {
+          "name": "현대기아"
+        },
+        {
+          "name": "GM"
+        },
+        {
+          "name": "BMW"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "커민스",
+    "company_id": "fbd626ff-af4c-4927-9d93-2a361774a793",
+    "data": {
+      "business_summary": "<cite index=\"1-1\">커민스는 디젤 엔진, 전기차 부품 및 발전 제품을 설계, 제조, 판매하는 글로벌 다국적 기업이며</cite>, <cite index=\"1-8\">중장형 트럭, 버스, RV, 경형 상용차 및 건설·광업·해양 등 산업용 시장에 제품을 공급합니다.</cite>",
+      "products": [
+        {
+          "name": "디젤 엔진"
+        },
+        {
+          "name": "천연가스 엔진"
+        },
+        {
+          "name": "터보차저"
+        },
+        {
+          "name": "배출가스 정화장치"
+        },
+        {
+          "name": "연료 시스템"
+        },
+        {
+          "name": "배터리 및 전해질 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Paccar (Kenworth, Peterbilt)"
+        },
+        {
+          "name": "Daimler Trucks North America (Freightliner, Western Star)"
+        },
+        {
+          "name": "Navistar (International)"
+        },
+        {
+          "name": "Volvo Group (Volvo Trucks, Mack)"
+        },
+        {
+          "name": "Dodge Ram (Ram trucks)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "화우 (HASCO)",
+    "company_id": "3eac30a8-9a54-4121-9430-8fc37e3d3a9a",
+    "data": {
+      "business_summary": "화우(HASCO)는 40개 이상의 사업 분야에서 자동차 부품 종합 통합 공급업체로, 30년 이상 전 세계 주요 OEM에 고급 기술과 신뢰할 수 있는 제품·서비스를 제공합니다. 새에너지 차량 전기구동, 지능형 주행, 스마트 캐빈 등 핵심 사업을 중심으로 글로벌 확장을 추진하고 있습니다.",
+      "products": [
+        {
+          "name": "내외장 트림 부품 (시트, 도어, 대시보드 등)"
+        },
+        {
+          "name": "전기구동 시스템 (모터, 통합 구동축)"
+        },
+        {
+          "name": "ADAS/지능형 주행 시스템 (레이더, LiDAR, 카메라)"
+        },
+        {
+          "name": "에어컨/열관리 시스템"
+        },
+        {
+          "name": "차체 및 섀시 부품 (스티어링, 브레이크)"
+        },
+        {
+          "name": "스마트 조명 및 전자 제어 모듈"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Tesla Shanghai"
+        },
+        {
+          "name": "FAW Volkswagen"
+        },
+        {
+          "name": "BYD"
+        },
+        {
+          "name": "Chery"
+        },
+        {
+          "name": "BMW Brilliance"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "리어",
+    "company_id": "aa36c8a9-e617-46fc-9896-1e36e2f78f2a",
+    "data": {
+      "business_summary": "리어는 시팅과 E-Systems 분야의 글로벌 자동차 공급업체로 100년 이상의 역사를 가지고 있으며, 전 세계 주요 완성차 업체에 완성 시트 시스템, 전기 배전 시스템, 배터리 관리 솔루션 등 첨단 기술을 공급하는 업체입니다.",
+      "products": [
+        {
+          "name": "자동차 시트 시스템"
+        },
+        {
+          "name": "와이어 하네스"
+        },
+        {
+          "name": "전기 배전 및 연결 시스템"
+        },
+        {
+          "name": "배터리 관리 시스템"
+        },
+        {
+          "name": "전자 제어 모듈"
+        },
+        {
+          "name": "고전압 커넥터"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "Jaguar Land Rover"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "발레오",
+    "company_id": "32025a50-bbcd-4fd1-ab12-d2585133a024",
+    "data": {
+      "business_summary": "발레오는 파리 본사의 프랑스 글로벌 자동차 부품 공급사로, 전동화, 조향 보조시스템, 열관리, 조명 등 핵심 자동차 기술을 공급하며 전 세계 주요 자동차 제조사의 전략적 파트너로 활동하고 있다.",
+      "products": [
+        {
+          "name": "파워드라이브 시스템 (전동화 솔루션)"
+        },
+        {
+          "name": "열관리 시스템 (공조, 히터)"
+        },
+        {
+          "name": "조명 시스템 (LED 헤드램프)"
+        },
+        {
+          "name": "ADAS 및 주행보조 시스템"
+        },
+        {
+          "name": "변속기 시스템 (클러치, 토크 컨버터)"
+        },
+        {
+          "name": "와이퍼 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐 그룹"
+        },
+        {
+          "name": "BMW 그룹"
+        },
+        {
+          "name": "스텔란티스"
+        },
+        {
+          "name": "르노"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "브리지스톤",
+    "company_id": "f9981279-a5bb-430b-ae9d-d6ad5a2e48f7",
+    "data": {
+      "business_summary": "브리지스톤은 1931년 설립된 일본의 다국적 타이어 및 고무 제품 제조업체로, 자동차 업계에 타이어, 엔진마운트, 에어스프링, 알루미늄 휠 등 다양한 자동차 부품을 공급하는 세계 최대 규모의 타이어 및 고무 제품 회사이다.",
+      "products": [
+        {
+          "name": "승용차용 타이어"
+        },
+        {
+          "name": "상용차 타이어"
+        },
+        {
+          "name": "항공기 타이어"
+        },
+        {
+          "name": "엔진마운트"
+        },
+        {
+          "name": "에어스프링"
+        },
+        {
+          "name": "알루미늄 휠"
+        }
+      ],
+      "customers": [
+        {
+          "name": "도요타"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "혼다"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "셰플러",
+    "company_id": "5d84b8a3-b7ec-4bff-b723-ad73976ec53b",
+    "data": {
+      "business_summary": "셰플러는 독일의 글로벌 자동차 및 산업기계 부품 공급업체로, 엔진·변속기·섀시 및 베어링 등 고정밀 부품·시스템을 제공하며 전기차, 클러치, 토션댐퍼 등 광범위한 파워트레인 솔루션을 전문으로 한다.",
+      "products": [
+        {
+          "name": "베어링 (롤링·플레인베어링)"
+        },
+        {
+          "name": "클러치 시스템"
+        },
+        {
+          "name": "토션 댐퍼"
+        },
+        {
+          "name": "밸브트레인·캠축 위상조절장치"
+        },
+        {
+          "name": "E-모빌리티 시스템 (전기 액슬)"
+        },
+        {
+          "name": "서멀 매니지먼트 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐 그룹"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠 (다임러)"
+        },
+        {
+          "name": "혼다"
+        },
+        {
+          "name": "도요타"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "앱티브",
+    "company_id": "79729b22-e364-41c2-b145-fdeb145b0a7a",
+    "data": {
+      "business_summary": "Aptiv는 자동차 전기·전자 아키텍처 및 고급 안전 기술을 공급하는 글로벌 자동차부품 회사이다. 전기차 고전압 솔루션, ADAS, 자율주행, 스마트 차량 아키텍처 등 차세대 모빌리티 기술을 전문으로 한다.",
+      "products": [
+        {
+          "name": "배선 하네스 및 전기 배선 시스템"
+        },
+        {
+          "name": "ADAS 및 자율주행 소프트웨어"
+        },
+        {
+          "name": "고전압 전기 센터 및 커넥터"
+        },
+        {
+          "name": "배터리 관리 소프트웨어"
+        },
+        {
+          "name": "스마트 차량 아키텍처"
+        },
+        {
+          "name": "차량 연결성 및 통신 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "GM"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Hyundai Motor"
+        },
+        {
+          "name": "Tesla"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "테네코",
+    "company_id": "38286cc8-ebb2-4dbd-88c1-0778037a230f",
+    "data": {
+      "business_summary": "테네코는 미국의 글로벌 자동차 부품 공급업체로, 배기 에미션 제어, 파워트레인, 라이드 컨트롤, 배터리 보호 솔루션 등을 설계·제조하여 완성차 OEM과 애프터마켓 고객에게 공급한다.",
+      "products": [
+        {
+          "name": "쇼크업소버 및 서스펜션 시스템"
+        },
+        {
+          "name": "머플러 및 배기 시스템"
+        },
+        {
+          "name": "배출 제어 시스템"
+        },
+        {
+          "name": "EV 배터리 보호 솔루션"
+        },
+        {
+          "name": "파워트레인 부품"
+        },
+        {
+          "name": "시일 및 가스켓"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Ford Motor Company"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "굿이어",
+    "company_id": "4a464eaf-939c-4a66-b252-afe1381a33c4",
+    "data": {
+      "business_summary": "굿이어는 세계 3대 타이어 제조사로, 승용차·상용차·항공기·EV 등 다양한 분야의 고성능 타이어와 관련 서비스를 제공하는 미국 기반의 글로벌 자동차 부품 공급업체입니다.",
+      "products": [
+        {
+          "name": "승용차 타이어"
+        },
+        {
+          "name": "EV 타이어"
+        },
+        {
+          "name": "상용 트럭 타이어"
+        },
+        {
+          "name": "항공 타이어"
+        },
+        {
+          "name": "지능형 타이어 (SightLine)"
+        },
+        {
+          "name": "친환경 타이어"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Tesla"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Volkswagen"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "스미토모전기",
+    "company_id": "0c542bae-9224-4867-b688-c299d564ba84",
+    "data": {
+      "business_summary": "스미토모전기는 전선, 광섬유 케이블, 자동차 와이어 하네스, 전자부품 등을 제조하는 글로벌 자동차 부품 공급업체로, 자동차 세그먼트가 연매출의 약 50%를 차지한다.",
+      "products": [
+        {
+          "name": "와이어 하네스"
+        },
+        {
+          "name": "고전압 전기자동차용 케이블"
+        },
+        {
+          "name": "안티진동 러버"
+        },
+        {
+          "name": "자동차 호스"
+        },
+        {
+          "name": "전자제어장치 및 커넥터"
+        },
+        {
+          "name": "알루미늄 하네스"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "General Motors"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "어디언트",
+    "company_id": "77ff9143-94d9-4d43-aa79-e91a88d1f54c",
+    "data": {
+      "business_summary": "애디언트는 전세계 완성차 OEM들에게 자동차 시트 및 관련 부품을 설계·제조·납품하는 글로벌 선도 기업으로, 2016년 존슨컨트롤스에서 분사되었으며 아일랜드에 본사를 두고 있다. 29개국 200여 개 제조·조립 공장과 7만여 명의 직원으로 모든 주요 완성차 고객사에 자동차용 시트 완성품 및 개별 부품을 공급한다.",
+      "products": [
+        {
+          "name": "완성 시트 시스템"
+        },
+        {
+          "name": "시트 프레임 및 메커니즘"
+        },
+        {
+          "name": "시트 폼"
+        },
+        {
+          "name": "시트 헤드레스트"
+        },
+        {
+          "name": "시트 트림 및 커버"
+        },
+        {
+          "name": "상업용 차량용 시트"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Hyundai Motor"
+        },
+        {
+          "name": "Toyota"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "야자키",
+    "company_id": "b0be3f82-fa26-46a2-9ef3-e82fa3c406fa",
+    "data": {
+      "business_summary": "야자키는 1941년 설립된 일본의 글로벌 자동차 부품 공급업체로, 와이어 해니스, 자동차 계기, 커넥터 등을 주력 제품으로 하며 전 세계 주요 완성차 업체에 공급하는 세계 최대 규모의 차량용 전력·데이터 솔루션 공급사입니다.",
+      "products": [
+        {
+          "name": "와이어 해니스"
+        },
+        {
+          "name": "자동차 계기판"
+        },
+        {
+          "name": "고전압 커넥터"
+        },
+        {
+          "name": "전력 분배 및 제어 제품"
+        },
+        {
+          "name": "센서"
+        },
+        {
+          "name": "하이브리드·전기차 제품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Ford"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "보그워너",
+    "company_id": "42ff1653-3e99-4712-8031-c547f192cb4a",
+    "data": {
+      "business_summary": "BorgWarner Inc는 미시간 주 Auburn Hills에 본사를 둔 글로벌 자동차 부품 공급사로, 엔진관리, 구동계, 배터리 및 충전 시스템 등 혁신적인 모빌리티 솔루션을 제공합니다. 연소차, 하이브리드 및 전기차 플랫폼을 위한 파워트레인 기술 솔루션을 전문으로 합니다.",
+      "products": [
+        {
+          "name": "터보차저"
+        },
+        {
+          "name": "배출가스 및 열관리 시스템"
+        },
+        {
+          "name": "변속기 부품 및 시스템"
+        },
+        {
+          "name": "타이밍 장치 및 체인"
+        },
+        {
+          "name": "상시 4륜구동 시스템"
+        },
+        {
+          "name": "배터리 모듈 및 충전 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "Hyundai-Kia"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "아스테모",
+    "company_id": "2ac5ae24-649c-49b0-8d4f-a8b879ed49f8",
+    "data": {
+      "business_summary": "<cite index=\"15-9,15-10,15-11\">아스테모는 2021년 히타치 자동차시스템, 게이힌, 쇼와, 닛신공업의 합병으로 설립된 글로벌 자동차부품 제조사로, 연결성, 자율주행, 전동화 기술을 중심으로 승용차 및 이륜차 부품을 개발합니다.</cite>",
+      "products": [
+        {
+          "name": "파워트레인 시스템"
+        },
+        {
+          "name": "전동모터/인버터"
+        },
+        {
+          "name": "섀시 시스템"
+        },
+        {
+          "name": "브레이크 시스템"
+        },
+        {
+          "name": "자율주행/ADAS 시스템"
+        },
+        {
+          "name": "현가 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "혼다"
+        },
+        {
+          "name": "닛산"
+        },
+        {
+          "name": "도요타"
+        },
+        {
+          "name": "GM"
+        },
+        {
+          "name": "포드"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "파나소닉",
+    "company_id": "ee487aaa-f9b4-4633-881d-b88dc3f06132",
+    "data": {
+      "business_summary": "파나소닉은 전기차 배터리, 차량용 인포테인먼트/전장 시스템, 콕핏 솔루션 등을 공급하는 글로벌 자동차 부품 공급업체로, 리튬이온 EV 배터리 시장에서 세계 1위 점유율을 차지하고 있습니다.",
+      "products": [
+        {
+          "name": "EV 배터리(원통형 리튬이온)"
+        },
+        {
+          "name": "차량용 인포테인먼트 시스템"
+        },
+        {
+          "name": "콕핏 도메인 컨트롤러(CDC)"
+        },
+        {
+          "name": "프리미엄 차량용 오디오"
+        },
+        {
+          "name": "고전압 릴레이"
+        },
+        {
+          "name": "DC링크 캐패시터"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Tesla"
+        },
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Volkswagen"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "머더슨그룹",
+    "company_id": "ee7c887d-ac68-4619-b09e-5e3da0624b60",
+    "data": {
+      "business_summary": "<cite index=\"6-1\">인도의 Samvardhana Motherson International은 세계 주요 완성차 OEM에 자동차 부품을 공급하는 Tier 1 업체</cite>로, <cite index=\"6-9\">전기배선계통, 자동차 내외장 모듈, 후측방 거울 시스템, 사출 플라스틱 부품 등 다양한 제품 포트폴리오</cite>를 갖춘 종합 시스템 솔루션 공급업체입니다.",
+      "products": [
+        {
+          "name": "배선 하네스 (전기배선계통)"
+        },
+        {
+          "name": "후측방 거울 시스템"
+        },
+        {
+          "name": "자동차 내외장 모듈"
+        },
+        {
+          "name": "사출 플라스틱 부품"
+        },
+        {
+          "name": "고정밀 금속 가공 부품"
+        },
+        {
+          "name": "고무 및 탄성체 부품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "현대자동차"
+        },
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "도요타"
+        },
+        {
+          "name": "General Motors"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "게스탬프",
+    "company_id": "68fcbd4e-ce7f-4273-be63-a00deb0d6d8e",
+    "data": {
+      "business_summary": "스페인 마드리드 기반의 자동차 금속부품 설계·개발·제조 전문 글로벌 1차 공급업체. 경량화와 안전성을 갖춘 고급 금속 구조 부품 및 시스템을 주요 자동차 완성차 업체에 공급한다.",
+      "products": [
+        {
+          "name": "바디인화이트(Body-in-White)"
+        },
+        {
+          "name": "섀시 부품(Chassis Components)"
+        },
+        {
+          "name": "범퍼 및 크로스빔(Bumpers & Crossbeams)"
+        },
+        {
+          "name": "도어 및 루프 부품(Doors & Roofs)"
+        },
+        {
+          "name": "배터리 박스(Battery Box)"
+        },
+        {
+          "name": "메커니즘 부품(Mechanisms)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐(Volkswagen)"
+        },
+        {
+          "name": "르노-닛산(Renault-Nissan)"
+        },
+        {
+          "name": "PSA 그룹(PSA)"
+        },
+        {
+          "name": "다임러(Daimler)"
+        },
+        {
+          "name": "GM(General Motors)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "토요타방직",
+    "company_id": "27a08287-bd16-453a-8838-9a3476747d44",
+    "data": {
+      "business_summary": "토요타 그룹 소속의 일본 자동차 부품 제조업체로, 자동차 인테리어 시스템(시트, 도어 트림, 헤드라이너, 카펫 등), 필터(에어, 오일), 파워트레인 부품을 공급하는 글로벌 내장재 및 필터 제조 선도업체이다.",
+      "products": [
+        {
+          "name": "자동차 시트"
+        },
+        {
+          "name": "도어 트림"
+        },
+        {
+          "name": "에어필터/오일필터"
+        },
+        {
+          "name": "헤드라이너"
+        },
+        {
+          "name": "카펫"
+        },
+        {
+          "name": "파워트레인 부품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota (토요타)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Subaru"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "말레",
+    "company_id": "778b3409-59db-4085-8a7a-7694f975ef03",
+    "data": {
+      "business_summary": "독일 슈투트가르트 기반의 자동차 부품 공급업체로, 1920년 설립 이후 엔진 시스템, 여과 및 열관리 시스템을 중심으로 글로벌 자동차 산업의 선도 공급업체로 성장했으며, 전동화와 탄소중립 모빌리티 솔루션에 주력하고 있습니다.",
+      "products": [
+        {
+          "name": "피스톤 및 실린더 부품"
+        },
+        {
+          "name": "공기/액체 관리 시스템"
+        },
+        {
+          "name": "열관리 시스템 및 냉각 모듈"
+        },
+        {
+          "name": "필터 및 엔진 주변 부품"
+        },
+        {
+          "name": "전기 드라이브 및 전자 부품"
+        },
+        {
+          "name": "전기차 배터리 냉각 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Volkswagen Group"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz (Daimler)"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "GM"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "오토리브",
+    "company_id": "218898de-5312-4d74-a757-1a951b9fffa3",
+    "data": {
+      "business_summary": "오토리브는 스웨덴 본사 세계 최대 자동차 안전 부품 공급사로, 에어백, 시트벨트, 스티어링 휠 등 수동 안전 시스템과 보행자 보호, 모빌리티 안전 솔루션을 개발·생산합니다. 매년 약 80억 달러 이상의 매출을 기록하며 포춘 500대 기업입니다.",
+      "products": [
+        {
+          "name": "에어백 시스템"
+        },
+        {
+          "name": "시트벨트"
+        },
+        {
+          "name": "스티어링 휠"
+        },
+        {
+          "name": "인플레이터"
+        },
+        {
+          "name": "보행자 보호 시스템"
+        },
+        {
+          "name": "안전 전자 장치"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Renault-Nissan-Mitsubishi Alliance"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "다나",
+    "company_id": "68f21cbe-64f0-4aa0-8376-7113e3774aca",
+    "data": {
+      "business_summary": "Dana Incorporated는 경량차량 및 상용차량 시장을 위해 액슬, 드라이브샤프트, 전자동역학, 열 관리, 씰링, 디지털 기술을 공급하는 글로벌 부품회사로, 내연기관, 하이브리드, 전기차 플랫폼을 지원한다.",
+      "products": [
+        {
+          "name": "액슬(Axles)"
+        },
+        {
+          "name": "드라이브샤프트(Driveshafts)"
+        },
+        {
+          "name": "트랜스미션(Transmissions)"
+        },
+        {
+          "name": "씰링·열 관리 제품(Sealing & Thermal Management Products)"
+        },
+        {
+          "name": "전기 모터·인버터(EV Motors & Inverters)"
+        },
+        {
+          "name": "전자 제어 유닛(Electronic Control Units)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford Motor Company"
+        },
+        {
+          "name": "Stellantis N.V."
+        },
+        {
+          "name": "Volkswagen AG"
+        },
+        {
+          "name": "PACCAR Inc."
+        },
+        {
+          "name": "Toyota Motor Corporation"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "클라리오스",
+    "company_id": "c6a16471-2204-43c1-96ee-fc6d6914fe30",
+    "data": {
+      "business_summary": "클라리오스는 전 세계 자동차 배터리 3개 중 1개를 생산하는 세계 최대 규모의 자동차 저전압 배터리 전문 공급업체입니다. AGM, 리튬이온, 초퍼 등 다양한 전지 기술을 통해 자동차, 상용차, 산업용 차량 전반에 신뢰성 높은 전원 솔루션을 제공합니다.",
+      "products": [
+        {
+          "name": "AGM 배터리 (흡수유리섬유)"
+        },
+        {
+          "name": "리튬이온 배터리"
+        },
+        {
+          "name": "SLI 배터리 (시동용 배터리)"
+        },
+        {
+          "name": "초퍼캐시터"
+        },
+        {
+          "name": "나트륨이온 배터리"
+        },
+        {
+          "name": "배터리 관리 서비스 (배터리 매니저 Pro)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Ford Motor"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "Daimler Trucks"
+        },
+        {
+          "name": "BMW"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "베이징하이나퍼 (BHAP)",
+    "company_id": "db3a3cb8-b4a2-4ede-86b9-465452b16147",
+    "data": {
+      "business_summary": "베이징하이나퍼(BHAP)는 중국의 빠르게 성장하는 자동차 부품 공급기업으로, 내장재, 외장재, 섀시, 파워시스템 등 광범위한 제품을 제공합니다. 경량화 기술과 첨단 주행 보조 시스템, 전기자동차 부품을 통해 전자화, 지능화된 모빌리티 솔루션을 중국 및 글로벌 시장에 공급합니다.",
+      "products": [
+        {
+          "name": "스티어링휠 모듈"
+        },
+        {
+          "name": "대시보드 모듈"
+        },
+        {
+          "name": "연료 탱크 어셈블리"
+        },
+        {
+          "name": "배기 어셈블리"
+        },
+        {
+          "name": "전기 파워 스티어링"
+        },
+        {
+          "name": "피스톤 어셈블리"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Beijing Hyundai (베이징 현대)"
+        },
+        {
+          "name": "Mercedes-Benz (메르세데스-벤츠)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Hyundai Motor (현대차)"
+        },
+        {
+          "name": "Honda (혼다)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "TE커넥티비티",
+    "company_id": "6e0447d0-037f-46fe-8848-53ba82dd2aae",
+    "data": {
+      "business_summary": "TE Connectivity는 글로벌 연결성 및 센서 솔루션 공급업체로, 자동차 시장이 전체 매출의 60%를 차지합니다. 저전압·고전압 커넥터, 센서, 데이터 연결 시스템 등 자동차 전기·전자 아키텍처 전반에 부품을 공급하며, EV·하이브리드 차량 솔루션을 선도합니다.",
+      "products": [
+        {
+          "name": "저전압 신호 및 전원 커넥터"
+        },
+        {
+          "name": "고전압 커넥터 (EV용)"
+        },
+        {
+          "name": "데이터 연결 시스템"
+        },
+        {
+          "name": "자동차 센서"
+        },
+        {
+          "name": "와이어 및 케이블 제품"
+        },
+        {
+          "name": "자동차 릴레이"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "General Motors"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "인피니온",
+    "company_id": "3cf66747-059d-46fb-b331-28de8d361853",
+    "data": {
+      "business_summary": "<cite index=\"3-1,3-2\">인피니온은 반도체 설계 및 제조 회사로, 자동차 및 전력·보안 시스템용 부품을 공급하며</cite>, <cite index=\"16-4\">자동차 반도체 분야의 글로벌 리더</cite>입니다.",
+      "products": [
+        {
+          "name": "자동차 마이크로컨트롤러(MCU)"
+        },
+        {
+          "name": "EV 드라이브트레인 반도체"
+        },
+        {
+          "name": "전력 반도체(파워 스위치, MOSFET, SiC)"
+        },
+        {
+          "name": "자동차 이더넷 솔루션"
+        },
+        {
+          "name": "센서 및 ADAS 반도체"
+        },
+        {
+          "name": "자동차 EV 배터리 관리 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Volkswagen (폭스바겐)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Toyota (토요타)"
+        },
+        {
+          "name": "Tesla"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "플렉스앤게이트",
+    "company_id": "c891914c-37b2-4c9b-8874-f522d386fd3c",
+    "data": {
+      "business_summary": "플렉스앤게이트는 자동차용 금속·플라스틱 부품, 조명 및 기계 어셈블리 전문 1차 협력사로, 범퍼·외장재·조명·페달 시스템 등 다양한 부품을 설계·제조하며 EV 배터리 개발(FLEX-ION) 사업도 추진 중이다.",
+      "products": [
+        {
+          "name": "범퍼 시스템"
+        },
+        {
+          "name": "외장 트림"
+        },
+        {
+          "name": "LED 조명 및 헤드램프"
+        },
+        {
+          "name": "페달 시스템"
+        },
+        {
+          "name": "도어 힌지 및 클로저"
+        },
+        {
+          "name": "EV 배터리 (FLEX-ION)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Ford Motor Company"
+        },
+        {
+          "name": "Toyota Motor Corporation"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "Honda Motor Company"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "브로제",
+    "company_id": "5cd17f7b-b04a-4966-b0f8-1cb2f392787d",
+    "data": {
+      "business_summary": "독일의 가족 기업으로 세계 4~5위 자동차 부품 공급업체입니다. 차량의 도어, 시트 시스템, 리프트게이트 및 전동 모터·드라이브 등 메카트로닉 부품을 생산하며, 전 세계 80개 이상의 완성차 제조사에 공급하고 있습니다.",
+      "products": [
+        {
+          "name": "도어 시스템 (Door Systems)"
+        },
+        {
+          "name": "윈도우 레귤레이터 (Window Regulators)"
+        },
+        {
+          "name": "시트 조정장치 (Seat Adjustment Systems)"
+        },
+        {
+          "name": "리프트게이트 시스템 (Liftgate Systems)"
+        },
+        {
+          "name": "냉각팬 모듈 (Cooling Fan Modules)"
+        },
+        {
+          "name": "전동 모터 및 드라이브 (Electric Motors & Drives)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐 (Volkswagen)"
+        },
+        {
+          "name": "아우디 (Audi)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠 (Mercedes-Benz)"
+        },
+        {
+          "name": "포드 (Ford)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "벤텔러",
+    "company_id": "9a506cb2-4ff3-4def-820b-55e7fd630cd6",
+    "data": {
+      "business_summary": "벤텔러는 오스트리아 기반 글로벌 금속 가공 전문 부품공급업체로서 섀시, 바디, 엔진 및 배기 시스템, 전기차 배터리 저장 시스템 등 자동차 부품 및 모듈을 개발·생산하며, 강철 튜브 생산 및 엔지니어링 사업도 영위합니다.",
+      "products": [
+        {
+          "name": "섀시 부품 및 모듈"
+        },
+        {
+          "name": "바디 구조 부품"
+        },
+        {
+          "name": "엔진 및 배기 시스템"
+        },
+        {
+          "name": "EV 배터리 저장 시스템"
+        },
+        {
+          "name": "강철 및 용접 튜브"
+        },
+        {
+          "name": "에어백 튜브"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "포르셰"
+        },
+        {
+          "name": "페라리"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "티센크루프",
+    "company_id": "cb73b975-d0a9-489a-a9d7-8a0dd7bfa6a7",
+    "data": {
+      "business_summary": "<cite index=\"11-5,11-6\">국제적 산업 및 기술 그룹으로서 자동차 산업을 포함한 다양한 시장을 위해 부품·시스템 및 철강 솔루션을 개발·제조하는 독일의 주요 자동차 공급업체.</cite>",
+      "products": [
+        {
+          "name": "충격흡수기(쇼크업소버)"
+        },
+        {
+          "name": "액슬(차축) 어셈블리 및 섀시 모듈"
+        },
+        {
+          "name": "크랭크샤프트 및 연결봉"
+        },
+        {
+          "name": "차체 금형 및 경량 바디 컴포넌트"
+        },
+        {
+          "name": "파워트레인 어셈블리 시스템"
+        },
+        {
+          "name": "배터리 생산 설비 및 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "메르세데스-벤츠(Mercedes-Benz)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "포르쉐(Porsche)"
+        },
+        {
+          "name": "아우디(Audi)"
+        },
+        {
+          "name": "테슬라(Tesla)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "LG전자",
+    "company_id": "8fbce18d-a714-4e9d-ad3f-4d279aff60d8",
+    "data": {
+      "business_summary": "LG전자는 VS(차량용솔루션)사업본부를 통해 인포테인먼트, ADAS, 디지털 콕핏 등 첨단 차량용 전자·전기 부품 및 솔루션을 글로벌 완성차 업체에 공급하는 전장 부품 Tier-1 공급업체입니다. 자회사 ZKW는 차량용 조명, LG마그나는 EV 파워트레인을 담당하며 2030년까지 매출 15.7조원 목표를 추구하고 있습니다.",
+      "products": [
+        {
+          "name": "차량용 인포테인먼트 시스템"
+        },
+        {
+          "name": "webOS for Automotive"
+        },
+        {
+          "name": "ADAS 카메라 및 비전 시스템"
+        },
+        {
+          "name": "차량용 조명(LED 헤드램프)"
+        },
+        {
+          "name": "전기차 파워트레인"
+        },
+        {
+          "name": "텔레매틱스 및 디지털 콕핏"
+        }
+      ],
+      "customers": [
+        {
+          "name": "현대자동차(Hyundai Motor)"
+        },
+        {
+          "name": "기아(Kia)"
+        },
+        {
+          "name": "메르세데스-벤츠(Mercedes-Benz)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "GM(General Motors)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "균성안전 (Joyson)",
+    "company_id": "f83d5d00-212c-46c8-9587-0acb3e147fcd",
+    "data": {
+      "business_summary": "<cite index=\"10-1,10-3,5-4,5-6\">균성안전은 자동차 안전 부품(에어백, 시트벨트, 스티어링휠), 자동차 전자 제품(지능형 조종석, 스마트 인터페이스, e-모빌리티 솔루션) 및 고급 안전 기술을 개발·제조하는 글로벌 자동차 부품 공급사이다.</cite>",
+      "products": [
+        {
+          "name": "에어백 (Airbag)"
+        },
+        {
+          "name": "시트벨트 (Seatbelt)"
+        },
+        {
+          "name": "스마트 스티어링휠 (Smart Steering Wheel)"
+        },
+        {
+          "name": "드라이버 모니터링 시스템 (Driver Monitoring System, DMS)"
+        },
+        {
+          "name": "지능형 조종석 솔루션 (Intelligent Cockpit System)"
+        },
+        {
+          "name": "고전압 충전 시스템 (800V High-Voltage Charging System)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐 (VW)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠 (Mercedes-Benz)"
+        },
+        {
+          "name": "GM"
+        },
+        {
+          "name": "테슬라 (Tesla)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "피렐리",
+    "company_id": "ec815cd6-62d5-4df8-ae39-8c81c5c8eb48",
+    "data": {
+      "business_summary": "이탈리아 밀라노 기반의 세계 5위 타이어 제조업체로 고급 승용차·오토바이·자전거 타이어에 특화. 프리미엄·프레스티지 시장 중심의 고부가가치 제품 개발과 모터스포츠 기술 혁신으로 글로벌 럭셔리 자동차 OEM의 선호 공급업체.",
+      "products": [
+        {
+          "name": "자동차 타이어 (P Zero, Scorpion 등)"
+        },
+        {
+          "name": "오토바이 타이어"
+        },
+        {
+          "name": "자전거 타이어"
+        },
+        {
+          "name": "전동차 타이어 (EV Tires)"
+        },
+        {
+          "name": "Cyber Tyre (스마트 타이어 시스템)"
+        },
+        {
+          "name": "러닝플랫 타이어 (Run-flat Tires)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ferrari"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Bentley"
+        },
+        {
+          "name": "Lamborghini"
+        },
+        {
+          "name": "Porsche"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "NXP반도체",
+    "company_id": "b42b80b0-8812-480f-8d24-791c7e35a0ac",
+    "data": {
+      "business_summary": "<cite index=\"2-2,3-1\">네덜란드 반도체 설계·제조업체로서 자동차시장에서 전체 매출의 56.7%를 차지하며 전장 반도체 및 마이크로컨트롤러, 레이더, 통신 솔루션을 제공하는 글로벌 상위 반도체 업체</cite>",
+      "products": [
+        {
+          "name": "S32 마이크로컨트롤러 플랫폼"
+        },
+        {
+          "name": "i.MX 애플리케이션 프로세서"
+        },
+        {
+          "name": "자동차 레이더 칩"
+        },
+        {
+          "name": "UWB(초광대역) 무선 통신"
+        },
+        {
+          "name": "차량 네트워크 프로세서"
+        },
+        {
+          "name": "자동차 보안 컨트롤러"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Hyundai Motor"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Mercedes-Benz"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "스미토모고무",
+    "company_id": "9c2518bf-cb21-4f43-bca2-a1389fe51f78",
+    "data": {
+      "business_summary": "스미토모고무는 던롭과 팔켄 브랜드의 자동차 타이어를 주력으로 하는 일본 다국적 고무 제품 제조업체입니다. 타이어 사업이 전체 매출의 86.3%를 차지하며 승용차, 트럭, 버스, 오토바이용 타이어와 스포츠 용품, 산업용 고무 제품을 생산합니다.",
+      "products": [
+        {
+          "name": "던롭 타이어"
+        },
+        {
+          "name": "팔켄 타이어"
+        },
+        {
+          "name": "EV용 타이어"
+        },
+        {
+          "name": "골프 클럽·골프공"
+        },
+        {
+          "name": "진동 제어 댐퍼"
+        },
+        {
+          "name": "산업용 고무 제품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota Motor"
+        },
+        {
+          "name": "Subaru"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Daimler"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "토요다고세이",
+    "company_id": "b90f48a9-c912-45a7-b83c-84ca7976cd30",
+    "data": {
+      "business_summary": "도요다고세이는 일본 자동차 부품업체로, 합성 고무 및 플라스틱 기술을 바탕으로 에어백, 웨더스트립, 도어 글래스런, 기능 부품 등 안전성과 편의성을 강화한 자동차 부품을 세계적으로 공급한다. LED, 수소 저장 탱크, 재활용 소재 제품도 제조하고 있다.",
+      "products": [
+        {
+          "name": "에어백(Airbags)"
+        },
+        {
+          "name": "웨더스트립(Weatherstrips)"
+        },
+        {
+          "name": "도어 글래스런(Door Glass Runs)"
+        },
+        {
+          "name": "기능 부품(Functional Components)"
+        },
+        {
+          "name": "LED 조명 모듈(LED Lighting Modules)"
+        },
+        {
+          "name": "수소 저장 탱크(Hydrogen Tanks)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "도요타 그룹(Toyota Group)"
+        },
+        {
+          "name": "혼다(Honda)"
+        },
+        {
+          "name": "닛산(Nissan)"
+        },
+        {
+          "name": "포드(Ford)"
+        },
+        {
+          "name": "GM(General Motors)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "미쓰비시전기",
+    "company_id": "77da91bb-e961-4daf-9071-820b77b7d44d",
+    "data": {
+      "business_summary": "미쓰비시전기는 전기자동차 및 하이브리드 자동차용 고효율 모터, 인버터, 전력반도체, 자동제어 장치를 공급하는 글로벌 자동차 부품업체이다. 2024년 자동차장비 사업을 전담하는 미쓰비시전기 모빌리티 자회사를 설립하고 자동화운전, 전기화, 연결성 등 차세대 모빌리티 기술 개발에 중점을 두고 있다.",
+      "products": [
+        {
+          "name": "전력반도체 모듈 (J1/J3 시리즈)"
+        },
+        {
+          "name": "전동모터 및 인버터"
+        },
+        {
+          "name": "전자제어장치 (ECU/MCU)"
+        },
+        {
+          "name": "전동파워스티어링 시스템"
+        },
+        {
+          "name": "스타터·올터네이터"
+        },
+        {
+          "name": "자동운전 제어시스템 (ADAS)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "닛산 (Nissan)"
+        },
+        {
+          "name": "혼다 (Honda)"
+        },
+        {
+          "name": "도요타 (Toyota)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "폭스바겐 (Volkswagen)"
+        }
+      ],
+      "confidence": "medium"
+    }
+  },
+  {
+    "name_kr": "아메리칸액슬",
+    "company_id": "8e6a1d2f-5c58-44fe-bc89-c91ba2054f4d",
+    "data": {
+      "business_summary": "AAM은 전 세계 자동차 및 모빌리티 산업의 선도적인 1차 공급업체로, 전기차, 하이브리드 및 내연기관 차량을 지원하는 드라이브라인 및 메탈 포밍 기술을 설계, 엔지니어링 및 제조합니다.",
+      "products": [
+        {
+          "name": "드라이브라인 시스템"
+        },
+        {
+          "name": "액슬(Axles)"
+        },
+        {
+          "name": "드라이브샤프트(Driveshaft)"
+        },
+        {
+          "name": "메탈 포밍 부품"
+        },
+        {
+          "name": "e-드라이브 유닛"
+        },
+        {
+          "name": "클러치 모듈"
+        }
+      ],
+      "customers": [
+        {
+          "name": "GM (General Motors)"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "DaimlerChrysler"
+        },
+        {
+          "name": "Nissan"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "ST마이크로",
+    "company_id": "10e8ae79-627b-4d3f-ba56-0fc6c309ee9c",
+    "data": {
+      "business_summary": "<cite index=\"19-7\">STMicroelectronics는 자동차용 마이크로컨트롤러, 전력 반도체, ADAS 안전 솔루션, 전동화 솔루션, 센서 및 인포테인먼트 시스템 등을 공급하는 글로벌 반도체 기업입니다.</cite> <cite index=\"5-24\">자동차 반도체 사업이 전체 영업이익의 40% 이상을 차지하며, 특히 SiC(실리콘 카바이드) 칩에서 세계 1위의 판매고를 기록하고 있습니다.</cite>",
+      "products": [
+        {
+          "name": "마이크로컨트롤러(STM8A, STM32, SPC5)"
+        },
+        {
+          "name": "파워 반도체(전력 MOSFET, SiC/GaN 다이오드)"
+        },
+        {
+          "name": "전동화 솔루션(EV 배터리 관리, 인버터)"
+        },
+        {
+          "name": "ADAS 안전 칩(RF/비전 시스템)"
+        },
+        {
+          "name": "센서(관성측정장치, 가속도계)"
+        },
+        {
+          "name": "인포테인먼트 및 통신 솔루션"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Tesla"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Audi/폭스바겐"
+        },
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "General Motors"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "고이토제작소",
+    "company_id": "f6ba132c-784f-49fd-aefb-8cff4221e502",
+    "data": {
+      "business_summary": "자동차 조명 부품 분야의 선도기업으로, LED 헤드램프, 후미등, 안개등 등 주요 자동차 조명 제품을 제조·판매합니다. 항공기, 철도차량 부품도 생산하며 전 세계 자동차 조명 시장에서 20% 점유율을 보유하고 있습니다.",
+      "products": [
+        {
+          "name": "LED 헤드램프"
+        },
+        {
+          "name": "적응형 전조등(ADB)"
+        },
+        {
+          "name": "후미등/조합등"
+        },
+        {
+          "name": "안개등"
+        },
+        {
+          "name": "주행 보조등"
+        },
+        {
+          "name": "LiDAR 센서"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota Motor Corporation"
+        },
+        {
+          "name": "Honda Motor Co., Ltd."
+        },
+        {
+          "name": "Nissan Motor Co., Ltd."
+        },
+        {
+          "name": "Mazda Motor Corporation"
+        },
+        {
+          "name": "Suzuki Motor Corporation"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "하만",
+    "company_id": "7ca216b6-ef80-4d74-ba87-06e607029757",
+    "data": {
+      "business_summary": "<cite index=\"1-1,2-5\">자동차 부품사로 디지털 콕핏, ADAS, 오디오·엔터테인먼트 시스템, 텔레매틱스 등 연결형 자동차 솔루션을 개발·제조하며, 프리미엄 오디오 브랜드 포트폴리오를 통해 차량, 가정, 엔터프라이즈 시장을 선도한다.</cite>",
+      "products": [
+        {
+          "name": "디지털 콕핏 (Digital Cockpit)"
+        },
+        {
+          "name": "인포테인먼트 시스템 (Infotainment System)"
+        },
+        {
+          "name": "ADAS 및 카메라 시스템 (ADAS & Camera Systems)"
+        },
+        {
+          "name": "텔레매틱스 제어 장치 (Telematics Control Unit, TCU)"
+        },
+        {
+          "name": "차량용 오디오 시스템 (Automotive Audio System)"
+        },
+        {
+          "name": "헤드업 디스플레이 (Head-Up Display)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "현대차 (Hyundai Motor)"
+        },
+        {
+          "name": "폭스바겐 (Volkswagen)"
+        },
+        {
+          "name": "아우디 (Audi)"
+        },
+        {
+          "name": "도요타 (Toyota)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "드렉슬마이어",
+    "company_id": "c1f9e2d0-91cb-4b37-8aa8-2114837691d2",
+    "data": {
+      "business_summary": "<cite index=\"1-4\">프리미엄 자동차 부품 공급사로 배선 하네스 시스템, 중앙 전기·전자 부품, 인테리어, 저·고전압 배터리 시스템을 제조하는 독일 가족기업이며 전 세계 70,000명 이상이 근무하는 글로벌 기업</cite>",
+      "products": [
+        {
+          "name": "배선 하네스 시스템"
+        },
+        {
+          "name": "중앙 전기·전자 부품"
+        },
+        {
+          "name": "계기판 및 센터 콘솔"
+        },
+        {
+          "name": "도어 패널"
+        },
+        {
+          "name": "고전압 배터리 시스템"
+        },
+        {
+          "name": "실내 인테리어 모듈"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "아우디"
+        },
+        {
+          "name": "포르셰"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "시틱딕스탈",
+    "company_id": "547fe6ef-0e60-436c-b244-879873acaded",
+    "data": {
+      "business_summary": "세계 최대 알루미늄 휠 및 섀시 부품 공급업체로, 승용차와 상용차용 경량 알루미늄 다이캐스팅 부품과 휠을 주로 생산하며 세계 주요 완성차 OEM과 협력하는 중국 자동차 부품 소재 공급업체이다.",
+      "products": [
+        {
+          "name": "알루미늄 합금 휠"
+        },
+        {
+          "name": "알루미늄 다이캐스팅 부품"
+        },
+        {
+          "name": "실린더 커버"
+        },
+        {
+          "name": "스티어링 너클"
+        },
+        {
+          "name": "변속기 하우징"
+        },
+        {
+          "name": "배터리 박스 프레임"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "현대-기아"
+        },
+        {
+          "name": "도요타"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "에버스파셔",
+    "company_id": "7b04282d-4bde-4a32-af18-15f5ba9b935a",
+    "data": {
+      "business_summary": "에버스파셔는 배기기술, 열관리 시스템, 자동차 전자제품을 공급하는 독일의 글로벌 자동차 부품사로, 배기가스 정화, 난방/냉방, 전자제어 및 수소연료전지 기술을 전문으로 한다.",
+      "products": [
+        {
+          "name": "배기가스정화시스템"
+        },
+        {
+          "name": "촉매변환기"
+        },
+        {
+          "name": "디젤입자필터"
+        },
+        {
+          "name": "주차히터"
+        },
+        {
+          "name": "에어컨/난방시스템"
+        },
+        {
+          "name": "자동차전자제어장치"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "다임러"
+        },
+        {
+          "name": "크라이슬러"
+        },
+        {
+          "name": "메르세데스벤츠"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "텍사스인스트루먼트",
+    "company_id": "aaa7c922-c408-4f28-8bb5-0b63a52712cd",
+    "data": {
+      "business_summary": "텍사스인스트루먼트는 글로벌 반도체 선두기업으로 아날로그 및 임베디드 프로세싱 칩을 설계·제조하며, 자동차·산업·통신 등 다양한 분야의 100,000여 고객에 전원관리·센싱·제어 솔루션을 제공한다. 자동차 시장은 TI 매출의 21%를 차지하는 주요 사업 분야이다.",
+      "products": [
+        {
+          "name": "전원관리 IC (Power Management ICs)"
+        },
+        {
+          "name": "모터 드라이버 (Motor Drivers)"
+        },
+        {
+          "name": "배터리관리 칩 (Battery Management Chips)"
+        },
+        {
+          "name": "자동차용 마이크로컨트롤러 (Automotive MCUs)"
+        },
+        {
+          "name": "센서 (Sensors)"
+        },
+        {
+          "name": "게이트 드라이버 (Gate Drivers)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Volkswagen"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "리나마",
+    "company_id": "71dc8f4a-310f-45b5-82c5-1df5c9be7a40",
+    "data": {
+      "business_summary": "리나마 코퍼레이션은 글로벌 정밀 제조 회사로 자동차, 이동성, 농업, 의료기술 산업을 서비스하며 Mobility, Industrial, eLIN 3개 사업부를 보유한 캐나다 제2의 자동차 부품 제조업체입니다.",
+      "products": [
+        {
+          "name": "파워트레인 시스템"
+        },
+        {
+          "name": "섀시 및 구조 시스템"
+        },
+        {
+          "name": "에너지 저장 시스템"
+        },
+        {
+          "name": "eAxle"
+        },
+        {
+          "name": "배터리 인클로저"
+        },
+        {
+          "name": "전력 생성 솔루션"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Mercedes-Benz"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "ZC고무",
+    "company_id": "bb74fea4-4f17-4418-af76-0c90a3713bad",
+    "data": {
+      "business_summary": "1958년 설립된 중국 최대 타이어 제조업체로, 승용차·트럭·오토바이·자전거·ATV 등 다양한 차량용 고성능 타이어를 생산하며 세계 160개국 이상에 공급 중인 글로벌 자동차 부품 기업.",
+      "products": [
+        {
+          "name": "승용차 타이어"
+        },
+        {
+          "name": "트럭·버스 타이어"
+        },
+        {
+          "name": "오프로드 타이어"
+        },
+        {
+          "name": "농업용 타이어"
+        },
+        {
+          "name": "오토바이 타이어"
+        },
+        {
+          "name": "자전거 타이어"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Volkswagen (폭스바겐)"
+        },
+        {
+          "name": "Ford (포드)"
+        },
+        {
+          "name": "Volvo (볼보)"
+        },
+        {
+          "name": "Changan Auto (창안자동차)"
+        },
+        {
+          "name": "Great Wall Motor (그레이트월모터)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "푸야오",
+    "company_id": "bd4654f4-d865-42ad-8102-bb305ae5185b",
+    "data": {
+      "business_summary": "<cite index=\"1-4,1-5\">푸야오는 1987년 중국 후셍에서 설립된 자동차 안전유리 및 산업용 유리 제조 전문 기업으로, 세계 최대 규모의 자동차 유리 공급업체입니다. 포드, GM, 스바루, 테슬라, 폭스바겐 등 주요 국제 완성차 업체에 제품을 공급합니다.</cite>",
+      "products": [
+        {
+          "name": "자동차 안전유리 (Automotive Safety Glass)"
+        },
+        {
+          "name": "자동차 플로트유리 (Automotive Float Glass)"
+        },
+        {
+          "name": "자동차 창문 부품 (Car Window Trims)"
+        },
+        {
+          "name": "스마트글래스 (Smart Glass)"
+        },
+        {
+          "name": "HUD 프론트 글래스 (HUD Front Glass)"
+        },
+        {
+          "name": "철도 유리 (Railway Glass)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Hyundai"
+        },
+        {
+          "name": "Toyota"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "레오니",
+    "company_id": "059dcffd-c61d-48bc-b323-109eeb637036",
+    "data": {
+      "business_summary": "자동차 산업을 위한 에너지 및 데이터 관리 솔루션 글로벌 공급사로, 복합 배선 시스템과 맞춤형 케이블 하네스 및 고전압 케이블 등을 생산하며 EV 및 자율주행 차량 시장에 대응하는 핵심 부품 공급업체입니다.",
+      "products": [
+        {
+          "name": "배선 시스템 및 케이블 하네스"
+        },
+        {
+          "name": "고전압 케이블"
+        },
+        {
+          "name": "충전 케이블"
+        },
+        {
+          "name": "전력 분배 모듈"
+        },
+        {
+          "name": "센서 및 데이터 케이블"
+        },
+        {
+          "name": "지능형 제어기(Zonal Controllers)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "아우디"
+        },
+        {
+          "name": "GM"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "다울레이스",
+    "company_id": "8c6094d9-a8ac-48fe-938d-2c09eacddf07",
+    "data": {
+      "business_summary": "다울레이스는 글로벌 자동차 드라이브라인·파워메탈러지 전문 공급업체로, GKN 오토모티브와 GKN 파우더 메탈러지 두 핵심 사업부를 보유하고 있으며 세계 경량차 절반 이상에 구동계 시스템을 공급한다.",
+      "products": [
+        {
+          "name": "사이드샤프트"
+        },
+        {
+          "name": "컨스턴트 벨로시티 조인트(상수속 조인트)"
+        },
+        {
+          "name": "프롭샤프트(추진축)"
+        },
+        {
+          "name": "e드라이브 시스템"
+        },
+        {
+          "name": "올휠드라이브(AWD) 시스템"
+        },
+        {
+          "name": "분말야금 제품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Volvo"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "GM"
+        },
+        {
+          "name": "Porsche"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "프로이덴베르크",
+    "company_id": "2fc04f03-2541-4788-ac81-8763c4bea863",
+    "data": {
+      "business_summary": "프로이덴베르크는 독일 기반의 글로벌 자동차 부품 공급사로, 밀폐부품, NVH 솔루션, 배터리, 연료전지, 기술섬유, 필터 등을 생산합니다. 완성차와 상용차 산업에 주로 공급하며 특히 전기차 시대의 열관리 및 배터리 안전솔루션 개발에 중점을 두고 있습니다.",
+      "products": [
+        {
+          "name": "밀폐부품 (Simmerring, O-ring)"
+        },
+        {
+          "name": "진동소음제어(NVH) 솔루션"
+        },
+        {
+          "name": "엔진 에어 필터"
+        },
+        {
+          "name": "배터리 열관리 및 화염차단재"
+        },
+        {
+          "name": "기술섬유 및 부직포"
+        },
+        {
+          "name": "연료전지 필터"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        }
+      ],
+      "confidence": "medium"
+    }
+  },
+  {
+    "name_kr": "알프스알파인",
+    "company_id": "0a25c384-c5f0-442a-b630-5329d6e6b84c",
+    "data": {
+      "business_summary": "알프스알파인은 자동차 전자 부품 및 인포테인먼트 시스템 공급업체로, 전체 매출의 65%를 자동차 사업에서 창출합니다. 파워윈도우 스위치, 센서, 통신 모듈, 전자 시프터 등 고급 차량용 전자 부품을 공급하는 Tier 1 자동차 부품사입니다.",
+      "products": [
+        {
+          "name": "파워윈도우 스위치 및 도어 개폐 스위치"
+        },
+        {
+          "name": "센서 (자석식 각도센서, 실패 감지 래치 센서)"
+        },
+        {
+          "name": "통신 모듈 및 데이터 통신 장치"
+        },
+        {
+          "name": "전자 시프터 및 원격 키리스 엔트리 시스템"
+        },
+        {
+          "name": "카네비게이션 및 인포테인먼트 시스템"
+        },
+        {
+          "name": "음향 시스템 및 디스플레이"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Stellantis"
+        },
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "BMW"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "네막",
+    "company_id": "a3c26d40-b25b-4c18-a04e-04b0fbc8e1c9",
+    "data": {
+      "business_summary": "네막은 멕시코에 본사를 두고 있는 글로벌 자동차 부품 제조업체로, 파워트레인 및 차체 구조 응용 분야를 위한 알루미늄 경량 부품의 설계, 제조 및 판매를 전문으로 한다. 세계 60대 자동차 공급업체 중 하나로 자동차 산업의 내연기관, 전동화, 구조 및 섀시 응용 분야에서 혁신적인 경량화 솔루션을 제공한다.",
+      "products": [
+        {
+          "name": "실린더 헤드"
+        },
+        {
+          "name": "엔진 블록"
+        },
+        {
+          "name": "변속기 케이스"
+        },
+        {
+          "name": "전동모터 하우징"
+        },
+        {
+          "name": "배터리 하우징"
+        },
+        {
+          "name": "차체 구조부 (서브프레임, 쇼크타워)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Hyundai-Kia"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "베바스토",
+    "company_id": "82a717c7-b32c-4edd-b82f-816b0a37f642",
+    "data": {
+      "business_summary": "<cite index=\"1-2\">Webasto는 전 세계 자동차 제조업체에 루프, 배터리, 온열 시스템을 공급하는 글로벌 자동차 부품 공급업체</cite>이며, <cite index=\"7-32\">매출 40억 유로 이상으로 세계 자동차부품 100대 공급업체 중 하나</cite>입니다.",
+      "products": [
+        {
+          "name": "선루프 및 파노라마 루프"
+        },
+        {
+          "name": "컨버터블 루프"
+        },
+        {
+          "name": "고전압 배터리 시스템"
+        },
+        {
+          "name": "고전압 히터 (HVH)"
+        },
+        {
+          "name": "냉각 및 에어컨 시스템"
+        },
+        {
+          "name": "열관리 솔루션"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Hyundai-Kia Motors"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Mazda"
+        },
+        {
+          "name": "BMW"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "르네사스",
+    "company_id": "231522a2-8966-4d0e-921c-10bf676afc78",
+    "data": {
+      "business_summary": "르네사스는 자동차, 산업, 인프라 및 IoT 부문 향 마이크로컨트롤러, 아날로그 전력 장치 및 SoC의 선도 글로벌 공급업체로 ADAS, EV 등 차세대 자동차 기능을 위한 광범위한 반도체 솔루션을 제공합니다.",
+      "products": [
+        {
+          "name": "마이크로컨트롤러 (MCU)"
+        },
+        {
+          "name": "R-Car SoC"
+        },
+        {
+          "name": "Si-IGBT"
+        },
+        {
+          "name": "자동차 센서 (LiDAR, ALS, 위치센싱)"
+        },
+        {
+          "name": "전력 관리 IC"
+        },
+        {
+          "name": "EV 파워 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Volkswagen"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "요코하마고무",
+    "company_id": "fe902a00-6bcc-4676-9497-46ae4b211b0d",
+    "data": {
+      "business_summary": "일본 기반 대형 타이어·고무제품 제조업체로, 승용차·트럭·특수차량용 타이어, 알루미늄 휠, 호스·실란트 등 산업용 고무제품을 생산·판매한다. 자동차 원장비(OEM) 및 애프터마켓 타이어 중심의 사업 포트폴리오로 글로벌 시장에서 경쟁력을 유지하고 있다.",
+      "products": [
+        {
+          "name": "타이어 (승용차/트럭/EV용)"
+        },
+        {
+          "name": "알루미늄 합금 휠"
+        },
+        {
+          "name": "고압 호스"
+        },
+        {
+          "name": "실란트·접착제"
+        },
+        {
+          "name": "컨베이어 벨트"
+        },
+        {
+          "name": "항공우주 제품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota (토요타)"
+        },
+        {
+          "name": "Honda (혼다)"
+        },
+        {
+          "name": "Nissan (닛산)"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mazda (마쓰다)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "그루포안톨린",
+    "company_id": "d59a7f0d-71c4-44e5-9819-424900c8f2d0",
+    "data": {
+      "business_summary": "<cite index=\"1-14\">자동차 실내 부품 및 시스템의 설계, 개발, 제조 및 공급 분야의 글로벌 리더</cite>로서, <cite index=\"5-1\">오버헤드·트렁크 트림, 도어·하드 트림, 라이팅, 콕핏·콘솔 등 자동차 실내를 장착하기 위한 높은 부가가치 제품을 제공</cite>합니다.",
+      "products": [
+        {
+          "name": "헤드라이너(천장재)"
+        },
+        {
+          "name": "도어 패널"
+        },
+        {
+          "name": "조명 시스템"
+        },
+        {
+          "name": "콕핏·콘솔"
+        },
+        {
+          "name": "선바이저"
+        },
+        {
+          "name": "전자 제어 모듈"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "포드"
+        },
+        {
+          "name": "르노"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "GM(General Motors)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "자빌",
+    "company_id": "ef441bc0-65e0-492e-a60c-829c3c09ece3",
+    "data": {
+      "business_summary": "자빌(Jabil Inc.)은 전자 회로 기판 어셈블리와 시스템의 설계, 엔지니어링, 제조 및 공급망 서비스를 제공하는 미국 다국적 제조 회사로, 자동차 산업의 ADAS, 전동화, 커넥티비티 등 첨단 자동차 전자 기술 개발 및 제조에 특화되어 있습니다.",
+      "products": [
+        {
+          "name": "ADAS (LiDAR, 레이더, 카메라)"
+        },
+        {
+          "name": "배터리 관리 시스템(BMS), 인버터, 컨버터"
+        },
+        {
+          "name": "충전 시스템 (온보드/오프보드 충전기)"
+        },
+        {
+          "name": "V2X 통신 및 텔레매틱스"
+        },
+        {
+          "name": "고성능 컴퓨터 및 존널 컨트롤러"
+        },
+        {
+          "name": "회로 기판 어셈블리(PCBA)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Tesla"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "General Motors (GM)"
+        },
+        {
+          "name": "Johnson Controls"
+        },
+        {
+          "name": "Webasto"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "사이룬",
+    "company_id": "c337b5f0-64fc-43cd-8891-f015318157fa",
+    "data": {
+      "business_summary": "사이룬 그룹은 승용차타이어(PCR), 트럭·버스타이어(TBR), 광산용타이어(OTR) 등 3대 타이어 카테고리를 생산하는 중국 최대 규모의 타이어 제조기업이며, 180개 이상 국가에서 연 3천만 개 이상의 타이어를 판매하고 있습니다.",
+      "products": [
+        {
+          "name": "승용차타이어(PCR)"
+        },
+        {
+          "name": "트럭·버스타이어(TBR)"
+        },
+        {
+          "name": "광산용타이어(OTR)"
+        },
+        {
+          "name": "EcoPoint3 에코타이어"
+        },
+        {
+          "name": "농업용타이어"
+        },
+        {
+          "name": "경트럭타이어(LTR)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Great Wall Motors(GWM)"
+        },
+        {
+          "name": "일반 완성차 OEM(주요 고객사)"
+        },
+        {
+          "name": "차량 운송/광산 회사"
+        },
+        {
+          "name": "건설기계업체"
+        },
+        {
+          "name": "교체 시장 유통업체"
+        }
+      ],
+      "confidence": "medium"
+    }
+  },
+  {
+    "name_kr": "CIE오토모티브",
+    "company_id": "52a7d541-347a-4a53-a505-5f370366883a",
+    "data": {
+      "business_summary": "스페인 빌바오 본사의 자동차 부품 및 서브어셈블리 공급업체로, 엔진·기어박스·샤시·내외장 부품과 루프 시스템을 생산하며 27%의 판매가 전기차 응용분야와 관련된 글로벌 종합 공급업체입니다.",
+      "products": [
+        {
+          "name": "파워트레인 부품 (크랭크축, 캠축, 피스톤)"
+        },
+        {
+          "name": "기어박스 및 변속기 부품 (기어박스 하우징, 입력축)"
+        },
+        {
+          "name": "섀시 및 조향부품 (액슬암, 제어암, 캘리퍼 브래킷)"
+        },
+        {
+          "name": "전기차 배터리 하우징 및 인버터 케이싱"
+        },
+        {
+          "name": "내외장 트림 부품"
+        },
+        {
+          "name": "루프 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐"
+        },
+        {
+          "name": "르노"
+        },
+        {
+          "name": "다임러"
+        },
+        {
+          "name": "포드"
+        },
+        {
+          "name": "크라이슬러"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "후타바산업",
+    "company_id": "8175f384-0712-459b-9b22-952257b384fa",
+    "data": {
+      "business_summary": "후타바산업은 일본의 선도적 자동차 부품 제조업체로, 스탠핑 및 용접 부품 전문으로 배기계통, 차체, 현가장치 등 다양한 핵심 부품을 공급한다. 1945년 설립 이후 전 세계 29개 사업소에서 약 1만 명의 인력으로 활동 중이며, 특히 일본 내 자동차 머플러 시장점유율 최고 수준을 보유하고 있다.",
+      "products": [
+        {
+          "name": "배기계통 부품"
+        },
+        {
+          "name": "머플러"
+        },
+        {
+          "name": "차체 부품"
+        },
+        {
+          "name": "현가장치 부품"
+        },
+        {
+          "name": "디젤 배기입자 필터 (DPF)"
+        },
+        {
+          "name": "선택적 촉매 감소장치 (SCR)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Suzuki"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Mitsubishi"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "크노어브렘제",
+    "company_id": "86a33b1c-edc5-4bff-860e-696910ac8852",
+    "data": {
+      "business_summary": "크노어브렘제는 철도 및 상용차량 브레이킹 시스템의 글로벌 선두 공급업체로, 철도 차량용 입구 시스템, HVAC, 전자 제어 시스템과 상용차용 공기 서스펜션, 스티어링, 구동계 시스템 등 혁신적인 솔루션을 공급하는 독일계 자동차 부품 기업이다.",
+      "products": [
+        {
+          "name": "브레이킹 시스템"
+        },
+        {
+          "name": "공기 서스펜션/공기 공급 시스템"
+        },
+        {
+          "name": "전자 제어 시스템(EBS)"
+        },
+        {
+          "name": "스티어링 시스템"
+        },
+        {
+          "name": "HVAC(냉난방) 시스템"
+        },
+        {
+          "name": "입구 시스템/도어 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "볼보(Volvo)"
+        },
+        {
+          "name": "스카니아(Scania)"
+        },
+        {
+          "name": "다임러(Daimler)"
+        },
+        {
+          "name": "만(MAN)"
+        },
+        {
+          "name": "DAF"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "브렘보",
+    "company_id": "6e901a24-4a6e-42f7-9f73-45b7b7305fd2",
+    "data": {
+      "business_summary": "브렘보는 이탈리아 자동차 부품 제조사로, 브레이크 시스템 및 부품의 선도적 공급업체이다. 승용차, 상용차, 모터사이클 등 다양한 차량용 브레이크 디스크, 캘리퍼, 브레이크 패드 등을 OEM 및 애프터마켓 부문에서 공급한다.",
+      "products": [
+        {
+          "name": "브레이크 디스크"
+        },
+        {
+          "name": "브레이크 캘리퍼"
+        },
+        {
+          "name": "브레이크 패드"
+        },
+        {
+          "name": "휠-사이드 모듈 및 완성 브레이킹 시스템"
+        },
+        {
+          "name": "카본-세라믹 브레이크 디스크"
+        },
+        {
+          "name": "브레이크-바이-와이어 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "Audi"
+        },
+        {
+          "name": "Ferrari"
+        },
+        {
+          "name": "Porsche"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "만훈멜",
+    "company_id": "574d5786-e8d5-48c0-a42b-cb519b894816",
+    "data": {
+      "business_summary": "Mann + Hummel은 액체 및 공기 필터 시스템, 흡입 시스템, 실내 공기 필터를 제조하는 독일의 가족 소유 자동차 부품 공급업체입니다. 전 세계 80개 이상의 거점에서 약 21,200명의 직원이 OEM 및 애프터마켓을 위한 혁신적인 여과 솔루션을 개발·생산합니다.",
+      "products": [
+        {
+          "name": "자동차 공기 청정 시스템"
+        },
+        {
+          "name": "엔진 오일 필터"
+        },
+        {
+          "name": "실내 공기 필터"
+        },
+        {
+          "name": "연료 및 냉각액 필터"
+        },
+        {
+          "name": "흡입 시스템 및 열 관리 부품"
+        },
+        {
+          "name": "EV 배터리 여과 솔루션"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Audi"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "Daimler"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "도카이리카",
+    "company_id": "a616b743-0d10-4fb8-afd3-d78b006bc0a1",
+    "data": {
+      "business_summary": "도카이리카는 자동차 운전자 인터페이스, 보안 및 안전 시스템을 전문으로 하는 일본 자동차 부품 공급업체이다. 스마트키, 시트벨트, 스티어링 휠, 전자 센서 등 다양한 자동차 부품을 제조·공급하며, 1948년 설립 이후 토요타 모터 등 글로벌 완성차 업체들을 주요 고객으로 하고 있다.",
+      "products": [
+        {
+          "name": "스마트키 시스템 및 전자 키"
+        },
+        {
+          "name": "시트벨트 및 안전 시스템"
+        },
+        {
+          "name": "자동차 스위치 (전동 윈도우, 조향 스위치 등)"
+        },
+        {
+          "name": "시프트 레버 (변속 조작부)"
+        },
+        {
+          "name": "도어 미러 및 전자식 미러"
+        },
+        {
+          "name": "전력 공급 ECU 및 각종 센서"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota Motor Corporation"
+        },
+        {
+          "name": "Honda Motor Co., Ltd."
+        },
+        {
+          "name": "Nissan Motor Co., Ltd."
+        },
+        {
+          "name": "Subaru Corporation"
+        },
+        {
+          "name": "Ford Motor Company"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "생고뱅",
+    "company_id": "aae3a86b-edc9-446a-b8a2-3f9429d56d87",
+    "data": {
+      "business_summary": "생고뱅은 자동차용 글레이징(유리), 실링 소재, 베어링, 폼테이프 등 고성능 자동차 부품 및 소재를 제조하는 글로벌 공급사입니다. 경량화, 전기차 및 연소엔진 차량 모두에 대응하는 다양한 솔루션을 제공합니다.",
+      "products": [
+        {
+          "name": "자동차 글레이징(앞유리, 측창, 파노라마 선루프)"
+        },
+        {
+          "name": "무급유 베어링"
+        },
+        {
+          "name": "실링 가스켓(선루프 방수 실링)"
+        },
+        {
+          "name": "폼테이프"
+        },
+        {
+          "name": "전기 모터용 단열 필름"
+        },
+        {
+          "name": "배터리 시스템용 플라스틱 부품"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Audi"
+        },
+        {
+          "name": "Volvo"
+        },
+        {
+          "name": "현대·기아"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "온세미",
+    "company_id": "1878b2c8-9604-40ff-8737-f50efa3a10f3",
+    "data": {
+      "business_summary": "온세미는 전력 관리, 센싱, IGBT, SiC 등의 지능형 반도체 솔루션을 자동차, 산업용 분야에 공급하는 미국 반도체 기업으로, 특히 EV 전력화 및 고효율 파워 솔루션에서 글로벌 경쟁력을 갖추고 있습니다.",
+      "products": [
+        {
+          "name": "SiC(실리콘 카바이드) 파워 반도체"
+        },
+        {
+          "name": "IGBT 및 FET"
+        },
+        {
+          "name": "전력 관리 솔루션"
+        },
+        {
+          "name": "이미지 센서"
+        },
+        {
+          "name": "지능형 파워 모듈(IPM)"
+        },
+        {
+          "name": "다이오드 및 정류기"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Geely"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BYD"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Tesla"
+        }
+      ],
+      "confidence": "medium"
+    }
+  },
+  {
+    "name_kr": "비스테온",
+    "company_id": "2d2f3048-eec5-4785-bbc2-6f3d79b701e7",
+    "data": {
+      "business_summary": "비스테온은 자동차 콕핏 전자제품, 전기차 전력관리, 커넥티드 자동차 솔루션을 설계·제조하는 글로벌 자동차전장 공급업체다. 17개국 네트워크를 통해 소프트웨어 정의 차량과 전자화 시대의 디지털 콕핏 플랫폼을 제공한다.",
+      "products": [
+        {
+          "name": "디지털 계기판/클러스터"
+        },
+        {
+          "name": "스마트코어 도메인 컨트롤러"
+        },
+        {
+          "name": "인포테인먼트 시스템"
+        },
+        {
+          "name": "배터리관리시스템 및 고압 전력전자"
+        },
+        {
+          "name": "헤드업 디스플레이(HUD)"
+        },
+        {
+          "name": "ADAS 및 운전자 모니터링 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Mercedes-Benz"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "플렉스",
+    "company_id": "d6858080-0619-45fc-b0f5-75e6327db97a",
+    "data": {
+      "business_summary": "Flex Ltd는 전 세계 자동차 제조사(OEM)에 설계, 엔지니어링, 제조 및 공급망 서비스를 제공하는 선도적 자동차 부품공급업체입니다. 소프트웨어 정의 차량, 전기차(xEV) 플랫폼, 자동화 기술 등 차세대 모빌리티 솔루션을 전문으로 합니다.",
+      "products": [
+        {
+          "name": "자동차 컴퓨트 플랫폼 (Automotive Compute Platforms)"
+        },
+        {
+          "name": "고전압 전력전자 (High Voltage Power Electronics)"
+        },
+        {
+          "name": "모션 컨트롤 및 액추에이터 (Motion Controls & Actuators)"
+        },
+        {
+          "name": "유연 회로 및 소재 (Flexible Circuits & Materials)"
+        },
+        {
+          "name": "센서 및 비전 시스템 (Sensors & Vision Systems)"
+        },
+        {
+          "name": "DC/DC 컨버터 (DC/DC Converters)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "General Motors"
+        }
+      ]
+    }
+  },
+  {
+    "name_kr": "데사이SV",
+    "company_id": "21467db1-93fa-4c2b-b729-4f09ec56e2f8",
+    "data": {
+      "business_summary": "데사이SV는 중국의 자동차 전자 부품 전문 업체로, 지능형 캐빈, 지능형 주행, 온라인 연결 서비스 등 3대 분야에서 자동차 제조사에게 인포테인먼트, 제어 시스템, 첨단운전자보조 등 종합 솔루션을 공급한다.",
+      "products": [
+        {
+          "name": "인포테인먼트 시스템"
+        },
+        {
+          "name": "바디 정보 제어 시스템"
+        },
+        {
+          "name": "주행정보 디스플레이 시스템"
+        },
+        {
+          "name": "첨단운전자보조(ADAS) 시스템"
+        },
+        {
+          "name": "OTA(무선 업데이트) 기술"
+        },
+        {
+          "name": "차량 네트워크 보안"
+        }
+      ],
+      "customers": [
+        {
+          "name": "폭스바겐(Volkswagen)"
+        },
+        {
+          "name": "도요타(Toyota)"
+        },
+        {
+          "name": "마쓰다(Mazda)"
+        },
+        {
+          "name": "리샹(Li Auto)"
+        },
+        {
+          "name": "비야디(BYD)"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "스미토모리코",
+    "company_id": "8f04d85a-1296-4f54-aa23-12f7a70de52a",
+    "data": {
+      "business_summary": "스미토모리코는 자동차용 고무 및 합성수지 제품 제조 회사로, 방진 고무 제품에서 세계 시장점유율 1위를 차지하고 있으며 자동차 부품이 매출의 약 80%를 차지합니다.",
+      "products": [
+        {
+          "name": "방진 고무 제품"
+        },
+        {
+          "name": "자동차 호스"
+        },
+        {
+          "name": "음향 제어 및 단열 제품"
+        },
+        {
+          "name": "인테리어 부품"
+        },
+        {
+          "name": "연료전지 개스킷"
+        },
+        {
+          "name": "EV 냉각 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Volkswagen Group"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Renault-Nissan"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "토요타이어",
+    "company_id": "ad604138-3f06-4a61-8ff9-2f8ddfcbeb5e",
+    "data": {
+      "business_summary": "일본 오사카에 본사를 둔 토요타이어는 자동차용 타이어, 산업용 고무, 합성수지, 폴리우레탄, 방수재, 자동차 부품용 방진고무 등을 제조·판매하는 글로벌 타이어 및 고무 제품 회사입니다. 프리미엄 타이어 브랜드 토요, 니토, 실버스톤 등을 통해 승용차, SUV, 트럭, 버스용 타이어를 공급합니다.",
+      "products": [
+        {
+          "name": "타이어 (Proxes, Open Country, Celsius, Extensa)"
+        },
+        {
+          "name": "방진고무"
+        },
+        {
+          "name": "폴리우레탄 제품"
+        },
+        {
+          "name": "방수재"
+        },
+        {
+          "name": "합성수지 제품"
+        },
+        {
+          "name": "자동차 부품(엔진 마운트, CVJ부츠 등)"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Toyota"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Suzuki"
+        },
+        {
+          "name": "Mitsubishi"
+        }
+      ],
+      "confidence": "medium"
+    }
+  },
+  {
+    "name_kr": "자트코",
+    "company_id": "1190b604-74e5-4aeb-a5e4-5a34dbf83cf9",
+    "data": {
+      "business_summary": "자동변속기 및 무단변속기(CVT) 전문 제조업체로, 자동차 트랜스미션을 개발·생산하며 소형차부터 대형차까지 모든 규모의 CVT를 공급하는 세계 유일의 업체입니다.",
+      "products": [
+        {
+          "name": "CVT-X"
+        },
+        {
+          "name": "CVT-S"
+        },
+        {
+          "name": "CVT7"
+        },
+        {
+          "name": "CVT8"
+        },
+        {
+          "name": "하이브리드용 변속기"
+        },
+        {
+          "name": "EV 드라이브유닛"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Nissan"
+        },
+        {
+          "name": "Mazda"
+        },
+        {
+          "name": "Mitsubishi"
+        },
+        {
+          "name": "Suzuki"
+        },
+        {
+          "name": "Renault"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "닝보투오푸",
+    "company_id": "c4b39021-b3c1-41a3-b0dd-4adf57876f1b",
+    "data": {
+      "business_summary": "닝보투오푸는 1983년 설립된 중국 자동차 부품 공급업체로, 진동 제어, 내외장 시스템, 경량 차체, 스마트 캐빈, 열 관리 등 다양한 자동차 부품을 글로벌 완성차 제조사에 공급하고 있습니다.",
+      "products": [
+        {
+          "name": "진동 제어 시스템"
+        },
+        {
+          "name": "내외장 트림 시스템"
+        },
+        {
+          "name": "경량 차체 솔루션"
+        },
+        {
+          "name": "스마트 캐빈 컴포넌트"
+        },
+        {
+          "name": "열 관리 시스템"
+        },
+        {
+          "name": "에어 서스펜션 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "GM"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Mercedes-Benz"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "Volkswagen"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "화웨이 (자동차)",
+    "company_id": "9a817c75-baa9-466f-85a1-86d11a70ece2",
+    "data": {
+      "business_summary": "화웨이는 자동차 부품 및 스마트 솔루션 공급업체로서 지능형 자동차 기술(지능형 운전, 스마트 콕핏, 전동력, 지능형 연결성)을 중국의 완성차 제조사에 공급한다. 자체 제조가 아닌 기술 통합 플랫폼 역할을 수행하며, 자동차 산업의 스마트화와 전동화 전환을 주도하는 Tier 0.5 공급업체이다.",
+      "products": [
+        {
+          "name": "지능형 운전 플랫폼 (Qiankun ADS)"
+        },
+        {
+          "name": "스마트 콕핏 (HarmonyOS Cockpit)"
+        },
+        {
+          "name": "전동 구동 시스템 (DriveONE ePowertrain)"
+        },
+        {
+          "name": "LiDAR 센서"
+        },
+        {
+          "name": "4D 이미징 밀리미터파 레이더"
+        },
+        {
+          "name": "AR-HUD"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Seres Group (AITO)"
+        },
+        {
+          "name": "Chery (Luxeed)"
+        },
+        {
+          "name": "BAIC BluePark (Stelato)"
+        },
+        {
+          "name": "JAC Group (Maextro)"
+        },
+        {
+          "name": "SAIC Motor"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "마티니레아",
+    "company_id": "d4903965-65bc-4e5b-936f-3ef8c8aa5810",
+    "data": {
+      "business_summary": "마티니레아는 금속 성형, 알루미늄 주조, 유체 시스템, 유연 조립 기술을 활용하여 경량 구조 및 추진 시스템을 설계·개발·생산하는 글로벌 자동차 부품 공급업체입니다. 완성차 업체의 경량화, 배출가스 감소 및 연비 개선을 위한 솔루션을 제공합니다.",
+      "products": [
+        {
+          "name": "브레이크 라인 및 조립품"
+        },
+        {
+          "name": "파워 스티어링 라인 및 조립품"
+        },
+        {
+          "name": "연료 탱크 조립품"
+        },
+        {
+          "name": "서브프레임 및 차체 구조부품"
+        },
+        {
+          "name": "배터리 프레임"
+        },
+        {
+          "name": "캡리스 연료 주입 시스템"
+        }
+      ],
+      "customers": [
+        {
+          "name": "General Motors"
+        },
+        {
+          "name": "Ford"
+        },
+        {
+          "name": "Volkswagen"
+        },
+        {
+          "name": "Honda"
+        },
+        {
+          "name": "Hyundai"
+        }
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "NBHX",
+    "company_id": "0c27227d-0293-4557-befa-fd7aa3e70d4c",
+    "data": {
+      "business_summary": "Ningbo Huaxiang Electronic Co., Ltd. (NBHX Trim Group)는 중국의 주요 자동차 부품 공급업체로, 프리미엄 및 중형 자동차용 인테리어 트림과 각종 자동차 내외부 부품을 개발·제조·공급한다. 63개의 글로벌 생산시설과 18,000명의 직원을 보유하고 있다.",
+      "products": [
+        {
+          "name": "인테리어 장식 트림"
+        },
+        {
+          "name": "계기판"
+        },
+        {
+          "name": "외부 미러 어셈블리"
+        },
+        {
+          "name": "열관리(HVAC) 부품"
+        },
+        {
+          "name": "전기 부품"
+        },
+        {
+          "name": "섀시 액세서리"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Audi"
+        },
+        {
+          "name": "BMW"
+        },
+        {
+          "name": "GM"
+        },
+        {
+          "name": "메르세데스-벤츠"
+        },
+        {
+          "name": "폭스바겐"
+        }
+      ],
+      "confidence": "high"
+    }
+  }
+]

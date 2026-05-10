@@ -1,0 +1,289 @@
+[
+  {
+    "ml_rank": 3,
+    "ml_name": "FORVIA SE (FORVIA faurecia) (Formerly Faurecia SE)",
+    "ml_slug": "faurecia",
+    "our_ticker": "FRVIA.PA",
+    "reason": "FORVIA is the renamed Faurecia company, matches FRVIA.PA in our DB"
+  },
+  {
+    "ml_rank": 8,
+    "ml_name": "Nidec Corporation",
+    "ml_slug": "nidec",
+    "our_ticker": "null",
+    "reason": "Nidec Corporation not found in our DB; subsidiary Nidec Mobility Korea exists but Nidec parent not listed"
+  },
+  {
+    "ml_rank": 14,
+    "ml_name": "ElringKlinger AG",
+    "ml_slug": "elringklinger",
+    "our_ticker": null,
+    "reason": "ElringKlinger AG not found in our DB; only ElringKlinger Korea subsidiary listed"
+  },
+  {
+    "ml_rank": 18,
+    "ml_name": "Aumovio SE",
+    "ml_slug": "aumovio",
+    "our_ticker": null,
+    "reason": "Aumovio SE not found in our DB"
+  },
+  {
+    "ml_rank": 20,
+    "ml_name": "CATL (Contemporary Amperex Technology Co., Ltd.)",
+    "ml_slug": "catl",
+    "our_ticker": "300750.SZ",
+    "reason": "CATL matches Contemporary Amperex Technology listed as 300750.SZ"
+  },
+  {
+    "ml_rank": 27,
+    "ml_name": "Hanon Systems (Formerly Halla Visteon Climate Control)",
+    "ml_slug": "hanon-systems",
+    "our_ticker": null,
+    "reason": "Hanon Systems not found in our DB"
+  },
+  {
+    "ml_rank": 28,
+    "ml_name": "Leopold Kostal GmbH & Co. KG",
+    "ml_slug": "leopold-kostal",
+    "our_ticker": null,
+    "reason": "Leopold Kostal GmbH not found in our DB"
+  },
+  {
+    "ml_rank": 29,
+    "ml_name": "Pioneer Corporation",
+    "ml_slug": "pioneer",
+    "our_ticker": null,
+    "reason": "Pioneer Corporation not found in our DB"
+  },
+  {
+    "ml_rank": 30,
+    "ml_name": "Shenzhen Inovance Technology Co., Ltd.",
+    "ml_slug": "inovance-technology",
+    "our_ticker": null,
+    "reason": "Shenzhen Inovance Technology not found in our DB"
+  },
+  {
+    "ml_rank": 36,
+    "ml_name": "Minth Group Limited",
+    "ml_slug": "minth-group",
+    "our_ticker": null,
+    "reason": "Minth Group Limited not found in our DB"
+  },
+  {
+    "ml_rank": 38,
+    "ml_name": "AAPICO Hitech Public Co., Ltd.",
+    "ml_slug": "aapico-hitech-public",
+    "our_ticker": null,
+    "reason": "AAPICO Hitech not found in our DB"
+  },
+  {
+    "ml_rank": 40,
+    "ml_name": "Zhejiang Asia-Pacific Mechanical & Electronic Co., Ltd.",
+    "ml_slug": "zhejiang-asia-pacific-mechanical-electronic",
+    "our_ticker": null,
+    "reason": "Zhejiang Asia-Pacific Mechanical & Electronic not found in our DB"
+  },
+  {
+    "ml_rank": 41,
+    "ml_name": "Garrett Motion Inc. (Formerly Honeywell Turbo Technologies Inc.)",
+    "ml_slug": "garrett-motion",
+    "our_ticker": "가레트모션코리아",
+    "reason": "Garrett Motion matches Garrett Motion Korea subsidiary in our DB"
+  },
+  {
+    "ml_rank": 42,
+    "ml_name": "HASCO Vision Technology (Shanghai) Co., Ltd. (Formerly Shanghai Koito Automotive",
+    "ml_slug": "hasco-vision-technology-shanghai",
+    "our_ticker": "600741.SS",
+    "reason": "HASCO Vision Technology is Shanghai-based subsidiary; HASCO (Huayu Automotive Systems) parent company at 600741.SS"
+  },
+  {
+    "ml_rank": 43,
+    "ml_name": "Hella GmbH & Co. KGaA (FORVIA HELLA)",
+    "ml_slug": "hella",
+    "our_ticker": null,
+    "reason": "Hella GmbH not found separately in our DB; now part of FORVIA but parent company not independently listed"
+  },
+  {
+    "ml_rank": 45,
+    "ml_name": "Hoerbiger Holding AG",
+    "ml_slug": "hoerbiger-holding",
+    "our_ticker": null,
+    "reason": "Hoerbiger Holding AG not found in our DB"
+  },
+  {
+    "ml_rank": 49,
+    "ml_name": "Miba AG",
+    "ml_slug": "miba",
+    "our_ticker": null,
+    "reason": "Miba AG not found in our DB"
+  },
+  {
+    "ml_rank": 53,
+    "ml_name": "T.RAD Co., Ltd.",
+    "ml_slug": "t-rad",
+    "our_ticker": null,
+    "reason": "T.RAD Co., Ltd. not found in our DB"
+  },
+  {
+    "ml_rank": 54,
+    "ml_name": "UNO Minda Ltd. (Formerly Minda Industries Ltd.)",
+    "ml_slug": "uno-minda",
+    "our_ticker": null,
+    "reason": "UNO Minda Ltd not found in our DB"
+  },
+  {
+    "ml_rank": 55,
+    "ml_name": "EXEDY Corporation",
+    "ml_slug": "exedy",
+    "our_ticker": null,
+    "reason": "EXEDY Corporation not found in our DB"
+  },
+  {
+    "ml_rank": 56,
+    "ml_name": "Mobileye Vision Technologies Ltd.",
+    "ml_slug": "mobileye",
+    "our_ticker": null,
+    "reason": "Mobileye Vision Technologies Ltd not found in our DB"
+  },
+  {
+    "ml_rank": 58,
+    "ml_name": "Ficosa International, S.A. / Headquarters",
+    "ml_slug": "ficosa-international",
+    "our_ticker": null,
+    "reason": "Ficosa International not found in our DB"
+  },
+  {
+    "ml_rank": 60,
+    "ml_name": "IAC (International Automotive Components) Group",
+    "ml_slug": "iac",
+    "our_ticker": null,
+    "reason": "IAC Group not found in our DB"
+  },
+  {
+    "ml_rank": 61,
+    "ml_name": "Maxion Wheels Holding GmbH (Formerly Hayes Lemmerz International Inc.)",
+    "ml_slug": "maxion-wheels",
+    "our_ticker": null,
+    "reason": "Maxion Wheels not found in our DB"
+  },
+  {
+    "ml_rank": 63,
+    "ml_name": "NVIDIA Corporation",
+    "ml_slug": "nvidia",
+    "our_ticker": null,
+    "reason": "NVIDIA Corporation not found in our DB (automotive division supplier only)"
+  },
+  {
+    "ml_rank": 65,
+    "ml_name": "Gentex Corporation",
+    "ml_slug": "gentex",
+    "our_ticker": null,
+    "reason": "Gentex Corporation not found in our DB"
+  },
+  {
+    "ml_rank": 68,
+    "ml_name": "LS Automotive Technologies (Formerly LS Automotive Corp.)",
+    "ml_slug": "ls-automotive-technologies",
+    "our_ticker": "005850",
+    "reason": "LS Automotive Technologies matches LS (에스엘) ticker 005850 in our DB"
+  },
+  {
+    "ml_rank": 69,
+    "ml_name": "Mitsuba Corporation",
+    "ml_slug": "mitsuba",
+    "our_ticker": null,
+    "reason": "Mitsuba Corporation not found in our DB"
+  },
+  {
+    "ml_rank": 70,
+    "ml_name": "Stanley Electric Co., Ltd.",
+    "ml_slug": "stanley-electric",
+    "our_ticker": null,
+    "reason": "Stanley Electric Co., Ltd. not found in our DB"
+  },
+  {
+    "ml_rank": 75,
+    "ml_name": "Ikuyo Co., Ltd.",
+    "ml_slug": "ikuyo",
+    "our_ticker": null,
+    "reason": "Ikuyo Co., Ltd. not found in our DB"
+  },
+  {
+    "ml_rank": 76,
+    "ml_name": "Inteva Products, LLC",
+    "ml_slug": "inteva-products",
+    "our_ticker": null,
+    "reason": "Inteva Products, LLC not found in our DB"
+  },
+  {
+    "ml_rank": 77,
+    "ml_name": "Lingyun Industrial Corporation Limited",
+    "ml_slug": "lingyun-industrial",
+    "our_ticker": null,
+    "reason": "Lingyun Industrial Corporation not found in our DB"
+  },
+  {
+    "ml_rank": 80,
+    "ml_name": "SL Corporation",
+    "ml_slug": "sl",
+    "our_ticker": null,
+    "reason": "SL Corporation not found in our DB (distinct from LS Automotive)"
+  },
+  {
+    "ml_rank": 87,
+    "ml_name": "ABC Technologies Inc. (Formerly ABC Group, Inc.)",
+    "ml_slug": "abc-group",
+    "our_ticker": null,
+    "reason": "ABC Technologies Inc. not found in our DB"
+  },
+  {
+    "ml_rank": 88,
+    "ml_name": "ADVICS Co., Ltd.",
+    "ml_slug": "advics",
+    "our_ticker": null,
+    "reason": "ADVICS Co., Ltd. not found in our DB"
+  },
+  {
+    "ml_rank": 89,
+    "ml_name": "Ahresty Corporation",
+    "ml_slug": "ahresty",
+    "our_ticker": null,
+    "reason": "Ahresty Corporation not found in our DB"
+  },
+  {
+    "ml_rank": 92,
+    "ml_name": "CALB Group Co., Ltd. (Formerly CALB Co., Ltd.)",
+    "ml_slug": "calb",
+    "our_ticker": null,
+    "reason": "CALB Group Co., Ltd. not found in our DB"
+  },
+  {
+    "ml_rank": 93,
+    "ml_name": "Changzhou Xingyu Automotive Lighting Systems Co., Ltd.",
+    "ml_slug": "changzhou-xingyu-automotive-lighting-systems",
+    "our_ticker": null,
+    "reason": "Changzhou Xingyu Automotive Lighting not found in our DB"
+  },
+  {
+    "ml_rank": 95,
+    "ml_name": "Johnson Electric Industrial Manufactory, Ltd. (Formerly Johnson Electric Group)",
+    "ml_slug": "johnson-electric-machinery-factory",
+    "our_ticker": "존슨일렉트릭오퍼레이션스",
+    "reason": "Johnson Electric matches Johnson Electric Operations (존슨일렉트릭오퍼레이션스) in our DB"
+  },
+  {
+    "ml_rank": 98,
+    "ml_name": "Niterra Co., Ltd. (Formerly NGK Spark Plug Co., Ltd.)",
+    "ml_slug": "niterra",
+    "our_ticker": null,
+    "reason": "Niterra (formerly NGK Spark Plug) not found in our DB"
+  },
+  {
+    "ml_rank": 100,
+    "ml_name": "The Goodyear Tire & Rubber Company",
+    "ml_slug": "the-goodyear-tire-rubber",
+    "our_ticker": "GT",
+    "reason": "Goodyear matches GT ticker (The Goodyear Tire & Rubber Company) in our DB"
+  }
+]

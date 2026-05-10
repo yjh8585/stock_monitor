@@ -1,0 +1,77 @@
+[
+  {
+    "name_kr": "ZF프리드리히샤펜",
+    "company_id": "ad6bf608-9a84-4dbb-9e5b-a2340023e821",
+    "source_url": "https://www.zf.com",
+    "extracted": {
+      "fiscal_year": 2025,
+      "revenue_amount": 38.8,
+      "revenue_currency": "EUR",
+      "revenue_unit": "billion",
+      "operating_income_amount": null,
+      "net_income_amount": null,
+      "confidence": "medium",
+      "source_quote": "With some 153,000 employees worldwide, ZF reported sales of €38.8 billion in fiscal year 2025."
+    }
+  },
+  {
+    "name_kr": "만훈멜",
+    "company_id": "574d5786-e8d5-48c0-a42b-cb519b894816",
+    "source_url": "https://www.mann-hummel.com",
+    "extracted": {
+      "fiscal_year": 2024,
+      "revenue_amount": 4.5,
+      "revenue_currency": "EUR",
+      "revenue_unit": "billion",
+      "operating_income_amount": null,
+      "net_income_amount": null,
+      "confidence": "medium",
+      "source_quote": "4.5 billion € sales per year"
+    }
+  },
+  {
+    "name_kr": "말레",
+    "company_id": "778b3409-59db-4085-8a7a-7694f975ef03",
+    "source_url": "https://www.mahle.com",
+    "extracted": {
+      "fiscal_year": 2025,
+      "revenue_amount": 11.3,
+      "revenue_currency": "EUR",
+      "revenue_unit": "billion",
+      "operating_income_amount": null,
+      "net_income_amount": null,
+      "confidence": "medium",
+      "source_quote": "11.3 billion EUR Sales"
+    }
+  },
+  {
+    "name_kr": "프로이덴베르크",
+    "company_id": "2fc04f03-2541-4788-ac81-8763c4bea863",
+    "source_url": "https://www.freudenberg.com",
+    "extracted": {
+      "fiscal_year": 2025,
+      "revenue_amount": 11.7,
+      "revenue_currency": "EUR",
+      "revenue_unit": "billion",
+      "operating_income_amount": null,
+      "net_income_amount": null,
+      "confidence": "medium",
+      "source_quote": "11.7 billion (€) Sales"
+    }
+  },
+  {
+    "name_kr": "클라리오스",
+    "company_id": "c6a16471-2204-43c1-96ee-fc6d6914fe30",
+    "source_url": "https://www.clarios.com/investors",
+    "extracted": {
+      "fiscal_year": 2025,
+      "revenue_amount": 10.6,
+      "revenue_unit": "billion",
+      "revenue_currency": "USD",
+      "operating_income_amount": null,
+      "net_income_amount": null,
+      "confidence": "medium",
+      "source_quote": "~$10.6BN FY25 Reported Revenue"
+    }
+  }
+]

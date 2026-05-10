@@ -6,22 +6,24 @@ import ToggleFilterBar, { ToggleFilterGroup } from '@/components/common/ToggleFi
 export type CompanyTypeFilter = 'OEM' | '부품사';
 export type ListingFilter = '상장' | '비상장';
 export type RegionFilter = '국내' | '해외';
+export type ProductCategoryFilter = '하프샤프트' | '조향';
 
 interface FilterBarProps {
   typeFilter: CompanyTypeFilter[];
   listingFilter: ListingFilter[];
   regionFilter: RegionFilter[];
-  productQuery: string;
+  productCategoryFilter: ProductCategoryFilter[];
   onTypeToggle: (type: CompanyTypeFilter) => void;
   onListingToggle: (type: ListingFilter) => void;
   onRegionToggle: (type: RegionFilter) => void;
-  onProductChange: (q: string) => void;
+  onProductCategoryToggle: (type: ProductCategoryFilter) => void;
   rates: ExchangeRates;
 }
 
 const TYPE_OPTIONS: readonly CompanyTypeFilter[] = ['OEM', '부품사'];
 const LISTING_OPTIONS: readonly ListingFilter[] = ['상장', '비상장'];
 const REGION_OPTIONS: readonly RegionFilter[] = ['국내', '해외'];
+const PRODUCT_CATEGORY_OPTIONS: readonly ProductCategoryFilter[] = ['하프샤프트', '조향'];
 
 /** 환율 안내 문자열 — 통화별 누락 시 해당 항목 생략 */
 function formatRateLabel(rates: ExchangeRates): string {
@@ -38,11 +40,11 @@ export default function FilterBar({
   typeFilter,
   listingFilter,
   regionFilter,
-  productQuery,
+  productCategoryFilter,
   onTypeToggle,
   onListingToggle,
   onRegionToggle,
-  onProductChange,
+  onProductCategoryToggle,
   rates,
 }: FilterBarProps) {
   const rateLabel = formatRateLabel(rates);
@@ -66,17 +68,17 @@ export default function FilterBar({
       selected: regionFilter,
       onToggle: (v) => onRegionToggle(v as RegionFilter),
     },
+    {
+      label: '제품군',
+      options: PRODUCT_CATEGORY_OPTIONS,
+      selected: productCategoryFilter,
+      onToggle: (v) => onProductCategoryToggle(v as ProductCategoryFilter),
+    },
   ];
 
   return (
     <ToggleFilterBar
       groups={groups}
-      search={{
-        label: '제품',
-        placeholder: '제품 검색…',
-        value: productQuery,
-        onChange: onProductChange,
-      }}
       rightSlot={`(매출 : 십억원, 시가총액 : 조원${rateLabel ? `, ${rateLabel}` : ''})`}
     />
   );

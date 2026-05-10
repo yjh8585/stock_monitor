@@ -1,0 +1,30 @@
+[
+  {
+    "name_kr": "베바스토",
+    "company_id": "82a717c7-b32c-4edd-b82f-816b0a37f642",
+    "extracted": {
+      "fiscal_year": 2024,
+      "revenue_amount": 4.3,
+      "revenue_unit": "billion",
+      "revenue_currency": "EUR",
+      "source_url": "https://www.webasto.com/en-us/the-group/facts-and-figures.html",
+      "source_quote": "The Webasto Group's sales amounted to 4.3 billion Euro in the 2024 financial year.",
+      "confidence": "high"
+    }
+  },
+  {
+    "name_kr": "야자키",
+    "company_id": "b0be3f82-fa26-46a2-9ef3-e82fa3c406fa",
+    "extracted": {
+      "fiscal_year": 2024,
+      "revenue_amount": 2609.6,
+      "revenue_currency": "JPY",
+      "revenue_unit": "billion",
+      "net_income_amount": null,
+      "operating_income_amount": null,
+      "confidence": "high",
+      "source_url": "https://www.yazaki-group.com/common/pdf/pamphlet_e.pdf",
+      "source_quote": "FY2024 report covers the period from June 21, 2024 to June 20, 2025, net sales 2,609.6 billion yen"
+    }
+  }
+]

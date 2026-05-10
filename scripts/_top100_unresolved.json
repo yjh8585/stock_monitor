@@ -1,0 +1,47 @@
+[
+  {
+    "company_id": "db3a3cb8-b4a2-4ede-86b9-465452b16147",
+    "ticker": "BHAP",
+    "name": "BAIC Motor Hyundai Auto Parts",
+    "name_kr": "베이징하이나퍼 (BHAP)",
+    "country": "CN",
+    "homepage_url": "https://www.bhap.cn",
+    "reason": "websearch_no_result"
+  },
+  {
+    "company_id": "1190b604-74e5-4aeb-a5e4-5a34dbf83cf9",
+    "ticker": "Jatco",
+    "name": "Jatco Ltd",
+    "name_kr": "자트코",
+    "country": "JP",
+    "homepage_url": "https://www.jatco.co.jp",
+    "reason": "websearch_no_result"
+  },
+  {
+    "company_id": "8fbce18d-a714-4e9d-ad3f-4d279aff60d8",
+    "ticker": "066570",
+    "name": "LG Electronics Inc",
+    "name_kr": "LG전자",
+    "country": "KR",
+    "homepage_url": "https://www.lge.com",
+    "reason": "websearch_no_result"
+  },
+  {
+    "company_id": "c891914c-37b2-4c9b-8874-f522d386fd3c",
+    "ticker": "Flex-N-Gate",
+    "name": "Flex-N-Gate Corporation",
+    "name_kr": "플렉스앤게이트",
+    "country": "US",
+    "homepage_url": "https://www.flex-n-gate.com",
+    "reason": "websearch_no_result"
+  },
+  {
+    "company_id": "7ca216b6-ef80-4d74-ba87-06e607029757",
+    "ticker": "Harman",
+    "name": "Harman International Industries",
+    "name_kr": "하만",
+    "country": "US",
+    "homepage_url": "https://www.harman.com",
+    "reason": "websearch_no_result"
+  }
+]

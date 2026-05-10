@@ -1,0 +1,492 @@
+[
+  {
+    "rank": 1,
+    "name": "Bosch (Robert Bosch GmbH)",
+    "slug": "bosch"
+  },
+  {
+    "rank": 2,
+    "name": "Valeo Group",
+    "slug": "valeo-group"
+  },
+  {
+    "rank": 3,
+    "name": "FORVIA SE (FORVIA faurecia) (Formerly Faurecia SE)",
+    "slug": "faurecia"
+  },
+  {
+    "rank": 4,
+    "name": "ZF Friedrichshafen AG",
+    "slug": "zf-friedrichshafen"
+  },
+  {
+    "rank": 5,
+    "name": "Denso Corporation",
+    "slug": "denso"
+  },
+  {
+    "rank": 6,
+    "name": "Marelli Corporation (Formerly Calsonic Kansei Corporation)",
+    "slug": "marelli"
+  },
+  {
+    "rank": 7,
+    "name": "Schaeffler AG",
+    "slug": "schaeffler"
+  },
+  {
+    "rank": 8,
+    "name": "Nidec Corporation",
+    "slug": "nidec"
+  },
+  {
+    "rank": 9,
+    "name": "Continental AG",
+    "slug": "continental"
+  },
+  {
+    "rank": 10,
+    "name": "Hyundai Mobis Co., Ltd.",
+    "slug": "hyundai-mobis"
+  },
+  {
+    "rank": 11,
+    "name": "Magna International Inc.",
+    "slug": "magna-international"
+  },
+  {
+    "rank": 12,
+    "name": "Aisin Corporation (Formerly Aisin Seiki Co., Ltd.)",
+    "slug": "aisin"
+  },
+  {
+    "rank": 13,
+    "name": "Mitsubishi Electric Corporation",
+    "slug": "mitsubishi-electric"
+  },
+  {
+    "rank": 14,
+    "name": "ElringKlinger AG",
+    "slug": "elringklinger"
+  },
+  {
+    "rank": 15,
+    "name": "BorgWarner Inc.",
+    "slug": "borgwarner"
+  },
+  {
+    "rank": 16,
+    "name": "Adient plc (Formerly Automotive seating business division of Johnson Controls In",
+    "slug": "adient"
+  },
+  {
+    "rank": 17,
+    "name": "Linamar Corporation",
+    "slug": "linamar"
+  },
+  {
+    "rank": 18,
+    "name": "Aumovio SE",
+    "slug": "aumovio"
+  },
+  {
+    "rank": 19,
+    "name": "Astemo, Ltd. (Formerly Hitachi Astemo, Ltd. )",
+    "slug": "astemo"
+  },
+  {
+    "rank": 20,
+    "name": "CATL (Contemporary Amperex Technology Co., Ltd.)",
+    "slug": "catl"
+  },
+  {
+    "rank": 21,
+    "name": "JTEKT Corporation",
+    "slug": "jtekt"
+  },
+  {
+    "rank": 22,
+    "name": "Lear Corporation",
+    "slug": "lear"
+  },
+  {
+    "rank": 23,
+    "name": "Aptiv PLC (Formerly Delphi Automotive PLC)",
+    "slug": "aptiv"
+  },
+  {
+    "rank": 24,
+    "name": "MANN+HUMMEL GmbH",
+    "slug": "mann-hummel"
+  },
+  {
+    "rank": 25,
+    "name": "Toyoda Gosei Co., Ltd.",
+    "slug": "toyoda-gosei"
+  },
+  {
+    "rank": 26,
+    "name": "Brembo N.V. (Formerly Brembo S.p.A.)",
+    "slug": "brembo"
+  },
+  {
+    "rank": 27,
+    "name": "Hanon Systems (Formerly Halla Visteon Climate Control)",
+    "slug": "hanon-systems"
+  },
+  {
+    "rank": 28,
+    "name": "Leopold Kostal GmbH & Co. KG",
+    "slug": "leopold-kostal"
+  },
+  {
+    "rank": 29,
+    "name": "Pioneer Corporation",
+    "slug": "pioneer"
+  },
+  {
+    "rank": 30,
+    "name": "Shenzhen Inovance Technology Co., Ltd.",
+    "slug": "inovance-technology"
+  },
+  {
+    "rank": 31,
+    "name": "OPmobility SE (Formerly Compagnie Plastic Omnium SE)",
+    "slug": "opmobility"
+  },
+  {
+    "rank": 32,
+    "name": "Toyota Boshoku Corporation",
+    "slug": "toyota-boshoku"
+  },
+  {
+    "rank": 33,
+    "name": "Webasto SE",
+    "slug": "webasto"
+  },
+  {
+    "rank": 34,
+    "name": "Grupo Antolin-Irausa, S.A.",
+    "slug": "grupo-antolin-irausa"
+  },
+  {
+    "rank": 35,
+    "name": "Harman International Industries, Inc.",
+    "slug": "harman-international-industries"
+  },
+  {
+    "rank": 36,
+    "name": "Minth Group Limited",
+    "slug": "minth-group"
+  },
+  {
+    "rank": 37,
+    "name": "Samvardhana Motherson Group",
+    "slug": "samvardhana-motherson-group"
+  },
+  {
+    "rank": 38,
+    "name": "AAPICO Hitech Public Co., Ltd.",
+    "slug": "aapico-hitech-public"
+  },
+  {
+    "rank": 39,
+    "name": "Visteon Corporation",
+    "slug": "visteon"
+  },
+  {
+    "rank": 40,
+    "name": "Zhejiang Asia-Pacific Mechanical & Electronic Co., Ltd.",
+    "slug": "zhejiang-asia-pacific-mechanical-electronic"
+  },
+  {
+    "rank": 41,
+    "name": "Garrett Motion Inc. (Formerly Honeywell Turbo Technologies Inc.)",
+    "slug": "garrett-motion"
+  },
+  {
+    "rank": 42,
+    "name": "HASCO Vision Technology (Shanghai) Co., Ltd. (Formerly Shanghai Koito Automotive",
+    "slug": "hasco-vision-technology-shanghai"
+  },
+  {
+    "rank": 43,
+    "name": "Hella GmbH & Co. KGaA (FORVIA HELLA)",
+    "slug": "hella"
+  },
+  {
+    "rank": 44,
+    "name": "Toyota Industries Corporation",
+    "slug": "toyota-industries"
+  },
+  {
+    "rank": 45,
+    "name": "Hoerbiger Holding AG",
+    "slug": "hoerbiger-holding"
+  },
+  {
+    "rank": 46,
+    "name": "Yazaki Corporation",
+    "slug": "yazaki"
+  },
+  {
+    "rank": 47,
+    "name": "Brose Fahrzeugteile SE & Co. KG, Coburg",
+    "slug": "brose-fahrzeugteile"
+  },
+  {
+    "rank": 48,
+    "name": "Huayu Automotive Systems Co., Ltd.",
+    "slug": "huayu-automotive-systems"
+  },
+  {
+    "rank": 49,
+    "name": "Miba AG",
+    "slug": "miba"
+  },
+  {
+    "rank": 50,
+    "name": "Panasonic Holdings Corporation (Formerly Panasonic Corporation)",
+    "slug": "panasonic"
+  },
+  {
+    "rank": 51,
+    "name": "MAHLE GmbH",
+    "slug": "mahle"
+  },
+  {
+    "rank": 52,
+    "name": "MICHELIN (Compagnie Generale des Etablissements Michelin S.C.A.)",
+    "slug": "michelin"
+  },
+  {
+    "rank": 53,
+    "name": "T.RAD Co., Ltd.",
+    "slug": "t-rad"
+  },
+  {
+    "rank": 54,
+    "name": "UNO Minda Ltd. (Formerly Minda Industries Ltd.)",
+    "slug": "uno-minda"
+  },
+  {
+    "rank": 55,
+    "name": "EXEDY Corporation",
+    "slug": "exedy"
+  },
+  {
+    "rank": 56,
+    "name": "Mobileye Vision Technologies Ltd.",
+    "slug": "mobileye"
+  },
+  {
+    "rank": 57,
+    "name": "Dauch Corporation (Formerly American Axle & Manufacturing Holdings, Inc.)",
+    "slug": "dauch-corporation"
+  },
+  {
+    "rank": 58,
+    "name": "Ficosa International, S.A. / Headquarters",
+    "slug": "ficosa-international"
+  },
+  {
+    "rank": 59,
+    "name": "Futaba Industrial Co., Ltd.",
+    "slug": "futaba-industrial"
+  },
+  {
+    "rank": 60,
+    "name": "IAC (International Automotive Components) Group",
+    "slug": "iac"
+  },
+  {
+    "rank": 61,
+    "name": "Maxion Wheels Holding GmbH (Formerly Hayes Lemmerz International Inc.)",
+    "slug": "maxion-wheels"
+  },
+  {
+    "rank": 62,
+    "name": "Ningbo Tuopu Group Co., Ltd.(Formerly Ningbo Tuopu Brake System Co., Ltd.)",
+    "slug": "ningbo-tuopu-group"
+  },
+  {
+    "rank": 63,
+    "name": "NVIDIA Corporation",
+    "slug": "nvidia"
+  },
+  {
+    "rank": 64,
+    "name": "NXP Semiconductors N.V.",
+    "slug": "nxp-semiconductors"
+  },
+  {
+    "rank": 65,
+    "name": "Gentex Corporation",
+    "slug": "gentex"
+  },
+  {
+    "rank": 66,
+    "name": "Huawei Technologies Co., Ltd.",
+    "slug": "huawei"
+  },
+  {
+    "rank": 68,
+    "name": "LS Automotive Technologies (Formerly LS Automotive Corp.)",
+    "slug": "ls-automotive-technologies"
+  },
+  {
+    "rank": 69,
+    "name": "Mitsuba Corporation",
+    "slug": "mitsuba"
+  },
+  {
+    "rank": 70,
+    "name": "Stanley Electric Co., Ltd.",
+    "slug": "stanley-electric"
+  },
+  {
+    "rank": 71,
+    "name": "Tokai Rika Co., Ltd.",
+    "slug": "tokai-rika"
+  },
+  {
+    "rank": 72,
+    "name": "Gestamp Automocion S.A.",
+    "slug": "gestamp-automocion"
+  },
+  {
+    "rank": 74,
+    "name": "Huizhou Desay SV Automotive Co., Ltd.",
+    "slug": "huizhou-desay-sv-automotive"
+  },
+  {
+    "rank": 75,
+    "name": "Ikuyo Co., Ltd.",
+    "slug": "ikuyo"
+  },
+  {
+    "rank": 76,
+    "name": "Inteva Products, LLC",
+    "slug": "inteva-products"
+  },
+  {
+    "rank": 77,
+    "name": "Lingyun Industrial Corporation Limited",
+    "slug": "lingyun-industrial"
+  },
+  {
+    "rank": 78,
+    "name": "Marelli Europe S.p.A. (Formerly Magneti Marelli S.p.A.)",
+    "slug": "marelli-europe"
+  },
+  {
+    "rank": 79,
+    "name": "Schaeffler Group (China)",
+    "slug": "schaeffler-group-china"
+  },
+  {
+    "rank": 80,
+    "name": "SL Corporation",
+    "slug": "sl"
+  },
+  {
+    "rank": 81,
+    "name": "Tenneco Inc.",
+    "slug": "tenneco"
+  },
+  {
+    "rank": 82,
+    "name": "Aisin (China) Investment Co., Ltd.",
+    "slug": "aisin-group-china"
+  },
+  {
+    "rank": 83,
+    "name": "Alps Alpine Co., Ltd. (Formerly Alps Electric Co., Ltd.)",
+    "slug": "alps-alpine"
+  },
+  {
+    "rank": 84,
+    "name": "Benteler Group (Benteler Automobiltechnik GmbH)",
+    "slug": "benteler-group"
+  },
+  {
+    "rank": 85,
+    "name": "Dräxlmaier Group (Fritz Dräxlmaier GmbH & Co. KG)",
+    "slug": "draexlmaier-group"
+  },
+  {
+    "rank": 86,
+    "name": "Compagnie de Saint-Gobain S.A.",
+    "slug": "saint-gobain"
+  },
+  {
+    "rank": 87,
+    "name": "ABC Technologies Inc. (Formerly ABC Group, Inc.)",
+    "slug": "abc-group"
+  },
+  {
+    "rank": 88,
+    "name": "ADVICS Co., Ltd.",
+    "slug": "advics"
+  },
+  {
+    "rank": 89,
+    "name": "Ahresty Corporation",
+    "slug": "ahresty"
+  },
+  {
+    "rank": 90,
+    "name": "Autoliv Inc.",
+    "slug": "autoliv"
+  },
+  {
+    "rank": 91,
+    "name": "Bridgestone Corporation",
+    "slug": "bridgestone"
+  },
+  {
+    "rank": 92,
+    "name": "CALB Group Co., Ltd. (Formerly CALB Co., Ltd.)",
+    "slug": "calb"
+  },
+  {
+    "rank": 93,
+    "name": "Changzhou Xingyu Automotive Lighting Systems Co., Ltd.",
+    "slug": "changzhou-xingyu-automotive-lighting-systems"
+  },
+  {
+    "rank": 94,
+    "name": "Hyundai WIA Corporation (Formerly WIA Corporation)",
+    "slug": "hyundai-wia"
+  },
+  {
+    "rank": 95,
+    "name": "Johnson Electric Industrial Manufactory, Ltd. (Formerly Johnson Electric Group)",
+    "slug": "johnson-electric-machinery-factory"
+  },
+  {
+    "rank": 96,
+    "name": "Koito Manufacturing Co., Ltd.",
+    "slug": "koito-manufacturing"
+  },
+  {
+    "rank": 97,
+    "name": "Ningbo Joyson Electronic Corp.",
+    "slug": "ningbo-joyson-electronic"
+  },
+  {
+    "rank": 98,
+    "name": "Niterra Co., Ltd. (Formerly NGK Spark Plug Co., Ltd.)",
+    "slug": "niterra"
+  },
+  {
+    "rank": 99,
+    "name": "TACHI-S Co., Ltd.",
+    "slug": "tachi-s"
+  },
+  {
+    "rank": 100,
+    "name": "The Goodyear Tire & Rubber Company",
+    "slug": "the-goodyear-tire-rubber"
+  }
+]

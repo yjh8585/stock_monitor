@@ -1,0 +1,53 @@
+name: 회사 정보 정기 보강
+
+# enrich_company.py 가 누락된 재무/메타(설명·제품·고객사)를 LLM web_search 로 자동 보강
+# - 매월 1일 자동 실행 (신규 추가 회사 1달 내 자동 보강 보장)
+# - 수동 트리거 가능
+on:
+  schedule:
+    - cron: '0 0 1 * *' # 매월 1일 00:00 UTC
+  workflow_dispatch:
+    inputs:
+      page:
+        description: '특정 page만 보강 (예: parts-top100, domestic). 비우면 전체.'
+        required: false
+        type: string
+      target_tickers:
+        description: '특정 ticker만 보강 (콤마 구분). 비우면 전체 누락 회사.'
+        required: false
+        type: string
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 회사 정보 보강 (재무 + 메타: 설명·제품·고객사)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          TARGET_TICKERS: ${{ inputs.target_tickers }}
+        run: |
+          if [ -n "${{ inputs.page }}" ]; then
+            python enrich_company.py --page "${{ inputs.page }}" --skip-news
+          else
+            python enrich_company.py --skip-news
+          fi

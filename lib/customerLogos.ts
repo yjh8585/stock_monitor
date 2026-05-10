@@ -6,6 +6,8 @@ export interface CustomerLogoConfig {
 }
 
 const SI = (slug: string, hex: string) => `https://cdn.simpleicons.org/${slug}/${hex}`;
+/** Wikimedia Commons 영구 URL (Special:FilePath은 자동 redirect — 이미지 변경 시에도 작동) */
+const WC = (filename: string) => `https://commons.wikimedia.org/wiki/Special:FilePath/${filename}`;
 
 /** 고객사명 → 브랜드 로고 설정 (SimpleIcons CDN 우선, 없으면 컬러 배지) */
 export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
@@ -42,4 +44,71 @@ export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
   KGM: { iconUrl: '/logos/kg-mobility.svg', abbr: 'KGM', color: '#0a2240' },
   KG모빌리티: { iconUrl: '/logos/kg-mobility.svg', abbr: 'KGM', color: '#0a2240' },
   폴라리스: { iconUrl: null, abbr: 'POL', color: '#1a2d5a' },
+  테슬라: { iconUrl: SI('tesla', 'CC0000'), abbr: 'Tesla', color: '#CC0000' },
+  한국지엠: { iconUrl: SI('chevrolet', 'D1AD57'), abbr: '한국GM', color: '#D1AD57' },
+  르노코리아: { iconUrl: SI('renault', 'efb700'), abbr: 'RKM', color: '#c9a000' },
+  아우디: { iconUrl: SI('audi', '000000'), abbr: 'Audi', color: '#000000' },
+  포르쉐: { iconUrl: SI('porsche', 'D5001C'), abbr: 'PSC', color: '#D5001C' },
+  푸조: { iconUrl: SI('peugeot', '1B232A'), abbr: 'Peu', color: '#1B232A' },
+  시트로엥: { iconUrl: SI('citroen', 'A6021A'), abbr: 'Cit', color: '#A6021A' },
+  '재규어 랜드로버': { iconUrl: SI('jaguar', '00529b'), abbr: 'JLR', color: '#00529b' },
+  BYD: { iconUrl: WC('BYD_Auto_2022_logo.svg'), abbr: 'BYD', color: '#E2231A' },
+  스즈키: { iconUrl: SI('suzuki', '12459C'), abbr: 'Suzuki', color: '#12459C' },
+  페라리: { iconUrl: SI('ferrari', 'DC0000'), abbr: 'Ferrari', color: '#DC0000' },
+  루시드: { iconUrl: null, abbr: 'Lucid', color: '#1c1c1c' },
+  // '현대차/기아' 매핑 제거 — DB 정규화 v3에서 ['현대차','기아']로 분리되어 두 로고 표시
+  볼보: { iconUrl: SI('volvo', '003057'), abbr: 'Volvo', color: '#003057' },
+  다임러트럭: { iconUrl: null, abbr: 'DT', color: '#000000' },
+  PACCAR: { iconUrl: null, abbr: 'PACCAR', color: '#1a1a1a' },
+  Navistar: { iconUrl: null, abbr: 'Navi', color: '#0033a0' },
+  에스케이온: { iconUrl: null, abbr: 'SK온', color: '#ee2737' },
+  마쓰다: { iconUrl: SI('mazda', '101010'), abbr: 'Mazda', color: '#101010' },
+  미쓰비시: { iconUrl: SI('mitsubishi', 'E60012'), abbr: 'Mits', color: '#E60012' },
+  스바루: { iconUrl: SI('subaru', '004B85'), abbr: 'Subaru', color: '#004B85' },
+  람보르기니: { iconUrl: SI('lamborghini', '000000'), abbr: 'Lambo', color: '#000000' },
+  벤틀리: { iconUrl: SI('bentley', '333333'), abbr: 'Bent', color: '#333333' },
+  // 중국 OEM — Wikimedia Commons SVG (Special:FilePath 영구 URL)
+  지리: { iconUrl: WC('Geely_logo.svg'), abbr: 'Geely', color: '#0078C8' },
+  창안: { iconUrl: WC('Changan_icon.svg'), abbr: 'Changan', color: '#1c1c1c' },
+  그레이트월모터스: { iconUrl: WC('GWM_2025_logo.svg'), abbr: 'GWM', color: '#C8102E' },
+  SAIC: { iconUrl: WC('SAIC_Motor.svg'), abbr: 'SAIC', color: '#E60012' },
+  BAIC: { iconUrl: WC('BAIC_logo.png'), abbr: 'BAIC', color: '#0033A0' },
+  체리: { iconUrl: WC('Chery_logo.svg'), abbr: 'Chery', color: '#E60012' },
+  베이징현대: { iconUrl: SI('hyundai', '002c5f'), abbr: '베이징현대', color: '#002c5f' },
+  리샹: { iconUrl: WC('Li_Auto_logo.svg'), abbr: 'Li', color: '#3a3a3a' },
+  NIO: { iconUrl: WC('NIO_logo_emblem.svg'), abbr: 'NIO', color: '#000000' },
+  XPeng: { iconUrl: WC('XPeng_logo.svg'), abbr: 'XPeng', color: '#0066cc' },
+  JAC: { iconUrl: WC('JAC_logo_2011.svg'), abbr: 'JAC', color: '#003a70' },
+  리프모터: { iconUrl: WC('Leapmotor_logo_en.svg'), abbr: 'Leap', color: '#EF1A2D' },
+  세레스: { iconUrl: WC('AITO_logo.svg'), abbr: 'SERES', color: '#0E1E3A' },
+  // 크라이슬러/Chevrolet/Lexus 등은 normalize_customer_name v4에서 통합되므로 별도 매핑 불필요
+
+  // 추가 한글 표준명 (normalize v4에서 통합되는 브랜드들)
+  동펑자동차: { iconUrl: WC('Dongfeng_Motor_logo.svg'), abbr: 'Dongfeng', color: '#005BAA' },
+  광저우자동차: { iconUrl: WC('GAC_Family_logo.svg'), abbr: 'GAC', color: '#003E7E' },
+  FAW: { iconUrl: '/logos/faw.webp', abbr: 'FAW', color: '#E60012' },
+  화웨이: { iconUrl: WC('Huawei_wordmark.svg'), abbr: 'Huawei', color: '#FF0000' },
+  샤오미: { iconUrl: SI('xiaomi', 'FF6900'), abbr: 'Xiaomi', color: '#FF6900' },
+  마힌드라: { iconUrl: WC('Mahindra_logo.svg'), abbr: 'Mahindra', color: '#E2231A' },
+  타타: { iconUrl: WC('Tata_Motors_Logo.svg'), abbr: 'Tata', color: '#486AAE' },
+  이스즈: { iconUrl: WC('Isuzu.svg'), abbr: 'Isuzu', color: '#C20E1A' },
+  히노: { iconUrl: WC('Hino_Motors_logo.svg'), abbr: 'Hino', color: '#E60012' },
+  카마즈: { iconUrl: WC('Typeface_logo_of_KAMAZ.svg'), abbr: 'KAMAZ', color: '#0033A0' },
+  아쇼크레이랜드: { iconUrl: null, abbr: 'Ashok', color: '#003F87' },
+  시노트럭: { iconUrl: null, abbr: 'Sinotruk', color: '#E60012' },
+  샨시중트럭: { iconUrl: null, abbr: 'Shaanxi', color: '#C8102E' },
+  니콜라: { iconUrl: WC('Nikola_logo.svg'), abbr: 'Nikola', color: '#00B5E2' },
+  스코다: { iconUrl: SI('skoda', '0E3A2F'), abbr: 'Skoda', color: '#0E3A2F' },
+  세아트: { iconUrl: SI('seat', 'C5A572'), abbr: 'SEAT', color: '#C5A572' },
+  CUPRA: { iconUrl: '/logos/cupra.webp', abbr: 'CUPRA', color: '#A36F4F' },
+  미쓰비시후소: { iconUrl: '/logos/fuso.svg', abbr: 'Fuso', color: '#E60012' },
+  부가티: { iconUrl: WC('Bugatti_logo.svg'), abbr: 'Bugatti', color: '#082C58' },
+  바자즈: { iconUrl: WC('Bajaj_Auto_Ltd_logo.svg'), abbr: 'Bajaj', color: '#003594' },
+  히어로: { iconUrl: null, abbr: 'Hero', color: '#E2231A' },
+  포톤: { iconUrl: null, abbr: 'Foton', color: '#E60012' },
+  '르노-닛산': { iconUrl: SI('renault', 'efb700'), abbr: 'RN', color: '#c9a000' },
+  볼보트럭: { iconUrl: SI('volvo', '003057'), abbr: 'VolvoT', color: '#003057' },
+  MAN: { iconUrl: '/logos/man-truck.webp', abbr: 'MAN', color: '#e2231a' },
+  스카니아: { iconUrl: '/logos/scania.svg', abbr: 'Scania', color: '#1c1f2a' },
+  DAF: { iconUrl: null, abbr: 'DAF', color: '#0066b1' },
 };
