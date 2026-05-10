@@ -16,7 +16,10 @@ export default async function DomesticPage() {
     supabase.from('exchange_rates_live').select('base,rate').in('base', ['USD', 'EUR', 'CNY']),
   ]);
 
-  if (viewErr) logger.error({ err: viewErr }, 'domestic_stocks_view 조회 실패');
+  if (viewErr) {
+    logger.error({ err: viewErr }, 'domestic_stocks_view 조회 실패');
+    throw new Error(`Supabase domestic_stocks_view 조회 실패: ${viewErr.message}`);
+  }
   if (fxErr) logger.error({ err: fxErr }, 'exchange_rates_live 조회 실패');
 
   const rows: DomesticStockRow[] = (viewData ?? []) as DomesticStockRow[];

@@ -1,7 +1,6 @@
 'use client';
 
 import type {
-  OemSalesGroupCountryMonth,
   OemSalesGroupMonth,
   OemSalesGroupPtMonth,
   OemSalesTypeSegMonth,
@@ -14,25 +13,27 @@ import Top10AnnualBars from './Top10AnnualBars';
 import Top10MonthlyLines from './Top10MonthlyLines';
 import PowertrainMix from './PowertrainMix';
 import PowertrainTopOems from './PowertrainTopOems';
-import CountryTop15 from './CountryTop15';
+import CountryTop15, { type CountryTop15Row } from './CountryTop15';
 import EvLeadersChart from './EvLeadersChart';
 import YoyWinnersLosers from './YoyWinnersLosers';
 import TypeSegmentChart from './TypeSegmentChart';
-import OemCountryHeatmap from './OemCountryHeatmap';
+import OemCountryHeatmap, { type OemCountryMatrix } from './OemCountryHeatmap';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
   groupPtMonth: OemSalesGroupPtMonth[];
-  groupCountryMonth: OemSalesGroupCountryMonth[];
   typeSegMonth: OemSalesTypeSegMonth[];
+  countryTop15: CountryTop15Row[];
+  oemCountryMatrix: OemCountryMatrix;
 }
 
 /** 13개 차트 섹션을 위→아래 순차로 배치 */
 export default function OemDashboard({
   groupMonth,
   groupPtMonth,
-  groupCountryMonth,
   typeSegMonth,
+  countryTop15,
+  oemCountryMatrix,
 }: Props) {
   return (
     <div className="px-6 py-4 space-y-6 max-w-[1600px] mx-auto">
@@ -69,7 +70,7 @@ export default function OemDashboard({
       </Section>
 
       <Section title="국가별 판매량 TOP15" subtitle="2025년 시장 규모">
-        <CountryTop15 groupCountryMonth={groupCountryMonth} />
+        <CountryTop15 rows={countryTop15} />
       </Section>
 
       <Section
@@ -91,7 +92,7 @@ export default function OemDashboard({
         title="TOP10 OEM × TOP10 국가 매트릭스"
         subtitle="OEM이 어느 국가에서 강한가 (2025년)"
       >
-        <OemCountryHeatmap groupCountryMonth={groupCountryMonth} />
+        <OemCountryHeatmap data={oemCountryMatrix} />
       </Section>
     </div>
   );

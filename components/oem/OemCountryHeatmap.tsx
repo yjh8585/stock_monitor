@@ -1,60 +1,27 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { OemSalesGroupCountryMonth } from '@/lib/types';
 import { fmtUnits } from './helpers';
 
-interface Props {
-  groupCountryMonth: OemSalesGroupCountryMonth[];
+export interface OemCountryMatrix {
+  oems: string[];
+  countries: string[];
+  matrix: number[][];
 }
 
-const TOP_OEMS = 10;
-const TOP_COUNTRIES = 10;
-const YEAR_START = 202501;
-const YEAR_END = 202512;
+interface Props {
+  data: OemCountryMatrix;
+}
 
 /** TOP10 OEM × TOP10 국가 매트릭스 — 색조 그라데이션 (행 기준 normalize) */
-export default function OemCountryHeatmap({ groupCountryMonth }: Props) {
-  const { oems, countries, matrix, rowMaxes } = useMemo(() => {
-    const oemTotal = new Map<string, number>();
-    const countryTotal = new Map<string, number>();
-
-    for (const r of groupCountryMonth) {
-      if (r.year_month < YEAR_START || r.year_month > YEAR_END) continue;
-      oemTotal.set(r.oem_group, (oemTotal.get(r.oem_group) ?? 0) + r.sales);
-      countryTotal.set(r.country, (countryTotal.get(r.country) ?? 0) + r.sales);
-    }
-
-    const topOems = [...oemTotal.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, TOP_OEMS)
-      .map(([n]) => n);
-    const topCountries = [...countryTotal.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, TOP_COUNTRIES)
-      .map(([n]) => n);
-
-    const oemSet = new Set(topOems);
-    const countrySet = new Set(topCountries);
-    const cell = new Map<string, number>(); // `${oem}|${country}` → sales
-    for (const r of groupCountryMonth) {
-      if (r.year_month < YEAR_START || r.year_month > YEAR_END) continue;
-      if (!oemSet.has(r.oem_group) || !countrySet.has(r.country)) continue;
-      const k = `${r.oem_group}|${r.country}`;
-      cell.set(k, (cell.get(k) ?? 0) + r.sales);
-    }
-
-    const mat: number[][] = topOems.map((oem) =>
-      topCountries.map((c) => cell.get(`${oem}|${c}`) ?? 0)
-    );
-    // 행별 최대값 (셀 색조 normalize 용)
-    const maxes = mat.map((row) => Math.max(...row));
-    return { oems: topOems, countries: topCountries, matrix: mat, rowMaxes: maxes };
-  }, [groupCountryMonth]);
+export default function OemCountryHeatmap({ data }: Props) {
+  const { oems, countries, matrix } = data;
+  const rowMaxes = useMemo(() => matrix.map((row) => Math.max(...row, 0)), [matrix]);
 
   return (
     <div className="overflow-x-auto">
       <table className="text-xs border-separate border-spacing-0">
+        <caption className="sr-only">TOP10 OEM별 TOP10 국가 판매량 매트릭스 (2025년)</caption>
         <thead>
           <tr>
             <th className="sticky left-0 bg-card p-2 text-left border-b border-border min-w-[200px]">
@@ -80,7 +47,7 @@ export default function OemCountryHeatmap({ groupCountryMonth }: Props) {
                 const v = matrix[i][j];
                 const max = rowMaxes[i] || 1;
                 const intensity = max > 0 ? v / max : 0;
-                return <HeatCell key={c} value={v} intensity={intensity} />;
+                return <HeatCell key={c} oem={oem} country={c} value={v} intensity={intensity} />;
               })}
             </tr>
           ))}
@@ -104,11 +71,23 @@ export default function OemCountryHeatmap({ groupCountryMonth }: Props) {
   );
 }
 
-function HeatCell({ value, intensity }: { value: number; intensity: number }) {
+function HeatCell({
+  oem,
+  country,
+  value,
+  intensity,
+}: {
+  oem: string;
+  country: string;
+  value: number;
+  intensity: number;
+}) {
   const bg = `rgba(37, 99, 235, ${Math.max(0.05, intensity * 0.85)})`;
   const textColor = intensity > 0.5 ? 'text-white' : 'text-foreground';
   return (
     <td
+      role="cell"
+      aria-label={`${oem} ${country}: ${value.toLocaleString('ko-KR')} 대`}
       className={`p-2 text-center border-b border-border/50 tabular-nums ${textColor}`}
       style={{ backgroundColor: bg }}
       title={`${value.toLocaleString('ko-KR')} 대`}

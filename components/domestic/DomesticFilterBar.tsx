@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { ExchangeRates } from '@/lib/types';
+import { formatRateLabel } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 
 export type DomesticListingFilter = '상장' | '비상장';
@@ -21,15 +22,6 @@ interface DomesticFilterBarProps {
   rates: ExchangeRates;
   /** 그룹 다중선택 드롭다운 라벨 (default '그룹'). /parts-top100에서는 '국가' 사용. */
   groupLabel?: string;
-}
-
-function formatRateLabel(rates: ExchangeRates): string {
-  const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
-  const parts: string[] = [];
-  if (rates.USD != null) parts.push(`${fmt(rates.USD)}원/달러`);
-  if (rates.EUR != null) parts.push(`${fmt(rates.EUR)}원/유로`);
-  if (rates.CNY != null) parts.push(`${fmt(rates.CNY)}원/위안`);
-  return parts.join(', ');
 }
 
 /** 그룹 다중선택 드롭다운 — 외부 클릭 시 닫힘 */

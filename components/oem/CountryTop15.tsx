@@ -1,28 +1,26 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { OemSalesGroupCountryMonth } from '@/lib/types';
-import { fmtFull, fmtUnits, sumByCountry, OEM_COLORS } from './helpers';
+import { fmtFull, fmtUnits, OEM_COLORS } from './helpers';
 
-interface Props {
-  groupCountryMonth: OemSalesGroupCountryMonth[];
+export interface CountryTop15Row {
+  name: string;
+  sales: number;
 }
 
-const TOP_N = 15;
+interface Props {
+  rows: CountryTop15Row[];
+}
 
-/** 국가별 판매량 TOP15 (2025년 합계) */
-export default function CountryTop15({ groupCountryMonth }: Props) {
-  const data = useMemo(() => {
-    const m = sumByCountry(groupCountryMonth, 202501, 202512);
-    return [...m.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, TOP_N)
-      .map(([name, sales], i) => ({ name, sales, color: OEM_COLORS[i % OEM_COLORS.length] }));
-  }, [groupCountryMonth]);
+/** 국가별 판매량 TOP15 (서버에서 사전 가공된 결과 받기) */
+export default function CountryTop15({ rows }: Props) {
+  const data = rows.map((r, i) => ({
+    ...r,
+    color: OEM_COLORS[i % OEM_COLORS.length],
+  }));
 
   return (
-    <ResponsiveContainer width="100%" height={Math.max(360, TOP_N * 26)}>
+    <ResponsiveContainer width="100%" height={Math.max(360, rows.length * 26)}>
       <BarChart data={data} layout="vertical" margin={{ left: 60, right: 40 }}>
         <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
         <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} interval={0} />
@@ -36,8 +34,8 @@ export default function CountryTop15({ groupCountryMonth }: Props) {
           }}
         />
         <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
-          {data.map((d, i) => (
-            <Cell key={i} fill={d.color} />
+          {data.map((d) => (
+            <Cell key={d.name} fill={d.color} />
           ))}
         </Bar>
       </BarChart>

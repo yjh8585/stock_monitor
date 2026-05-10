@@ -16,7 +16,10 @@ export default async function PartsTop100Page() {
     supabase.from('exchange_rates_live').select('base,rate').in('base', ['USD', 'EUR', 'CNY']),
   ]);
 
-  if (viewErr) logger.error({ err: viewErr }, 'parts_top100_stocks_view 조회 실패');
+  if (viewErr) {
+    logger.error({ err: viewErr }, 'parts_top100_stocks_view 조회 실패');
+    throw new Error(`Supabase parts_top100_stocks_view 조회 실패: ${viewErr.message}`);
+  }
   if (fxErr) logger.error({ err: fxErr }, 'exchange_rates_live 조회 실패');
 
   const rows: DomesticStockRow[] = (viewData ?? []) as DomesticStockRow[];

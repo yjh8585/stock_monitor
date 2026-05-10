@@ -1,4 +1,4 @@
-import { FinancialYear } from './types';
+import { ExchangeRates, FinancialYear } from './types';
 
 /**
  * 백만 단위 원본 통화 → KRW 십억원 문자열
@@ -74,4 +74,17 @@ export function fmtChange(n: number | null): string {
   if (n == null) return '';
   const arrow = n >= 0 ? '▲' : '▼';
   return `${arrow}${Math.abs(n).toFixed(1)}%`;
+}
+
+/**
+ * 환율 안내 문자열 — "1,234원/달러, 1,456원/유로, …"
+ * 통화별 누락 시 해당 항목 생략. FilterBar 우측 슬롯 라벨용.
+ */
+export function formatRateLabel(rates: ExchangeRates): string {
+  const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
+  const parts: string[] = [];
+  if (rates.USD != null) parts.push(`${fmt(rates.USD)}원/달러`);
+  if (rates.EUR != null) parts.push(`${fmt(rates.EUR)}원/유로`);
+  if (rates.CNY != null) parts.push(`${fmt(rates.CNY)}원/위안`);
+  return parts.join(', ');
 }
