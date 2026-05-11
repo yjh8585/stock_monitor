@@ -1,7 +1,10 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
+import { cacheLife, cacheTag } from 'next/cache';
 import { ExternalLink } from 'lucide-react';
+import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import IframePanel from '@/components/stock-popup/IframePanel';
+import { safeDateLabel } from '@/lib/format';
 import { NewsItem } from '@/lib/types';
 
 function getFnguideUrl(ticker: string): string {
@@ -54,17 +57,20 @@ function getTradingViewUrl(ticker: string, market: string): string {
   return `https://www.tradingview.com/widgetembed/?${params.toString()}`;
 }
 
-export default async function StockPopupPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createSupabaseServerClient();
+/** 회사 메타 + 뉴스 fetch — id가 cache key. cacheLife='hours' 자동 갱신. */
+async function getCompanyData(id: string) {
+  'use cache';
+  cacheLife('hours');
+  cacheTag(`company:${id}`);
+  cacheTag(`company_news:${id}`);
 
+  const supabase = createSupabaseAnonClient();
   const { data: company, error } = await supabase
     .from('companies')
     .select('id, ticker, name_kr, country, market')
     .eq('id', id)
     .single();
-
-  if (error || !company) notFound();
+  if (error || !company) return null;
 
   const { data: newsData } = await supabase
     .from('news')
@@ -73,7 +79,16 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
     .order('published_at', { ascending: false })
     .limit(10);
 
-  const news = (newsData ?? []) as NewsItem[];
+  return { company, news: (newsData ?? []) as NewsItem[] };
+}
+
+/** params 동적 read + 회사 데이터 fetch (PPR 경계 안에서 await) */
+async function StockPopupBody({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const data = await getCompanyData(id);
+  if (!data) notFound();
+  const { company, news } = data;
+
   const ticker = company.ticker as string;
   const market = (company.market as string) ?? 'NYSE';
   const isKR = company.country === 'KR';
@@ -115,26 +130,39 @@ export default async function StockPopupPage({ params }: { params: Promise<{ id:
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {news.map((item) => (
-                <li key={item.id} className="px-3 py-3">
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-foreground hover:underline block leading-snug"
-                  >
-                    {item.title}
-                  </a>
-                  <div className="text-[10px] text-muted-foreground mt-1">
-                    {item.source && <span>{item.source} · </span>}
-                    {new Date(item.published_at).toLocaleDateString('ko-KR')}
-                  </div>
-                </li>
-              ))}
+              {news.map((item) => {
+                const dateLabel = safeDateLabel(item.published_at);
+                return (
+                  <li key={item.id} className="px-3 py-3">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-foreground hover:underline block leading-snug"
+                    >
+                      {item.title}
+                    </a>
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      {item.source && <span>{item.source} · </span>}
+                      {dateLabel}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StockPopupPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense
+      fallback={<div className="p-6 text-sm text-muted-foreground">주식 정보 로딩 중…</div>}
+    >
+      <StockPopupBody params={params} />
+    </Suspense>
   );
 }
