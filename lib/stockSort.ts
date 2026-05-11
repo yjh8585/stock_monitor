@@ -16,6 +16,7 @@ export interface FinancialRowBase {
   fx_to_krw: number | null;
   fx_fin_to_krw: number | null;
   last_price: number | null;
+  last_change_pct: number | null;
   market_cap: number | null;
 }
 
