@@ -148,6 +148,74 @@ export interface NewsItem {
 }
 
 // ============================================================
+// view Row → DTO mapping 헬퍼
+// generated `Database['public']['Views'][...]['Row']` 의 모든 컬럼이 nullable로
+// 와서 페이지에서 직접 사용하기 불편함. 명시적 mapping으로 jsonb narrow + null 안전.
+// ============================================================
+import type { ViewRow } from './database.types';
+
+/** related_stocks_view → RelatedStockRow */
+export function mapRelatedStockRow(r: ViewRow<'related_stocks_view'>): RelatedStockRow {
+  return {
+    id: r.id ?? '',
+    ticker: r.ticker,
+    name: r.name ?? '',
+    name_kr: r.name_kr ?? '',
+    market: r.market,
+    country: r.country ?? '',
+    currency: r.currency ?? '',
+    status: r.status ?? '',
+    company_type: r.company_type as RelatedStockRow['company_type'],
+    region: r.region,
+    products: (r.products ?? []) as unknown as ProductItem[],
+    customers: (r.customers ?? []) as unknown as CustomerItem[],
+    last_price: r.last_price,
+    last_change_pct: r.last_change_pct,
+    last_updated_at: r.last_updated_at,
+    market_cap: r.market_cap,
+    business_summary: r.business_summary,
+    summary_updated_at: r.summary_updated_at,
+    homepage_url: r.homepage_url,
+    fx_to_krw: r.fx_to_krw,
+    fx_fin_to_krw: r.fx_fin_to_krw,
+    financials_by_year: r.financials_by_year as Record<string, FinancialYear> | null,
+    latest_quarter: r.latest_quarter as LatestQuarter | null,
+  };
+}
+
+/** domestic_stocks_view → DomesticStockRow (parts_top100_stocks_view도 동일 구조) */
+export function mapDomesticStockRow(
+  r: ViewRow<'domestic_stocks_view'> | ViewRow<'parts_top100_stocks_view'>
+): DomesticStockRow {
+  return {
+    id: r.id ?? '',
+    ticker: r.ticker,
+    name: r.name ?? '',
+    name_kr: r.name_kr ?? '',
+    market: r.market,
+    country: r.country ?? '',
+    currency: r.currency ?? '',
+    status: r.status ?? '',
+    group_name: r.group_name,
+    products: (r.products ?? []) as unknown as ProductItem[],
+    customers: (r.customers ?? []) as unknown as CustomerItem[],
+    last_price: r.last_price,
+    last_change_pct: r.last_change_pct,
+    last_updated_at: r.last_updated_at,
+    market_cap: r.market_cap,
+    business_summary: r.business_summary,
+    summary_updated_at: r.summary_updated_at,
+    homepage_url: r.homepage_url,
+    fx_to_krw: r.fx_to_krw,
+    fx_fin_to_krw: r.fx_fin_to_krw,
+    financials_by_year: r.financials_by_year as Record<string, FinancialYear> | null,
+    latest_quarter: r.latest_quarter as LatestQuarter | null,
+    latest_revenue_krw: r.latest_revenue_krw,
+    sales_rank: r.sales_rank,
+  };
+}
+
+// ============================================================
 // /oem 페이지 — MarkLines 글로벌 OEM 판매량 차트
 // ============================================================
 

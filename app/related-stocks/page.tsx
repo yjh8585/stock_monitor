@@ -1,13 +1,17 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { RelatedStockRow, ExchangeRates } from '@/lib/types';
+import { cacheLife, cacheTag } from 'next/cache';
+import { createSupabaseAnonClient } from '@/lib/supabase/anon';
+import { ExchangeRates, mapRelatedStockRow } from '@/lib/types';
 import StockTable from '@/components/related-stocks/StockTable';
 import logger from '@/lib/logger';
 
-export const dynamic = 'force-dynamic';
+/** 관련회사 view + 환율 fetch — Cache Components ('use cache') 적용. cacheLife='hours' 자동 갱신. */
+async function getRelatedStocksData() {
+  'use cache';
+  cacheLife('hours');
+  cacheTag('related_stocks_view');
+  cacheTag('exchange_rates_live');
 
-export default async function RelatedStocksPage() {
-  const supabase = await createSupabaseServerClient();
-
+  const supabase = createSupabaseAnonClient();
   const [{ data: viewData, error: viewErr }, { data: fxData, error: fxErr }] = await Promise.all([
     supabase
       .from('related_stocks_view')
@@ -23,13 +27,17 @@ export default async function RelatedStocksPage() {
   }
   if (fxErr) logger.error({ err: fxErr }, 'exchange_rates_live 조회 실패');
 
-  const rows: RelatedStockRow[] = (viewData ?? []) as RelatedStockRow[];
-
+  const rows = (viewData ?? []).map(mapRelatedStockRow);
   const rates: ExchangeRates = { USD: null, EUR: null, CNY: null };
   for (const r of fxData ?? []) {
     const base = r.base as keyof ExchangeRates;
     if (base in rates) rates[base] = Number(r.rate);
   }
+  return { rows, rates };
+}
+
+export default async function RelatedStocksPage() {
+  const { rows, rates } = await getRelatedStocksData();
 
   return (
     <div className="h-full flex flex-col">

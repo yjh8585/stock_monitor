@@ -1,13 +1,16 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { DomesticStockRow, ExchangeRates } from '@/lib/types';
+import { cacheLife, cacheTag } from 'next/cache';
+import { createSupabaseAnonClient } from '@/lib/supabase/anon';
+import { ExchangeRates, mapDomesticStockRow } from '@/lib/types';
 import DomesticTable from '@/components/domestic/DomesticTable';
 import logger from '@/lib/logger';
 
-export const dynamic = 'force-dynamic';
+async function getDomesticData() {
+  'use cache';
+  cacheLife('hours');
+  cacheTag('domestic_stocks_view');
+  cacheTag('exchange_rates_live');
 
-export default async function DomesticPage() {
-  const supabase = await createSupabaseServerClient();
-
+  const supabase = createSupabaseAnonClient();
   const [{ data: viewData, error: viewErr }, { data: fxData, error: fxErr }] = await Promise.all([
     supabase
       .from('domestic_stocks_view')
@@ -22,13 +25,17 @@ export default async function DomesticPage() {
   }
   if (fxErr) logger.error({ err: fxErr }, 'exchange_rates_live 조회 실패');
 
-  const rows: DomesticStockRow[] = (viewData ?? []) as DomesticStockRow[];
-
+  const rows = (viewData ?? []).map(mapDomesticStockRow);
   const rates: ExchangeRates = { USD: null, EUR: null, CNY: null };
   for (const r of fxData ?? []) {
     const base = r.base as keyof ExchangeRates;
     if (base in rates) rates[base] = Number(r.rate);
   }
+  return { rows, rates };
+}
+
+export default async function DomesticPage() {
+  const { rows, rates } = await getDomesticData();
 
   return (
     <div className="h-full flex flex-col">
