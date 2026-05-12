@@ -10,6 +10,8 @@ export interface StickyColumn<K extends string> {
   key: K;
   label: string;
   defaultWidth: number;
+  /** 컬럼 헤더 hover 시 표시할 설명 — 데이터 기준 등 부가 정보 */
+  tooltip?: string;
 }
 
 interface StickyTableProps<R, K extends string> {
@@ -180,6 +182,7 @@ export default function StickyTable<R, K extends string>({
                     onClick={() => onSort(col.key)}
                     className="flex items-center gap-0.5 cursor-pointer hover:text-foreground transition-colors w-full text-left"
                     aria-label={`${col.label} 기준으로 정렬`}
+                    title={col.tooltip}
                   >
                     <span>{col.label}</span>
                     <SortIcon colKey={col.key} sortKey={sortKey} sortDir={sortDir} />

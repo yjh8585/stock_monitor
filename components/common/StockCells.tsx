@@ -37,12 +37,9 @@ export function FinancialCells({ row, latestYear }: FinancialCellsProps) {
   const recentRevYears = [String(yr - 2), String(yr - 1), String(yr)];
 
   const revLatest = fy?.[latestYear]?.revenue ?? null;
-  const rev3ago = fy?.[String(yr - 3)]?.revenue ?? null;
   const rev2ago = fy?.[String(yr - 2)]?.revenue ?? null;
-  const cagr =
-    rev3ago != null && revLatest != null
-      ? calcCagr(rev3ago, revLatest, 3)
-      : calcCagr(rev2ago, revLatest, 2);
+  // 표시 3개 연도(yr-2, yr-1, yr) 기준 2년 CAGR
+  const cagr = calcCagr(rev2ago, revLatest, 2);
 
   // 부채비율/재고회전율 — latestYear 비면 직전 연도 fallback
   const fallbackYears = [latestYear, String(yr - 1), String(yr - 2), String(yr - 3)];

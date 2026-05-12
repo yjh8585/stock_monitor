@@ -61,11 +61,11 @@ export function invTurnover(fy: FinancialYear | undefined): number | null {
   return fy.revenue / fy.inventory;
 }
 
-/** 양수=파랑, 음수=빨강, 0=회색 클래스 반환 */
+/** 양수=빨강, 음수=파랑, 0=회색 클래스 반환 */
 export function arrowColor(n: number | null): string {
   if (n == null) return 'text-muted-foreground';
-  if (n > 0) return 'text-blue-600';
-  if (n < 0) return 'text-red-500';
+  if (n > 0) return 'text-red-500';
+  if (n < 0) return 'text-blue-600';
   return 'text-muted-foreground';
 }
 

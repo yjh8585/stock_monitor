@@ -46,7 +46,10 @@ export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
   폴라리스: { iconUrl: null, abbr: 'POL', color: '#1a2d5a' },
   테슬라: { iconUrl: SI('tesla', 'CC0000'), abbr: 'Tesla', color: '#CC0000' },
   한국지엠: { iconUrl: SI('chevrolet', 'D1AD57'), abbr: '한국GM', color: '#D1AD57' },
+  // 정규화 표준명 '한국GM' (정규화 스크립트 ALIAS_TO_STANDARD)
+  한국GM: { iconUrl: SI('chevrolet', 'D1AD57'), abbr: '한국GM', color: '#D1AD57' },
   르노코리아: { iconUrl: SI('renault', 'efb700'), abbr: 'RKM', color: '#c9a000' },
+  // 제네시스는 현대차 브랜드라 정규화 단계에서 '현대차'로 통합 (별도 매핑 불필요)
   아우디: { iconUrl: SI('audi', '000000'), abbr: 'Audi', color: '#000000' },
   포르쉐: { iconUrl: SI('porsche', 'D5001C'), abbr: 'PSC', color: '#D5001C' },
   푸조: { iconUrl: SI('peugeot', '1B232A'), abbr: 'Peu', color: '#1B232A' },
@@ -99,6 +102,13 @@ export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
   샨시중트럭: { iconUrl: null, abbr: 'Shaanxi', color: '#C8102E' },
   니콜라: { iconUrl: WC('Nikola_logo.svg'), abbr: 'Nikola', color: '#00B5E2' },
   스코다: { iconUrl: SI('skoda', '0E3A2F'), abbr: 'Skoda', color: '#0E3A2F' },
+  // 추가 OEM (정규화 v3에서 등장)
+  'Scout Motors': { iconUrl: null, abbr: 'Scout', color: '#1d3557' },
+  'Jiyue Auto': { iconUrl: null, abbr: 'Jiyue', color: '#0066cc' },
+  우링자동차: { iconUrl: WC('Wuling_Motors_logo.svg'), abbr: 'Wuling', color: '#005bac' },
+  다이하쓰: { iconUrl: WC('Daihatsu_logo.svg'), abbr: 'Daihatsu', color: '#E60012' },
+  에디슨모터스: { iconUrl: null, abbr: 'Edison', color: '#0a2240' },
+  야마하: { iconUrl: SI('yamahamotorcorporation', '4169E1'), abbr: 'Yamaha', color: '#4169E1' },
   세아트: { iconUrl: SI('seat', 'C5A572'), abbr: 'SEAT', color: '#C5A572' },
   CUPRA: { iconUrl: '/logos/cupra.webp', abbr: 'CUPRA', color: '#A36F4F' },
   미쓰비시후소: { iconUrl: '/logos/fuso.svg', abbr: 'Fuso', color: '#E60012' },

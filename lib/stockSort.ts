@@ -47,7 +47,7 @@ export function buildFinancialColumns<K extends string>(latestYear: string): Sti
       label: `'${String(y).slice(2)} 매출`,
       defaultWidth: 88,
     })),
-    { key: 'cagr' as K, label: '3yr CAGR', defaultWidth: 74 },
+    { key: 'cagr' as K, label: `CAGR(${String(yr - 2).slice(2)}→${y2})`, defaultWidth: 80 },
     ...opYears.map((y) => ({
       key: `op_${y}` as K,
       label: `'${String(y).slice(2)} OP%`,
@@ -57,9 +57,26 @@ export function buildFinancialColumns<K extends string>(latestYear: string): Sti
     { key: 'inv_turnover' as K, label: `'${y2} 재고회전율`, defaultWidth: 92 },
     { key: 'last_price' as K, label: '주가', defaultWidth: 80 },
     { key: 'market_cap_t' as K, label: '시가총액', defaultWidth: 72 },
-    { key: 'per' as K, label: `'${y2} PER`, defaultWidth: 60 },
-    { key: 'pbr' as K, label: `'${y2} PBR`, defaultWidth: 60 },
-    { key: 'ev_ebitda' as K, label: `'${y2} EV/EBITDA`, defaultWidth: 90 },
+    // PER/PBR/EV/EBITDA: 연도 표기 제거 — 국내 fnguide는 연도별, 외국 yfinance는 TTM 스냅샷이라 기준이 다름.
+    // 헤더 hover 시 tooltip으로 기준 명시.
+    {
+      key: 'per' as K,
+      label: 'PER',
+      defaultWidth: 60,
+      tooltip: `국내 상장사: ${latestYear} 회계연도 종가 / 연간 EPS (fnguide)\n해외 상장사: 현재 주가 / TTM EPS (yfinance trailingPE)`,
+    },
+    {
+      key: 'pbr' as K,
+      label: 'PBR',
+      defaultWidth: 60,
+      tooltip: `국내 상장사: ${latestYear} 회계연도 종가 / BPS (fnguide)\n해외 상장사: 현재 주가 / 최근분기 BPS (yfinance priceToBook)`,
+    },
+    {
+      key: 'ev_ebitda' as K,
+      label: 'EV/EBITDA',
+      defaultWidth: 90,
+      tooltip: `국내 상장사: ${latestYear} 회계연도 기준 (fnguide)\n해외 상장사: 현재 EV / TTM EBITDA (yfinance enterpriseToEbitda)`,
+    },
   ];
 }
 
@@ -92,10 +109,10 @@ export function getFinancialSortValue<R extends FinancialRowBase>(
 
   switch (key) {
     case 'cagr': {
-      const r3ago = revKrw(String(yr - 3));
+      // 표시 3개 연도(yr-2, yr-1, yr) 기준 2년 CAGR: (yr / yr-2)^(1/2) - 1
+      const r2ago = revKrw(String(yr - 2));
       const rLatest = revKrw(latestYear);
-      if (r3ago != null && rLatest != null) return calcCagr(r3ago, rLatest, 3);
-      return calcCagr(revKrw(String(yr - 2)), rLatest, 2);
+      return calcCagr(r2ago, rLatest, 2);
     }
     case 'debt_ratio':
       return fy?.[latestYear]?.debt_ratio ?? null;
