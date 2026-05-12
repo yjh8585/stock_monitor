@@ -1,8 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { OemSalesGroupMonth, OemSalesGroupPtMonth, OemSalesTypeSegMonth } from '@/lib/types';
+import type {
+  ModelMonthlySeries,
+  OemModelOutlook,
+  OemSalesGroupMonth,
+  OemSalesGroupPtMonth,
+  OemSalesTypeSegMonth,
+} from '@/lib/types';
 import KpiCards from './KpiCards';
+import ModelOutlookCards from './ModelOutlookCards';
 import type { CountryTop15Row } from './CountryTop15';
 import type { OemCountryMatrix } from './OemCountryHeatmap';
 
@@ -58,6 +65,10 @@ const OemCountryHeatmap = dynamic(() => import('./OemCountryHeatmap'), {
   ssr: false,
   loading: ChartFallback,
 });
+const ModelNorthAmericaCharts = dynamic(() => import('./ModelNorthAmericaCharts'), {
+  ssr: false,
+  loading: ChartFallback,
+});
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -65,15 +76,19 @@ interface Props {
   typeSegMonth: OemSalesTypeSegMonth[];
   countryTop15: CountryTop15Row[];
   oemCountryMatrix: OemCountryMatrix;
+  naModelSeries: ModelMonthlySeries[];
+  outlooks: OemModelOutlook[];
 }
 
-/** 13개 차트 섹션을 위→아래 순차로 배치 */
+/** 13개 차트 섹션을 위→아래 순차로 배치 (+ 북미 차종 콤보 차트/AI 평가 카드) */
 export default function OemDashboard({
   groupMonth,
   groupPtMonth,
   typeSegMonth,
   countryTop15,
   oemCountryMatrix,
+  naModelSeries,
+  outlooks,
 }: Props) {
   return (
     <div className="px-6 py-4 space-y-6 max-w-[1600px] mx-auto">
@@ -133,6 +148,17 @@ export default function OemDashboard({
         subtitle="OEM이 어느 국가에서 강한가 (2025년)"
       >
         <OemCountryHeatmap data={oemCountryMatrix} />
+      </Section>
+
+      <Section title="북미 핵심 차종 월별 판매 추이" subtitle="USA · 막대=판매량 / 라인=YoY %">
+        <ModelNorthAmericaCharts series={naModelSeries} />
+      </Section>
+
+      <Section
+        title="북미 핵심 차종 — AI 시장 평가"
+        subtitle="Claude Haiku 4.5 종합 판단 (주 1회 자동 갱신)"
+      >
+        <ModelOutlookCards outlooks={outlooks} />
       </Section>
     </div>
   );

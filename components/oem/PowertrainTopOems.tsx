@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { OemSalesGroupPtMonth, PowerTrain } from '@/lib/types';
-import { fmtFull, fmtUnits, OEM_COLORS, PT_COLORS, PT_ORDER } from './helpers';
+import { fmtFull, fmtUnits, shortenOemName, OEM_COLORS, PT_COLORS, PT_ORDER } from './helpers';
 
 interface Props {
   groupPtMonth: OemSalesGroupPtMonth[];
@@ -18,17 +18,24 @@ const YEAR_END = 202512;
 export default function PowertrainTopOems({ groupPtMonth }: Props) {
   const [active, setActive] = useState<PowerTrain>('EV');
 
-  const data = useMemo(() => {
+  const { data, total } = useMemo(() => {
     const sumByGroup = new Map<string, number>();
+    let allSum = 0;
     for (const r of groupPtMonth) {
       if (r.powertrain !== active) continue;
       if (r.year_month < YEAR_START || r.year_month > YEAR_END) continue;
       sumByGroup.set(r.oem_group, (sumByGroup.get(r.oem_group) ?? 0) + r.sales);
+      allSum += r.sales;
     }
-    return [...sumByGroup.entries()]
+    const rows = [...sumByGroup.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, TOP_N)
-      .map(([name, sales], i) => ({ name, sales, color: OEM_COLORS[i % OEM_COLORS.length] }));
+      .map(([rawName, sales], i) => ({
+        name: shortenOemName(rawName),
+        sales,
+        color: OEM_COLORS[i % OEM_COLORS.length],
+      }));
+    return { data: rows, total: allSum };
   }, [groupPtMonth, active]);
 
   return (
@@ -85,7 +92,11 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
               interval={0}
             />
             <Tooltip
-              formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
+              formatter={(v) => {
+                const n = Number(v);
+                const pct = total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
+                return [`${fmtFull(n)} 대 (${pct}%)`, '판매량'];
+              }}
               cursor={{ fill: 'var(--muted)' }}
               contentStyle={{
                 backgroundColor: 'var(--card)',

@@ -20,6 +20,19 @@ export function fmtFull(n: number | null): string {
   return n.toLocaleString('ko-KR');
 }
 
+/** OEM 그룹/Maker 이름을 차트 라벨용으로 단축.
+ *  - 첫 '(' 이전까지 잘라낸다 (괄호 안 풀네임 제거)
+ *  - 그 후 슬래시('/')로 나뉘면 첫 토큰만 사용
+ *  - 예: 'SAIC (Shanghai...)' → 'SAIC', 'Changan/Chana(...)' → 'Changan'
+ *  - 모델명에는 슬래시(예: 'Ram P/U')가 의미있어 사용 금지
+ */
+export function shortenOemName(name: string): string {
+  if (!name) return name;
+  const beforeParen = name.split('(')[0].trim();
+  const firstToken = beforeParen.split('/')[0].trim();
+  return firstToken || name;
+}
+
 /** YYYYMM → 연도 */
 export function ymYear(ym: number): number {
   return Math.floor(ym / 100);

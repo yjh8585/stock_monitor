@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { fmtChange, arrowColor } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
-import { buildRanking, fmtUnits, sumByGroup } from './helpers';
+import { buildRanking, fmtUnits, shortenOemName, sumByGroup } from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -40,7 +40,7 @@ export default function Top40YearlyTable({ groupMonth }: Props) {
                 <RankChange change={r.rank_change} prevRank={r.rank_prev} />
               </td>
               <td className="p-2" title={r.oem_group}>
-                {r.oem_group}
+                {shortenOemName(r.oem_group)}
               </td>
               <td className="p-2 text-right tabular-nums text-muted-foreground">
                 {fmtUnits(r.sales_prev)}
@@ -66,6 +66,6 @@ function RankChange({
 }) {
   if (prevRank == null) return <span className="text-blue-500 font-semibold">NEW</span>;
   if (change == null || change === 0) return <span className="text-muted-foreground">—</span>;
-  if (change > 0) return <span className="text-blue-600">▲{change}</span>;
-  return <span className="text-red-500">▼{Math.abs(change)}</span>;
+  if (change > 0) return <span className="text-red-500">▲{change}</span>;
+  return <span className="text-blue-600">▼{Math.abs(change)}</span>;
 }

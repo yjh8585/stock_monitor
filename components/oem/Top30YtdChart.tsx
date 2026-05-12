@@ -13,7 +13,15 @@ import {
 } from 'recharts';
 import { fmtChange, arrowColor } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
-import { buildRanking, fmtFull, fmtUnits, findLatestYm, sumByGroup, OEM_COLORS } from './helpers';
+import {
+  buildRanking,
+  fmtFull,
+  fmtUnits,
+  findLatestYm,
+  shortenOemName,
+  sumByGroup,
+  OEM_COLORS,
+} from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -37,7 +45,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
   }
 
   const chartData = rows.map((r, i) => ({
-    name: r.oem_group,
+    name: shortenOemName(r.oem_group),
     sales: r.sales,
     rank: r.rank,
     color: OEM_COLORS[i % OEM_COLORS.length],
@@ -93,7 +101,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
               <tr key={r.oem_group} className="border-b border-border/50 hover:bg-muted/40">
                 <td className="p-2 text-muted-foreground tabular-nums">{r.rank}</td>
                 <td className="p-2 truncate max-w-[200px]" title={r.oem_group}>
-                  {r.oem_group}
+                  {shortenOemName(r.oem_group)}
                 </td>
                 <td className="p-2 text-right tabular-nums">{fmtUnits(r.sales)}</td>
                 <td className={`p-2 text-right tabular-nums ${arrowColor(r.yoy)}`}>

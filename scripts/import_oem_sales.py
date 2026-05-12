@@ -119,11 +119,12 @@ def iter_excel_rows(excel_paths: list[Path]):
 
 
 def aggregate(rows_iter):
-  """엑셀 셀 단위 데이터를 4개 사전 집계 dict로 정리."""
-  group_month = defaultdict(int)         # (group, ym) → sales
-  group_pt_month = defaultdict(int)      # (group, pt, ym) → sales
-  group_country_month = defaultdict(int) # (group, country, ym) → sales
-  type_seg_month = defaultdict(int)      # (type, segment, ym) → sales
+  """엑셀 셀 단위 데이터를 5개 사전 집계 dict로 정리."""
+  group_month = defaultdict(int)               # (group, ym) → sales
+  group_pt_month = defaultdict(int)            # (group, pt, ym) → sales
+  group_country_month = defaultdict(int)       # (group, country, ym) → sales
+  type_seg_month = defaultdict(int)            # (type, segment, ym) → sales
+  model_country_month = defaultdict(int)       # (group, country, model, ym) → sales
 
   for meta, ym, sales in rows_iter:
     g = meta['oem_group']
@@ -131,10 +132,12 @@ def aggregate(rows_iter):
     group_pt_month[(g, meta['powertrain'], ym)] += sales
     if meta['country']:
       group_country_month[(g, meta['country'], ym)] += sales
+      if meta['model']:
+        model_country_month[(g, meta['country'], meta['model'], ym)] += sales
     if meta['vehicle_type'] and meta['segment']:
       type_seg_month[(meta['vehicle_type'], meta['segment'], ym)] += sales
 
-  return group_month, group_pt_month, group_country_month, type_seg_month
+  return group_month, group_pt_month, group_country_month, type_seg_month, model_country_month
 
 
 def main() -> int:
@@ -144,14 +147,19 @@ def main() -> int:
     return 1
   logger.info(f'엑셀 파일 {len(excel_paths)}개 발견')
 
-  group_month, group_pt_month, group_country_month, type_seg_month = aggregate(
-    iter_excel_rows(excel_paths)
-  )
+  (
+    group_month,
+    group_pt_month,
+    group_country_month,
+    type_seg_month,
+    model_country_month,
+  ) = aggregate(iter_excel_rows(excel_paths))
   logger.info(
     f'집계 결과: group×month={len(group_month)}, '
     f'group×pt×month={len(group_pt_month)}, '
     f'group×country×month={len(group_country_month)}, '
-    f'type×seg×month={len(type_seg_month)}'
+    f'type×seg×month={len(type_seg_month)}, '
+    f'group×country×model×month={len(model_country_month)}'
   )
 
   # upsert
@@ -177,6 +185,12 @@ def main() -> int:
     [{'vehicle_type': t, 'segment': s, 'year_month': ym, 'sales': v}
      for (t, s, ym), v in type_seg_month.items()],
     conflict_cols='vehicle_type,segment,year_month',
+  )
+  upsert_rows(
+    'oem_sales_model_country_month',
+    [{'oem_group': g, 'country': c, 'model': m, 'year_month': ym, 'sales': s}
+     for (g, c, m, ym), s in model_country_month.items()],
+    conflict_cols='oem_group,country,model,year_month',
   )
   logger.success('OEM 판매량 적재 완료')
   return 0

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { fmtUnits } from './helpers';
+import { fmtUnits, shortenOemName } from './helpers';
 
 export interface OemCountryMatrix {
   oems: string[];
@@ -40,8 +40,11 @@ export default function OemCountryHeatmap({ data }: Props) {
         <tbody>
           {oems.map((oem, i) => (
             <tr key={oem}>
-              <td className="sticky left-0 bg-card p-2 border-b border-border/50 font-medium">
-                {oem}
+              <td
+                className="sticky left-0 bg-card p-2 border-b border-border/50 font-medium"
+                title={oem}
+              >
+                {shortenOemName(oem)}
               </td>
               {countries.map((c, j) => {
                 const v = matrix[i][j];

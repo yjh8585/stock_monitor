@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupPtMonth } from '@/lib/types';
-import { fmtFull, fmtUnits, ptSumByGroup } from './helpers';
+import { fmtFull, fmtUnits, ptSumByGroup, shortenOemName } from './helpers';
 
 interface Props {
   groupPtMonth: OemSalesGroupPtMonth[];
@@ -40,8 +40,8 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
       .filter(([, v]) => v.ev > 0)
       .sort((a, b) => b[1].ev - a[1].ev)
       .slice(0, TOP_N)
-      .map(([name, v], i) => ({
-        name,
+      .map(([rawName, v], i) => ({
+        name: shortenOemName(rawName),
         sales: v.ev,
         color: i === 0 ? '#22c55e' : '#16a34a',
       }));
@@ -50,7 +50,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
     const MIN_TOTAL = 500_000;
     const top10ByRatio = [...evByGroup.entries()]
       .filter(([, v]) => v.total >= MIN_TOTAL)
-      .map(([name, v]) => ({ name, ratio: (v.ev / v.total) * 100 }))
+      .map(([rawName, v]) => ({ name: shortenOemName(rawName), ratio: (v.ev / v.total) * 100 }))
       .sort((a, b) => b.ratio - a.ratio)
       .slice(0, TOP_N)
       .map((d, i) => ({

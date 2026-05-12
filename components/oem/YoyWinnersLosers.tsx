@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { growthPct } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
-import { fmtFull, sumByGroup } from './helpers';
+import { fmtFull, shortenOemName, sumByGroup } from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -21,6 +21,11 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
 
     const candidates: { oem_group: string; yoy: number; cur: number; prev: number }[] = [];
     for (const [g, p] of prev) {
+      // N/A · 빈 그룹명 노이즈 제거 (그룹 식별 안 된 잡종 행은 비교 대상에서 제외)
+      const trimmed = (g ?? '').trim();
+      if (!trimmed) continue;
+      const lower = trimmed.toLowerCase();
+      if (lower === 'n/a' || lower === 'other' || lower === '기타' || lower === 'others') continue;
       if (p < MIN_PREV_SALES) continue;
       const c = cur.get(g) ?? 0;
       const yoy = growthPct(c, p);
@@ -29,13 +34,21 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
     }
     const sorted = [...candidates].sort((a, b) => b.yoy - a.yoy);
     return {
-      winners: sorted
-        .slice(0, TOP_N)
-        .map((d) => ({ name: d.oem_group, yoy: d.yoy, cur: d.cur, prev: d.prev })),
+      winners: sorted.slice(0, TOP_N).map((d) => ({
+        name: shortenOemName(d.oem_group),
+        yoy: d.yoy,
+        cur: d.cur,
+        prev: d.prev,
+      })),
       losers: sorted
         .slice(-TOP_N)
         .reverse()
-        .map((d) => ({ name: d.oem_group, yoy: d.yoy, cur: d.cur, prev: d.prev })),
+        .map((d) => ({
+          name: shortenOemName(d.oem_group),
+          yoy: d.yoy,
+          cur: d.cur,
+          prev: d.prev,
+        })),
     };
   }, [groupMonth]);
 

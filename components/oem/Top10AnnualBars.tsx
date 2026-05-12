@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -12,7 +12,15 @@ import {
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupMonth } from '@/lib/types';
-import { annualByGroup, fmtFull, fmtUnits, sumByGroup, OEM_COLORS } from './helpers';
+import ClickableLegend from './ClickableLegend';
+import {
+  annualByGroup,
+  fmtFull,
+  fmtUnits,
+  shortenOemName,
+  sumByGroup,
+  OEM_COLORS,
+} from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -21,10 +29,12 @@ interface Props {
 const TOP_N = 10;
 const YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
-/** TOP10 OEM 연간 판매량 그룹 막대 차트 (X=연도, Series=OEM) */
+/** TOP10 OEM 연간 판매량 그룹 막대 차트 (X=연도, Series=OEM)
+ *  - 범례: 판매량 큰 순 왼쪽부터 (Recharts 기본 자동 정렬 무시 위해 명시적 payload 사용)
+ *  - 범례 클릭 시 해당 막대 hide 토글
+ */
 export default function Top10AnnualBars({ groupMonth }: Props) {
   const { chartData, oems } = useMemo(() => {
-    // 2025년 기준 TOP10
     const cur = sumByGroup(groupMonth, 202501, 202512);
     const top10 = [...cur.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -32,23 +42,33 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
       .map(([g]) => g);
 
     const annual = annualByGroup(groupMonth);
-    // X축 = 연도, 각 행 = 한 연도, 컬럼 = TOP10 OEM
+    const labels = top10.map((g) => shortenOemName(g));
     const data = YEARS.map((yr) => {
       const row: Record<string, number | string> = { year: String(yr) };
-      for (const g of top10) {
-        row[g] = annual.get(g)?.get(yr) ?? 0;
-      }
+      top10.forEach((g, i) => {
+        row[labels[i]] = annual.get(g)?.get(yr) ?? 0;
+      });
       return row;
     });
-    return { chartData: data, oems: top10 };
+    return { chartData: data, oems: labels };
   }, [groupMonth]);
+
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggleHidden = (key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <div>
       <div className="text-xs text-muted-foreground mb-2">
-        2025년 TOP10 기준 · 2026년은 1~3월 누적 (연간 환산 아님)
+        2025년 TOP10 기준 · 2026년은 1~3월 누적 (연간 환산 아님) · 범례 클릭으로 항목 제외 가능
       </div>
-      <ResponsiveContainer width="100%" height={420}>
+      <ResponsiveContainer width="100%" height={440}>
         <BarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="year" className="text-xs" />
@@ -62,13 +82,19 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
               fontSize: '11px',
             }}
           />
-          <Legend wrapperStyle={{ fontSize: '11px' }} />
+          <Legend
+            verticalAlign="top"
+            align="center"
+            wrapperStyle={{ paddingBottom: 8 }}
+            content={() => <ClickableLegend items={oems} hidden={hidden} onToggle={toggleHidden} />}
+          />
           {oems.map((g, i) => (
             <Bar
               key={g}
               dataKey={g}
               fill={OEM_COLORS[i % OEM_COLORS.length]}
               radius={[2, 2, 0, 0]}
+              hide={hidden.has(g)}
             />
           ))}
         </BarChart>
