@@ -53,6 +53,13 @@ def upsert_rows(table: str, rows: list[dict[str, Any]], conflict_cols: str) -> i
       logger.error(f"{table} upsert 실패 (배치 {i}~{i+BATCH_SIZE}): {e}")
       raise
 
+  # Next.js 캐시 자동 무효화 (영향받는 페이지)
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables([table])
+  except Exception as e:
+    logger.debug(f"  revalidate skip: {e}")
+
   return total
 
 
