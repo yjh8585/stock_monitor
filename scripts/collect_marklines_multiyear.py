@@ -151,6 +151,13 @@ def main():
         f"4. Numbers in (parentheses) = negative loss values.\n"
         f"5. period_end_month: usually 12 (Dec), but Japan often 3 (March), some 9 (Sep).\n"
         f"6. EBIT/Operating Income may be in same or separate row. Optional.\n"
+        f"7. CRITICAL UNIT CHECK — verify the unit is exactly one of: unit / thousand / million / billion.\n"
+        f"   - If Japanese 億 (oku, =100 million), normalize to million by multiplying raw value by 100.\n"
+        f"   - Sanity check: a typical large auto supplier reports tens of billions EUR or trillions JPY.\n"
+        f"     If extracted value seems 10x too large (e.g., ZF 380,970 instead of 38,097 with 'million' unit),\n"
+        f"     re-examine the header — header might say 'billion' or 'oku' rather than 'million'.\n"
+        f"8. Sanity bound: revenue values must satisfy 0 < value < 1e9 in the chosen unit;\n"
+        f"   if outside this range, the unit is likely wrong — pick the correct unit.\n"
         f"--- PAGE TEXT ---\n{text}"
       )
       resp = llm.messages.create(
