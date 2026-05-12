@@ -83,3 +83,6 @@ supabase/.temp/
 
 # 코드 리뷰 임시/실패 산출물 (정식 리뷰 결과는 추적)
 review/*.tmp.md
+
+# scripts probe dump
+scripts/_shipping_dump/

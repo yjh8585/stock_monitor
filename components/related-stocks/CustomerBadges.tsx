@@ -56,7 +56,7 @@ const CustomerBadges = memo(function CustomerBadges({ customers }: CustomerBadge
   }
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="flex items-center gap-1.5 flex-nowrap overflow-hidden min-w-0">
       {customers.map((c, i) => (
         <CustomerLogo key={`${customerName(c)}-${i}`} customer={c} />
       ))}

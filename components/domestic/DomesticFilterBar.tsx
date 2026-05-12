@@ -22,6 +22,11 @@ interface DomesticFilterBarProps {
   rates: ExchangeRates;
   /** 그룹 다중선택 드롭다운 라벨 (default '그룹'). /parts-top100에서는 '국가' 사용. */
   groupLabel?: string;
+  /** '전체' 토글 버튼 표시 여부. /domestic에서만 true. */
+  showAllToggle?: boolean;
+  /** 전체 행 표시 활성 여부. */
+  showAllRows?: boolean;
+  onShowAllToggle?: () => void;
 }
 
 /** 그룹 다중선택 드롭다운 — 외부 클릭 시 닫힘 */
@@ -120,6 +125,9 @@ export default function DomesticFilterBar({
   onProductChange,
   rates,
   groupLabel = '그룹',
+  showAllToggle = false,
+  showAllRows = false,
+  onShowAllToggle,
 }: DomesticFilterBarProps) {
   const rateLabel = formatRateLabel(rates);
 
@@ -152,6 +160,21 @@ export default function DomesticFilterBar({
           </button>
         );
       })}
+      {showAllToggle && onShowAllToggle && (
+        <button
+          type="button"
+          aria-pressed={showAllRows}
+          onClick={onShowAllToggle}
+          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            showAllRows
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-border text-muted-foreground hover:border-primary/50'
+          }`}
+          title="기본 100위 + 한세모빌리티만 표시 / 클릭 시 전체 표시"
+        >
+          전체
+        </button>
+      )}
       <span className="w-px h-4 bg-border mx-1 shrink-0" />
       <span className="text-xs font-medium text-muted-foreground shrink-0">제품</span>
       <div className="relative">

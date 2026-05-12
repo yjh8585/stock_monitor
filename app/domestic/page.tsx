@@ -46,7 +46,7 @@ export default async function DomesticPage() {
         </p>
       </div>
       <div className="flex-1 overflow-auto">
-        <DomesticTable rows={rows} rates={rates} />
+        <DomesticTable rows={rows} rates={rates} enableRankCutoff />
       </div>
     </div>
   );

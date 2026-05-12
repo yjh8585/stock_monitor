@@ -40,7 +40,7 @@ function buildColumns(latestYear: string): StickyColumn<SortKey>[] {
     { key: 'company_type', label: '구분', defaultWidth: 58 },
     { key: 'name_kr', label: '회사명', defaultWidth: 104 },
     { key: 'name_kr', label: '제품', defaultWidth: 280 },
-    { key: 'name_kr', label: '고객사', defaultWidth: 280 },
+    { key: 'name_kr', label: '고객사', defaultWidth: 224 },
     { key: 'region', label: '지역', defaultWidth: 60 },
     ...buildFinancialColumns<SortKey>(latestYear),
   ];
