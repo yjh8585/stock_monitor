@@ -1,8 +1,8 @@
-name: 환율 히스토리 수집 (일봉)
+name: 미국경제 전망 수집 (일일)
 
 on:
   schedule:
-    - cron: '5 * * * *' # 매시 5분 (UTC) — yfinance rate-limit 분산용 5분 offset
+    - cron: '30 21 * * *' # KST 06:30 — 매일 1회 (Anthropic 호출 30/월)
   workflow_dispatch:
 
 jobs:
@@ -26,8 +26,9 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 환율 히스토리 수집
-        run: python collect_fx.py
+      - name: macro_outlook 수집
+        run: python collect_macro_outlook.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

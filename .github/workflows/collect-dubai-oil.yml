@@ -1,8 +1,10 @@
-name: 환율 히스토리 수집 (일봉)
+name: DUBAI 수집 (FRED 두바이 원유)
 
 on:
   schedule:
-    - cron: '5 * * * *' # 매시 5분 (UTC) — yfinance rate-limit 분산용 5분 offset
+    # 매일 21:00 UTC = KST 06:00.
+    # FRED POILDUBUSDM은 월별 시리즈이지만 매일 호출해도 무해(idempotent upsert).
+    - cron: '0 21 * * *'
   workflow_dispatch:
 
 jobs:
@@ -26,8 +28,8 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 환율 히스토리 수집
-        run: python collect_fx.py
+      - name: DUBAI (FRED POILDUBUSDM) 수집
+        run: python collect_dubai_oil.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

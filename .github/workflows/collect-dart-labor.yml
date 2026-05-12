@@ -1,8 +1,8 @@
-name: 환율 히스토리 수집 (일봉)
+name: DART 인건비 수집
 
 on:
   schedule:
-    - cron: '5 * * * *' # 매시 5분 (UTC) — yfinance rate-limit 분산용 5분 offset
+    - cron: '30 21 16 5,8,11 *' # 매년 5/8/11월 16일 KST 06:30 (감사보고서 수집 다음날)
   workflow_dispatch:
 
 jobs:
@@ -26,8 +26,9 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 환율 히스토리 수집
-        run: python collect_fx.py
+      - name: DART 인건비 수집
+        run: python collect_dart_labor.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}

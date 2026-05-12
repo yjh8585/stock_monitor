@@ -1,8 +1,10 @@
-name: 환율 히스토리 수집 (일봉)
+name: STEEL_KR 수집 (KOMIS 철광석)
 
 on:
   schedule:
-    - cron: '5 * * * *' # 매시 5분 (UTC) — yfinance rate-limit 분산용 5분 offset
+    # 매일 21:00 UTC = KST 06:00.
+    # KOMIS는 영업일마다 갱신되므로 daily 호출로 누적 + 누락분 백필을 함께 처리.
+    - cron: '0 21 * * *'
   workflow_dispatch:
 
 jobs:
@@ -26,8 +28,11 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 환율 히스토리 수집
-        run: python collect_fx.py
+      - name: Playwright Chromium 설치
+        run: python -m playwright install --with-deps chromium
+
+      - name: STEEL_KR (KOMIS Iron Ore) 수집
+        run: python collect_steel_kr.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

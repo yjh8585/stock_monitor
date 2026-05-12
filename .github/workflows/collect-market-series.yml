@@ -1,8 +1,8 @@
-name: 환율 히스토리 수집 (일봉)
+name: 기타 시계열 수집 (일봉)
 
 on:
   schedule:
-    - cron: '5 * * * *' # 매시 5분 (UTC) — yfinance rate-limit 분산용 5분 offset
+    - cron: '15 * * * *' # 매시 15분 (UTC) — yfinance 호출 분산
   workflow_dispatch:
 
 jobs:
@@ -26,8 +26,8 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 환율 히스토리 수집
-        run: python collect_fx.py
+      - name: 기타 시계열 수집
+        run: python collect_market_series.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
