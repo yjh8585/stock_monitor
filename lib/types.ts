@@ -1,3 +1,12 @@
+/** 주가 페이지(/etc/stock-prices) 셀렉터 후보 회사 메타 — client-safe */
+export interface StockCompany {
+  id: string;
+  ticker: string | null;
+  name: string;
+  name_kr: string;
+  country: string;
+}
+
 /** 연간 재무 데이터 (financials 테이블 annual 행) */
 export interface FinancialYear {
   revenue: number | null;
@@ -251,6 +260,37 @@ export interface OemSalesTypeSegMonth {
   segment: string;
   year_month: number;
   sales: number;
+}
+
+/** oem_sales_model_country_month 한 행 */
+export interface OemSalesModelCountryMonth {
+  oem_group: string;
+  country: string;
+  model: string;
+  year_month: number;
+  sales: number;
+}
+
+/** 북미 핵심 차종 월별 시리즈 (서버 사전 가공 결과) */
+export interface ModelMonthlySeries {
+  key: string; // 'grand_cherokee' 등 slug
+  label: string; // 'Grand Cherokee' 표시명
+  oemGroup: string; // 'Stellantis'
+  data: { ym: number; ymLabel: string; sales: number; yoy: number | null }[];
+}
+
+/** oem_model_outlook 한 행 (AI 시장 평가) */
+export interface OemModelOutlook {
+  model_key: string;
+  model_name: string;
+  oem_group: string;
+  region: string;
+  note_date: string;
+  label: 'GREEN' | 'YELLOW' | 'RED';
+  consumer_view: string;
+  outlook: string;
+  rationale: string;
+  sources_used: string | null;
 }
 
 /** OEM 순위 행 (TOP30 YTD / TOP40 등 공통) */

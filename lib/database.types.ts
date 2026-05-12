@@ -2,849 +2,907 @@
 // 재생성: MCP 도구 또는 supabase CLI `supabase gen types typescript` 실행 후 이 파일 덮어쓰기.
 // 수동 편집 금지.
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
+    PostgrestVersion: '14.5';
+  };
   public: {
     Tables: {
       companies: {
         Row: {
-          business_summary: string | null
-          company_type: string | null
-          country: string
-          created_at: string
-          currency: string
-          customers: Json
-          data_source: string
-          group_name: string | null
-          homepage_url: string | null
-          id: string
-          is_seed: boolean
-          last_change_pct: number | null
-          last_price: number | null
-          last_updated_at: string | null
-          last_volume: number | null
-          market: string | null
-          market_cap: number | null
-          name: string
-          name_kr: string
-          products: Json
-          region: string | null
-          status: string
-          summary_updated_at: string | null
-          ticker: string | null
-          updated_at: string
-        }
+          business_summary: string | null;
+          company_type: string | null;
+          country: string;
+          created_at: string;
+          currency: string;
+          customers: Json;
+          data_source: string;
+          group_name: string | null;
+          homepage_url: string | null;
+          id: string;
+          is_seed: boolean;
+          last_change_pct: number | null;
+          last_price: number | null;
+          last_updated_at: string | null;
+          last_volume: number | null;
+          market: string | null;
+          market_cap: number | null;
+          name: string;
+          name_kr: string;
+          products: Json;
+          region: string | null;
+          status: string;
+          summary_updated_at: string | null;
+          ticker: string | null;
+          updated_at: string;
+        };
         Insert: {
-          business_summary?: string | null
-          company_type?: string | null
-          country: string
-          created_at?: string
-          currency: string
-          customers?: Json
-          data_source: string
-          group_name?: string | null
-          homepage_url?: string | null
-          id?: string
-          is_seed?: boolean
-          last_change_pct?: number | null
-          last_price?: number | null
-          last_updated_at?: string | null
-          last_volume?: number | null
-          market?: string | null
-          market_cap?: number | null
-          name: string
-          name_kr: string
-          products?: Json
-          region?: string | null
-          status?: string
-          summary_updated_at?: string | null
-          ticker?: string | null
-          updated_at?: string
-        }
+          business_summary?: string | null;
+          company_type?: string | null;
+          country: string;
+          created_at?: string;
+          currency: string;
+          customers?: Json;
+          data_source: string;
+          group_name?: string | null;
+          homepage_url?: string | null;
+          id?: string;
+          is_seed?: boolean;
+          last_change_pct?: number | null;
+          last_price?: number | null;
+          last_updated_at?: string | null;
+          last_volume?: number | null;
+          market?: string | null;
+          market_cap?: number | null;
+          name: string;
+          name_kr: string;
+          products?: Json;
+          region?: string | null;
+          status?: string;
+          summary_updated_at?: string | null;
+          ticker?: string | null;
+          updated_at?: string;
+        };
         Update: {
-          business_summary?: string | null
-          company_type?: string | null
-          country?: string
-          created_at?: string
-          currency?: string
-          customers?: Json
-          data_source?: string
-          group_name?: string | null
-          homepage_url?: string | null
-          id?: string
-          is_seed?: boolean
-          last_change_pct?: number | null
-          last_price?: number | null
-          last_updated_at?: string | null
-          last_volume?: number | null
-          market?: string | null
-          market_cap?: number | null
-          name?: string
-          name_kr?: string
-          products?: Json
-          region?: string | null
-          status?: string
-          summary_updated_at?: string | null
-          ticker?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
+          business_summary?: string | null;
+          company_type?: string | null;
+          country?: string;
+          created_at?: string;
+          currency?: string;
+          customers?: Json;
+          data_source?: string;
+          group_name?: string | null;
+          homepage_url?: string | null;
+          id?: string;
+          is_seed?: boolean;
+          last_change_pct?: number | null;
+          last_price?: number | null;
+          last_updated_at?: string | null;
+          last_volume?: number | null;
+          market?: string | null;
+          market_cap?: number | null;
+          name?: string;
+          name_kr?: string;
+          products?: Json;
+          region?: string | null;
+          status?: string;
+          summary_updated_at?: string | null;
+          ticker?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       company_pages: {
         Row: {
-          company_id: string
-          created_at: string
-          page: string
-        }
+          company_id: string;
+          created_at: string;
+          page: string;
+        };
         Insert: {
-          company_id: string
-          created_at?: string
-          page: string
-        }
+          company_id: string;
+          created_at?: string;
+          page: string;
+        };
         Update: {
-          company_id?: string
-          created_at?: string
-          page?: string
-        }
+          company_id?: string;
+          created_at?: string;
+          page?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "company_pages_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
+            foreignKeyName: 'company_pages_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "company_pages_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "domestic_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'company_pages_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "company_pages_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "parts_top100_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'company_pages_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "company_pages_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "related_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'company_pages_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
           },
-        ]
-      }
+        ];
+      };
       exchange_rates: {
         Row: {
-          base: string
-          quote: string
-          rate: number
-          rate_date: string
-        }
+          base: string;
+          quote: string;
+          rate: number;
+          rate_date: string;
+        };
         Insert: {
-          base: string
-          quote?: string
-          rate: number
-          rate_date: string
-        }
+          base: string;
+          quote?: string;
+          rate: number;
+          rate_date: string;
+        };
         Update: {
-          base?: string
-          quote?: string
-          rate?: number
-          rate_date?: string
-        }
-        Relationships: []
-      }
+          base?: string;
+          quote?: string;
+          rate?: number;
+          rate_date?: string;
+        };
+        Relationships: [];
+      };
       exchange_rates_live: {
         Row: {
-          base: string
-          quote: string
-          rate: number
-          updated_at: string
-        }
+          base: string;
+          quote: string;
+          rate: number;
+          updated_at: string;
+        };
         Insert: {
-          base: string
-          quote?: string
-          rate: number
-          updated_at?: string
-        }
+          base: string;
+          quote?: string;
+          rate: number;
+          updated_at?: string;
+        };
         Update: {
-          base?: string
-          quote?: string
-          rate?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
+          base?: string;
+          quote?: string;
+          rate?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       financials: {
         Row: {
-          bps: number | null
-          cfps: number | null
-          cogs: number | null
-          company_id: string
-          currency: string
-          current_ratio: number | null
-          debt_ratio: number | null
-          dividend_yield: number | null
-          dps: number | null
-          ebitda: number | null
-          eps: number | null
-          ev_ebit: number | null
-          ev_ebitda: number | null
-          fiscal_quarter: number | null
-          fiscal_year: number
-          gross_margin: number | null
-          gross_profit: number | null
-          id: string
-          inventory: number | null
-          net_income: number | null
-          net_margin: number | null
-          operating_income: number | null
-          operating_margin: number | null
-          pbr: number | null
-          per: number | null
-          period_end_date: string | null
-          period_type: string
-          psr: number | null
-          revenue: number | null
-          roa: number | null
-          roe: number | null
-          sga: number | null
-          total_assets: number | null
-          total_equity: number | null
-          total_liabilities: number | null
-        }
+          bps: number | null;
+          cfps: number | null;
+          cogs: number | null;
+          company_id: string;
+          currency: string;
+          current_ratio: number | null;
+          debt_ratio: number | null;
+          dividend_yield: number | null;
+          dps: number | null;
+          ebitda: number | null;
+          eps: number | null;
+          ev_ebit: number | null;
+          ev_ebitda: number | null;
+          fiscal_quarter: number | null;
+          fiscal_year: number;
+          gross_margin: number | null;
+          gross_profit: number | null;
+          id: string;
+          inventory: number | null;
+          labor_cost: number | null;
+          net_income: number | null;
+          net_margin: number | null;
+          operating_income: number | null;
+          operating_margin: number | null;
+          pbr: number | null;
+          per: number | null;
+          period_end_date: string | null;
+          period_type: string;
+          psr: number | null;
+          revenue: number | null;
+          roa: number | null;
+          roe: number | null;
+          sga: number | null;
+          total_assets: number | null;
+          total_equity: number | null;
+          total_liabilities: number | null;
+        };
         Insert: {
-          bps?: number | null
-          cfps?: number | null
-          cogs?: number | null
-          company_id: string
-          currency: string
-          current_ratio?: number | null
-          debt_ratio?: number | null
-          dividend_yield?: number | null
-          dps?: number | null
-          ebitda?: number | null
-          eps?: number | null
-          ev_ebit?: number | null
-          ev_ebitda?: number | null
-          fiscal_quarter?: number | null
-          fiscal_year: number
-          gross_margin?: number | null
-          gross_profit?: number | null
-          id?: string
-          inventory?: number | null
-          net_income?: number | null
-          net_margin?: number | null
-          operating_income?: number | null
-          operating_margin?: number | null
-          pbr?: number | null
-          per?: number | null
-          period_end_date?: string | null
-          period_type: string
-          psr?: number | null
-          revenue?: number | null
-          roa?: number | null
-          roe?: number | null
-          sga?: number | null
-          total_assets?: number | null
-          total_equity?: number | null
-          total_liabilities?: number | null
-        }
+          bps?: number | null;
+          cfps?: number | null;
+          cogs?: number | null;
+          company_id: string;
+          currency: string;
+          current_ratio?: number | null;
+          debt_ratio?: number | null;
+          dividend_yield?: number | null;
+          dps?: number | null;
+          ebitda?: number | null;
+          eps?: number | null;
+          ev_ebit?: number | null;
+          ev_ebitda?: number | null;
+          fiscal_quarter?: number | null;
+          fiscal_year: number;
+          gross_margin?: number | null;
+          gross_profit?: number | null;
+          id?: string;
+          inventory?: number | null;
+          labor_cost?: number | null;
+          net_income?: number | null;
+          net_margin?: number | null;
+          operating_income?: number | null;
+          operating_margin?: number | null;
+          pbr?: number | null;
+          per?: number | null;
+          period_end_date?: string | null;
+          period_type: string;
+          psr?: number | null;
+          revenue?: number | null;
+          roa?: number | null;
+          roe?: number | null;
+          sga?: number | null;
+          total_assets?: number | null;
+          total_equity?: number | null;
+          total_liabilities?: number | null;
+        };
         Update: {
-          bps?: number | null
-          cfps?: number | null
-          cogs?: number | null
-          company_id?: string
-          currency?: string
-          current_ratio?: number | null
-          debt_ratio?: number | null
-          dividend_yield?: number | null
-          dps?: number | null
-          ebitda?: number | null
-          eps?: number | null
-          ev_ebit?: number | null
-          ev_ebitda?: number | null
-          fiscal_quarter?: number | null
-          fiscal_year?: number
-          gross_margin?: number | null
-          gross_profit?: number | null
-          id?: string
-          inventory?: number | null
-          net_income?: number | null
-          net_margin?: number | null
-          operating_income?: number | null
-          operating_margin?: number | null
-          pbr?: number | null
-          per?: number | null
-          period_end_date?: string | null
-          period_type?: string
-          psr?: number | null
-          revenue?: number | null
-          roa?: number | null
-          roe?: number | null
-          sga?: number | null
-          total_assets?: number | null
-          total_equity?: number | null
-          total_liabilities?: number | null
-        }
+          bps?: number | null;
+          cfps?: number | null;
+          cogs?: number | null;
+          company_id?: string;
+          currency?: string;
+          current_ratio?: number | null;
+          debt_ratio?: number | null;
+          dividend_yield?: number | null;
+          dps?: number | null;
+          ebitda?: number | null;
+          eps?: number | null;
+          ev_ebit?: number | null;
+          ev_ebitda?: number | null;
+          fiscal_quarter?: number | null;
+          fiscal_year?: number;
+          gross_margin?: number | null;
+          gross_profit?: number | null;
+          id?: string;
+          inventory?: number | null;
+          labor_cost?: number | null;
+          net_income?: number | null;
+          net_margin?: number | null;
+          operating_income?: number | null;
+          operating_margin?: number | null;
+          pbr?: number | null;
+          per?: number | null;
+          period_end_date?: string | null;
+          period_type?: string;
+          psr?: number | null;
+          revenue?: number | null;
+          roa?: number | null;
+          roe?: number | null;
+          sga?: number | null;
+          total_assets?: number | null;
+          total_equity?: number | null;
+          total_liabilities?: number | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "financials_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "financials_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "domestic_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "financials_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "parts_top100_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "financials_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "related_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
           },
-        ]
-      }
+        ];
+      };
       macro_outlook_notes: {
         Row: {
-          created_at: string
-          id: string
-          note_date: string
-          sentiment: string | null
-          source: string
-          summary: string
-        }
+          created_at: string;
+          id: string;
+          note_date: string;
+          sentiment: string | null;
+          source: string;
+          summary: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          note_date: string
-          sentiment?: string | null
-          source: string
-          summary: string
-        }
+          created_at?: string;
+          id?: string;
+          note_date: string;
+          sentiment?: string | null;
+          source: string;
+          summary: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          note_date?: string
-          sentiment?: string | null
-          source?: string
-          summary?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          note_date?: string;
+          sentiment?: string | null;
+          source?: string;
+          summary?: string;
+        };
+        Relationships: [];
+      };
       market_series: {
         Row: {
-          category: string
-          fred_symbol: string | null
-          label: string
-          series_code: string
-          sort_order: number
-          source: string
-          unit: string
-          yf_symbol: string | null
-        }
+          category: string;
+          fred_symbol: string | null;
+          label: string;
+          series_code: string;
+          sort_order: number;
+          source: string;
+          unit: string;
+          yf_symbol: string | null;
+        };
         Insert: {
-          category: string
-          fred_symbol?: string | null
-          label: string
-          series_code: string
-          sort_order?: number
-          source: string
-          unit: string
-          yf_symbol?: string | null
-        }
+          category: string;
+          fred_symbol?: string | null;
+          label: string;
+          series_code: string;
+          sort_order?: number;
+          source: string;
+          unit: string;
+          yf_symbol?: string | null;
+        };
         Update: {
-          category?: string
-          fred_symbol?: string | null
-          label?: string
-          series_code?: string
-          sort_order?: number
-          source?: string
-          unit?: string
-          yf_symbol?: string | null
-        }
-        Relationships: []
-      }
+          category?: string;
+          fred_symbol?: string | null;
+          label?: string;
+          series_code?: string;
+          sort_order?: number;
+          source?: string;
+          unit?: string;
+          yf_symbol?: string | null;
+        };
+        Relationships: [];
+      };
       market_series_daily: {
         Row: {
-          close: number
-          series_code: string
-          trade_date: string
-        }
+          close: number;
+          series_code: string;
+          trade_date: string;
+        };
         Insert: {
-          close: number
-          series_code: string
-          trade_date: string
-        }
+          close: number;
+          series_code: string;
+          trade_date: string;
+        };
         Update: {
-          close?: number
-          series_code?: string
-          trade_date?: string
-        }
-        Relationships: []
-      }
+          close?: number;
+          series_code?: string;
+          trade_date?: string;
+        };
+        Relationships: [];
+      };
       news: {
         Row: {
-          company_id: string
-          created_at: string
-          id: string
-          published_at: string
-          source: string | null
-          summary: string | null
-          title: string
-          url: string
-        }
+          company_id: string;
+          created_at: string;
+          id: string;
+          published_at: string;
+          source: string | null;
+          summary: string | null;
+          title: string;
+          url: string;
+        };
         Insert: {
-          company_id: string
-          created_at?: string
-          id?: string
-          published_at: string
-          source?: string | null
-          summary?: string | null
-          title: string
-          url: string
-        }
+          company_id: string;
+          created_at?: string;
+          id?: string;
+          published_at: string;
+          source?: string | null;
+          summary?: string | null;
+          title: string;
+          url: string;
+        };
         Update: {
-          company_id?: string
-          created_at?: string
-          id?: string
-          published_at?: string
-          source?: string | null
-          summary?: string | null
-          title?: string
-          url?: string
-        }
+          company_id?: string;
+          created_at?: string;
+          id?: string;
+          published_at?: string;
+          source?: string | null;
+          summary?: string | null;
+          title?: string;
+          url?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "news_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "news_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "domestic_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "news_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "parts_top100_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "news_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "related_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
           },
-        ]
-      }
+        ];
+      };
       oem_sales_group_country_month: {
         Row: {
-          country: string
-          oem_group: string
-          sales: number
-          year_month: number
-        }
+          country: string;
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
         Insert: {
-          country: string
-          oem_group: string
-          sales: number
-          year_month: number
-        }
+          country: string;
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
         Update: {
-          country?: string
-          oem_group?: string
-          sales?: number
-          year_month?: number
-        }
-        Relationships: []
-      }
+          country?: string;
+          oem_group?: string;
+          sales?: number;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
+      oem_sales_model_country_month: {
+        Row: {
+          country: string;
+          model: string;
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
+        Insert: {
+          country: string;
+          model: string;
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
+        Update: {
+          country?: string;
+          model?: string;
+          oem_group?: string;
+          sales?: number;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
+      oem_model_outlook: {
+        Row: {
+          consumer_view: string;
+          label: string;
+          model_key: string;
+          model_name: string;
+          note_date: string;
+          oem_group: string;
+          outlook: string;
+          rationale: string;
+          region: string;
+          sources_used: string | null;
+        };
+        Insert: {
+          consumer_view: string;
+          label: string;
+          model_key: string;
+          model_name: string;
+          note_date: string;
+          oem_group: string;
+          outlook: string;
+          rationale: string;
+          region?: string;
+          sources_used?: string | null;
+        };
+        Update: {
+          consumer_view?: string;
+          label?: string;
+          model_key?: string;
+          model_name?: string;
+          note_date?: string;
+          oem_group?: string;
+          outlook?: string;
+          rationale?: string;
+          region?: string;
+          sources_used?: string | null;
+        };
+        Relationships: [];
+      };
       oem_sales_group_month: {
         Row: {
-          oem_group: string
-          sales: number
-          year_month: number
-        }
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
         Insert: {
-          oem_group: string
-          sales: number
-          year_month: number
-        }
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
         Update: {
-          oem_group?: string
-          sales?: number
-          year_month?: number
-        }
-        Relationships: []
-      }
+          oem_group?: string;
+          sales?: number;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
       oem_sales_group_pt_month: {
         Row: {
-          oem_group: string
-          powertrain: string
-          sales: number
-          year_month: number
-        }
+          oem_group: string;
+          powertrain: string;
+          sales: number;
+          year_month: number;
+        };
         Insert: {
-          oem_group: string
-          powertrain: string
-          sales: number
-          year_month: number
-        }
+          oem_group: string;
+          powertrain: string;
+          sales: number;
+          year_month: number;
+        };
         Update: {
-          oem_group?: string
-          powertrain?: string
-          sales?: number
-          year_month?: number
-        }
-        Relationships: []
-      }
+          oem_group?: string;
+          powertrain?: string;
+          sales?: number;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
       oem_sales_type_seg_month: {
         Row: {
-          sales: number
-          segment: string
-          vehicle_type: string
-          year_month: number
-        }
+          sales: number;
+          segment: string;
+          vehicle_type: string;
+          year_month: number;
+        };
         Insert: {
-          sales: number
-          segment: string
-          vehicle_type: string
-          year_month: number
-        }
+          sales: number;
+          segment: string;
+          vehicle_type: string;
+          year_month: number;
+        };
         Update: {
-          sales?: number
-          segment?: string
-          vehicle_type?: string
-          year_month?: number
-        }
-        Relationships: []
-      }
+          sales?: number;
+          segment?: string;
+          vehicle_type?: string;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
       stock_prices: {
         Row: {
-          adj_close: number | null
-          close: number
-          company_id: string
-          high: number | null
-          low: number | null
-          open: number | null
-          trade_date: string
-          volume: number | null
-        }
+          adj_close: number | null;
+          close: number;
+          company_id: string;
+          high: number | null;
+          low: number | null;
+          open: number | null;
+          trade_date: string;
+          volume: number | null;
+        };
         Insert: {
-          adj_close?: number | null
-          close: number
-          company_id: string
-          high?: number | null
-          low?: number | null
-          open?: number | null
-          trade_date: string
-          volume?: number | null
-        }
+          adj_close?: number | null;
+          close: number;
+          company_id: string;
+          high?: number | null;
+          low?: number | null;
+          open?: number | null;
+          trade_date: string;
+          volume?: number | null;
+        };
         Update: {
-          adj_close?: number | null
-          close?: number
-          company_id?: string
-          high?: number | null
-          low?: number | null
-          open?: number | null
-          trade_date?: string
-          volume?: number | null
-        }
+          adj_close?: number | null;
+          close?: number;
+          company_id?: string;
+          high?: number | null;
+          low?: number | null;
+          open?: number | null;
+          trade_date?: string;
+          volume?: number | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "stock_prices_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "stock_prices_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "domestic_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "stock_prices_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "parts_top100_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: "stock_prices_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "related_stocks_view"
-            referencedColumns: ["id"]
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
           },
-        ]
-      }
-    }
+        ];
+      };
+    };
     Views: {
       domestic_stocks_view: {
         Row: {
-          business_summary: string | null
-          country: string | null
-          currency: string | null
-          customers: Json | null
-          financials_by_year: Json | null
-          fx_fin_to_krw: number | null
-          fx_to_krw: number | null
-          group_name: string | null
-          homepage_url: string | null
-          id: string | null
-          last_change_pct: number | null
-          last_price: number | null
-          last_updated_at: string | null
-          latest_quarter: Json | null
-          latest_revenue_krw: number | null
-          market: string | null
-          market_cap: number | null
-          name: string | null
-          name_kr: string | null
-          products: Json | null
-          sales_rank: number | null
-          status: string | null
-          summary_updated_at: string | null
-          ticker: string | null
-        }
-        Relationships: []
-      }
+          business_summary: string | null;
+          country: string | null;
+          currency: string | null;
+          customers: Json | null;
+          financials_by_year: Json | null;
+          fx_fin_to_krw: number | null;
+          fx_to_krw: number | null;
+          group_name: string | null;
+          homepage_url: string | null;
+          id: string | null;
+          last_change_pct: number | null;
+          last_price: number | null;
+          last_updated_at: string | null;
+          latest_quarter: Json | null;
+          latest_revenue_krw: number | null;
+          market: string | null;
+          market_cap: number | null;
+          name: string | null;
+          name_kr: string | null;
+          products: Json | null;
+          sales_rank: number | null;
+          status: string | null;
+          summary_updated_at: string | null;
+          ticker: string | null;
+        };
+        Relationships: [];
+      };
       parts_top100_stocks_view: {
         Row: {
-          business_summary: string | null
-          country: string | null
-          currency: string | null
-          customers: Json | null
-          financials_by_year: Json | null
-          fx_fin_to_krw: number | null
-          fx_to_krw: number | null
-          group_name: string | null
-          homepage_url: string | null
-          id: string | null
-          last_change_pct: number | null
-          last_price: number | null
-          last_updated_at: string | null
-          latest_quarter: Json | null
-          latest_revenue_krw: number | null
-          market: string | null
-          market_cap: number | null
-          name: string | null
-          name_kr: string | null
-          products: Json | null
-          sales_rank: number | null
-          status: string | null
-          summary_updated_at: string | null
-          ticker: string | null
-        }
-        Relationships: []
-      }
+          business_summary: string | null;
+          country: string | null;
+          currency: string | null;
+          customers: Json | null;
+          financials_by_year: Json | null;
+          fx_fin_to_krw: number | null;
+          fx_to_krw: number | null;
+          group_name: string | null;
+          homepage_url: string | null;
+          id: string | null;
+          last_change_pct: number | null;
+          last_price: number | null;
+          last_updated_at: string | null;
+          latest_quarter: Json | null;
+          latest_revenue_krw: number | null;
+          market: string | null;
+          market_cap: number | null;
+          name: string | null;
+          name_kr: string | null;
+          products: Json | null;
+          sales_rank: number | null;
+          status: string | null;
+          summary_updated_at: string | null;
+          ticker: string | null;
+        };
+        Relationships: [];
+      };
       related_stocks_view: {
         Row: {
-          business_summary: string | null
-          company_type: string | null
-          country: string | null
-          currency: string | null
-          customers: Json | null
-          financials_by_year: Json | null
-          fx_fin_to_krw: number | null
-          fx_to_krw: number | null
-          homepage_url: string | null
-          id: string | null
-          last_change_pct: number | null
-          last_price: number | null
-          last_updated_at: string | null
-          latest_quarter: Json | null
-          market: string | null
-          market_cap: number | null
-          name: string | null
-          name_kr: string | null
-          products: Json | null
-          region: string | null
-          status: string | null
-          summary_updated_at: string | null
-          ticker: string | null
-        }
-        Relationships: []
-      }
-    }
+          business_summary: string | null;
+          company_type: string | null;
+          country: string | null;
+          currency: string | null;
+          customers: Json | null;
+          financials_by_year: Json | null;
+          fx_fin_to_krw: number | null;
+          fx_to_krw: number | null;
+          homepage_url: string | null;
+          id: string | null;
+          last_change_pct: number | null;
+          last_price: number | null;
+          last_updated_at: string | null;
+          latest_quarter: Json | null;
+          market: string | null;
+          market_cap: number | null;
+          name: string | null;
+          name_kr: string | null;
+          products: Json | null;
+          region: string | null;
+          status: string | null;
+          summary_updated_at: string | null;
+          ticker: string | null;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
-      normalize_customer_name: { Args: { raw: string }; Returns: string }
-    }
+      normalize_customer_name: { Args: { raw: string }; Returns: string };
+    };
     Enums: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+      [_ in never]: never;
+    };
+  };
+};
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, 'public'>];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
+      Row: infer R;
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
+    ? (DefaultSchema['Tables'] & DefaultSchema['Views'])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R;
       }
       ? R
       : never
-    : never
+    : never;
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
+    | keyof DefaultSchema['Tables']
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+      Insert: infer I;
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
+    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I;
       }
       ? I
       : never
-    : never
+    : never;
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
+    | keyof DefaultSchema['Tables']
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+      Update: infer U;
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
+    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U;
       }
       ? U
       : never
-    : never
+    : never;
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
+    | keyof DefaultSchema['Enums']
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
+    ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
+    : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
+    | keyof DefaultSchema['CompositeTypes']
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
+    ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
+    : never;
 
 export const Constants = {
   public: {
     Enums: {},
   },
-} as const
+} as const;
 
 /** 타입 헬퍼: View Row 빠른 추출 */
 export type ViewRow<T extends keyof Database['public']['Views']> =
-  Database['public']['Views'][T]['Row']
+  Database['public']['Views'][T]['Row'];
 
 /** 타입 헬퍼: Table Row 빠른 추출 */
 export type TableRow<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Row']
+  Database['public']['Tables'][T]['Row'];
