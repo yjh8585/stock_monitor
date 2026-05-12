@@ -2,8 +2,17 @@ name: 주가 히스토리 수집 (일봉)
 
 on:
   schedule:
-    - cron: '0 21 * * *' # KST 06:00 (UTC 21:00 전일)
-  workflow_dispatch: # 수동 실행 허용
+    - cron: '0 21 * * *' # KST 06:00 매일 (UTC 21:00 전일)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '수집 모드 (auto: KST 1일이면 full, 아니면 incremental)'
+        type: choice
+        options:
+          - auto
+          - incremental
+          - full
+        default: auto
 
 jobs:
   collect:
@@ -26,8 +35,27 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
+      - name: 수집 모드 결정 (KST 1일이면 full, 아니면 incremental)
+        id: mode
+        shell: bash
+        run: |
+          input_mode="${{ github.event.inputs.mode }}"
+          if [ -n "$input_mode" ] && [ "$input_mode" != "auto" ]; then
+            echo "value=$input_mode" >> "$GITHUB_OUTPUT"
+            echo "선택된 모드: $input_mode (manual)"
+            exit 0
+          fi
+          kst_day=$(TZ=Asia/Seoul date +%d)
+          if [ "$kst_day" = "01" ]; then
+            echo "value=full" >> "$GITHUB_OUTPUT"
+            echo "KST 1일 → full (월간 백필)"
+          else
+            echo "value=incremental" >> "$GITHUB_OUTPUT"
+            echo "KST ${kst_day}일 → incremental"
+          fi
+
       - name: 주가 히스토리 수집
-        run: python collect_prices.py
+        run: python collect_prices.py --mode ${{ steps.mode.outputs.value }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
