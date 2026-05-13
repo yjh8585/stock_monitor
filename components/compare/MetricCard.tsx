@@ -70,9 +70,7 @@ export default function MetricCard({ metric, companies }: Props) {
             width={55}
           />
           <Tooltip
-            formatter={(v) =>
-              formatMetricValue(typeof v === 'number' ? v : null, metric.unit)
-            }
+            formatter={(v) => formatMetricValue(typeof v === 'number' ? v : null, metric.unit)}
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
@@ -90,7 +88,12 @@ export default function MetricCard({ metric, companies }: Props) {
               const id = typeof entry?.dataKey === 'string' ? entry.dataKey : '';
               const hidden = hiddenIds.has(id);
               return (
-                <span style={{ opacity: hidden ? 0.4 : 1, textDecoration: hidden ? 'line-through' : 'none' }}>
+                <span
+                  style={{
+                    opacity: hidden ? 0.4 : 1,
+                    textDecoration: hidden ? 'line-through' : 'none',
+                  }}
+                >
                   {value}
                 </span>
               );

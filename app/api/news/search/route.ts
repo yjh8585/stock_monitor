@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 
-export const dynamic = 'force-dynamic';
-
 interface NewsItem {
   title: string;
   url: string;

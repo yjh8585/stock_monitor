@@ -121,9 +121,7 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount }: StockRowP
           body={
             <>
               {description.summary}
-              {description.financial && (
-                <span className="block mt-2">{description.financial}</span>
-              )}
+              {description.financial && <span className="block mt-2">{description.financial}</span>}
             </>
           }
         />

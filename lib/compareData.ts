@@ -8,10 +8,7 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import logger from '@/lib/logger';
-import {
-  type CompareCompany,
-  type FinancialRow,
-} from '@/lib/compareMetrics';
+import { type CompareCompany, type FinancialRow } from '@/lib/compareMetrics';
 
 /** company_pages.page='compare' 매핑된 회사 메타 조회 (name_kr 오름차순) */
 export async function getCompareCompanies(): Promise<CompareCompany[]> {

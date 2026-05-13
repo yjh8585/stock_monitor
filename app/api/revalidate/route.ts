@@ -26,8 +26,7 @@ const ALL_TAGS = [
 ];
 
 export async function POST(req: NextRequest) {
-  const secret =
-    req.headers.get('x-revalidate-secret') ?? req.nextUrl.searchParams.get('secret');
+  const secret = req.headers.get('x-revalidate-secret') ?? req.nextUrl.searchParams.get('secret');
   const expected = process.env.NEXT_REVALIDATE_SECRET;
   if (!expected) {
     return NextResponse.json(

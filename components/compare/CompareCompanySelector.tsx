@@ -60,9 +60,7 @@ interface SlotProps {
 
 function Slot({ value, excludeId, candidates, onChange }: SlotProps) {
   const displayName =
-    value === NONE
-      ? '(선택 안 함)'
-      : (candidates.find((c) => c.id === value)?.name_kr ?? '선택');
+    value === NONE ? '(선택 안 함)' : (candidates.find((c) => c.id === value)?.name_kr ?? '선택');
   return (
     <Select value={value} onValueChange={(v) => onChange(v ?? NONE)}>
       <SelectTrigger size="sm" className="min-w-36">

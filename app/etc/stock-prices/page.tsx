@@ -5,11 +5,8 @@ import type { StockCompany } from '@/lib/types';
 export default async function StockPricesPage() {
   const companies = await getActiveStockCompanies();
   const koCollator = new Intl.Collator('ko', { sensitivity: 'base' });
-  const byKorean = (a: StockCompany, b: StockCompany) =>
-    koCollator.compare(a.name_kr, b.name_kr);
-  const krCompanies: StockCompany[] = companies
-    .filter((c) => c.country === 'KR')
-    .sort(byKorean);
+  const byKorean = (a: StockCompany, b: StockCompany) => koCollator.compare(a.name_kr, b.name_kr);
+  const krCompanies: StockCompany[] = companies.filter((c) => c.country === 'KR').sort(byKorean);
   const overseasCompanies: StockCompany[] = companies
     .filter((c) => c.country !== 'KR')
     .sort(byKorean);
@@ -23,10 +20,7 @@ export default async function StockPricesPage() {
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">
-        <StockPricesDashboard
-          krCompanies={krCompanies}
-          overseasCompanies={overseasCompanies}
-        />
+        <StockPricesDashboard krCompanies={krCompanies} overseasCompanies={overseasCompanies} />
       </div>
     </div>
   );

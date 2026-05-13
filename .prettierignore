@@ -24,3 +24,6 @@ review/
 
 # 일회성 데이터 파이프라인 임시 큐/로그 (scripts/_*.json)
 scripts/_*.json
+# 디버깅용 크롤링 원본 (HTML 덤프 등) + 임시 산출물
+scripts/_debug_*.html
+scripts/_tmp/

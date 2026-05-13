@@ -119,8 +119,8 @@ export default async function EconomyPage() {
             </div>
           ) : (
             <div className="text-xs text-muted-foreground py-6 text-center">
-              아직 통합 요약이 적재되지 않았습니다. <code>collect_macro_outlook</code> 실행을
-              기다려 주세요.
+              아직 통합 요약이 적재되지 않았습니다. <code>collect_macro_outlook</code> 실행을 기다려
+              주세요.
             </div>
           )}
         </section>

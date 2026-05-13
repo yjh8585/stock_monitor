@@ -38,7 +38,7 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 회사 정보 보강 (재무 + 메타: 설명·제품·고객사)
+      - name: '회사 정보 보강 (재무 + 메타: 설명·제품·고객사)'
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
