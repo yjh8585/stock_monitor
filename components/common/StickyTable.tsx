@@ -109,11 +109,28 @@ export default function StickyTable<R, K extends string>({
     const onMouseUp = () => {
       resizeRef.current = null;
     };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!resizeRef.current) return;
+      const { colIndex, startX, startWidth } = resizeRef.current;
+      const delta = e.touches[0].clientX - startX;
+      setColWidths((prev) => {
+        const next = [...prev];
+        next[colIndex] = Math.max(MIN_COL_WIDTH, startWidth + delta);
+        return next;
+      });
+    };
+    const onTouchEnd = () => {
+      resizeRef.current = null;
+    };
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd);
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
 
@@ -150,7 +167,11 @@ export default function StickyTable<R, K extends string>({
   }, [totalWidth, containerWidth, stickyLefts, frozenCount]);
 
   return (
-    <div ref={scrollDivRef} className="flex-1 overflow-auto">
+    <div
+      ref={scrollDivRef}
+      className="flex-1 overflow-auto"
+      style={{ WebkitOverflowScrolling: 'touch' as const }}
+    >
       <table className="text-xs border-collapse" style={tableStyle}>
         <colgroup>
           {columns.map((_, i) => (
@@ -194,6 +215,15 @@ export default function StickyTable<R, K extends string>({
                     className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 select-none z-10"
                     onMouseDown={(e) => handleResizeMouseDown(i, e)}
                     onClick={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      const touch = e.touches[0];
+                      resizeRef.current = {
+                        colIndex: i,
+                        startX: touch.clientX,
+                        startWidth: colWidths[i],
+                      };
+                    }}
                   />
                 </th>
               );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useChartHeight } from '@/lib/useChartHeight';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import type { OemSalesTypeSegMonth } from '@/lib/types';
 import { fmtFull, fmtUnits } from './helpers';
@@ -90,12 +91,13 @@ export default function TypeSegmentChart({ typeSegMonth }: Props) {
 
 function ChartCard({ title, data, colors }: { title: string; data: SliceRow[]; colors: string[] }) {
   const total = data.reduce((a, b) => a + b.value, 0);
+  const h = useChartHeight(220, 300, 360);
   return (
     <div>
       <div className="text-xs font-medium text-muted-foreground mb-2">
         {title} — 합계 {fmtUnits(total)}
       </div>
-      <ResponsiveContainer width="100%" height={360}>
+      <ResponsiveContainer width="100%" height={h}>
         <PieChart>
           <Legend
             layout="horizontal"

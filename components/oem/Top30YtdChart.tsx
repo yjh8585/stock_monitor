@@ -52,7 +52,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
   }));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_500px] gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_500px] gap-4">
       <div>
         <div className="text-xs text-muted-foreground mb-2">
           2026년 1월~{latestMonth}월 누적, 전년 동기(2025.01~{latestMonth}) 대비 YoY
@@ -86,7 +86,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
         </ResponsiveContainer>
       </div>
 
-      <div className="overflow-auto max-h-[700px]">
+      <div className="overflow-auto max-h-[400px] xl:max-h-[700px]">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-card">
             <tr className="border-b border-border">

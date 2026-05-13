@@ -26,6 +26,11 @@ export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
     abbr: 'MB',
     color: '#222222',
   },
+  메르세데스: {
+    iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/3/32/Mercedes-Benz_Star_2022.svg',
+    abbr: 'MB',
+    color: '#222222',
+  },
   폭스바겐: { iconUrl: SI('volkswagen', '001e50'), abbr: 'VW', color: '#001e50' },
   도요타: { iconUrl: SI('toyota', 'EB0A1E'), abbr: '도요타', color: '#EB0A1E' },
   혼다: { iconUrl: SI('honda', 'E40521'), abbr: '혼다', color: '#E40521' },

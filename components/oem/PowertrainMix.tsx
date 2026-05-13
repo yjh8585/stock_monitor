@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useChartHeight } from '@/lib/useChartHeight';
 import {
   Area,
   AreaChart,
@@ -25,6 +26,7 @@ const PT_VISIBLE: PowerTrain[] = PT_ORDER.filter((p) => p !== 'Other') as PowerT
 const YM_START = 202101; // 2020년은 PowerTrain 분류 노이즈 많아 제외 — 2021년부터 표시
 
 export default function PowertrainMix({ groupPtMonth }: Props) {
+  const h = useChartHeight(200, 260, 320);
   const data = useMemo(() => {
     // ym → pt → sales (Other 제외, 2021년부터)
     const byYm = new Map<number, Map<string, number>>();
@@ -53,7 +55,7 @@ export default function PowertrainMix({ groupPtMonth }: Props) {
       <div className="text-[11px] text-muted-foreground mb-2">
         PowerTrain이 &lsquo;Other&rsquo;(분류 불가)인 판매량은 비중 계산에서 제외됨
       </div>
-      <ResponsiveContainer width="100%" height={320}>
+      <ResponsiveContainer width="100%" height={h}>
         <AreaChart
           data={data}
           margin={{ top: 10, right: 20, bottom: 10, left: 10 }}

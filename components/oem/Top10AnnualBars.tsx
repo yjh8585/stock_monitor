@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useChartHeight } from '@/lib/useChartHeight';
 import {
   Bar,
   BarChart,
@@ -53,6 +54,7 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
     return { chartData: data, oems: labels };
   }, [groupMonth]);
 
+  const h = useChartHeight(260, 360, 440);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const toggleHidden = (key: string) => {
     setHidden((prev) => {
@@ -68,7 +70,7 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
       <div className="text-xs text-muted-foreground mb-2">
         2025년 TOP10 기준 · 2026년은 1~3월 누적 (연간 환산 아님) · 범례 클릭으로 항목 제외 가능
       </div>
-      <ResponsiveContainer width="100%" height={440}>
+      <ResponsiveContainer width="100%" height={h}>
         <BarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="year" className="text-xs" />

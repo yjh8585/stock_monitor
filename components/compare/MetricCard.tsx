@@ -12,11 +12,15 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  FIXED_PRIMARY_NAME,
   type FinancialRow,
   type MetricDefinition,
+  type MetricUnit,
+  formatKoreanCompact,
   formatMetricTick,
   formatMetricValue,
 } from '@/lib/compareMetrics';
+import { useChartHeight } from '@/lib/useChartHeight';
 
 export interface CompanyLine {
   id: string;
@@ -31,9 +35,29 @@ interface Props {
   companies: readonly CompanyLine[];
 }
 
+const UNIT_LABEL: Record<MetricUnit, string> = {
+  percent: '%',
+  times: '회',
+  million: '백만원',
+};
+
+/** 단위 없이 숫자만 표시 (데이터 레이블 전용) */
+function formatRaw(v: number | null, unit: MetricUnit): string {
+  if (v == null || Number.isNaN(v)) return '—';
+  switch (unit) {
+    case 'percent':
+      return `${(v * 100).toFixed(1)}`;
+    case 'times':
+      return `${v.toFixed(2)}`;
+    case 'million':
+      return formatKoreanCompact(v);
+  }
+}
+
 /** 지표 1개의 연도별 묶은 세로 막대 차트 카드. 범례 클릭으로 시리즈 토글. */
 export default function MetricCard({ metric, companies }: Props) {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const h = useChartHeight(180, 220, 260);
 
   const chartData = useMemo(() => {
     const years = Array.from(
@@ -49,6 +73,17 @@ export default function MetricCard({ metric, companies }: Props) {
     });
   }, [companies, metric]);
 
+  // 한세모빌리티를 항상 첫 번째(범례 최상단)로 정렬
+  const sortedCompanies = useMemo(
+    () =>
+      [...companies].sort((a, b) => {
+        if (a.name === FIXED_PRIMARY_NAME) return -1;
+        if (b.name === FIXED_PRIMARY_NAME) return 1;
+        return 0;
+      }),
+    [companies]
+  );
+
   const toggleHidden = (id: string) => {
     setHiddenIds((prev) => {
       const next = new Set(prev);
@@ -60,9 +95,12 @@ export default function MetricCard({ metric, companies }: Props) {
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
-      <div className="text-sm font-semibold">{metric.label}</div>
-      <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={chartData} margin={{ top: 24, right: 12, bottom: 5, left: 5 }}>
+      <div className="flex items-baseline gap-1">
+        <span className="text-sm font-semibold">{metric.label}</span>
+        <span className="text-xs text-muted-foreground">({UNIT_LABEL[metric.unit]})</span>
+      </div>
+      <ResponsiveContainer width="100%" height={h}>
+        <BarChart data={chartData} margin={{ top: 18, right: 12, bottom: 5, left: 5 }}>
           <XAxis dataKey="year" tick={{ fontSize: 11 }} />
           <YAxis
             tickFormatter={(v) => formatMetricTick(v, metric.unit)}
@@ -99,26 +137,33 @@ export default function MetricCard({ metric, companies }: Props) {
               );
             }}
           />
-          {companies.map((c) => (
-            <Bar
-              key={c.id}
-              dataKey={c.id}
-              name={c.name}
-              fill={c.color}
-              hide={hiddenIds.has(c.id)}
-              radius={[3, 3, 0, 0]}
-              maxBarSize={48}
-            >
-              <LabelList
+          {sortedCompanies.map((c) => {
+            const isPrimary = c.name === FIXED_PRIMARY_NAME;
+            return (
+              <Bar
+                key={c.id}
                 dataKey={c.id}
-                position="top"
-                formatter={(v: unknown) =>
-                  formatMetricValue(typeof v === 'number' ? v : null, metric.unit)
-                }
-                style={{ fontSize: 12, fontWeight: 600, fill: 'var(--foreground)' }}
-              />
-            </Bar>
-          ))}
+                name={c.name}
+                fill={c.color}
+                hide={hiddenIds.has(c.id)}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={48}
+              >
+                <LabelList
+                  dataKey={c.id}
+                  position="top"
+                  formatter={(v: unknown) =>
+                    formatRaw(typeof v === 'number' ? v : null, metric.unit)
+                  }
+                  style={{
+                    fontSize: 9,
+                    fontWeight: isPrimary ? 700 : 400,
+                    fill: isPrimary ? 'var(--foreground)' : 'var(--muted-foreground)',
+                  }}
+                />
+              </Bar>
+            );
+          })}
         </BarChart>
       </ResponsiveContainer>
     </div>

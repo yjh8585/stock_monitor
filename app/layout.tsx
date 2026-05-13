@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import AppLayout from '@/components/layout/AppLayout';
@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: '자동차 산업 주요 기업 실적 및 주가 모니터링',
 };
 
+export const viewport: Viewport = { width: 'device-width', initialScale: 1 };
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="h-screen overflow-hidden bg-background text-foreground antialiased">
+      <body className="h-dvh overflow-hidden bg-background text-foreground antialiased">
         <AppLayout>{children}</AppLayout>
       </body>
     </html>

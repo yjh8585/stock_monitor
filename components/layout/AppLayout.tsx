@@ -1,11 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import Sidebar from './Sidebar';
+import { Menu } from 'lucide-react';
+import Sidebar, { MobileNav } from './Sidebar';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 /** 팝업 경로에서는 사이드바를 숨기는 레이아웃 래퍼 */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const isPopup = pathname.startsWith('/stock-popup');
 
   if (isPopup) {
@@ -13,9 +17,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">{children}</main>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* 모바일 전용 상단바 */}
+      <div className="md:hidden flex items-center h-11 px-3 border-b border-border shrink-0">
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetTrigger
+            render={
+              <button
+                aria-label="메뉴 열기"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Menu size={18} />
+              </button>
+            }
+          />
+          <SheetContent side="left" className="p-0 w-56 sm:max-w-56">
+            <MobileNav onClose={() => setMobileOpen(false)} />
+          </SheetContent>
+        </Sheet>
+        <span className="ml-3 text-sm font-semibold">Stock Monitor</span>
+      </div>
+      {/* 데스크톱: 사이드바 + 메인 가로 배치 */}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-auto">{children}</main>
+      </div>
     </div>
   );
 }

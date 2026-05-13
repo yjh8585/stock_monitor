@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useChartHeight } from '@/lib/useChartHeight';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { OemSalesGroupPtMonth, PowerTrain } from '@/lib/types';
 import { fmtFull, fmtUnits, shortenOemName, OEM_COLORS, PT_COLORS, PT_ORDER } from './helpers';
@@ -17,6 +18,7 @@ const YEAR_END = 202512;
 /** PowerTrain별 OEM TOP10 — 탭 전환 + 가로 막대 */
 export default function PowertrainTopOems({ groupPtMonth }: Props) {
   const [active, setActive] = useState<PowerTrain>('EV');
+  const h = useChartHeight(240, 320, 400);
 
   const { data, total } = useMemo(() => {
     const sumByGroup = new Map<string, number>();
@@ -81,7 +83,7 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
       {data.length === 0 ? (
         <div className="text-sm text-muted-foreground py-12 text-center">{active} 데이터 없음</div>
       ) : (
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={h}>
           <BarChart data={data} layout="vertical" margin={{ left: 60, right: 40 }}>
             <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
             <YAxis

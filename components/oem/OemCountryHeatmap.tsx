@@ -24,13 +24,13 @@ export default function OemCountryHeatmap({ data }: Props) {
         <caption className="sr-only">TOP10 OEM별 TOP10 국가 판매량 매트릭스 (2025년)</caption>
         <thead>
           <tr>
-            <th className="sticky left-0 bg-card p-2 text-left border-b border-border min-w-[200px]">
+            <th className="sticky left-0 bg-card p-2 text-left border-b border-border min-w-[120px] md:min-w-[200px]">
               OEM \ 국가
             </th>
             {countries.map((c) => (
               <th
                 key={c}
-                className="p-2 text-center border-b border-border font-medium min-w-[80px] text-muted-foreground"
+                className="p-2 text-center border-b border-border font-medium min-w-[56px] md:min-w-[80px] text-muted-foreground"
               >
                 {c}
               </th>

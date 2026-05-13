@@ -15,7 +15,9 @@ import type { OemCountryMatrix } from './OemCountryHeatmap';
 
 // 차트 컴포넌트는 모두 recharts 의존 — 클라이언트 번들 최소화 위해 동적 import.
 // KpiCards는 가벼운 div 카드라 정적 import.
-const ChartFallback = () => <div className="h-[400px] bg-muted/20 animate-pulse rounded" />;
+const ChartFallback = () => (
+  <div className="h-[220px] md:h-[400px] bg-muted/20 animate-pulse rounded" />
+);
 
 const MarketTrendChart = dynamic(() => import('./MarketTrendChart'), {
   ssr: false,

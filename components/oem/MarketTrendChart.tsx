@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useChartHeight } from '@/lib/useChartHeight';
 import {
   Area,
   AreaChart,
@@ -24,6 +25,7 @@ type ViewMode = 'year' | 'month';
 /** 글로벌 시장 추이 — 연/월 토글 (기본 연간) */
 export default function MarketTrendChart({ groupMonth }: Props) {
   const [mode, setMode] = useState<ViewMode>('year');
+  const h = useChartHeight(200, 240, 280);
 
   const monthData = useMemo(
     () =>
@@ -90,7 +92,7 @@ export default function MarketTrendChart({ groupMonth }: Props) {
         )}
       </div>
 
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={h}>
         {mode === 'year' ? (
           <BarChart data={yearData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />

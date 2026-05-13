@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useChartHeight } from '@/lib/useChartHeight';
 import {
   Bar,
   BarChart,
@@ -24,6 +25,7 @@ const YEAR_END = 202512;
 
 /** EV 대전 — 좌: TOP10 EV 판매량 / 우: 같은 OEM의 EV 비율 (%) */
 export default function EvLeadersChart({ groupPtMonth }: Props) {
+  const h = useChartHeight(220, 300, 360);
   const { sales, ratio } = useMemo(() => {
     const ptByGroup = ptSumByGroup(groupPtMonth, YEAR_START, YEAR_END);
 
@@ -67,7 +69,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
         <div className="text-xs font-medium text-muted-foreground mb-2">
           EV+PHEV 판매량 TOP10 (2025)
         </div>
-        <ResponsiveContainer width="100%" height={360}>
+        <ResponsiveContainer width="100%" height={h}>
           <BarChart data={sales} layout="vertical" margin={{ left: 40, right: 30 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
@@ -100,7 +102,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
         <div className="text-xs font-medium text-muted-foreground mb-2">
           EV 비율 TOP10 — 전체 50만 대 이상 OEM (2025)
         </div>
-        <ResponsiveContainer width="100%" height={360}>
+        <ResponsiveContainer width="100%" height={h}>
           <BarChart data={ratio} layout="vertical" margin={{ left: 40, right: 30 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis

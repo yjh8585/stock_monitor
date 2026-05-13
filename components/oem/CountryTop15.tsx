@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useChartHeight } from '@/lib/useChartHeight';
 import { fmtFull, fmtUnits, OEM_COLORS } from './helpers';
 
 export interface CountryTop15Row {
@@ -15,6 +16,9 @@ interface Props {
 
 /** 국가별 판매량 TOP15 (서버에서 사전 가공된 결과 받기). Tooltip에 수치+비중 표시. */
 export default function CountryTop15({ rows }: Props) {
+  const rowHeight = useChartHeight(18, 22, 26); // sm:18px, md:22px, lg:26px
+  const minH = useChartHeight(200, 280, 360); // sm:200, md:280, lg:360
+
   const { data, total } = useMemo(() => {
     const t = rows.reduce((s, r) => s + r.sales, 0);
     const d = rows.map((r, i) => ({ ...r, color: OEM_COLORS[i % OEM_COLORS.length] }));
@@ -22,7 +26,7 @@ export default function CountryTop15({ rows }: Props) {
   }, [rows]);
 
   return (
-    <ResponsiveContainer width="100%" height={Math.max(360, rows.length * 26)}>
+    <ResponsiveContainer width="100%" height={Math.max(minH, rows.length * rowHeight)}>
       <BarChart data={data} layout="vertical" margin={{ left: 60, right: 40 }}>
         <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
         <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} interval={0} />
