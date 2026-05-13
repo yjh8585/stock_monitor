@@ -1,4 +1,5 @@
 import logger from '@/lib/logger';
+import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
 import type { CreatePostInput } from '@/lib/reports/dto/post.dto';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import type { PostInsert, PostRow } from '@/lib/reports/types';
@@ -8,6 +9,27 @@ import { analyzeReportWebpage } from './report-web.service';
 import { analyzeYoutubeVideo } from './youtube.service';
 
 const TEMP_TITLE = '⏳ 본문 생성 중…';
+
+const CATEGORY_LIST = ['로봇', '기술', '부품사', '전기차', '자율주행', '시장', 'OEM'];
+
+/** 제목 기반으로 카테고리를 Claude로 분류. 실패 시 null 반환. */
+async function classifyCategory(title: string): Promise<string | null> {
+  try {
+    const client = getAnthropicClient();
+    const r = await client.messages.create({
+      model: CLAUDE_SUMMARY_MODEL,
+      max_tokens: 30,
+      messages: [{
+        role: 'user',
+        content: `제목: "${title}"\n\n위 제목을 다음 중 하나로 분류: ${CATEGORY_LIST.join(', ')}.\n카테고리 이름만 반환 (없으면 적합한 한 단어).`,
+      }],
+    });
+    const text = r.content.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('').trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 게시글 라이프사이클을 관리하는 서비스.
@@ -64,6 +86,7 @@ export class PostService {
 
   private async processYoutube(id: number, sourceUrl: string) {
     const result = await analyzeYoutubeVideo(sourceUrl);
+    const category = await classifyCategory(result.title);
     await this.repo.update(id, {
       title: result.title,
       source_name: result.channelName,
@@ -71,6 +94,7 @@ export class PostService {
       thumbnail_url: result.thumbnailUrl,
       content: result.content,
       key_scenes: result.keyScenes,
+      category,
       status: 'completed',
     });
     logger.info({ id }, '유튜브 게시글 처리 완료');
@@ -83,6 +107,7 @@ export class PostService {
       source_name: result.organizationName,
       source_published_at: result.publishedAt,
       content: result.content,
+      category: result.category,
       status: 'completed',
     });
     logger.info({ id }, '보고서 웹 게시글 처리 완료');
@@ -95,6 +120,7 @@ export class PostService {
       source_name: result.organizationName,
       source_published_at: result.publishedAt,
       content: result.content,
+      category: result.category,
       status: 'completed',
     });
     logger.info({ id }, '보고서 PDF 게시글 처리 완료');

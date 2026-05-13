@@ -87,3 +87,5 @@ review/*.tmp.md
 # scripts probe dump
 scripts/_shipping_dump/
 scripts/_tmp/
+
+.vercel

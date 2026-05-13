@@ -9,6 +9,7 @@ export interface ReportPdfSummaryResult {
   organizationName: string;
   publishedAt: string | null;
   content: string;
+  category: string | null;
 }
 
 const REPORTS_BUCKET = 'reports';
@@ -42,6 +43,7 @@ export async function analyzeReportPdf(filePath: string): Promise<ReportPdfSumma
     organizationName: summary.organizationName,
     publishedAt: summary.publishedAt,
     content,
+    category: summary.category,
   };
 }
 
@@ -67,6 +69,7 @@ interface SummarizeOutput {
   organizationName: string;
   publishedAt: string | null;
   summaryMarkdown: string;
+  category: string | null;
 }
 
 const REPORT_SYSTEM_PROMPT = `당신은 한국어로 작성하는 정책/리서치 큐레이터입니다.
@@ -87,6 +90,7 @@ const REPORT_SYSTEM_PROMPT = `당신은 한국어로 작성하는 정책/리서�
 7. 중요한 수치/주장은 **굵게**, 통계는 단위·기준연도를 함께 명시.
 8. 마지막에 ## 핵심 정리 섹션으로 5~8개 불릿 요약. 각 불릿은 1~2문장.
 9. organizationName 은 발행 기관/저자, publishedAt 은 yyyy-mm-dd. 모르면 null.
+10. category: 다음 목록 중 가장 적합한 것 선택 → ["로봇", "기술", "부품사", "전기차", "자율주행", "시장", "OEM"]. 해당 없으면 짧은 새 키워드 1개.
 
 분량: summaryMarkdown 은 한국어 최소 2,500자 이상. 너무 짧게 끝내지 마세요.`;
 
@@ -108,7 +112,8 @@ ${manifest}
   "title": string,
   "organizationName": string,
   "publishedAt": string|null,
-  "summaryMarkdown": string
+  "summaryMarkdown": string,
+  "category": string
 }`;
 
   const response = await client.messages.create({
@@ -151,6 +156,7 @@ ${manifest}
       organizationName: parsed.organizationName,
       publishedAt: parsed.publishedAt ?? null,
       summaryMarkdown: parsed.summaryMarkdown,
+      category: parsed.category ?? null,
     };
   } catch (err) {
     logger.error({ err, cleaned }, 'Claude PDF 응답 JSON 파싱 실패');

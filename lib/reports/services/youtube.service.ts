@@ -77,6 +77,7 @@ export interface YoutubeSummaryResult {
   thumbnailUrl: string | null;
   content: string;
   keyScenes: KeyScene[];
+  category: string | null;
 }
 
 interface YoutubeMetadata {
@@ -126,6 +127,7 @@ export async function analyzeYoutubeVideo(videoUrl: string): Promise<YoutubeSumm
       (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null),
     content,
     keyScenes: [],
+    category: null, // post.service에서 title 기반으로 분류
   };
 }
 

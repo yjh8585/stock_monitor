@@ -13,6 +13,7 @@ export interface ReportWebSummaryResult {
   publishedAt: string | null;
   content: string;
   reportFileUrl: string | null;
+  category: string | null;
 }
 
 /**
@@ -47,16 +48,23 @@ export async function analyzeReportWebpage(url: string): Promise<ReportWebSummar
     publishedAt: summary.publishedAt,
     content,
     reportFileUrl: pdfLink ? new URL(pdfLink, baseUrl).toString() : null,
+    category: summary.category,
   };
 }
 
 async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-    },
-  });
+  const headers: Record<string, string> = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+    Referer: 'https://www.marklines.com/en/',
+  };
+
+  if (url.includes('marklines.com') && process.env.MARKLINES_COOKIE) {
+    headers['Cookie'] = process.env.MARKLINES_COOKIE;
+  }
+
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     throw new Error(`보고서 페이지 다운로드 실패 (${res.status})`);
   }
@@ -76,7 +84,14 @@ function extractArticle(
   html: string,
   baseUrl: string
 ): { article: ArticleResult | null; pdfLink: string | null; baseUrl: string } {
-  const dom = new JSDOM(html, { url: baseUrl });
+  let dom: InstanceType<typeof JSDOM>;
+  try {
+    dom = new JSDOM(html, { url: baseUrl });
+  } catch {
+    // inline style 속성에 잘못된 CSS(calc 등)가 있을 때 JSDOM이 throw — 제거 후 재시도
+    const sanitized = html.replace(/\sstyle="[^"]*"/gi, '');
+    dom = new JSDOM(sanitized, { url: baseUrl });
+  }
   const document = dom.window.document;
 
   const pdfLink = findPdfLink(document);
@@ -164,6 +179,7 @@ interface SummarizeOutput {
   organizationName: string;
   publishedAt: string | null;
   summaryMarkdown: string;
+  category: string | null;
 }
 
 const REPORT_SYSTEM_PROMPT = `당신은 한국어로 작성하는 정책/리서치 큐레이터입니다.
@@ -182,6 +198,7 @@ const REPORT_SYSTEM_PROMPT = `당신은 한국어로 작성하는 정책/리서�
 6. 중요한 수치/주장은 **굵게**, 통계는 단위·기준연도를 함께 명시.
 7. 마지막에 ## 핵심 정리 섹션으로 5~8개 불릿 요약. 각 불릿은 1~2문장.
 8. organizationName 은 발행 기관/저자, publishedAt 은 yyyy-mm-dd. 모르면 null.
+9. category: 다음 목록 중 가장 적합한 것 선택 → ["로봇", "기술", "부품사", "전기차", "자율주행", "시장", "OEM"]. 해당 없으면 짧은 새 키워드 1개.
 
 분량: summaryMarkdown 은 한국어 최소 2,500자 이상. 너무 짧게 끝내지 마세요.`;
 
@@ -208,15 +225,18 @@ ${input.bodyMarkdown}
   "title": string,            // 한국어 제목
   "organizationName": string, // 발행기관/저자
   "publishedAt": string|null, // yyyy-mm-dd
-  "summaryMarkdown": string   // Markdown 본문 (원본 표/이미지 포함)
+  "summaryMarkdown": string,  // Markdown 본문 (원본 표/이미지 포함)
+  "category": string          // 카테고리
 }`;
 
-  const response = await client.messages.create({
+  // max_tokens > 약 21000 이면 Anthropic SDK가 스트리밍을 강제하므로 stream() 사용
+  const stream = client.messages.stream({
     model: CLAUDE_SUMMARY_MODEL,
-    max_tokens: 16000,
+    max_tokens: 32000,
     system: REPORT_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
+  const response = await stream.finalMessage();
 
   const text = collectText(response.content);
   return parseJsonOutput(text);
@@ -248,9 +268,33 @@ function parseJsonOutput(text: string): SummarizeOutput {
       organizationName: parsed.organizationName,
       publishedAt: parsed.publishedAt ?? null,
       summaryMarkdown: parsed.summaryMarkdown,
+      category: parsed.category ?? null,
     };
   } catch (err) {
-    logger.error({ err, cleaned }, 'Claude 응답 JSON 파싱 실패');
-    throw new Error('Claude 응답을 JSON 으로 파싱할 수 없습니다.');
+    logger.warn({ err }, 'Claude 응답 JSON 파싱 실패 — 필드 직접 추출 시도');
+
+    // JSON 잘림 등 파싱 실패 시 정규식으로 핵심 필드 추출
+    const title = cleaned.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? '보고서';
+    const org = cleaned.match(/"organizationName"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? '';
+    const pub = cleaned.match(/"publishedAt"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"/)?.[1] ?? null;
+
+    // summaryMarkdown 값: 키 이후 내용을 전부 사용 (JSON이 잘렸어도 최대한 보존)
+    const mdKeyIdx = cleaned.indexOf('"summaryMarkdown"');
+    const mdRaw = mdKeyIdx >= 0 ? cleaned.slice(mdKeyIdx + '"summaryMarkdown"'.length) : cleaned;
+    const mdContent = mdRaw.replace(/^\s*:\s*"?/, '').replace(/"?\s*\}?\s*$/, '');
+
+    if (!mdContent.trim()) {
+      logger.error({ err, cleaned }, 'Claude 응답에서 summaryMarkdown 추출 불가');
+      throw new Error('Claude 응답을 파싱할 수 없습니다.');
+    }
+
+    const category = cleaned.match(/"category"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? null;
+    return {
+      title: title.replace(/\\"/g, '"'),
+      organizationName: org.replace(/\\"/g, '"'),
+      publishedAt: pub,
+      summaryMarkdown: mdContent.replace(/\\n/g, '\n').replace(/\\"/g, '"'),
+      category: category?.replace(/\\"/g, '"') ?? null,
+    };
   }
 }
