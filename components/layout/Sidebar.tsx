@@ -116,7 +116,12 @@ export default function Sidebar() {
         )}
       >
         {!collapsed && (
-          <span className="text-sm font-semibold text-foreground truncate">Stock Monitor</span>
+          <Link
+            href="/related-stocks"
+            className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors"
+          >
+            한세모빌리티 BI
+          </Link>
         )}
         <button
           onClick={() => setCollapsed((v) => !v)}

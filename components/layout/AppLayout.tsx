@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import Sidebar, { MobileNav } from './Sidebar';
@@ -35,7 +36,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <MobileNav onClose={() => setMobileOpen(false)} />
           </SheetContent>
         </Sheet>
-        <span className="ml-3 text-sm font-semibold">Stock Monitor</span>
+        <Link
+          href="/related-stocks"
+          className="ml-3 text-sm font-semibold hover:text-primary transition-colors"
+        >
+          한세모빌리티 BI
+        </Link>
       </div>
       {/* 데스크톱: 사이드바 + 메인 가로 배치 */}
       <div className="flex flex-1 overflow-hidden">
