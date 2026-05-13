@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ModelMonthlySeries } from '@/lib/types';
+import { useChartHeight } from '@/lib/useChartHeight';
 import { fmtFull, fmtUnits } from './helpers';
 
 interface Props {
@@ -34,7 +35,7 @@ export default function ModelNorthAmericaCharts({ series }: Props) {
         대상: 미국(USA) 시장 · Stellantis(Grand Cherokee·Pacifica·Ram P/U) / Rivian(R1T+R1S) /
         Volkswagen(Atlas)
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {series.map((s) => (
           <ModelChart key={s.key} series={s} />
         ))}
@@ -45,11 +46,12 @@ export default function ModelNorthAmericaCharts({ series }: Props) {
 
 function ModelChart({ series }: { series: ModelMonthlySeries }) {
   const data = series.data;
+  const h = useChartHeight(220, 280, 320);
   return (
     <div className="rounded-md border border-border bg-card p-3">
       <div className="text-sm font-medium mb-1">{series.label}</div>
       <div className="text-[10px] text-muted-foreground mb-2">{series.oemGroup}</div>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={h}>
         <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="ymLabel" tick={{ fontSize: 9 }} interval={11} />
