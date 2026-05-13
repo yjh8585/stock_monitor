@@ -128,6 +128,7 @@ export default function MetricCard({ metric, companies }: Props) {
                 style={{
                   display: 'flex',
                   flexWrap: 'wrap',
+                  justifyContent: 'center',
                   gap: '6px 10px',
                   fontSize: 11,
                   listStyle: 'none',
