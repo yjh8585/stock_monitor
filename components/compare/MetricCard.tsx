@@ -122,24 +122,44 @@ export default function MetricCard({ metric, companies }: Props) {
           />
           <Legend
             verticalAlign="top"
-            wrapperStyle={{ fontSize: 11, paddingBottom: 4, cursor: 'pointer' }}
-            onClick={(payload) => {
-              if (typeof payload.dataKey === 'string') toggleHidden(payload.dataKey);
-            }}
-            formatter={(value, entry) => {
-              const id = typeof entry?.dataKey === 'string' ? entry.dataKey : '';
-              const hidden = hiddenIds.has(id);
-              return (
-                <span
-                  style={{
-                    opacity: hidden ? 0.4 : 1,
-                    textDecoration: hidden ? 'line-through' : 'none',
-                  }}
-                >
-                  {value}
-                </span>
-              );
-            }}
+            wrapperStyle={{ paddingBottom: 4 }}
+            content={() => (
+              <ul
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '6px 10px',
+                  fontSize: 11,
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: '0 0 4px 0',
+                  cursor: 'pointer',
+                }}
+              >
+                {sortedCompanies.map((c) => {
+                  const hidden = hiddenIds.has(c.id);
+                  return (
+                    <li
+                      key={c.id}
+                      onClick={() => toggleHidden(c.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <svg width="10" height="10" style={{ flexShrink: 0 }}>
+                        <rect width="10" height="10" rx="2" fill={hidden ? '#aaa' : c.color} />
+                      </svg>
+                      <span
+                        style={{
+                          opacity: hidden ? 0.4 : 1,
+                          textDecoration: hidden ? 'line-through' : 'none',
+                        }}
+                      >
+                        {c.name}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           />
           {sortedCompanies.map((c) => {
             const isPrimary = c.name === FIXED_PRIMARY_NAME;
