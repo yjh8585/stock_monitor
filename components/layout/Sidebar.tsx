@@ -11,6 +11,7 @@ import {
   Factory,
   Cog,
   Info,
+  FileText,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -30,6 +31,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { label: '국내자동차', href: '/domestic', Icon: Car },
   { label: 'OEM', href: '/oem', Icon: Factory },
   { label: '부품사 TOP100', href: '/parts-top100', Icon: Cog },
+  { label: '보고서', href: '/reports', Icon: FileText },
   {
     label: '기타',
     href: '/etc',
