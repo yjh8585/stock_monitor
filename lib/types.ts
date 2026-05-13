@@ -24,6 +24,7 @@ export interface FinancialYear {
 
 export interface ProductItem {
   name: string;
+  category?: string;
   share_pct?: number;
 }
 

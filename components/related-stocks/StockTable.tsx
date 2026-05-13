@@ -12,19 +12,6 @@ import FilterBar, {
 } from './FilterBar';
 import StockRow from './StockRow';
 
-/** 제품군별 회사 매핑 — name_kr 기준 (DB 데이터와 정확히 일치해야 함) */
-const PRODUCT_CATEGORY_COMPANIES: Record<ProductCategoryFilter, ReadonlySet<string>> = {
-  하프샤프트: new Set([
-    'JTEKT',
-    'NTN',
-    '넥스티어',
-    '서한이노빌리티',
-    '한국무브넥스',
-    '현대위아',
-    '한세모빌리티',
-  ]),
-  조향: new Set(['현대모비스', 'HL만도', '남양넥스모', '한세모빌리티']),
-};
 
 interface StockTableProps {
   rows: RelatedStockRow[];
@@ -108,6 +95,8 @@ export default function StockTable({ rows, rates }: StockTableProps) {
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
 
+  const handleProductCategoryReset = () => setProductCategoryFilter([]);
+
   const filtered = useMemo(() => {
     let result = rows;
     if (typeFilter.length > 0) {
@@ -124,21 +113,19 @@ export default function StockTable({ rows, rates }: StockTableProps) {
       result = result.filter((r) => (r.country === 'KR') === wantDomestic);
     }
     if (productCategoryFilter.length > 0) {
-      const allowed = new Set<string>();
-      for (const cat of productCategoryFilter) {
-        for (const name of PRODUCT_CATEGORY_COMPANIES[cat]) allowed.add(name);
-      }
-      result = result.filter((r) => allowed.has(r.name_kr));
+      result = result.filter((r) =>
+        r.products.some((p) => productCategoryFilter.includes(p.category as ProductCategoryFilter))
+      );
     }
     return result;
   }, [rows, typeFilter, listingFilter, regionFilter, productCategoryFilter]);
 
   const sorted = useMemo(() => {
-    // 기본 정렬(sortKey=null): OEM 먼저(매출 내림차순) → 부품사(매출 내림차순)
+    // 기본 정렬(sortKey=null): 부품사 먼저(매출 내림차순) → OEM(매출 내림차순)
     if (!sortKey) {
       const revKey = `rev_${latestDataYear}` as SortKey;
       const typeRank = (t: RelatedStockRow['company_type']) =>
-        t === 'OEM' ? 0 : t === '부품사' ? 1 : 2;
+        t === '부품사' ? 0 : t === 'OEM' ? 1 : 2;
       return [...filtered].sort((a, b) => {
         const tr = typeRank(a.company_type) - typeRank(b.company_type);
         if (tr !== 0) return tr;
@@ -172,6 +159,7 @@ export default function StockTable({ rows, rates }: StockTableProps) {
         onListingToggle={handleListingToggle}
         onRegionToggle={handleRegionToggle}
         onProductCategoryToggle={handleProductCategoryToggle}
+        onProductCategoryReset={handleProductCategoryReset}
         rates={rates}
       />
       <StickyTable

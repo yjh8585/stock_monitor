@@ -62,6 +62,7 @@ export default function DomesticTable({
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
   const [listingFilter, setListingFilter] = useState<DomesticListingFilter[]>(['상장', '비상장']);
   const [productQuery, setProductQuery] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<string[]>([]);
   const [showAllRows, setShowAllRows] = useState(false);
 
   /** 100위까지 + 한세모빌리티 순위(있으면). enableRankCutoff=false면 null. */
@@ -114,6 +115,11 @@ export default function DomesticTable({
         return listingFilter.includes(isListed ? '상장' : '비상장');
       });
     }
+    if (productCategoryFilter.length > 0) {
+      result = result.filter((r) =>
+        r.products.some((p) => productCategoryFilter.includes(p.category ?? '기타'))
+      );
+    }
     if (productQuery.trim()) {
       const q = productQuery.trim().toLowerCase();
       result = result.filter((r) => r.products.some((p) => p.name.toLowerCase().includes(q)));
@@ -122,7 +128,7 @@ export default function DomesticTable({
       result = result.filter((r) => r.sales_rank != null && r.sales_rank <= rankCutoff);
     }
     return result;
-  }, [rows, groupFilter, listingFilter, productQuery, rankCutoff, showAllRows]);
+  }, [rows, groupFilter, listingFilter, productQuery, productCategoryFilter, rankCutoff, showAllRows]);
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered; // 서버에서 sales_rank ASC 로 정렬되어 옴
@@ -144,10 +150,17 @@ export default function DomesticTable({
         groupFilter={groupFilter}
         listingFilter={listingFilter}
         productQuery={productQuery}
+        productCategoryFilter={productCategoryFilter}
         onGroupToggle={handleGroupToggle}
         onGroupReset={() => setGroupFilter([])}
         onListingToggle={handleListingToggle}
         onProductChange={setProductQuery}
+        onProductCategoryToggle={(cat) =>
+          setProductCategoryFilter((prev) =>
+            prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+          )
+        }
+        onProductCategoryReset={() => setProductCategoryFilter([])}
         rates={rates}
         groupLabel={groupLabel}
         showAllToggle={rankCutoff != null}

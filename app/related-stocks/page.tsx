@@ -16,7 +16,7 @@ async function getRelatedStocksData() {
     supabase
       .from('related_stocks_view')
       .select('*')
-      .order('company_type', { ascending: true })
+      .order('company_type', { ascending: false })
       .order('name_kr', { ascending: true }),
     supabase.from('exchange_rates_live').select('base,rate').in('base', ['USD', 'EUR', 'CNY']),
   ]);
