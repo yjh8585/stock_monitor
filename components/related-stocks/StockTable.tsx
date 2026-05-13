@@ -169,7 +169,12 @@ export default function StockTable({ rows, rates }: StockTableProps) {
         frozenCount={isMobile ? 2 : FROZEN_COUNT}
         getRowKey={(row) => row.id}
         renderRow={(row, { colCount }) => (
-          <StockRow row={row} latestYear={latestDataYear} colCount={colCount} />
+          <StockRow
+            row={row}
+            latestYear={latestDataYear}
+            colCount={colCount}
+            frozenCount={isMobile ? 2 : FROZEN_COUNT}
+          />
         )}
         sortKey={sortKey}
         sortDir={sortDir}

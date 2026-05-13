@@ -144,10 +144,17 @@ interface CompanyNameCellProps {
   stickyLeftStyle: React.CSSProperties;
   /** 회사명 우측에 띄울 액션 (예: NewsModal). null 시 생략. */
   rightAction?: React.ReactNode;
+  /** td에 추가할 클래스 (예: 마지막 frozen 셀 shadow) */
+  tdClassName?: string;
 }
 
 /** 회사명 셀 — 클릭 시 stock-popup/yahoo/homepage 새 창. delisted/비상장 스타일 분기 */
-export function CompanyNameCell({ row, stickyLeftStyle, rightAction }: CompanyNameCellProps) {
+export function CompanyNameCell({
+  row,
+  stickyLeftStyle,
+  rightAction,
+  tdClassName,
+}: CompanyNameCellProps) {
   const isUnlisted = !row.market;
   const linkClass =
     row.status === 'delisted'
@@ -159,7 +166,7 @@ export function CompanyNameCell({ row, stickyLeftStyle, rightAction }: CompanyNa
           : 'text-muted-foreground cursor-default';
 
   return (
-    <td className={TD} style={stickyLeftStyle}>
+    <td className={tdClassName ? `${TD} ${tdClassName}` : TD} style={stickyLeftStyle}>
       <div className="flex items-center gap-0.5">
         <button
           onClick={() => openCompanyLink(row)}

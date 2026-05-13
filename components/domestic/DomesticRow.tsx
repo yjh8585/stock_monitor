@@ -17,6 +17,7 @@ interface DomesticRowProps {
   row: DomesticStockRow;
   latestYear: string;
   colCount: number;
+  frozenCount: number;
 }
 
 const GROUP_BADGE_PALETTE = [
@@ -41,7 +42,12 @@ function groupBadgeStyle(group: string | null): string {
 }
 
 /** 국내자동차 표 단일 행 — 좌측 frozen 4칸(그룹/회사명/제품/고객사) + 공통 재무 셀 */
-const DomesticRow = memo(function DomesticRow({ row, latestYear, colCount }: DomesticRowProps) {
+const DomesticRow = memo(function DomesticRow({
+  row,
+  latestYear,
+  colCount,
+  frozenCount,
+}: DomesticRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [highlighted, setHighlighted] = useState(false);
@@ -102,6 +108,7 @@ const DomesticRow = memo(function DomesticRow({ row, latestYear, colCount }: Dom
         <CompanyNameCell
           row={row}
           stickyLeftStyle={stickyLeftStyle(1, frozenBg)}
+          tdClassName={frozenCount === 2 ? 'shadow-[2px_0_6px_rgba(0,0,0,0.10)]' : undefined}
           rightAction={
             <NewsModal
               companyId={row.id}
@@ -112,10 +119,10 @@ const DomesticRow = memo(function DomesticRow({ row, latestYear, colCount }: Dom
           }
         />
 
-        {/* 제품 + 펼침 — frozen 2 */}
+        {/* 제품 — frozenCount>2일 때만 frozen 2 */}
         <td
-          className={`${TD} shadow-[2px_0_6px_rgba(0,0,0,0.10)]`}
-          style={stickyLeftStyle(2, frozenBg)}
+          className={`${TD} ${frozenCount > 2 ? 'shadow-[2px_0_6px_rgba(0,0,0,0.10)]' : ''}`}
+          style={frozenCount > 2 ? stickyLeftStyle(2, frozenBg) : undefined}
         >
           <ProductCell
             products={row.products}

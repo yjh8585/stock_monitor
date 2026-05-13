@@ -18,10 +18,11 @@ interface StockRowProps {
   row: RelatedStockRow;
   latestYear: string;
   colCount: number;
+  frozenCount: number;
 }
 
 /** 관련주식 표 단일 행 — 좌측 frozen 5칸(구분/회사명/제품/고객사/지역) + 공통 재무 셀 */
-const StockRow = memo(function StockRow({ row, latestYear, colCount }: StockRowProps) {
+const StockRow = memo(function StockRow({ row, latestYear, colCount, frozenCount }: StockRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [highlighted, setHighlighted] = useState(false);
@@ -77,6 +78,7 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount }: StockRowP
         <CompanyNameCell
           row={row}
           stickyLeftStyle={stickyLeftStyle(1, frozenBg)}
+          tdClassName={frozenCount === 2 ? 'shadow-[2px_0_6px_rgba(0,0,0,0.10)]' : undefined}
           rightAction={
             <NewsModal
               companyId={row.id}
@@ -87,10 +89,10 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount }: StockRowP
           }
         />
 
-        {/* 제품 + 펼침 — frozen 2 */}
+        {/* 제품 — frozenCount>2일 때만 frozen 2 */}
         <td
-          className={`${TD} shadow-[2px_0_6px_rgba(0,0,0,0.10)]`}
-          style={stickyLeftStyle(2, frozenBg)}
+          className={`${TD} ${frozenCount > 2 ? 'shadow-[2px_0_6px_rgba(0,0,0,0.10)]' : ''}`}
+          style={frozenCount > 2 ? stickyLeftStyle(2, frozenBg) : undefined}
         >
           <ProductCell
             products={row.products}

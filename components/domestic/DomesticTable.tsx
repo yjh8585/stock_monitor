@@ -183,7 +183,12 @@ export default function DomesticTable({
         frozenCount={isMobile ? 2 : FROZEN_COUNT}
         getRowKey={(row) => row.id}
         renderRow={(row, { colCount }) => (
-          <DomesticRow row={row} latestYear={latestDataYear} colCount={colCount} />
+          <DomesticRow
+            row={row}
+            latestYear={latestDataYear}
+            colCount={colCount}
+            frozenCount={isMobile ? 2 : FROZEN_COUNT}
+          />
         )}
         sortKey={sortKey}
         sortDir={sortDir}
