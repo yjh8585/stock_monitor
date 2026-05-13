@@ -1,7 +1,9 @@
-import { updateTag } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { after, NextResponse } from 'next/server';
 
 import logger from '@/lib/logger';
+
+export const maxDuration = 300; // PDF/웹 분석은 Claude API 호출로 최대 5분 소요
 import { fail, ok } from '@/lib/reports/dto/api.dto';
 import { createPostInputSchema, postListQuerySchema } from '@/lib/reports/dto/post.dto';
 import { PostService } from '@/lib/reports/services/post.service';
@@ -53,13 +55,13 @@ export async function POST(req: Request) {
     const row = await postService.createInitial(input);
 
     // 신규 글 — 목록 캐시 즉시 무효화
-    updateTag('posts');
+    revalidateTag('posts', 'max');
 
     after(async () => {
       await postService.runBackground(row.id, input);
       // 본문 완료/실패 후 상세·목록 캐시 갱신
-      updateTag('posts');
-      updateTag(`post:${row.id}`);
+      revalidateTag('posts', 'max');
+      revalidateTag(`post:${row.id}`, 'max');
     });
 
     return NextResponse.json(ok({ id: row.id, status: row.status }), { status: 202 });

@@ -1,4 +1,4 @@
-import { updateTag } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 
 import logger from '@/lib/logger';
@@ -40,8 +40,8 @@ export async function DELETE(_req: Request, { params }: RouteContext) {
   try {
     await postService.delete(numericId);
     // 삭제 후 목록·상세 캐시 무효화
-    updateTag('posts');
-    updateTag(`post:${numericId}`);
+    revalidateTag('posts', 'max');
+    revalidateTag(`post:${numericId}`, 'max');
     return NextResponse.json(ok({ id: numericId }));
   } catch (err) {
     logger.error({ err, id: numericId }, '게시글 삭제 실패');
