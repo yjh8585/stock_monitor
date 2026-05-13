@@ -16,7 +16,6 @@ import {
   type FinancialRow,
   type MetricDefinition,
   type MetricUnit,
-  formatKoreanCompact,
   formatMetricTick,
   formatMetricValue,
 } from '@/lib/compareMetrics';
@@ -38,7 +37,7 @@ interface Props {
 const UNIT_LABEL: Record<MetricUnit, string> = {
   percent: '%',
   times: '회',
-  million: '백만원',
+  million: '억원',
 };
 
 /** 단위 없이 숫자만 표시 (데이터 레이블 전용) */
@@ -50,7 +49,8 @@ function formatRaw(v: number | null, unit: MetricUnit): string {
     case 'times':
       return `${v.toFixed(2)}`;
     case 'million':
-      return formatKoreanCompact(v);
+      // 억원 단위로 환산, "억" 텍스트 없이 숫자만
+      return `${Math.round(v / 100)}`;
   }
 }
 
@@ -103,7 +103,11 @@ export default function MetricCard({ metric, companies }: Props) {
         <BarChart data={chartData} margin={{ top: 18, right: 12, bottom: 5, left: 5 }}>
           <XAxis dataKey="year" tick={{ fontSize: 11 }} />
           <YAxis
-            tickFormatter={(v) => formatMetricTick(v, metric.unit)}
+            tickFormatter={(v) =>
+              metric.unit === 'million'
+                ? `${Math.round(v / 100)}`
+                : formatMetricTick(v, metric.unit)
+            }
             tick={{ fontSize: 11 }}
             width={55}
           />
