@@ -85,7 +85,9 @@ export default function PopupNewsSection({ companyId, companyName, ticker, count
     }
 
     loadNews();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [companyId, companyName, isKR]);
 
   return (

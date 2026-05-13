@@ -39,13 +39,15 @@ export default function DualStockCard({ title, unit, source, companies }: Props)
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelection((prev) => ({
         primary: companies.find((c) => c.id === parsed.primary) ? parsed.primary : prev.primary,
-        secondary: companies.find((c) => c.id === parsed.secondary) ? parsed.secondary : prev.secondary,
+        secondary: companies.find((c) => c.id === parsed.secondary)
+          ? parsed.secondary
+          : prev.secondary,
       }));
     } catch {
       // 손상된 데이터 무시
     }
-  // companies 배열은 서버에서 내려온 고정값이므로 의존성에서 제외
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // companies 배열은 서버에서 내려온 고정값이므로 의존성에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
   useEffect(() => {

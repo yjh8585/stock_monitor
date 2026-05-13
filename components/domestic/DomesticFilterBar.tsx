@@ -10,8 +10,18 @@ export type DomesticListingFilter = '상장' | '비상장';
 
 const LISTING_OPTIONS: readonly DomesticListingFilter[] = ['상장', '비상장'];
 const PRODUCT_CATEGORY_OPTIONS = [
-  '엔진', '구동계', '제동', '조향', '차체', '내장',
-  '전장', '배터리', '타이어', '공조', '안전', '기타',
+  '엔진',
+  '구동계',
+  '제동',
+  '조향',
+  '차체',
+  '내장',
+  '전장',
+  '배터리',
+  '타이어',
+  '공조',
+  '안전',
+  '기타',
 ] as const;
 
 interface DomesticFilterBarProps {

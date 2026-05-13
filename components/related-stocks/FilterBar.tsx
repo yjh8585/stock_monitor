@@ -25,8 +25,18 @@ const TYPE_OPTIONS: readonly CompanyTypeFilter[] = ['OEM', '부품사'];
 const LISTING_OPTIONS: readonly ListingFilter[] = ['상장', '비상장'];
 const REGION_OPTIONS: readonly RegionFilter[] = ['국내', '해외'];
 const PRODUCT_CATEGORY_OPTIONS: readonly ProductCategoryFilter[] = [
-  '엔진', '구동계', '제동', '조향', '차체', '내장',
-  '전장', '배터리', '타이어', '공조', '안전', '기타',
+  '엔진',
+  '구동계',
+  '제동',
+  '조향',
+  '차체',
+  '내장',
+  '전장',
+  '배터리',
+  '타이어',
+  '공조',
+  '안전',
+  '기타',
 ];
 
 interface FilterBarProps {
@@ -42,7 +52,15 @@ interface FilterBarProps {
   rates: ExchangeRates;
 }
 
-function ToggleBtn({ label, active, onToggle }: { label: string; active: boolean; onToggle: () => void }) {
+function ToggleBtn({
+  label,
+  active,
+  onToggle,
+}: {
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
       type="button"

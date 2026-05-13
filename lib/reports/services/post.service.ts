@@ -19,12 +19,18 @@ async function classifyCategory(title: string): Promise<string | null> {
     const r = await client.messages.create({
       model: CLAUDE_SUMMARY_MODEL,
       max_tokens: 30,
-      messages: [{
-        role: 'user',
-        content: `제목: "${title}"\n\n위 제목을 다음 중 하나로 분류: ${CATEGORY_LIST.join(', ')}.\n카테고리 이름만 반환 (없으면 적합한 한 단어).`,
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: `제목: "${title}"\n\n위 제목을 다음 중 하나로 분류: ${CATEGORY_LIST.join(', ')}.\n카테고리 이름만 반환 (없으면 적합한 한 단어).`,
+        },
+      ],
     });
-    const text = r.content.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('').trim();
+    const text = r.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b.type === 'text' ? b.text : ''))
+      .join('')
+      .trim();
     return text || null;
   } catch {
     return null;
