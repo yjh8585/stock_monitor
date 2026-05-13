@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { RelatedStockRow, SortKey, ExchangeRates } from '@/lib/types';
+import { useIsMobile } from '@/lib/useIsMobile';
 import { buildFinancialColumns, getFinancialSortValue, resolveLatestYear } from '@/lib/stockSort';
 import StickyTable, { StickyColumn, SortDir } from '@/components/common/StickyTable';
 import FilterBar, {
@@ -11,7 +12,6 @@ import FilterBar, {
   ProductCategoryFilter,
 } from './FilterBar';
 import StockRow from './StockRow';
-
 
 interface StockTableProps {
   rows: RelatedStockRow[];
@@ -55,6 +55,7 @@ function getSortValue(
 
 /** 관련주식 표 (정렬 · 필터 · 좌측 3열 고정) */
 export default function StockTable({ rows, rates }: StockTableProps) {
+  const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [typeFilter, setTypeFilter] = useState<CompanyTypeFilter[]>(['OEM', '부품사']);
@@ -165,7 +166,7 @@ export default function StockTable({ rows, rates }: StockTableProps) {
       <StickyTable
         rows={sorted}
         columns={columns}
-        frozenCount={FROZEN_COUNT}
+        frozenCount={isMobile ? 2 : FROZEN_COUNT}
         getRowKey={(row) => row.id}
         renderRow={(row, { colCount }) => (
           <StockRow row={row} latestYear={latestDataYear} colCount={colCount} />

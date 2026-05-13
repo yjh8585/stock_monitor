@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { DomesticStockRow, DomesticSortKey, ExchangeRates } from '@/lib/types';
+import { useIsMobile } from '@/lib/useIsMobile';
 import { buildFinancialColumns, getFinancialSortValue, resolveLatestYear } from '@/lib/stockSort';
 import StickyTable, { StickyColumn, SortDir } from '@/components/common/StickyTable';
 import DomesticFilterBar, { DomesticListingFilter } from './DomesticFilterBar';
@@ -57,6 +58,7 @@ export default function DomesticTable({
   groupLabel = '그룹',
   enableRankCutoff = false,
 }: DomesticTableProps) {
+  const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState<DomesticSortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
@@ -128,7 +130,15 @@ export default function DomesticTable({
       result = result.filter((r) => r.sales_rank != null && r.sales_rank <= rankCutoff);
     }
     return result;
-  }, [rows, groupFilter, listingFilter, productQuery, productCategoryFilter, rankCutoff, showAllRows]);
+  }, [
+    rows,
+    groupFilter,
+    listingFilter,
+    productQuery,
+    productCategoryFilter,
+    rankCutoff,
+    showAllRows,
+  ]);
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered; // 서버에서 sales_rank ASC 로 정렬되어 옴
@@ -170,7 +180,7 @@ export default function DomesticTable({
       <StickyTable
         rows={sorted}
         columns={columns}
-        frozenCount={FROZEN_COUNT}
+        frozenCount={isMobile ? 2 : FROZEN_COUNT}
         getRowKey={(row) => row.id}
         renderRow={(row, { colCount }) => (
           <DomesticRow row={row} latestYear={latestDataYear} colCount={colCount} />
