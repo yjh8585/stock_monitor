@@ -4,8 +4,15 @@ import { cacheLife, cacheTag } from 'next/cache';
 import { ExternalLink } from 'lucide-react';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import IframePanel from '@/components/stock-popup/IframePanel';
-import { safeDateLabel } from '@/lib/format';
-import { NewsItem } from '@/lib/types';
+import PopupNewsSection from '@/components/stock-popup/PopupNewsSection';
+
+/**
+ * Cache Components 는 dynamic route 에 generateStaticParams 결과를 최소 1개 요구한다.
+ * placeholder 만 prerender 하고 실제 id 는 dynamicParams 로 런타임 생성.
+ */
+export async function generateStaticParams() {
+  return [{ id: '0' }];
+}
 
 function getFnguideUrl(ticker: string): string {
   return `https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A${ticker}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701`;
@@ -62,7 +69,6 @@ async function getCompanyData(id: string) {
   'use cache';
   cacheLife('hours');
   cacheTag(`company:${id}`);
-  cacheTag(`company_news:${id}`);
 
   const supabase = createSupabaseAnonClient();
   const { data: company, error } = await supabase
@@ -72,14 +78,7 @@ async function getCompanyData(id: string) {
     .single();
   if (error || !company) return null;
 
-  const { data: newsData } = await supabase
-    .from('news')
-    .select('id, title, url, source, published_at')
-    .eq('company_id', id)
-    .order('published_at', { ascending: false })
-    .limit(10);
-
-  return { company, news: (newsData ?? []) as NewsItem[] };
+  return { company };
 }
 
 /** params 동적 read + 회사 데이터 fetch (PPR 경계 안에서 await) */
@@ -87,7 +86,7 @@ async function StockPopupBody({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const data = await getCompanyData(id);
   if (!data) notFound();
-  const { company, news } = data;
+  const { company } = data;
 
   const ticker = company.ticker as string;
   const market = (company.market as string) ?? 'NYSE';
@@ -120,38 +119,12 @@ async function StockPopupBody({ params }: { params: Promise<{ id: string }> }) {
 
       {/* 우측 1/4: 최신 뉴스 */}
       <div className="flex flex-col overflow-hidden" style={{ width: '25%' }}>
-        <header className="px-3 py-2 border-b border-border shrink-0">
-          <h2 className="text-sm font-semibold">최신 뉴스</h2>
-        </header>
-        <div className="flex-1 overflow-y-auto">
-          {news.length === 0 ? (
-            <div className="px-3 py-4">
-              <p className="text-xs text-muted-foreground">수집된 뉴스가 없습니다.</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {news.map((item) => {
-                const dateLabel = safeDateLabel(item.published_at);
-                return (
-                  <li key={item.id} className="px-3 py-3">
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium text-foreground hover:underline block leading-snug"
-                    >
-                      {item.title}
-                    </a>
-                    <div className="text-[10px] text-muted-foreground mt-1">
-                      {item.source && <span>{item.source} · </span>}
-                      {dateLabel}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+        <PopupNewsSection
+          companyId={company.id as string}
+          companyName={company.name_kr as string}
+          ticker={ticker}
+          country={company.country as string}
+        />
       </div>
     </div>
   );

@@ -22,12 +22,14 @@ HISTORY_YEARS = 5
 
 
 def _fetchCloseSeries(yf_ticker: str, start: str, end: str) -> pd.Series | None:
-  """yfinance 일봉 Close 시리즈(date → close)를 반환. 빈 응답이면 None."""
-  df = yf.download(yf_ticker, start=start, end=end, progress=False, auto_adjust=True)
+  """yfinance 일봉 Close 시리즈(date → close)를 반환. 빈 응답이면 None.
+
+  yf.download는 최신 버전에서 단일 ticker도 MultiIndex를 반환해 컬럼 처리가
+  불안정하므로, 단순 컬럼을 보장하는 Ticker.history()를 사용한다.
+  """
+  df = yf.Ticker(yf_ticker).history(start=start, end=end, auto_adjust=True)
   if df.empty:
     return None
-  if isinstance(df.columns, pd.MultiIndex):
-    df.columns = df.columns.get_level_values(0)
   close = df['Close'] if 'Close' in df.columns else df.iloc[:, 0]
   if isinstance(close, pd.DataFrame):
     close = close.iloc[:, 0]
