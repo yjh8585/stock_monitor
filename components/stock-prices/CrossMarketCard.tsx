@@ -7,54 +7,54 @@ import type { StockCompany } from '@/lib/types';
 import type { SeriesPoint } from '@/lib/series';
 
 interface Props {
-  title: string;
-  unit: string;
-  source: string;
-  companies: readonly StockCompany[];
-  /** 초기 선택 ticker. localStorage 저장값이 있으면 그쪽이 우선. */
-  defaultTickers?: readonly [string, string];
+  primaryCompanies: readonly StockCompany[];
+  secondaryCompanies: readonly StockCompany[];
+  defaultPrimaryTicker?: string;
+  defaultSecondaryTicker?: string;
 }
 
 const PRIMARY_COLOR = '#2962FF';
 const SECONDARY_COLOR = '#ef4444';
+const STORAGE_KEY = 'stock-cross-market';
 
-/** 한 카드 내에서 두 종목을 선택해 듀얼 Y축 라인 차트로 비교.
- *  시계열은 /api/stock-prices?id=... 로 클라이언트에서 받아 메모리 캐시. */
-export default function DualStockCard({ title, unit, source, companies, defaultTickers }: Props) {
-  const storageKey = `stock-pair-${title}`;
+/** 국내×해외 듀얼 Y축 비교 카드.
+ *  좌축 = 국내(KRW), 우축 = 해외(USD). */
+export default function CrossMarketCard({
+  primaryCompanies,
+  secondaryCompanies,
+  defaultPrimaryTicker,
+  defaultSecondaryTicker,
+}: Props) {
   const [selection, setSelection] = useState(() => {
-    const findId = (ticker: string) =>
-      companies.find((c) => c.ticker === ticker)?.id ?? companies[0]?.id ?? '';
-    if (defaultTickers) {
-      return { primary: findId(defaultTickers[0]), secondary: findId(defaultTickers[1]) };
-    }
-    return { primary: companies[0]?.id ?? '', secondary: companies[1]?.id ?? '' };
+    const findPrimary = (ticker: string) =>
+      primaryCompanies.find((c) => c.ticker === ticker)?.id ?? primaryCompanies[0]?.id ?? '';
+    const findSecondary = (ticker: string) =>
+      secondaryCompanies.find((c) => c.ticker === ticker)?.id ?? secondaryCompanies[0]?.id ?? '';
+    return {
+      primary: defaultPrimaryTicker ? findPrimary(defaultPrimaryTicker) : primaryCompanies[0]?.id ?? '',
+      secondary: defaultSecondaryTicker ? findSecondary(defaultSecondaryTicker) : secondaryCompanies[0]?.id ?? '',
+    };
   });
+
   const [seriesCache, setSeriesCache] = useState<Record<string, SeriesPoint[]>>({});
   const inflightRef = useRef<Set<string>>(new Set());
-
   const { primary, secondary } = selection;
 
-  // 마운트 시 localStorage에서 선택값 복원 (단일 상태 업데이트로 cascading render 방지)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
+      const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) return;
       const parsed = JSON.parse(saved) as { primary: string; secondary: string };
-      // localStorage는 브라우저 전용 외부 시스템 — useEffect에서 setState는 의도된 패턴
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelection((prev) => ({
-        primary: companies.find((c) => c.id === parsed.primary) ? parsed.primary : prev.primary,
-        secondary: companies.find((c) => c.id === parsed.secondary)
-          ? parsed.secondary
-          : prev.secondary,
+        primary: primaryCompanies.find((c) => c.id === parsed.primary) ? parsed.primary : prev.primary,
+        secondary: secondaryCompanies.find((c) => c.id === parsed.secondary) ? parsed.secondary : prev.secondary,
       }));
     } catch {
       // 손상된 데이터 무시
     }
-    // companies 배열은 서버에서 내려온 고정값이므로 의존성에서 제외
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, []);
 
   useEffect(() => {
     const toFetch = [primary, secondary].filter(
@@ -84,60 +84,51 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
       if (cancelled) return;
       setSeriesCache((prev) => {
         const next = { ...prev };
-        for (const [id, series] of entries) next[id] = series;
+        for (const [id, s] of entries) next[id] = s;
         return next;
       });
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [primary, secondary, seriesCache]);
 
   const series = useMemo<MultiSeriesItem[]>(() => {
     const items: MultiSeriesItem[] = [];
-    const primaryCompany = companies.find((c) => c.id === primary);
+    const primaryCompany = primaryCompanies.find((c) => c.id === primary);
     if (primaryCompany) {
-      items.push({
-        label: primaryCompany.name_kr,
-        color: PRIMARY_COLOR,
-        data: seriesCache[primary] ?? [],
-      });
+      items.push({ label: primaryCompany.name_kr, color: PRIMARY_COLOR, data: seriesCache[primary] ?? [] });
     }
-    const secondaryCompany = companies.find((c) => c.id === secondary);
-    if (secondaryCompany && secondary !== primary) {
-      items.push({
-        label: secondaryCompany.name_kr,
-        color: SECONDARY_COLOR,
-        data: seriesCache[secondary] ?? [],
-      });
+    const secondaryCompany = secondaryCompanies.find((c) => c.id === secondary);
+    if (secondaryCompany) {
+      items.push({ label: secondaryCompany.name_kr, color: SECONDARY_COLOR, data: seriesCache[secondary] ?? [] });
     }
     return items;
-  }, [companies, primary, secondary, seriesCache]);
+  }, [primaryCompanies, secondaryCompanies, primary, secondary, seriesCache]);
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-sm font-semibold">국내×해외</div>
         <StockPairSelector
-          companies={companies}
+          companies={primaryCompanies}
+          secondaryCompanies={secondaryCompanies}
           primary={primary}
           secondary={secondary}
           onPrimaryChange={(v) => {
             setSelection((prev) => ({ ...prev, primary: v }));
-            localStorage.setItem(storageKey, JSON.stringify({ primary: v, secondary }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ primary: v, secondary }));
           }}
           onSecondaryChange={(v) => {
             setSelection((prev) => ({ ...prev, secondary: v }));
-            localStorage.setItem(storageKey, JSON.stringify({ primary, secondary: v }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ primary, secondary: v }));
           }}
         />
       </div>
       {series.length > 0 ? (
         <MultiSeriesChart
           title=""
-          unit={unit}
-          source={source}
+          unit="KRW / USD"
+          source="KRX / Yahoo Finance"
           series={series}
           height={320}
           initialRange="1y"

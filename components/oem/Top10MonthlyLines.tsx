@@ -78,6 +78,7 @@ export default function Top10MonthlyLines({ groupMonth }: Props) {
           <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
           <Tooltip
             formatter={(v, name) => [fmtFull(Number(v)) + ' 대', String(name)]}
+            itemSorter={(item) => -(item.value as number)}
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',

@@ -77,6 +77,7 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
           <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
           <Tooltip
             formatter={(v, name) => [fmtFull(Number(v)) + ' 대', String(name)]}
+            itemSorter={(item) => -(item.value as number)}
             cursor={{ fill: 'var(--muted)' }}
             contentStyle={{
               backgroundColor: 'var(--card)',

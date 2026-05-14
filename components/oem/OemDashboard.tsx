@@ -8,6 +8,7 @@ import type {
   OemSalesGroupPtMonth,
   OemSalesTypeSegMonth,
 } from '@/lib/types';
+import type { UsaOemTimeSeriesData } from './UsaOemTrendChart';
 import KpiCards from './KpiCards';
 import ModelOutlookCards from './ModelOutlookCards';
 import type { CountryTop15Row } from './CountryTop15';
@@ -71,6 +72,10 @@ const ModelNorthAmericaCharts = dynamic(() => import('./ModelNorthAmericaCharts'
   ssr: false,
   loading: ChartFallback,
 });
+const UsaOemTrendChart = dynamic(() => import('./UsaOemTrendChart'), {
+  ssr: false,
+  loading: ChartFallback,
+});
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -78,6 +83,7 @@ interface Props {
   typeSegMonth: OemSalesTypeSegMonth[];
   countryTop15: CountryTop15Row[];
   oemCountryMatrix: OemCountryMatrix;
+  usaOemSeries: UsaOemTimeSeriesData;
   naModelSeries: ModelMonthlySeries[];
   outlooks: OemModelOutlook[];
 }
@@ -89,6 +95,7 @@ export default function OemDashboard({
   typeSegMonth,
   countryTop15,
   oemCountryMatrix,
+  usaOemSeries,
   naModelSeries,
   outlooks,
 }: Props) {
@@ -150,6 +157,13 @@ export default function OemDashboard({
         subtitle="OEM이 어느 국가에서 강한가 (2025년)"
       >
         <OemCountryHeatmap data={oemCountryMatrix} />
+      </Section>
+
+      <Section
+        title="미국 시장 OEM TOP10 월별 추이"
+        subtitle="과거~현재 시계열 · 판매량(대) + 미국 전체 대비 점유율 · 클릭으로 ON/OFF"
+      >
+        <UsaOemTrendChart series={usaOemSeries} />
       </Section>
 
       <Section title="북미 핵심 차종 월별 판매 추이" subtitle="USA · 막대=판매량 / 라인=YoY %">

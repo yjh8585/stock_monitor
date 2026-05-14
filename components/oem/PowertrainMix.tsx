@@ -66,6 +66,7 @@ export default function PowertrainMix({ groupPtMonth }: Props) {
           <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} className="text-xs" width={50} />
           <Tooltip
             formatter={(v, name) => [`${Number(v).toFixed(1)}%`, String(name)]}
+            itemSorter={(item) => -(item.value as number)}
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',

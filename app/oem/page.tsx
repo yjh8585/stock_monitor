@@ -2,7 +2,8 @@ import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import OemDashboard from '@/components/oem/OemDashboard';
-import { ymLabel as ymLabelFn } from '@/components/oem/helpers';
+import { ymLabel as ymLabelFn, shortenOemName } from '@/components/oem/helpers';
+import type { UsaOemTimeSeriesData } from '@/components/oem/UsaOemTrendChart';
 import type { Database, TableRow } from '@/lib/database.types';
 import type {
   ModelMonthlySeries,
@@ -26,6 +27,8 @@ const HEATMAP_FORCED_COUNTRIES = ['Korea'];
 
 // 북미(USA) 핵심 차종 5종 — 사용자 지정
 const NA_COUNTRY = 'USA';
+// pre-production 소량(1~2대) 기간이 YoY 기준월이 되면 수천% 이상 이상치 발생 → 최소 임계값 적용
+const MIN_YOY_PREV_SALES = 10;
 const NA_MODEL_TARGETS: { key: string; label: string; oemGroup: string; models: string[] }[] = [
   {
     key: 'grand_cherokee',
@@ -177,12 +180,44 @@ function aggregateModelSeries(rows: OemSalesModelCountryMonth[]): ModelMonthlySe
       const sales = ymMap.get(ym) ?? 0;
       const prevYm = ym - 100;
       const prevSales = ymMap.get(prevYm);
-      const yoy = prevSales && prevSales > 0 ? ((sales - prevSales) / prevSales) * 100 : null;
+      const yoy =
+        prevSales != null && prevSales >= MIN_YOY_PREV_SALES
+          ? ((sales - prevSales) / prevSales) * 100
+          : null;
       return { ym, ymLabel: ymLabelFn(ym), sales, yoy };
     });
     result.push({ key: target.key, label: target.label, oemGroup: target.oemGroup, data });
   }
   return result;
+}
+
+/** 미국 시장 TOP10 OEM 월별 시계열 집계 (전체 기간 USA 합계 기준 TOP10 선정) */
+function aggregateUsaOemSeries(rows: OemSalesGroupCountryMonth[]): UsaOemTimeSeriesData {
+  const usaRows = rows.filter((r) => r.country === 'USA');
+
+  const totalByBrand = new Map<string, number>();
+  for (const r of usaRows) totalByBrand.set(r.oem_group, (totalByBrand.get(r.oem_group) ?? 0) + r.sales);
+  const top10Full = [...totalByBrand.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([g]) => g);
+  const top10Set = new Set(top10Full);
+  const labelMap = new Map(top10Full.map((g) => [g, shortenOemName(g)]));
+  const brands = top10Full.map((g) => labelMap.get(g)!);
+
+  const byYm = new Map<number, Record<string, number | string>>();
+  for (const r of usaRows) {
+    if (!byYm.has(r.year_month))
+      byYm.set(r.year_month, { ym: r.year_month, ymLabel: ymLabelFn(r.year_month), usaTotal: 0 });
+    const row = byYm.get(r.year_month)!;
+    (row as Record<string, number>).usaTotal += r.sales;
+    if (!top10Set.has(r.oem_group)) continue;
+    const lbl = labelMap.get(r.oem_group)!;
+    row[lbl] = ((row[lbl] as number) ?? 0) + r.sales;
+  }
+
+  const data = [...byYm.values()].sort((a, b) => (a.ym as number) - (b.ym as number));
+  for (const row of data) {
+    for (const b of brands) if (row[b] == null) row[b] = 0;
+  }
+  return { brands, data };
 }
 
 /** AI 평가 카드 최신본 — 모델별 최근 1건씩 fetch */
@@ -244,6 +279,7 @@ async function getOemData() {
   // 117K 행 groupCountryMonth → 서버에서 작은 props 사전 가공 후 client 전달
   const countryTop15 = aggregateCountryTop15(groupCountryMonth);
   const oemCountryMatrix = aggregateOemCountryMatrix(groupCountryMonth);
+  const usaOemSeries = aggregateUsaOemSeries(groupCountryMonth);
   const naModelSeries = aggregateModelSeries(modelRows);
   const oemGroupCount = new Set(groupMonth.map((r) => r.oem_group)).size;
 
@@ -253,6 +289,7 @@ async function getOemData() {
     typeSegMonth,
     countryTop15,
     oemCountryMatrix,
+    usaOemSeries,
     naModelSeries,
     outlooks,
     oemGroupCount,
@@ -277,6 +314,7 @@ export default async function OemPage() {
           typeSegMonth={data.typeSegMonth}
           countryTop15={data.countryTop15}
           oemCountryMatrix={data.oemCountryMatrix}
+          usaOemSeries={data.usaOemSeries}
           naModelSeries={data.naModelSeries}
           outlooks={data.outlooks}
         />

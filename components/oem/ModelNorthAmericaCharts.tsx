@@ -82,7 +82,6 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
               fontSize: '11px',
             }}
           />
-          <Legend wrapperStyle={{ fontSize: '10px' }} />
           <Bar
             yAxisId="left"
             dataKey="sales"
@@ -101,6 +100,7 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
             dot={false}
             connectNulls
           />
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: '10px', paddingBottom: 4 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
