@@ -12,6 +12,7 @@ import {
   Cog,
   Info,
   FileText,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -26,11 +27,21 @@ type NavItem = {
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { label: '관련회사', href: '/related-stocks', Icon: BarChart2 },
+  {
+    label: '경영관리',
+    href: '/management',
+    Icon: Briefcase,
+    children: [
+      { label: '손익', href: '/management/pnl' },
+      { label: '재고', href: '/management/inventory' },
+      { label: '생산', href: '/management/production' },
+    ],
+  },
   { label: '비교', href: '/compare', Icon: ArrowLeftRight },
+  { label: '관련회사', href: '/related-stocks', Icon: BarChart2 },
   { label: '국내자동차', href: '/domestic', Icon: Car },
-  { label: 'OEM', href: '/oem', Icon: Factory },
   { label: '부품사 TOP100', href: '/parts-top100', Icon: Cog },
+  { label: 'OEM', href: '/oem', Icon: Factory },
   { label: '보고서', href: '/reports', Icon: FileText },
   {
     label: '기타',
