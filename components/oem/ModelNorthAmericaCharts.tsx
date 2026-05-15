@@ -6,6 +6,7 @@ import {
   ComposedChart,
   Legend,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -53,7 +54,14 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
       <div className="text-[10px] text-muted-foreground mb-2">{series.oemGroup}</div>
       <ResponsiveContainer width="100%" height={h}>
         <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid horizontal={false} strokeDasharray="3 3" className="stroke-border" />
+          <ReferenceLine
+            yAxisId="right"
+            y={0}
+            stroke="currentColor"
+            strokeDasharray="3 3"
+            className="stroke-border"
+          />
           <XAxis dataKey="ymLabel" tick={{ fontSize: 9 }} interval={11} />
           <YAxis
             yAxisId="left"

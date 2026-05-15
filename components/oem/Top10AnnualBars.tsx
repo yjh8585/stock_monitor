@@ -16,6 +16,7 @@ import type { OemSalesGroupMonth } from '@/lib/types';
 import ClickableLegend from './ClickableLegend';
 import {
   annualByGroup,
+  findLatestYm,
   fmtFull,
   fmtUnits,
   shortenOemName,
@@ -35,7 +36,7 @@ const YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
  *  - 범례 클릭 시 해당 막대 hide 토글
  */
 export default function Top10AnnualBars({ groupMonth }: Props) {
-  const { chartData, oems } = useMemo(() => {
+  const { chartData, oems, latestMonth2026 } = useMemo(() => {
     const cur = sumByGroup(groupMonth, 202501, 202512);
     const top10 = [...cur.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -51,7 +52,12 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
       });
       return row;
     });
-    return { chartData: data, oems: labels };
+    const latest2026 = findLatestYm(groupMonth, 2026);
+    return {
+      chartData: data,
+      oems: labels,
+      latestMonth2026: latest2026 ? latest2026 % 100 : null,
+    };
   }, [groupMonth]);
 
   const h = useChartHeight(260, 360, 440);
@@ -68,7 +74,11 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
   return (
     <div>
       <div className="text-xs text-muted-foreground mb-2">
-        2025년 TOP10 기준 · 2026년은 1~3월 누적 (연간 환산 아님) · 범례 클릭으로 항목 제외 가능
+        2025년 TOP10 기준 ·{' '}
+        {latestMonth2026
+          ? `2026년은 1~${latestMonth2026}월 누적 (연간 환산 아님)`
+          : '2026년 데이터 없음'}{' '}
+        · 범례 클릭으로 항목 제외 가능
       </div>
       <ResponsiveContainer width="100%" height={h}>
         <BarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>

@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useMemo } from 'react';
 import type {
   ModelMonthlySeries,
   OemModelOutlook,
@@ -11,8 +12,11 @@ import type {
 import type { UsaOemTimeSeriesData } from './UsaOemTrendChart';
 import KpiCards from './KpiCards';
 import ModelOutlookCards from './ModelOutlookCards';
+import { findLatestYm } from './helpers';
 import type { CountryTop15Row } from './CountryTop15';
 import type { OemCountryMatrix } from './OemCountryHeatmap';
+
+const YTD_YEAR = 2026;
 
 // 차트 컴포넌트는 모두 recharts 의존 — 클라이언트 번들 최소화 위해 동적 import.
 // KpiCards는 가벼운 div 카드라 정적 import.
@@ -99,9 +103,15 @@ export default function OemDashboard({
   naModelSeries,
   outlooks,
 }: Props) {
+  const latestMonth2026 = useMemo(() => {
+    const ym = findLatestYm(groupMonth, YTD_YEAR);
+    return ym ? ym % 100 : null;
+  }, [groupMonth]);
+  const ytdSuffix = latestMonth2026 ? ` (1~${latestMonth2026}월)` : '';
+
   return (
     <div className="px-6 py-4 space-y-6 max-w-[1600px] mx-auto">
-      <Section title="글로벌 시장 한눈에" subtitle="연간 합계 + YoY · 2026 YTD">
+      <Section title="글로벌 시장 한눈에" subtitle={`연간 합계 + YoY · 2026 YTD${ytdSuffix}`}>
         <KpiCards groupMonth={groupMonth} />
       </Section>
 
@@ -109,7 +119,7 @@ export default function OemDashboard({
         <MarketTrendChart groupMonth={groupMonth} />
       </Section>
 
-      <Section title="2026 YTD TOP30" subtitle="누적 판매량 + 전년 동기 대비 YoY">
+      <Section title={`2026 YTD${ytdSuffix} TOP30`} subtitle="누적 판매량 + 전년 동기 대비 YoY">
         <Top30YtdChart groupMonth={groupMonth} />
       </Section>
 
