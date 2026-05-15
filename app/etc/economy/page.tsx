@@ -64,7 +64,8 @@ export default async function EconomyPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">경제</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          미국 국채(10Y/2Y) · 한국·미국 주가지수 · 금/은 · 미국 경제 전망 노트
+          미국 국채(10Y/2Y) · 한국·미국 주가지수 · 금/은 · 미국 경제 전망 노트 · 지수 매시간 · 전망
+          매일 KST 06:30 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4 space-y-4">

@@ -34,7 +34,7 @@ export default async function FxPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">환율</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          USD·EUR·CNY → KRW · 달러 인덱스(DXY) · EUR/USD (5년 일봉)
+          USD·EUR·CNY → KRW · 달러 인덱스(DXY) · EUR/USD (5년 일봉) · 평일 매시간 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">

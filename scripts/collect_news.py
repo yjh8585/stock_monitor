@@ -151,11 +151,24 @@ def collectNews() -> None:
   companies = q.execute().data or []
   logger.info(f'대상 회사 {len(companies)}개')
 
-  # 기존 URL 전체 로드 (회사 구분 없이 전역 중복 방지)
-  existing_urls: set[str] = {
-    r['url']
-    for r in client.table('news').select('url').execute().data
-  }
+  # 기존 URL 전체 로드 (Supabase 기본 한도 1000 초과 시 페이지네이션)
+  existing_urls: set[str] = set()
+  page_size = 1000
+  offset = 0
+  while True:
+    batch = (
+      client.table('news')
+      .select('url')
+      .range(offset, offset + page_size - 1)
+      .execute()
+      .data
+    )
+    if not batch:
+      break
+    existing_urls.update(r['url'] for r in batch)
+    if len(batch) < page_size:
+      break
+    offset += page_size
   logger.info(f'기존 뉴스 URL {len(existing_urls)}건 로드')
 
   total = 0
@@ -198,9 +211,16 @@ def collectNews() -> None:
           existing_urls.add(row['url'])
 
     if rows:
-      client.table('news').insert(rows).execute()
-      total += len(rows)
-      logger.info(f'{name}({ticker}): {len(rows)}건 저장')
+      try:
+        client.table('news').upsert(rows, on_conflict='url').execute()
+        total += len(rows)
+        logger.info(f'{name}({ticker}): {len(rows)}건 저장')
+      except Exception as e:
+        err_str = str(e)
+        if '23505' in err_str:
+          logger.warning(f'{name}({ticker}): 중복 URL 충돌 — 건너뜀')
+        else:
+          logger.error(f'{name}({ticker}): 저장 실패 — {e}')
     else:
       logger.info(f'{name}({ticker}): 신규 뉴스 없음')
 

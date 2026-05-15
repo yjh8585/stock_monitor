@@ -304,7 +304,8 @@ export default async function OemPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">글로벌 OEM 판매량 대시보드</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          MarkLines 글로벌 자동차 판매 데이터 · 2020.01~ · {data.oemGroupCount}개 OEM 그룹
+          MarkLines 글로벌 자동차 판매 데이터 · 2020.01~ · {data.oemGroupCount}개 OEM 그룹 · 판매
+          매월 갱신 · AI 전망 주 1회(월)
         </p>
       </div>
       <div className="flex-1 overflow-auto">

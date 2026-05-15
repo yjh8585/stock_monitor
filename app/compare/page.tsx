@@ -10,7 +10,8 @@ export default async function ComparePage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">재무 비교</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          한세모빌리티(기준) + 비교 대상 최대 2개사 · 매출/이익률/회전율 등 10개 지표 연도별 비교
+          한세모빌리티(기준) + 비교 대상 최대 2개사 · 매출/이익률/회전율 등 10개 지표 연도별 비교 ·
+          재무 분기 1회 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">

@@ -44,7 +44,7 @@ export default async function RelatedStocksPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">관련회사</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          자동차 산업 주요 기업 {rows.length}개사 실적·주가
+          자동차 산업 주요 기업 {rows.length}개사 실적·주가 · 주가 장중 매시간 · 재무 분기 1회 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto">

@@ -28,7 +28,7 @@ export default async function ShippingPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">운임</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          KCCI · KUWI — 한국해양진흥공사 컨테이너 운임 지수(주간 발표)
+          KCCI · KUWI — 한국해양진흥공사 컨테이너 운임 지수(주간 발표) · 매일 KST 06:00 수집
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">

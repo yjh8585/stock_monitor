@@ -42,7 +42,8 @@ export default async function PartsTop100Page() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">부품사 Top100</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          글로벌 자동차 부품사 Top100 — 매출액 기준 (Berylls 2025) · {rows.length}개사
+          글로벌 자동차 부품사 Top100 — 매출액 기준 (Berylls 2025) · {rows.length}개사 · 주가 장중
+          매시간 · 재무 분기 1회 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto">

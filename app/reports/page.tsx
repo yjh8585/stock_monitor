@@ -112,7 +112,9 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold">보고서</h1>
-          <p className="text-muted-foreground text-sm">전체 {total.toLocaleString()}건</p>
+          <p className="text-muted-foreground text-sm">
+            전체 {total.toLocaleString()}건 · 뉴스 6시간마다 자동 수집
+          </p>
         </div>
         <Link href="/reports/new" className={buttonVariants()}>
           + 글쓰기
