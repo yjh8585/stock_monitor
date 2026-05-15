@@ -74,19 +74,26 @@ export function getDisplayYearLabels(entries: readonly PnlEntry[], basis: Basis)
 }
 
 /**
- * 별도 월별 → 연간 합계 derive.
+ * 월별 → 연간 합계 derive (basis별 generic).
  *
- * DB에는 별도 연간(period_month=0) 행이 없으므로, 같은 (basis, period_year, sil, division,
- * factory, product, customer)로 월별 행을 합산해 period_month=0 행으로 변환한다.
+ * 같은 (basis, period_year, sil, division, factory, product, customer)로 월별 행을 합산해
+ * period_month=0 행으로 변환한다. (선택) `yearFilter`로 특정 연도만 대상.
  *
- * 입력은 전체 별도 월별 (period_month 1~12) 행이고, 출력은 (period_year, dims) 별 1행씩.
- * year_label은 period_year 4자리 문자열.
+ * - 별도(standalone): DB에 연간 행이 없어 전체 연도에 대해 derive
+ * - 연결(consolidated): 2026 YTD처럼 연간 행이 없는 특정 연도만 derive (P/E 계획·추정 외 실적 누적)
+ *
+ * year_label은 period_year 4자리 문자열. is_plan/is_estimate는 false.
  */
-export function deriveStandaloneAnnual(monthly: readonly PnlEntry[]): PnlEntry[] {
+export function deriveAnnualFromMonthly(
+  monthly: readonly PnlEntry[],
+  basis: Basis,
+  yearFilter?: (year: number) => boolean
+): PnlEntry[] {
   const groups = new Map<string, PnlEntry>();
   for (const r of monthly) {
-    if (r.basis !== 'standalone') continue;
+    if (r.basis !== basis) continue;
     if (r.period_month < 1 || r.period_month > 12) continue;
+    if (yearFilter && !yearFilter(r.period_year)) continue;
     const key = [r.period_year, r.sil, r.division, r.factory, r.product, r.customer].join('|');
     const existing = groups.get(key);
     if (existing) {
@@ -99,7 +106,7 @@ export function deriveStandaloneAnnual(monthly: readonly PnlEntry[]): PnlEntry[]
       existing.op_income = sumNullable(existing.op_income, r.op_income);
     } else {
       groups.set(key, {
-        basis: 'standalone',
+        basis,
         year_label: String(r.period_year),
         period_year: r.period_year,
         period_month: 0,
@@ -120,7 +127,6 @@ export function deriveStandaloneAnnual(monthly: readonly PnlEntry[]): PnlEntry[]
       });
     }
   }
-  // 부동소수 정리
   for (const row of groups.values()) {
     row.revenue = roundNullable(row.revenue);
     row.material_cost = roundNullable(row.material_cost);
@@ -131,6 +137,11 @@ export function deriveStandaloneAnnual(monthly: readonly PnlEntry[]): PnlEntry[]
     row.op_income = roundNullable(row.op_income);
   }
   return Array.from(groups.values());
+}
+
+/** 별도 월별 → 연간 derive (전체 연도). 기존 호출자 호환용 wrapper. */
+export function deriveStandaloneAnnual(monthly: readonly PnlEntry[]): PnlEntry[] {
+  return deriveAnnualFromMonthly(monthly, 'standalone');
 }
 
 function sumNullable(a: number | null, b: number | null): number | null {
@@ -220,6 +231,45 @@ export function getUniqueValues(
     if (typeof v === 'string' && v.length > 0) values.add(v);
   }
   return Array.from(values).sort((a, b) => a.localeCompare(b, 'ko'));
+}
+
+/**
+ * dim 차원의 unique 값을, 지정한 연도(yearLabel)의 매출 desc 기준으로 정렬해 반환.
+ *
+ * - 해당 연도에 매출이 없는 값(다른 연도에만 존재)은 0으로 간주되어 뒤로 밀린다.
+ * - 매출 동률은 한국어 가나다순으로 정렬.
+ * - basis 필터 + period_month=0(연간) 필터를 거친 후 처리.
+ */
+export function getUniqueValuesByRevenue(
+  entries: readonly PnlEntry[],
+  dim: DimensionKey,
+  basis: Basis,
+  yearLabel: string
+): string[] {
+  // 모든 unique 값 수집 (대상 연도에 없는 값도 표시)
+  const allValues = new Set<string>();
+  for (const e of entries) {
+    if (e.basis !== basis) continue;
+    if (e.period_month !== 0) continue;
+    const v = e[dim];
+    if (typeof v === 'string' && v.length > 0) allValues.add(v);
+  }
+  // 지정 연도 매출 합산
+  const latest = entriesForYear(entries, basis, yearLabel);
+  const agg = aggregateBy(latest, [dim]);
+  const revByDim = new Map<string, number>();
+  for (const r of agg) {
+    const v = r.dims[dim];
+    if (typeof v === 'string' && v.length > 0) revByDim.set(v, r.revenue);
+  }
+  const result = Array.from(allValues);
+  result.sort((a, b) => {
+    const ra = revByDim.get(a) ?? 0;
+    const rb = revByDim.get(b) ?? 0;
+    if (rb !== ra) return rb - ra;
+    return a.localeCompare(b, 'ko');
+  });
+  return result;
 }
 
 /**

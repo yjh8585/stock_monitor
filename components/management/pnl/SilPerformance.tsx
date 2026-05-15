@@ -8,7 +8,7 @@ import {
   aggregateBy,
   entriesForYear,
   getDisplayYearLabels,
-  getUniqueValues,
+  getUniqueValuesByRevenue,
 } from '@/lib/pnl/aggregate';
 import type { Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
@@ -19,36 +19,35 @@ interface Props {
 }
 
 /**
- * 추가 1: 실별 손익.
+ * 6. 실별 손익.
  *
  * - basis 토글 + 단일 연도 선택 + 실 선택 (1실/2실/3실/...)
- * - 해당 실의 (고객 × 제품) 조합별 표
+ * - 해당 실의 (고객 × 제품) 조합별 표 — 매출-desc 정렬
+ * - 맨 위에 해당 실 전체 합계 행 (isSummary)
  *
  * 성능: basis 토글 시 `annualByBasis[basis]` 작은 배열만 사용.
  */
 export default function SilPerformance({ annualByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
 
-  /** 현재 basis의 작은 reference 배열 */
   const basisEntries = annualByBasis[basis];
 
-  // 연도 후보 — basis별
   const yearLabels = useMemo(
     () => getDisplayYearLabels(basisEntries, basis),
     [basisEntries, basis]
   );
 
-  // 기본 선택: 최신 연도
   const [yearLabel, setYearLabel] = useState<string>('');
   const effectiveYear = useMemo(() => {
     if (yearLabel && yearLabels.includes(yearLabel)) return yearLabel;
     return yearLabels[yearLabels.length - 1] ?? '';
   }, [yearLabel, yearLabels]);
 
-  // 실 후보 — basis별 unique 값
+  /** 실 옵션 — 최근 연도 매출-desc */
   const silOptions = useMemo(
-    () => getUniqueValues(basisEntries, 'sil', basis),
-    [basisEntries, basis]
+    () =>
+      effectiveYear ? getUniqueValuesByRevenue(basisEntries, 'sil', basis, effectiveYear) : [],
+    [basisEntries, basis, effectiveYear]
   );
 
   const [sil, setSil] = useState<string>('');
@@ -57,14 +56,15 @@ export default function SilPerformance({ annualByBasis }: Props) {
     return silOptions[0] ?? '';
   }, [sil, silOptions]);
 
-  // 표 행 계산 — 선택 연도 + 선택 실 → (고객, 제품) 조합별 합계
+  /** 표 행 — (고객, 제품) 조합 매출-desc + 맨 위 합계 행 */
   const rows: PnlTableRow[] = useMemo(() => {
     if (!effectiveYear || !effectiveSil) return [];
     const yearEntries = entriesForYear(basisEntries, basis, effectiveYear);
     const filtered = yearEntries.filter((e) => e.sil === effectiveSil);
     const aggregated = aggregateBy(filtered, ['customer', 'product']);
     aggregated.sort((a, b) => b.revenue - a.revenue);
-    return aggregated.map((r) => ({
+
+    const dataRows: PnlTableRow[] = aggregated.map((r) => ({
       key: r.key,
       labels: [r.dims.customer || '(미분류)', r.dims.product || '(미분류)'],
       revenue: r.revenue,
@@ -75,12 +75,36 @@ export default function SilPerformance({ annualByBasis }: Props) {
       rnd: r.rnd,
       op_income: r.op_income,
     }));
+
+    if (dataRows.length === 0) return [];
+
+    // 전체 합계 행
+    const totals = dataRows.reduce(
+      (acc, r) => {
+        acc.revenue += r.revenue;
+        acc.material_cost += r.material_cost;
+        acc.labor_cost += r.labor_cost;
+        acc.expense += r.expense;
+        acc.sga += r.sga;
+        acc.rnd += r.rnd;
+        acc.op_income += r.op_income;
+        return acc;
+      },
+      { revenue: 0, material_cost: 0, labor_cost: 0, expense: 0, sga: 0, rnd: 0, op_income: 0 }
+    );
+    const totalRow: PnlTableRow = {
+      key: '__total__',
+      labels: ['전체 합계', '─'],
+      ...totals,
+      isSummary: true,
+    };
+    return [totalRow, ...dataRows];
   }, [basisEntries, basis, effectiveYear, effectiveSil]);
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-base font-semibold">추가 1. 실별 손익</h2>
+        <h2 className="text-base font-semibold">6. 실별 손익</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect
@@ -95,6 +119,7 @@ export default function SilPerformance({ annualByBasis }: Props) {
       <PnlTable
         leftHeaders={['고객', '제품']}
         rows={rows}
+        dimCount={2}
         emptyText={
           silOptions.length === 0
             ? '실 정보가 없습니다.'

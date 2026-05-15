@@ -9,7 +9,7 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
-/** 4. 제품별 실적 */
+/** 4. 제품별 실적 — 디폴트: HALFSHAFT */
 export default function ProductPerformance({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
@@ -17,6 +17,7 @@ export default function ProductPerformance({ annualEntries, annualByBasis }: Pro
       dimensions={[{ key: 'product', label: '제품' }]}
       annualEntries={annualEntries}
       annualByBasis={annualByBasis}
+      defaultSelections={{ product: ['HALFSHAFT'] }}
     />
   );
 }

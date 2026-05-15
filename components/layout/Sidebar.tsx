@@ -13,6 +13,7 @@ import {
   Info,
   FileText,
   Briefcase,
+  TrendingUp,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -43,6 +44,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: '부품사 TOP100', href: '/parts-top100', Icon: Cog },
   { label: 'OEM', href: '/oem', Icon: Factory },
   { label: '보고서', href: '/reports', Icon: FileText },
+  { label: '한세그룹', href: '/hansae', Icon: TrendingUp },
   {
     label: '기타',
     href: '/etc',

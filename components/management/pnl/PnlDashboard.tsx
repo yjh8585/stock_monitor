@@ -11,7 +11,8 @@ import MarginScatter from './MarginScatter';
 import YoyMonthlyCompare from './YoyMonthlyCompare';
 import YoyProductCustomer from './YoyProductCustomer';
 import Insights from './Insights';
-import { deriveStandaloneAnnual } from '@/lib/pnl/aggregate';
+import LazyMount from '@/components/common/LazyMount';
+import { deriveAnnualFromMonthly, deriveStandaloneAnnual } from '@/lib/pnl/aggregate';
 import type { Basis, PnlEntry } from '@/lib/pnl/types';
 
 interface Props {
@@ -25,25 +26,31 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  * 손익 페이지 클라이언트 루트.
  *
  * - 원본 row를 받아 별도 연간 derive 한 번만 수행 (useMemo로 캐시)
- * - 5개 표 섹션 + 추가 5개 차트 섹션
+ * - 1~5번 표 섹션 + 6~10번 차트/표 섹션 (총 10개)
  * - 월별 차트는 원본 data 사용, 연간 차트는 annualEntries 사용
  *
  * 성능 최적화:
  * - `annualByBasis` / `monthlyByBasis` 를 미리 분리해 자식에 prop 전달
  *   → basis 토글 시 자식이 전체(1k+ 행) 대신 절반 배열만 필터/그룹 수행
+ * - 차트가 들어간 하단 섹션(MarginScatter / YoyMonthlyCompare /
+ *   YoyProductCustomer / Insights)은 `LazyMount`로 감싸 viewport 진입 시
+ *   1회 마운트. 초기 렌더에서 Recharts ResizeObserver/parse 비용을 절약.
  */
 export default function PnlDashboard({ data }: Props) {
   const annualEntries = useMemo<PnlEntry[]>(() => {
-    // 연결: period_month=0 만 사용 (DB에 이미 연간 합계 있음)
+    // 연결 연간: period_month=0 행. 단 '2026(P)'(계획값)는 표시에서 제외 — 사용자 요구로
+    // 2026 실적은 월별 1~N 누적(YTD)으로 별도 derive.
     const consolidatedAnnual = data.filter(
-      (e) => e.basis === 'consolidated' && e.period_month === 0
+      (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== '2026(P)'
     );
-    // 별도: 월별 → 연간 derive
+    // 연결 2026 YTD: 월별 데이터를 합산해 derive (year_label='2026')
+    const consolidated2026Ytd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === 2026);
+    // 별도 연간: 월별 → 연간 derive
     const standaloneMonthly = data.filter(
       (e) => e.basis === 'standalone' && e.period_month >= 1 && e.period_month <= 12
     );
     const standaloneAnnual = deriveStandaloneAnnual(standaloneMonthly);
-    return [...consolidatedAnnual, ...standaloneAnnual];
+    return [...consolidatedAnnual, ...consolidated2026Ytd, ...standaloneAnnual];
   }, [data]);
 
   /** basis별 연간 엔트리 분리 — basis 토글 시 자식이 O(n) 필터링을 절반 크기로 줄인다. */
@@ -76,15 +83,24 @@ export default function PnlDashboard({ data }: Props) {
       <ProductPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <ProductCustomerCross annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <SilPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
-      <MarginScatter annualEntries={annualEntries} annualByBasis={annualByBasis} />
-      <YoyMonthlyCompare data={data} monthlyByBasis={monthlyByBasis} />
-      <YoyProductCustomer
-        data={data}
-        annualEntries={annualEntries}
-        annualByBasis={annualByBasis}
-        monthlyByBasis={monthlyByBasis}
-      />
-      <Insights annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      <LazyMount className="min-h-[420px] md:min-h-[520px]">
+        <MarginScatter annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px] md:min-h-[540px]">
+        <YoyMonthlyCompare data={data} monthlyByBasis={monthlyByBasis} />
+      </LazyMount>
+      <LazyMount className="min-h-[440px] md:min-h-[560px]">
+        <YoyProductCustomer
+          data={data}
+          annualEntries={annualEntries}
+          annualByBasis={annualByBasis}
+          monthlyByBasis={monthlyByBasis}
+        />
+      </LazyMount>
+      {/* Insights: 모바일은 3개 차트 세로 stack → 더 큰 예약 높이 필요 */}
+      <LazyMount className="min-h-[1200px] lg:min-h-[960px]">
+        <Insights annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      </LazyMount>
     </div>
   );
 }

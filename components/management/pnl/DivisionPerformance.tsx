@@ -9,7 +9,7 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
-/** 2. 부문 실적 */
+/** 2. 부문 실적 — 디폴트: 구동 */
 export default function DivisionPerformance({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
@@ -17,6 +17,7 @@ export default function DivisionPerformance({ annualEntries, annualByBasis }: Pr
       dimensions={[{ key: 'division', label: '부문' }]}
       annualEntries={annualEntries}
       annualByBasis={annualByBasis}
+      defaultSelections={{ division: ['구동'] }}
     />
   );
 }

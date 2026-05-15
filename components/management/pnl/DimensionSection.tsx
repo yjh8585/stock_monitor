@@ -8,7 +8,7 @@ import {
   aggregateBy,
   entriesForYear,
   getDisplayYearLabels,
-  getUniqueValues,
+  getUniqueValuesByRevenue,
 } from '@/lib/pnl/aggregate';
 import type { Basis, DimensionKey, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
@@ -27,29 +27,34 @@ interface Props {
   annualEntries: PnlEntry[];
   /** basis별로 미리 분리된 reference — 토글 시 작은 배열만 처리 */
   annualByBasis: EntriesByBasis;
+  /** 초기 선택값 (사용자 요구: 섹션별 기본 필터). 키 미지정 차원은 빈 배열. */
+  defaultSelections?: Partial<Record<DimensionKey, string[]>>;
 }
 
 /**
  * 2~5번 섹션 공통 구현.
  *
  * - basis 토글 + 각 차원에 대해 멀티 선택 필터
- * - 행: 차원 조합 × 연도, 열: 7개 지표
- * - 빈 값('') 차원은 row 라벨에 '(미분류)' 로 표시
+ * - 행: 차원 조합 × 연도. 1차 차원 매출-desc → 2차 차원 매출-desc → ... → 연도 asc 순으로 정렬
+ * - 옵션도 최근 연도 매출-desc 순으로 정렬
+ * - 차원 컬럼은 PnlTable에서 rowspan 병합 + 1차 차원 경계에 굵은 테두리
  *
  * 성능: basis 토글 시 `annualByBasis[basis]` 작은 배열만 사용.
  */
-export default function DimensionSection({ title, dimensions, annualByBasis }: Props) {
+export default function DimensionSection({
+  title,
+  dimensions,
+  annualByBasis,
+  defaultSelections,
+}: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
-  // 각 차원별 선택 상태 (Record<DimensionKey, string[]>)
   const [selections, setSelections] = useState<Record<string, string[]>>(() =>
-    Object.fromEntries(dimensions.map((d) => [d.key, [] as string[]]))
+    Object.fromEntries(
+      dimensions.map((d) => [d.key, defaultSelections?.[d.key] ?? ([] as string[])])
+    )
   );
 
-  // basis 변경 시 선택값 초기화 — 차원 값 셋이 달라질 수 있어 stale 선택 방지
-  // (예: 연결에는 있는 고객이 별도엔 없을 때)
-  // 의도적으로 자동 초기화하지 않고, 필터 결과 0건이면 사용자가 직접 reset 가능하도록 둔다.
-
-  /** 현재 basis의 작은 reference 배열 (전체 annualEntries 대신 절반만 처리) */
+  /** 현재 basis의 작은 reference 배열 */
   const basisEntries = annualByBasis[basis];
 
   const yearLabels = useMemo(
@@ -57,14 +62,43 @@ export default function DimensionSection({ title, dimensions, annualByBasis }: P
     [basisEntries, basis]
   );
 
-  /** 각 차원의 unique 값 옵션 */
-  const dimOptions = useMemo(() => {
-    return Object.fromEntries(
-      dimensions.map((d) => [d.key, getUniqueValues(basisEntries, d.key, basis)])
-    ) as Record<DimensionKey, string[]>;
-  }, [basisEntries, basis, dimensions]);
+  /** 최근 연도 (옵션·행 정렬 기준) */
+  const latestYear = yearLabels[yearLabels.length - 1] ?? '';
 
-  /** 선택 토글 */
+  /** 각 차원의 unique 값 (최근 연도 매출-desc 정렬) */
+  const revOrder = useMemo(() => {
+    const obj: Partial<Record<DimensionKey, string[]>> = {};
+    for (const d of dimensions) {
+      obj[d.key] = latestYear
+        ? getUniqueValuesByRevenue(basisEntries, d.key, basis, latestYear)
+        : [];
+    }
+    return obj as Record<DimensionKey, string[]>;
+  }, [basisEntries, basis, dimensions, latestYear]);
+
+  /** 1차 차원 값 → 전역 rank (0 = 매출 1위). 2차 이상은 parent 그룹 내에서 combo 매출로 정렬한다. */
+  const primaryRank = useMemo(() => {
+    if (dimensions.length === 0) return new Map<string, number>();
+    return new Map(revOrder[dimensions[0].key].map((v, i) => [v, i]));
+  }, [revOrder, dimensions]);
+
+  /**
+   * 최근 연도 기준 full dim combination별 매출.
+   * key 포맷은 `aggregateBy` 결과의 r.key와 동일: `dims.join(' | ')`.
+   * 2차+ 차원 정렬에 사용 — 같은 1차 그룹 안에서 (1차+2차+...) 조합 매출 desc.
+   */
+  const latestComboRevenue = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!latestYear || dimensions.length <= 1) return m;
+    const latest = entriesForYear(basisEntries, basis, latestYear);
+    const agg = aggregateBy(
+      latest,
+      dimensions.map((d) => d.key)
+    );
+    for (const r of agg) m.set(r.key, r.revenue);
+    return m;
+  }, [basisEntries, basis, dimensions, latestYear]);
+
   const onToggle = (dim: DimensionKey, value: string) => {
     setSelections((prev) => {
       const current = prev[dim] ?? [];
@@ -75,7 +109,6 @@ export default function DimensionSection({ title, dimensions, annualByBasis }: P
     });
   };
 
-  /** 선택 reset */
   const onReset = (dim: DimensionKey) => {
     setSelections((prev) => ({ ...prev, [dim]: [] }));
   };
@@ -96,10 +129,7 @@ export default function DimensionSection({ title, dimensions, annualByBasis }: P
         return true;
       });
       const aggregated = aggregateBy(filtered, dimKeys);
-      // 차원 조합별로 정렬 (한국어 로케일)
-      aggregated.sort((a, b) => a.key.localeCompare(b.key, 'ko'));
       for (const agg of aggregated) {
-        // 차원 라벨들 + 연도
         const dimLabels = dimensions.map((d) => agg.dims[d.key] || '(미분류)');
         out.push({
           key: `${yearLabel}|${agg.key}`,
@@ -114,15 +144,32 @@ export default function DimensionSection({ title, dimensions, annualByBasis }: P
         });
       }
     }
-    // 행 정렬: 차원 우선, 연도 보조
+    // 정렬: 1차 차원 전역 rank → 같은 1차 그룹 내 combo 매출 desc → 연도 asc
+    const denorm = (lbl: string) => (lbl === '(미분류)' ? '' : lbl);
     out.sort((a, b) => {
-      const labelA = a.labels.slice(0, -1).join(' | ');
-      const labelB = b.labels.slice(0, -1).join(' | ');
-      if (labelA !== labelB) return labelA.localeCompare(labelB, 'ko');
-      return a.labels[a.labels.length - 1].localeCompare(b.labels[b.labels.length - 1]);
+      if (dimensions.length > 0) {
+        const aKey1 = denorm(a.labels[0]);
+        const bKey1 = denorm(b.labels[0]);
+        const aRank1 = primaryRank.get(aKey1);
+        const bRank1 = primaryRank.get(bKey1);
+        const aR1 = aRank1 == null ? Number.POSITIVE_INFINITY : aRank1;
+        const bR1 = bRank1 == null ? Number.POSITIVE_INFINITY : bRank1;
+        if (aR1 !== bR1) return aR1 - bR1;
+      }
+      if (dimensions.length > 1) {
+        // full combo key (aggregateBy의 r.key 포맷)
+        const aCombo = dimensions.map((_, i) => denorm(a.labels[i])).join(' | ');
+        const bCombo = dimensions.map((_, i) => denorm(b.labels[i])).join(' | ');
+        const aRev = latestComboRevenue.get(aCombo) ?? 0;
+        const bRev = latestComboRevenue.get(bCombo) ?? 0;
+        if (aRev !== bRev) return bRev - aRev;
+      }
+      const aY = a.labels[a.labels.length - 1] ?? '';
+      const bY = b.labels[b.labels.length - 1] ?? '';
+      return aY.localeCompare(bY);
     });
     return out;
-  }, [basisEntries, basis, yearLabels, selections, dimensions]);
+  }, [basisEntries, basis, yearLabels, selections, dimensions, primaryRank, latestComboRevenue]);
 
   const leftHeaders = useMemo(() => [...dimensions.map((d) => d.label), '연도'], [dimensions]);
 
@@ -136,7 +183,7 @@ export default function DimensionSection({ title, dimensions, annualByBasis }: P
             <GroupMultiSelect
               key={d.key}
               label={d.label}
-              options={dimOptions[d.key] ?? []}
+              options={revOrder[d.key] ?? []}
               selected={selections[d.key] ?? []}
               onToggle={(v) => onToggle(d.key, v)}
               onReset={() => onReset(d.key)}
@@ -144,7 +191,7 @@ export default function DimensionSection({ title, dimensions, annualByBasis }: P
           ))}
         </div>
       </header>
-      <PnlTable leftHeaders={leftHeaders} rows={rows} />
+      <PnlTable leftHeaders={leftHeaders} rows={rows} dimCount={dimensions.length} />
     </section>
   );
 }
