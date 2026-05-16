@@ -199,8 +199,9 @@ def _is_transient_error(e: Exception) -> bool:
   )
 
 
-def _with_retry(fn, *args, _attempts: int = 3, _backoff: float = 1.0, **kwargs):
-  """지수 백오프 3회 재시도. 일시적 네트워크/SSL 에러만 재시도, 다른 예외는 즉시 raise."""
+def _with_retry(fn, *args, _attempts: int = 2, _backoff: float = 0.5, **kwargs):
+  """지수 백오프 재시도. 일시적 네트워크/SSL 에러만 재시도, 다른 예외는 즉시 raise.
+  기본 2회(즉시+1회 재시도, 0.5s 대기) — SSL EOF가 transient지만 실제로 retry 성공률 낮아 빠르게 포기."""
   last = None
   for i in range(_attempts):
     try:
