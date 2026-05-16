@@ -98,11 +98,93 @@ _AUTO_INDUTY_PREFIXES = ('24', '25', '26', '27', '28', '29', '30', '31', '32', '
 # 법인 형태 접미사/접두사 정규화 — DB(짧음) ↔ DART(정식명) 매칭용.
 _LEGAL_FORM_RE = re.compile(r'(주식회사|유한책임회사|유한회사|\(주\)|\(유\))')
 
+# 한글 음역 → 영문 발음 (greedy longest match용 — 긴 자모가 먼저).
+_JAMO_TO_ENG: dict[str, str] = {
+  '에이치': 'h', '더블유': 'w', '더블류': 'w',  # '더블류'는 흔한 이형 표기
+  '에이': 'a', '에스': 's', '에프': 'f', '와이': 'y', '엑스': 'x',
+  '제이': 'j', '제트': 'z', '브이': 'v', '아이': 'i', '케이': 'k',
+  '비': 'b', '시': 'c', '디': 'd', '이': 'e', '지': 'g',
+  '엘': 'l', '엠': 'm', '엔': 'n', '오': 'o', '피': 'p',
+  '큐': 'q', '알': 'r', '티': 't', '유': 'u',
+}
+
+# 자동차 부품 업계 한국어 단어 → 영문 (음역 변환과 동시에 적용).
+_KOR_WORD_TO_ENG: dict[str, str] = {
+  '오토모티브': 'automotive', '모티브': 'motiv',
+  '시스템즈': 'systems', '시스템스': 'systems', '시스템': 'system',
+  '테크놀로지스': 'technologies', '테크놀로지': 'technology', '테크': 'tech',
+  '모듈': 'module', '모빌리티': 'mobility',
+  '에너지': 'energy', '솔루션': 'solution', '인더스트리': 'industry',
+  '글로벌': 'global', '코리아': 'korea', '아메리카': 'america',
+  '오토텍': 'autotech', '일렉트로닉스': 'electronics', '인터내셔널': 'international',
+  '컴포넌트': 'component', '컴포넌츠': 'components',
+  '머티리얼스': 'materials', '머티리얼': 'material',
+  '엔지니어링': 'engineering', '디자인': 'design',
+  '센서스': 'sensors', '센서': 'sensor', '컨트롤스': 'controls', '컨트롤': 'control',
+  '와이퍼': 'wiper', '미러': 'mirror', '씰': 'seal',
+  '메탈': 'metal', '플라스틱': 'plastic', '러버': 'rubber', '폴리머': 'polymer',
+  '바디': 'body', '섀시': 'chassis', '엔진': 'engine',
+  '브레이크스': 'brakes', '브레이크': 'brake',
+  '트랜스미션': 'transmission', '미션': 'mission', '드라이브': 'drive',
+  '액슬': 'axle', '베어링스': 'bearings', '베어링': 'bearing',
+  '클러치': 'clutch', '필터': 'filter', '램프': 'lamp',
+  '디스플레이': 'display', '카메라': 'camera',
+  '커넥티비티': 'connectivity', '커넥터': 'connector',
+  '하니스': 'harness', '하네스': 'harness', '와이어링': 'wiring', '와이어': 'wire',
+  '인터페이스': 'interface', '한국': 'korea',
+  '홀딩스': 'holdings', '홀딩': 'holding', '그룹': 'group',
+  '인베스트먼트': 'investment', '캐피탈': 'capital', '캐피털': 'capital',
+}
+
+# greedy longest match용 변환 테이블 (단어 사전 + 자모 매핑, 키 길이 내림차순).
+_KOR_TO_ASCII_TABLE: list[tuple[str, str]] = sorted(
+  list(_KOR_WORD_TO_ENG.items()) + list(_JAMO_TO_ENG.items()),
+  key=lambda kv: -len(kv[0]),
+)
+
 
 def _normalize_corp_name(name: str) -> str:
   """회사명에서 법인 형태와 공백을 제거해 매칭 키 형태로 정규화."""
   s = _LEGAL_FORM_RE.sub('', name or '')
   return re.sub(r'\s+', '', s).strip()
+
+
+def _ascii_part(s: str) -> str:
+  """문자열에서 ASCII 영문/숫자만 추출(소문자화). 영문/한글 혼용 매칭용.
+
+  예: 'SNT모티브' → 'snt', 'SNT Motiv' → 'sntmotiv', '에스엔티모티브' → ''
+  """
+  return re.sub(r'[^A-Za-z0-9]+', '', s or '').lower()
+
+
+def _korean_to_ascii(s: str) -> str:
+  """한글 음역·자동차 업계 한국어 단어를 영문 ASCII로 변환.
+
+  greedy longest match: 긴 단어/자모를 먼저 매칭(예: '에이치'→'h'가 '에이'→'a'보다 우선).
+  변환된 영문과 원본 ASCII만 살리고 소문자화. 변환 불가 한글은 제거.
+
+  예: '에스에이치비' → 'shb', '에스엠알오토모티브모듈코리아' → 'smrautomotivemodulekorea',
+      '케이비와이퍼시스템' → 'kbwipersystem', '한국에스케이에프씰' → 'koreaskfseal'
+  """
+  if not s:
+    return ''
+  result: list[str] = []
+  i = 0
+  n = len(s)
+  while i < n:
+    matched = False
+    for kor, eng in _KOR_TO_ASCII_TABLE:
+      if s.startswith(kor, i):
+        result.append(eng)
+        i += len(kor)
+        matched = True
+        break
+    if not matched:
+      ch = s[i]
+      if 'A' <= ch <= 'Z' or 'a' <= ch <= 'z' or '0' <= ch <= '9':
+        result.append(ch)
+      i += 1
+  return re.sub(r'[^A-Za-z0-9]+', '', ''.join(result)).lower()
 
 
 def _is_transient_error(e: Exception) -> bool:
@@ -539,18 +621,51 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
   if not target:
     return None
 
-  # 1차: 정규화 완전 일치
+  # 1차: corp_name 정규화 완전 일치
   norms = codes['corp_name'].fillna('').apply(_normalize_corp_name)
   candidates = codes[norms == target]
 
-  # 2차: 정규화 부분 일치 (양방향 contains)
+  # 2차: corp_name 정규화 부분 일치 (양방향 contains)
   if candidates.empty:
     mask = norms.str.contains(re.escape(target), na=False) | norms.apply(
       lambda x: target in x or (x and x in target)
     )
     candidates = codes[mask]
     if not candidates.empty:
-      logger.info(f'{name}: 정규화 부분 일치 {len(candidates)}개 — 자동차 업종 우선 선택')
+      logger.info(f'{name}: corp_name 부분 일치 {len(candidates)}개 — 자동차 업종 우선 선택')
+
+  # 3차: 영문/숫자 부분(ascii_part) 매치 — 'SNT모티브' ↔ 'SNT Motiv' 같은 영한 혼용 케이스
+  if candidates.empty:
+    target_ascii = _ascii_part(name)
+    eng_col = 'corp_eng_name' if 'corp_eng_name' in codes.columns else None
+    if len(target_ascii) >= 3 and eng_col:
+      eng_ascii = codes[eng_col].fillna('').apply(_ascii_part)
+      name_ascii = codes['corp_name'].fillna('').apply(_ascii_part)
+      mask = (
+        eng_ascii.str.contains(re.escape(target_ascii), na=False)
+        | name_ascii.str.contains(re.escape(target_ascii), na=False)
+      )
+      candidates = codes[mask]
+      if not candidates.empty:
+        logger.info(f'{name}: 영문 ASCII 부분 일치 {len(candidates)}개 — 자동차 업종 우선 선택')
+
+  # 4차: 한글 음역 변환(_korean_to_ascii) 매치 — '에스에이치비'↔'SHB' 같은 완전 음역 케이스
+  if candidates.empty:
+    target_kor = _korean_to_ascii(name)
+    eng_col = 'corp_eng_name' if 'corp_eng_name' in codes.columns else None
+    if len(target_kor) >= 3 and eng_col:
+      eng_ascii = codes[eng_col].fillna('').apply(_ascii_part)
+      name_ascii = codes['corp_name'].fillna('').apply(_ascii_part)
+      mask = (
+        eng_ascii.str.contains(re.escape(target_kor), na=False)
+        | name_ascii.str.contains(re.escape(target_kor), na=False)
+      )
+      candidates = codes[mask]
+      if not candidates.empty:
+        logger.info(
+          f'{name}: 한글 음역 변환 부분 일치 {len(candidates)}개 '
+          f'(변환: {target_kor!r}) — 자동차 업종 우선 선택'
+        )
 
   if candidates.empty:
     return None
@@ -659,6 +774,7 @@ def collectDartAudit() -> None:
     return
 
   all_rows: list[dict] = []
+  unmapped: list[dict] = []  # corp_code 미해소 회사 명단
   for company in companies:
     name = company['name_kr']
     company_id = company['id']
@@ -669,10 +785,12 @@ def collectDartAudit() -> None:
       corp_code = _resolve_corp_code(dart, name, db_corp_code)
     except Exception as e:
       logger.error(f'{name} corp_code 검색 실패: {e}')
+      unmapped.append({'id': company_id, 'name_kr': name, 'reason': f'예외: {e}'})
       continue
 
     if not corp_code:
       logger.warning(f'{name}: DART 코드 없음 — 스킵')
+      unmapped.append({'id': company_id, 'name_kr': name, 'reason': 'corp_code 미해소'})
       continue
 
     logger.info(f'{name}: corp_code={corp_code}')
@@ -687,6 +805,17 @@ def collectDartAudit() -> None:
     logger.info(f'DART 감사보고서 수집 완료 — {len(final)}행')
   else:
     logger.warning('수집된 재무 데이터 없음')
+
+  # corp_code 미해소 회사 종합 리포트 — 사용자가 dart_corp_code 수동 매핑 참고용
+  if unmapped:
+    logger.warning(f'\n=== corp_code 미해소 회사 {len(unmapped)}개 (수동 매핑 권장) ===')
+    for u in unmapped:
+      logger.warning(f"  {u['name_kr']:30}  ({u['reason']})  id={u['id']}")
+    logger.warning(
+      "  ↳ DART(https://dart.fss.or.kr)에서 해당 회사 검색 → corp_code 확인 후\n"
+      "    UPDATE public.companies SET dart_corp_code='########' WHERE id='<id>';\n"
+      "    로 매핑하면 다음 워크플로부터 정상 수집됩니다."
+    )
 
 
 if __name__ == '__main__':
