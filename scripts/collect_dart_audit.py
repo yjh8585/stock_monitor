@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime
 from pathlib import Path
 
@@ -189,6 +190,8 @@ def _korean_to_ascii(s: str) -> str:
 
 def _is_transient_error(e: Exception) -> bool:
   """일시적 네트워크/SSL 에러만 재시도 대상으로 판정."""
+  if isinstance(e, FuturesTimeout):
+    return True
   msg = str(e).lower()
   return (
     isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout))
@@ -199,13 +202,24 @@ def _is_transient_error(e: Exception) -> bool:
   )
 
 
-def _with_retry(fn, *args, _attempts: int = 2, _backoff: float = 0.5, **kwargs):
+def _with_retry(
+  fn,
+  *args,
+  _attempts: int = 2,
+  _backoff: float = 0.5,
+  _deadline: float | None = None,
+  **kwargs,
+):
   """지수 백오프 재시도. 일시적 네트워크/SSL 에러만 재시도, 다른 예외는 즉시 raise.
-  기본 2회(즉시+1회 재시도, 0.5s 대기) — SSL EOF가 transient지만 실제로 retry 성공률 낮아 빠르게 포기."""
+  기본 2회(즉시+1회 재시도, 0.5s 대기). _deadline 지정 시 별도 스레드에서 실행해 시간 초과면
+  강제로 TimeoutError 발생(OpenDartReader 내부의 무한 hang 방어용)."""
   last = None
   for i in range(_attempts):
     try:
-      return fn(*args, **kwargs)
+      if _deadline is None:
+        return fn(*args, **kwargs)
+      with ThreadPoolExecutor(max_workers=1) as ex:
+        return ex.submit(fn, *args, **kwargs).result(timeout=_deadline)
     except Exception as e:
       last = e
       if i < _attempts - 1 and _is_transient_error(e):
@@ -400,6 +414,7 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
       start=f'{fiscal_year}-01-01',
       end=end_date,
       final=False,
+      _deadline=60,
     )
   except Exception as e:
     logger.warning(f'{corp_code} {fiscal_year}년: dart.list 실패 — {e}')
@@ -452,7 +467,7 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
   """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다."""
   url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
   try:
-    r = _with_retry(requests.get, url, headers=HEADERS, timeout=30)
+    r = _with_retry(requests.get, url, headers=HEADERS, timeout=(10, 30))
   except Exception as e:
     logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
     return None
@@ -484,7 +499,7 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
 def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
   """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환. 실패 시 main.do 직접 파싱."""
   try:
-    docs = _with_retry(dart.sub_docs, rcpt_no)
+    docs = _with_retry(dart.sub_docs, rcpt_no, _deadline=60)
   except Exception as e:
     logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
     return _fallback_viewer_url(rcpt_no)
@@ -505,7 +520,7 @@ def _is_pdf_only_report(rcpt_no: str) -> bool:
       requests.get,
       f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}',
       headers=HEADERS,
-      timeout=30,
+      timeout=(10, 30),
     )
   except Exception:
     return False
@@ -518,7 +533,7 @@ def _is_pdf_only_report(rcpt_no: str) -> bool:
 def _fetch_tables(url: str) -> list:
   """DART 뷰어 URL에서 HTML 테이블 목록을 반환 (3회 재시도)."""
   try:
-    r = _with_retry(requests.get, url, headers=HEADERS, timeout=30)
+    r = _with_retry(requests.get, url, headers=HEADERS, timeout=(10, 30))
     soup = BeautifulSoup(r.content, 'html.parser')
     return soup.find_all('table')
   except Exception as e:
@@ -684,7 +699,7 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
         requests.get,
         'https://opendart.fss.or.kr/api/company.json',
         params={'crtfc_key': DART_KEY, 'corp_code': code},
-        timeout=15,
+        timeout=(10, 15),
       ).json()
     except Exception as e:
       logger.warning(f'  {code}: company.json 조회 실패 ({e})')
