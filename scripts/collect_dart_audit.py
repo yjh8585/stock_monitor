@@ -249,11 +249,45 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> str | None:
   return None
 
 
-def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
-  """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환한다."""
-  docs = dart.sub_docs(rcpt_no)
-  if docs is None or docs.empty:
+# viewDoc("rcpNo","dcmNo","eleId","offset","length","dtd"[, "tocNo"]) 큰/작은따옴표 모두 매치.
+# OpenDartReader 0.1.6의 정규식은 작은따옴표 + 7번째 빈 인자만 인식해 dart4.xsd 신형식 보고서를 놓친다.
+_VIEWDOC_RE = re.compile(
+  r'viewDoc\(\s*["\'](\d+)["\']\s*,\s*["\'](\d+)["\']\s*,\s*["\']([^"\']*)["\']\s*,\s*'
+  r'["\'](\d+)["\']\s*,\s*["\'](\d+)["\']\s*,\s*["\']([^"\']+)["\']'
+)
+
+
+def _fallback_viewer_url(rcpt_no: str) -> str | None:
+  """sub_docs가 못 찾는 분책 없는 보고서에서 본문 viewer URL을 main.do에서 직접 추출."""
+  url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
+  try:
+    r = requests.get(url, headers=HEADERS, timeout=30)
+  except Exception as e:
+    logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
     return None
+  m = _VIEWDOC_RE.search(r.text)
+  if not m:
+    logger.warning(f'fallback: viewDoc 패턴 못 찾음 (rcpNo={rcpt_no})')
+    return None
+  rcp, dcm, ele, off, lng, dtd = m.groups()
+  return (
+    f'http://dart.fss.or.kr/report/viewer.do?'
+    f'rcpNo={rcp}&dcmNo={dcm}&eleId={ele}&offset={off}&length={lng}&dtd={dtd}'
+  )
+
+
+def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
+  """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환한다.
+
+  sub_docs가 예외를 던지거나 빈 결과(분책 없는 보고서)인 경우 main.do 직접 파싱으로 fallback.
+  """
+  try:
+    docs = dart.sub_docs(rcpt_no)
+  except Exception as e:
+    logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
+    return _fallback_viewer_url(rcpt_no)
+  if docs is None or docs.empty:
+    return _fallback_viewer_url(rcpt_no)
   # length 파라미터가 가장 큰 URL 선택 (재무제표 본문)
   def extract_length(url: str) -> int:
     m = re.search(r'length=(\d+)', str(url))
