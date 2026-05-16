@@ -249,8 +249,21 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> str | None:
   return None
 
 
-# viewDoc("rcpNo","dcmNo","eleId","offset","length","dtd"[, "tocNo"]) 큰/작은따옴표 모두 매치.
-# OpenDartReader 0.1.6의 정규식은 작은따옴표 + 7번째 빈 인자만 인식해 dart4.xsd 신형식 보고서를 놓친다.
+# main.do 좌측 트리 노드 블록 (OpenDartReader 0.1.6의 pattern을 줄바꿈 관대화).
+# 분책 없이 단일 dcmNo 안에 element만 여러 개인 신형식 보고서를 잡기 위함.
+_TREE_NODE_RE = re.compile(
+  r"node[12]\['text'\]\s*=\s*\"([^\"]*)\";.*?"
+  r"node[12]\['rcpNo'\]\s*=\s*\"([^\"]*)\";.*?"
+  r"node[12]\['dcmNo'\]\s*=\s*\"([^\"]*)\";.*?"
+  r"node[12]\['eleId'\]\s*=\s*\"([^\"]*)\";.*?"
+  r"node[12]\['offset'\]\s*=\s*\"([^\"]*)\";.*?"
+  r"node[12]\['length'\]\s*=\s*\"([^\"]*)\";.*?"
+  r"node[12]\['dtd'\]\s*=\s*\"([^\"]*)\";",
+  re.DOTALL,
+)
+
+# viewDoc("rcpNo","dcmNo","eleId","offset","length","dtd"[, "tocNo"]) 리터럴 — 마지막 안전망.
+# 트리 노드도 없는 가장 단순한 단일 페이지 보고서용.
 _VIEWDOC_RE = re.compile(
   r'viewDoc\(\s*["\'](\d+)["\']\s*,\s*["\'](\d+)["\']\s*,\s*["\']([^"\']*)["\']\s*,\s*'
   r'["\'](\d+)["\']\s*,\s*["\'](\d+)["\']\s*,\s*["\']([^"\']+)["\']'
@@ -258,16 +271,34 @@ _VIEWDOC_RE = re.compile(
 
 
 def _fallback_viewer_url(rcpt_no: str) -> str | None:
-  """sub_docs가 못 찾는 분책 없는 보고서에서 본문 viewer URL을 main.do에서 직접 추출."""
+  """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다.
+
+  - 1차: node1/node2 트리 노드 추출 → length가 가장 큰 element를 본문으로 선택.
+  - 2차: viewDoc 리터럴 호출 첫 매치(트리도 없는 가장 단순한 단일 페이지 보고서용).
+  """
   url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
   try:
     r = requests.get(url, headers=HEADERS, timeout=30)
   except Exception as e:
     logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
     return None
+
+  nodes = _TREE_NODE_RE.findall(r.text)
+  if nodes:
+    def _node_length(node: tuple[str, ...]) -> int:
+      lng = node[5]
+      return int(lng) if lng.isdigit() else 0
+
+    text, rcp, dcm, ele, off, lng, dtd = max(nodes, key=_node_length)
+    logger.info(f'fallback 트리 본문 선택 (rcpNo={rcpt_no}): eleId={ele} length={lng} text={text}')
+    return (
+      f'http://dart.fss.or.kr/report/viewer.do?'
+      f'rcpNo={rcp}&dcmNo={dcm}&eleId={ele}&offset={off}&length={lng}&dtd={dtd}'
+    )
+
   m = _VIEWDOC_RE.search(r.text)
   if not m:
-    logger.warning(f'fallback: viewDoc 패턴 못 찾음 (rcpNo={rcpt_no})')
+    logger.warning(f'fallback: 트리/viewDoc 모두 못 찾음 (rcpNo={rcpt_no})')
     return None
   rcp, dcm, ele, off, lng, dtd = m.groups()
   return (
