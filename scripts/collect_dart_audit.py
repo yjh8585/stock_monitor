@@ -81,10 +81,13 @@ def _target_years() -> list[int]:
 def _get_dart():
   """OpenDartReader 클라이언트 반환."""
   try:
-    import OpenDartReader as ODR
-  except ImportError as e:
-    logger.error(f'OpenDartReader import 실패: {e!r}')
-    return None
+    from opendartreader import OpenDartReader as ODR
+  except ImportError:
+    try:
+      import OpenDartReader as ODR  # 구버전(단일 파일 모듈) 호환
+    except ImportError as e:
+      logger.error(f'OpenDartReader import 실패: {e!r}')
+      return None
   if not DART_KEY:
     logger.error('DART_API_KEY 없음')
     return None
@@ -366,8 +369,7 @@ def collectDartAudit() -> None:
 
     logger.info(f'{name} DART 코드 검색 중...')
     try:
-      import OpenDartReader as ODR
-      corp_code = ODR(DART_KEY).find_corp_code(name)
+      corp_code = dart.find_corp_code(name)
     except Exception as e:
       logger.error(f'{name} corp_code 검색 실패: {e}')
       continue
