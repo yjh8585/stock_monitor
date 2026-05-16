@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
 """
 국내 비상장 외감법인의 연결감사보고서를 DART에서 직접 파싱해 재무 데이터를 수집한다.
-- OpenDartReader로 결산감사보고서 rcpNo 조회
-- sub_docs로 재무제표 문서 URL 확인
-- requests + BeautifulSoup으로 HTML 테이블 파싱
-- financials 테이블에 upsert
+
+흐름:
+  1) companies 테이블에서 data_source='dart' 회사 로드(dart_corp_code 수동 매핑 포함).
+  2) _resolve_corp_code: DB 매핑 우선 → corpCode.xml 양방향 정규화 매치 → 부분 일치 +
+     자동차 업종(induty prefix) 우선.
+  3) _get_audit_rcpt: 회계연도 N 보고서 후보 수집(검색 기간 N년부터 N+5년) →
+     [기재정정] > 연결 > 별도 + 최신 rcept_dt 점수로 1건 선택.
+  4) _get_main_doc_url: sub_docs 우선, 실패 시 main.do 트리 노드 직접 파싱(length 최대값 본문).
+  5) _fetch_tables: HTML 테이블 다운로드(지수 백오프 3회 재시도). PDF 전용 보고서는 검출 후 WARN.
+  6) _parse_financial_tables: 표 단위(백만원/천원/원) 자동 인식 + 동적 숫자 컬럼 감지로 파싱.
+  7) financials upsert. dedup은 같은 (company_id, fiscal_year)에 대해 더 최근 보고서가 우선,
+     값이 다른 컬럼은 WARN 로그(정정 추적).
 
 단위: DART 문서의 원(KRW) 단위 → 백만원으로 변환해 저장.
 """
+import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from loguru import logger
 
 load_dotenv(Path(__file__).parent / '.env')
@@ -25,26 +35,34 @@ from lib.db import get_client, upsert_rows
 
 DART_KEY = ''
 try:
-  from dotenv import dotenv_values
   _env = dotenv_values(Path(__file__).parent / '.env')
   DART_KEY = _env.get('DART_API_KEY', '')
 except Exception:
   pass
-
-import os
 DART_KEY = DART_KEY or os.environ.get('DART_API_KEY', '')
 
 MILLION = 1_000_000
 GENERATED_COLS = frozenset({'operating_margin', 'gross_margin', 'net_margin', 'debt_ratio'})
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-# DART 계정명 → DB 컬럼 매핑 (부분 일치 우선)
+# 회사 간 sleep (DART rate limit 완화)
+COMPANY_SLEEP = float(os.environ.get('COMPANY_SLEEP', '0.5'))
+# 정정본 추적용 검색 기간 확장 (회계연도 N → N+AUDIT_LOOKBACK_YEARS년까지 정정 추적)
+AUDIT_LOOKBACK_YEARS = int(os.environ.get('AUDIT_LOOKBACK_YEARS', '5'))
+# 수집 대상 회계연도 — 직전 회계연도부터 과거 N년치
+YEARS_BACK = int(os.environ.get('YEARS_BACK', '4'))
+
+# DART 계정명 → DB 컬럼 매핑 (완전 일치 우선, 부분 일치 fallback)
 ACCT_TO_DB: dict[str, str] = {
   '매출액': 'revenue',
   '매출': 'revenue',
   '영업수익': 'revenue',
   '수익(매출액)': 'revenue',
   '매출(영업수익)': 'revenue',
+  '매출원가': 'cogs',
+  '판매비와관리비': 'sga',
+  '판매비및관리비': 'sga',
+  '판관비': 'sga',
   '영업이익': 'operating_income',
   '영업이익(손실)': 'operating_income',
   '영업손실': 'operating_income',
@@ -57,19 +75,63 @@ ACCT_TO_DB: dict[str, str] = {
   '재고자산': 'inventory',
 }
 
-# 매출/영업이익 키워드와 충돌하는 비손익 항목 — 부분 일치 시 거부
+# 키워드 부분 일치로 잘못 잡힐 가능성이 있는 함정 계정명 — 매칭 거부.
 ACCT_REJECT = frozenset({
-  '매출원가', '매출총이익', '매출채권', '매출채권및기타채권',
+  '매출원가율',
+  '매출총이익', '매출총손익',
+  '매출채권', '매출채권및기타채권',
+  '단기차입금', '장기차입금',
   '영업외수익', '영업외비용', '기타수익', '기타영업수익',
   '금융수익', '금융비용', '미실현수익', '이연수익',
+  '이연법인세자산', '이연법인세부채',
   '영업이익률', '영업비용',
+  '비지배지분순이익', '비지배지분', '비지배주주순이익',
+  '매출액및영업이익',
+  '판매관리비',
 })
 
-# 감사보고서 유형 키워드 (결산감사보고서 우선)
-AUDIT_REPORT_KEYWORDS = ['결산감사보고서', '감사보고서']
+# 자동차/운송장비/부품 가능 업종 KSIC prefix (한국표준산업분류 대분류 2자리).
+# 24=1차금속, 25=금속가공, 26=전자부품, 27=정밀기기, 28=전기장비, 29=기타기계,
+# 30=자동차, 31=기타운송장비, 32=가구, 33=기타제품, 46=도매업.
+_AUTO_INDUTY_PREFIXES = ('24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '46')
 
-# 수집 대상 회계연도 — 직전 회계연도부터 과거 N년치
-YEARS_BACK = 4
+# 법인 형태 접미사/접두사 정규화 — DB(짧음) ↔ DART(정식명) 매칭용.
+_LEGAL_FORM_RE = re.compile(r'(주식회사|유한책임회사|유한회사|\(주\)|\(유\))')
+
+
+def _normalize_corp_name(name: str) -> str:
+  """회사명에서 법인 형태와 공백을 제거해 매칭 키 형태로 정규화."""
+  s = _LEGAL_FORM_RE.sub('', name or '')
+  return re.sub(r'\s+', '', s).strip()
+
+
+def _is_transient_error(e: Exception) -> bool:
+  """일시적 네트워크/SSL 에러만 재시도 대상으로 판정."""
+  msg = str(e).lower()
+  return (
+    isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout))
+    or 'ssleof' in msg
+    or 'connection reset' in msg
+    or 'connection broken' in msg
+    or 'timed out' in msg
+  )
+
+
+def _with_retry(fn, *args, _attempts: int = 3, _backoff: float = 1.0, **kwargs):
+  """지수 백오프 3회 재시도. 일시적 네트워크/SSL 에러만 재시도, 다른 예외는 즉시 raise."""
+  last = None
+  for i in range(_attempts):
+    try:
+      return fn(*args, **kwargs)
+    except Exception as e:
+      last = e
+      if i < _attempts - 1 and _is_transient_error(e):
+        wait = _backoff * (2 ** i)
+        logger.debug(f'  재시도 {i+1}/{_attempts} ({type(e).__name__}: {e}) → {wait}s 대기')
+        time.sleep(wait)
+        continue
+      raise
+  raise last  # 도달하지 않음
 
 
 def _target_years() -> list[int]:
@@ -117,7 +179,6 @@ def _clean_acct(raw: str) -> str:
   """계정명 정규화: 공백 제거 → 주석·서수 접두어 제거."""
   s = _normalize(raw)
   s = re.sub(r'\(주석\d+.*?\)', '', s)
-  # Ⅰ. Ⅱ. 등 Unicode 로마자 및 한글 접두어 제거
   s = re.sub(r'^[Ⅰ-Ⅿⅰ-ⅿ가-힣]+\.', '', s)
   s = re.sub(r'^\(\d+\)\.?', '', s)
   s = re.sub(r'^\d+\.', '', s)
@@ -125,10 +186,10 @@ def _clean_acct(raw: str) -> str:
 
 
 def _match_acct(raw: str) -> str | None:
-  """계정명을 ACCT_TO_DB에서 찾는다 (공백 정규화 후 매칭).
-  ACCT_REJECT에 포함된 비손익 항목은 부분 일치를 차단한다.
-  """
+  """계정명을 ACCT_TO_DB에서 찾는다. 완전 일치 → 부분 일치 순. ACCT_REJECT는 거부."""
   clean = _clean_acct(raw)
+  if not clean:
+    return None
   if clean in ACCT_REJECT or any(rej in clean for rej in ACCT_REJECT):
     return None
   if clean in ACCT_TO_DB:
@@ -140,12 +201,7 @@ def _match_acct(raw: str) -> str | None:
 
 
 def _detect_unit_divider(tbl_text: str) -> int:
-  """표 본문 텍스트에서 단위(백만원/천원/원) 인식 → 백만원 환산 divider 반환.
-
-  - "백만원" 표기 → divider=1 (이미 백만원)
-  - "천원"   표기 → divider=1000 (천원 → 백만원)
-  - 기본(원)        → divider=MILLION
-  """
+  """표 본문 텍스트에서 단위(백만원/천원/원) 인식 → 백만원 환산 divider 반환."""
   if '백만원' in tbl_text:
     return 1
   if '천원' in tbl_text:
@@ -154,10 +210,12 @@ def _detect_unit_divider(tbl_text: str) -> int:
 
 
 def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
-  """
-  재무제표 테이블 목록에서 {db_col: {current, prior}} 형태로 파싱한다.
-  테이블 열 구조: 계정명 | 당기세부 | 당기합계 | 전기세부 | 전기합계
-  단위는 표별로 인식 — 표 텍스트에 '백만원'/'천원' 표기가 있으면 그에 맞춰 환산.
+  """재무제표 테이블 목록에서 {db_col: {current, prior}} 형태로 파싱한다.
+
+  표 구조 처리: 계정명 셀(첫 셀) 다음의 모든 셀에서 숫자 컬럼을 동적으로 추출.
+  - 짝수 개 숫자: [당기세부..당기합계, 전기세부..전기합계] 가정 → 양쪽 마지막(합계) 사용.
+  - 홀수 개 숫자(또는 2개): 첫 두 개를 당기/전기로 사용.
+  - 단일: 당기만.
   """
   result: dict[str, dict[str, float | None]] = {}
   seen: set[str] = set()
@@ -169,8 +227,7 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
 
     divider = _detect_unit_divider(tbl_text)
 
-    rows = tbl.find_all('tr')
-    for row in rows:
+    for row in tbl.find_all('tr'):
       cells = [td.get_text(strip=True) for td in row.find_all(['th', 'td'])]
       if len(cells) < 2:
         continue
@@ -179,78 +236,118 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
       if db_col is None or db_col in GENERATED_COLS or db_col in seen:
         continue
 
-      # 셀 길이별 컬럼 위치 분기 (DART 감사보고서 표준 구조).
-      # 6 cells: [계정명, 주석, 당기세부, 당기합계, 전기세부, 전기합계]
-      # 5 cells: [계정명, 당기세부, 당기합계, 전기세부, 전기합계]
-      # 4 cells: [계정명, 주석, 당기, 전기]
-      # 3 cells: [계정명, 당기, 전기]
-      # 2 cells: [계정명, 당기]
-      # 주석 컬럼(cells[1])에 '25,26' 같은 주석 번호가 있으면 _parse_num이 2526으로
-      # 잘못 파싱하므로, 6 cells일 때는 cells[1]을 항상 skip한다.
-      curr: float | None = None
-      prior: float | None = None
-      if len(cells) >= 6:
-        curr = _parse_num(cells[3]) or _parse_num(cells[2])
-        prior = _parse_num(cells[5]) or _parse_num(cells[4])
-      elif len(cells) == 5:
-        curr = _parse_num(cells[2]) or _parse_num(cells[1])
-        prior = _parse_num(cells[4]) or _parse_num(cells[3])
-      elif len(cells) == 4:
-        curr = _parse_num(cells[2])
-        prior = _parse_num(cells[3])
-      elif len(cells) == 3:
-        curr = _parse_num(cells[1])
-        prior = _parse_num(cells[2])
+      # 계정명 셀 이후의 모든 셀에서 숫자만 추출 (주석 번호·빈 셀·기호 무시)
+      nums = [v for c in cells[1:] for v in (_parse_num(c),) if v is not None]
+      if not nums:
+        continue
+
+      n = len(nums)
+      if n == 1:
+        curr, prior = nums[0], None
+      elif n == 2:
+        curr, prior = nums[0], nums[1]
+      elif n % 2 == 0:
+        # 짝수: [당기..당기합계, 전기..전기합계] → 양쪽 마지막
+        half = n // 2
+        curr, prior = nums[half - 1], nums[n - 1]
       else:
-        curr = _parse_num(cells[1])
+        curr, prior = nums[0], nums[1]
 
-      if curr is not None:
-        result[db_col] = {'current': curr / divider, 'prior': prior / divider if prior else None}
-        seen.add(db_col)
+      result[db_col] = {
+        'current': curr / divider,
+        'prior': prior / divider if prior is not None else None,
+      }
+      seen.add(db_col)
 
-  return _correct_unit_heuristic(result)
+  return result
 
 
-def _correct_unit_heuristic(parsed: dict[str, dict[str, float | None]]) -> dict[str, dict[str, float | None]]:
-  """단위 미표기 표 휴리스틱 보정.
+def _score_report(report_nm: str, rcept_dt: str) -> tuple[int, str]:
+  """보고서 우선순위 점수. (등급, rcept_dt) — 큰 값이 우선.
 
-  자동차 부품사는 거의 모두 매출 100백만원(1억) 이상이므로,
-  revenue가 100 미만이면 표가 "천원" 단위였는데 단위 분기가 "원"으로 잡힌 케이스로 가정 → 모든 값을 ×1000 보정.
+  등급 가중치:
+    + 4점: [기재정정] 포함 (정정본 우선)
+    + 2점: '연결' 포함 (연결재무제표 우선)
+    + 1점: '감사보고서' 포함 (다른 공시 제외)
+  rcept_dt: 동률일 때 최신순.
   """
-  rev = (parsed.get('revenue') or {}).get('current')
-  if rev is None or rev <= 0 or rev >= 100:
-    return parsed
-  for col, vals in parsed.items():
-    if vals.get('current') is not None:
-      vals['current'] = vals['current'] * 1000
-    if vals.get('prior') is not None:
-      vals['prior'] = vals['prior'] * 1000
-  return parsed
+  score = 0
+  if '[기재정정]' in report_nm:
+    score += 4
+  if '연결' in report_nm:
+    score += 2
+  if '감사보고서' in report_nm:
+    score += 1
+  return (score, rcept_dt)
 
 
-def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> str | None:
-  """특정 회계연도의 결산감사보고서 rcpNo를 반환한다.
-  final=False — [기재정정] 보고서를 포함해 조회한다. OpenDartReader 기본 final=True 는
-  정정 처리된 보고서가 안 잡혀 동희그룹 등 일부 회사가 누락되는 사례 발견.
-  """
-  filings = dart.list(
-    corp_code,
-    start=f'{fiscal_year}-01-01',
-    end=f'{fiscal_year + 1}-06-30',
-    final=False,
-  )
-  if filings is None or filings.empty:
+def _infer_fiscal_year_from_rcept(rcept_dt: str) -> int | None:
+  """rcept_dt(YYYYMMDD)에서 회계연도 추정. 1~6월 제출이면 N-1, 7~12월이면 N."""
+  if not rcept_dt or len(rcept_dt) != 8:
     return None
-  for kw in AUDIT_REPORT_KEYWORDS:
-    for _, row in filings.iterrows():
-      rpt = str(row.get('report_nm', ''))
-      if kw in rpt and str(fiscal_year) in rpt:
-        return str(row['rcept_no'])
-  return None
+  try:
+    y = int(rcept_dt[:4])
+    m = int(rcept_dt[4:6])
+  except ValueError:
+    return None
+  return y - 1 if m <= 6 else y
+
+
+def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None, str | None, bool]:
+  """회계연도 fiscal_year의 가장 적합한 감사보고서를 선택.
+
+  Returns:
+    (rcept_no, report_nm, is_consolidated) — 못 찾으면 (None, None, False).
+
+  검색 기간: fiscal_year-01-01 ~ min(today, (fiscal_year + AUDIT_LOOKBACK_YEARS)-12-31).
+  정정본이 과거 회계연도에 대해 최근 제출되는 케이스 추적.
+
+  매치 조건: '감사보고서' 키워드 + (str(fiscal_year) in report_nm
+            OR rcept_dt에서 추정한 회계연도 == fiscal_year).
+  선택: _score_report 점수가 가장 높은 보고서.
+  """
+  today = datetime.now()
+  end_year = min(today.year, fiscal_year + AUDIT_LOOKBACK_YEARS)
+  end_date = today.strftime('%Y-%m-%d') if end_year == today.year else f'{end_year}-12-31'
+
+  try:
+    filings = _with_retry(
+      dart.list,
+      corp_code,
+      start=f'{fiscal_year}-01-01',
+      end=end_date,
+      final=False,
+    )
+  except Exception as e:
+    logger.warning(f'{corp_code} {fiscal_year}년: dart.list 실패 — {e}')
+    return None, None, False
+
+  if filings is None or filings.empty:
+    return None, None, False
+
+  candidates: list[tuple[tuple[int, str], str, str, bool]] = []
+  for _, row in filings.iterrows():
+    rpt = str(row.get('report_nm', ''))
+    rcept_no = str(row.get('rcept_no', ''))
+    rcept_dt = str(row.get('rcept_dt', ''))
+    if '감사보고서' not in rpt:
+      continue
+    year_match = str(fiscal_year) in rpt
+    inferred = _infer_fiscal_year_from_rcept(rcept_dt)
+    if not year_match and inferred != fiscal_year:
+      continue
+    score = _score_report(rpt, rcept_dt)
+    candidates.append((score, rcept_no, rpt, '연결' in rpt))
+
+  if not candidates:
+    return None, None, False
+
+  candidates.sort(reverse=True)
+  _, best_no, best_nm, is_cons = candidates[0]
+  return best_no, best_nm, is_cons
 
 
 # main.do 좌측 트리 노드 블록 (OpenDartReader 0.1.6의 pattern을 줄바꿈 관대화).
-# 분책 없이 단일 dcmNo 안에 element만 여러 개인 신형식 보고서를 잡기 위함.
 _TREE_NODE_RE = re.compile(
   r"node[12]\['text'\]\s*=\s*\"([^\"]*)\";.*?"
   r"node[12]\['rcpNo'\]\s*=\s*\"([^\"]*)\";.*?"
@@ -262,8 +359,6 @@ _TREE_NODE_RE = re.compile(
   re.DOTALL,
 )
 
-# viewDoc("rcpNo","dcmNo","eleId","offset","length","dtd"[, "tocNo"]) 리터럴 — 마지막 안전망.
-# 트리 노드도 없는 가장 단순한 단일 페이지 보고서용.
 _VIEWDOC_RE = re.compile(
   r'viewDoc\(\s*["\'](\d+)["\']\s*,\s*["\'](\d+)["\']\s*,\s*["\']([^"\']*)["\']\s*,\s*'
   r'["\'](\d+)["\']\s*,\s*["\'](\d+)["\']\s*,\s*["\']([^"\']+)["\']'
@@ -271,14 +366,10 @@ _VIEWDOC_RE = re.compile(
 
 
 def _fallback_viewer_url(rcpt_no: str) -> str | None:
-  """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다.
-
-  - 1차: node1/node2 트리 노드 추출 → length가 가장 큰 element를 본문으로 선택.
-  - 2차: viewDoc 리터럴 호출 첫 매치(트리도 없는 가장 단순한 단일 페이지 보고서용).
-  """
+  """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다."""
   url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
   try:
-    r = requests.get(url, headers=HEADERS, timeout=30)
+    r = _with_retry(requests.get, url, headers=HEADERS, timeout=30)
   except Exception as e:
     logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
     return None
@@ -308,30 +399,43 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
 
 
 def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
-  """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환한다.
-
-  sub_docs가 예외를 던지거나 빈 결과(분책 없는 보고서)인 경우 main.do 직접 파싱으로 fallback.
-  """
+  """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환. 실패 시 main.do 직접 파싱."""
   try:
-    docs = dart.sub_docs(rcpt_no)
+    docs = _with_retry(dart.sub_docs, rcpt_no)
   except Exception as e:
     logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
     return _fallback_viewer_url(rcpt_no)
   if docs is None or docs.empty:
     return _fallback_viewer_url(rcpt_no)
-  # length 파라미터가 가장 큰 URL 선택 (재무제표 본문)
+
   def extract_length(url: str) -> int:
     m = re.search(r'length=(\d+)', str(url))
     return int(m.group(1)) if m else 0
 
-  best_url = max(docs['url'], key=extract_length)
-  return str(best_url)
+  return str(max(docs['url'], key=extract_length))
+
+
+def _is_pdf_only_report(rcpt_no: str) -> bool:
+  """main.do에서 PDF 다운로드 링크가 있고 HTML 본문 트리/viewDoc 리터럴이 없으면 True."""
+  try:
+    r = _with_retry(
+      requests.get,
+      f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}',
+      headers=HEADERS,
+      timeout=30,
+    )
+  except Exception:
+    return False
+  has_pdf = 'openPdfDownload' in r.text or '.pdf' in r.text
+  has_tree = bool(_TREE_NODE_RE.search(r.text))
+  has_viewdoc = bool(_VIEWDOC_RE.search(r.text))
+  return has_pdf and not (has_tree or has_viewdoc)
 
 
 def _fetch_tables(url: str) -> list:
-  """DART 뷰어 URL에서 HTML 테이블 목록을 반환한다."""
+  """DART 뷰어 URL에서 HTML 테이블 목록을 반환 (3회 재시도)."""
   try:
-    r = requests.get(url, headers=HEADERS, timeout=30)
+    r = _with_retry(requests.get, url, headers=HEADERS, timeout=30)
     soup = BeautifulSoup(r.content, 'html.parser')
     return soup.find_all('table')
   except Exception as e:
@@ -339,31 +443,42 @@ def _fetch_tables(url: str) -> list:
     return []
 
 
-def _collect_company(dart, company_id: str, corp_code: str, years: list[int]) -> list[dict]:
-  """비상장사의 연도별 연결감사보고서를 파싱해 financials 행 목록을 반환한다."""
+def _collect_company(
+  dart, company_id: str, corp_code: str, years: list[int]
+) -> list[dict]:
+  """비상장사의 연도별 감사보고서를 파싱해 financials 행 목록을 반환한다.
+
+  각 행에 메타필드 _report_fiscal_year(보고서 회계연도) + consolidation을 포함.
+  upsert 전에 _report_fiscal_year는 제거된다.
+  """
   rows: list[dict] = []
 
   for year in years:
-    rcpt_no = _get_audit_rcpt(dart, corp_code, year)
-    if not rcpt_no:
+    rcept_no, report_nm, is_cons = _get_audit_rcpt(dart, corp_code, year)
+    if not rcept_no:
       logger.warning(f'{corp_code} {year}년: 결산감사보고서 없음')
       continue
 
-    logger.info(f'{corp_code} {year}년: rcpNo={rcpt_no}')
-    doc_url = _get_main_doc_url(dart, rcpt_no)
+    logger.info(f'{corp_code} {year}년: rcpNo={rcept_no} | {report_nm}')
+    doc_url = _get_main_doc_url(dart, rcept_no)
     if not doc_url:
       logger.warning(f'{corp_code} {year}년: 문서 URL 없음')
       continue
 
     tables = _fetch_tables(doc_url)
     if not tables:
-      logger.warning(f'{corp_code} {year}년: 테이블 없음')
+      if _is_pdf_only_report(rcept_no):
+        logger.warning(f'{corp_code} {year}년: PDF 전용 보고서 — HTML 파싱 불가, 스킵')
+      else:
+        logger.warning(f'{corp_code} {year}년: 테이블 없음')
       continue
 
     parsed = _parse_financial_tables(tables)
     if not parsed:
       logger.warning(f'{corp_code} {year}년: 재무 데이터 파싱 실패')
       continue
+
+    consolidation = 'consolidated' if is_cons else 'separate'
 
     # 당기(year) 행
     row: dict = {
@@ -373,15 +488,15 @@ def _collect_company(dart, company_id: str, corp_code: str, years: list[int]) ->
       'fiscal_quarter': None,
       'period_end_date': f'{year}-12-31',
       'currency': 'KRW',
+      'consolidation': consolidation,
+      '_report_fiscal_year': year,
     }
     for db_col, vals in parsed.items():
       row[db_col] = round(vals['current'], 4) if vals['current'] is not None else None
+    rows.append(row)
+    logger.info(f'{corp_code} {year}년: {len(parsed)}개 항목 수집 ({consolidation}) — {list(parsed.keys())}')
 
-    if len(row) > 6:
-      rows.append(row)
-      logger.info(f'{corp_code} {year}년: {len(row) - 6}개 항목 수집 — {list(parsed.keys())}')
-
-    # 전기(year-1) 행 — parsed에 prior 값이 있으면 추가
+    # 전기(year-1) 행
     prior_vals = {col: v['prior'] for col, v in parsed.items() if v['prior'] is not None}
     if prior_vals:
       prior_row: dict = {
@@ -391,31 +506,27 @@ def _collect_company(dart, company_id: str, corp_code: str, years: list[int]) ->
         'fiscal_quarter': None,
         'period_end_date': f'{year - 1}-12-31',
         'currency': 'KRW',
+        'consolidation': consolidation,
+        '_report_fiscal_year': year,
       }
       for db_col, val in prior_vals.items():
         prior_row[db_col] = round(val, 4)
-      if len(prior_row) > 6:
-        rows.append(prior_row)
-        logger.debug(f'{corp_code} {year - 1}년(전기): {len(prior_row) - 6}개 항목')
+      rows.append(prior_row)
+      logger.debug(f'{corp_code} {year - 1}년(전기): {len(prior_vals)}개 항목')
 
   return rows
 
 
-# 자동차/운송장비 업종 식별용 induty_code prefix (한국표준산업분류 KSIC).
-# DART company.json은 대분류 2자리만 반환하는 경우가 있어 prefix 매칭으로 처리.
-# 30 = 자동차 및 트레일러 제조업, 31 = 기타 운송장비, 33 = 기타 제품(부품 일부 포함).
-_AUTO_INDUTY_PREFIXES = ('30', '31', '33')
-
-
 def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
-  """회사명에서 DART corp_code를 식별. 동명 회사는 자동차 업종 우선으로 해소.
+  """회사명에서 DART corp_code를 식별. 동명/표기 차이/이름 변경 모두 대응.
 
   우선순위:
-    1) companies.dart_corp_code에 수동 매핑이 있으면 그대로 사용(가장 신뢰).
-    2) corp_codes(전체 회사 목록)에서 corp_name 완전 일치 후보 추출.
-    3) 후보 1개면 그대로. 여럿이면 company.json의 induty_code가
-       자동차/운송장비(30/31/33...)인 회사 우선, 그 안에서 modify_date 최신.
-    4) 자동차 업종 후보가 없으면 modify_date 최신(현재 활동 중) 선택.
+    1) companies.dart_corp_code 수동 매핑 (검증 없이 사용).
+    2) corp_codes에서 corp_name 완전 일치 (정규화 후 양쪽 비교).
+    3) 정규화 부분 일치(포함 관계).
+    4) 후보 여럿이면 induty_code prefix(자동차 30/31/33 외 24~33,46)로 자동차 우선,
+       자동차 후보 없으면 None 반환 + WARN.
+    5) 자동차 후보 안에서 modify_date 최신.
   """
   if db_corp_code:
     return db_corp_code
@@ -423,19 +534,38 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
   codes = getattr(dart, 'corp_codes', None)
   if codes is None or codes.empty:
     return None
-  candidates = codes[codes['corp_name'] == name]
+
+  target = _normalize_corp_name(name)
+  if not target:
+    return None
+
+  # 1차: 정규화 완전 일치
+  norms = codes['corp_name'].fillna('').apply(_normalize_corp_name)
+  candidates = codes[norms == target]
+
+  # 2차: 정규화 부분 일치 (양방향 contains)
+  if candidates.empty:
+    mask = norms.str.contains(re.escape(target), na=False) | norms.apply(
+      lambda x: target in x or (x and x in target)
+    )
+    candidates = codes[mask]
+    if not candidates.empty:
+      logger.info(f'{name}: 정규화 부분 일치 {len(candidates)}개 — 자동차 업종 우선 선택')
+
   if candidates.empty:
     return None
   if len(candidates) == 1:
     return str(candidates.iloc[0]['corp_code'])
 
-  logger.info(f'{name}: 동명 회사 {len(candidates)}개 — 자동차 업종 우선 선택')
-  scored: list[tuple[int, str, str]] = []  # (auto_priority, modify_date, corp_code)
+  logger.info(f'{name}: 동명/유사명 회사 {len(candidates)}개 — 자동차 업종 우선 선택')
+  scored: list[tuple[int, str, str]] = []  # (is_auto, modify_date, corp_code)
+  any_auto = False
   for _, row in candidates.iterrows():
     code = str(row['corp_code'])
     modify = str(row.get('modify_date') or '')
     try:
-      info = requests.get(
+      info = _with_retry(
+        requests.get,
         'https://opendart.fss.or.kr/api/company.json',
         params={'crtfc_key': DART_KEY, 'corp_code': code},
         timeout=15,
@@ -449,11 +579,57 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
       continue
     induty = str(info.get('induty_code') or '')
     is_auto = any(induty.startswith(p) for p in _AUTO_INDUTY_PREFIXES)
+    if is_auto:
+      any_auto = True
     scored.append((1 if is_auto else 0, modify, code))
     logger.info(f'  {code} induty={induty} modify={modify} {"← 자동차" if is_auto else ""}')
 
-  scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
-  return scored[0][2]
+  if not any_auto:
+    logger.warning(
+      f'{name}: 동명/유사명 후보 {len(candidates)}개 중 자동차 업종 매치 없음 — '
+      f'companies.dart_corp_code 수동 매핑 권장. 스킵.'
+    )
+    return None
+
+  # 자동차 매치만 필터링 후 modify_date 최신
+  auto_only = [s for s in scored if s[0] == 1]
+  auto_only.sort(key=lambda t: t[1], reverse=True)
+  return auto_only[0][2]
+
+
+def _dedup_rows(all_rows: list[dict]) -> list[dict]:
+  """(company_id, fiscal_year) 기준 dedup.
+  더 최근 보고서(_report_fiscal_year 큰)가 우선. 값이 다른 컬럼은 WARN 로그.
+  """
+  deduped: dict[tuple, dict] = {}
+  for r in all_rows:
+    key = (r['company_id'], r['fiscal_year'])
+    existing = deduped.get(key)
+    if existing is None:
+      deduped[key] = r
+      continue
+    existing_year = existing.get('_report_fiscal_year', 0)
+    new_year = r.get('_report_fiscal_year', 0)
+    if new_year > existing_year:
+      # 새 행이 더 최신 보고서 — 값 변경 감지
+      for col, new_val in r.items():
+        if col.startswith('_') or col in ('company_id', 'period_type', 'fiscal_year',
+                                          'fiscal_quarter', 'period_end_date', 'currency'):
+          continue
+        old_val = existing.get(col)
+        if old_val is not None and new_val is not None and old_val != new_val:
+          logger.warning(
+            f'  [정정 감지] company={r["company_id"]} year={r["fiscal_year"]} '
+            f'{col}: {old_val} → {new_val} (보고서 {existing_year}→{new_year})'
+          )
+      deduped[key] = r
+
+  # 메타필드 제거
+  out = []
+  for r in deduped.values():
+    clean = {k: v for k, v in r.items() if not k.startswith('_')}
+    out.append(clean)
+  return out
 
 
 def collectDartAudit() -> None:
@@ -503,15 +679,10 @@ def collectDartAudit() -> None:
     rows = _collect_company(dart, company_id, corp_code, years=_target_years())
     all_rows.extend(rows)
     logger.info(f'{name}({corp_code}): {len(rows)}행 수집')
+    time.sleep(COMPANY_SLEEP)
 
   if all_rows:
-    # 중복 제거 (같은 company_id + fiscal_year는 최신 당기 우선)
-    deduped: dict[tuple, dict] = {}
-    for r in all_rows:
-      key = (r['company_id'], r['fiscal_year'])
-      if key not in deduped:
-        deduped[key] = r
-    final = list(deduped.values())
+    final = _dedup_rows(all_rows)
     upsert_rows('financials', final, 'company_id,period_type,fiscal_year,fiscal_quarter')
     logger.info(f'DART 감사보고서 수집 완료 — {len(final)}행')
   else:
