@@ -143,6 +143,15 @@ _KOR_TO_ASCII_TABLE: list[tuple[str, str]] = sorted(
   key=lambda kv: -len(kv[0]),
 )
 
+# 영문 약어 → 한글 자모 음역 (DB 'HL클레무브' ↔ DART '에이치엘클레무브' 매칭용).
+_ENG_TO_JAMO: dict[str, str] = {
+  'A': '에이', 'B': '비', 'C': '씨', 'D': '디', 'E': '이', 'F': '에프',
+  'G': '지', 'H': '에이치', 'I': '아이', 'J': '제이', 'K': '케이', 'L': '엘',
+  'M': '엠', 'N': '엔', 'O': '오', 'P': '피', 'Q': '큐', 'R': '알',
+  'S': '에스', 'T': '티', 'U': '유', 'V': '브이', 'W': '더블유', 'X': '엑스',
+  'Y': '와이', 'Z': '제트',
+}
+
 
 def _normalize_corp_name(name: str) -> str:
   """회사명에서 법인 형태와 공백을 제거해 매칭 키 형태로 정규화."""
@@ -156,6 +165,26 @@ def _ascii_part(s: str) -> str:
   예: 'SNT모티브' → 'snt', 'SNT Motiv' → 'sntmotiv', '에스엔티모티브' → ''
   """
   return re.sub(r'[^A-Za-z0-9]+', '', s or '').lower()
+
+
+def _ascii_to_korean(s: str) -> str:
+  """영문 알파벳을 한글 자모 음역으로, 한글/숫자는 그대로 유지.
+
+  DB가 영문 약어를 그대로 쓰지만(예: 'HL클레무브') DART corp_name은
+  완전 한글 음역(예: '에이치엘클레무브')일 때의 매칭 보완용.
+
+  예: 'HL클레무브' → '에이치엘클레무브', 'KBI메탈' → '케이비아이메탈',
+      'SNT다이내믹스' → '에스엔티다이내믹스'
+  """
+  if not s:
+    return ''
+  result: list[str] = []
+  for ch in s:
+    if ch.isascii() and ch.isalpha():
+      result.append(_ENG_TO_JAMO.get(ch.upper(), ''))
+    else:
+      result.append(ch)
+  return ''.join(result)
 
 
 def _korean_to_ascii(s: str) -> str:
@@ -637,18 +666,35 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
   if not target:
     return None
 
-  # 1차: corp_name 정규화 완전 일치
+  # 1차: corp_name 정규화 완전 일치 (원본 + 영문→한글 음역 변환본 둘 다 시도)
   norms = codes['corp_name'].fillna('').apply(_normalize_corp_name)
   candidates = codes[norms == target]
+  target_eng2kor = _normalize_corp_name(_ascii_to_korean(name))
+  if candidates.empty and target_eng2kor and target_eng2kor != target:
+    candidates = codes[norms == target_eng2kor]
+    if not candidates.empty:
+      logger.info(
+        f'{name}: 영문→한글 음역 완전 일치 {len(candidates)}개 '
+        f'(변환: {target_eng2kor!r}) — 자동차 업종 우선 선택'
+      )
 
-  # 2차: corp_name 정규화 부분 일치 (양방향 contains)
+  # 2차: corp_name 정규화 부분 일치 (양방향 contains). 변환본도 함께 시도.
   if candidates.empty:
-    mask = norms.str.contains(re.escape(target), na=False) | norms.apply(
-      lambda x: target in x or (x and x in target)
-    )
+    keys = [target]
+    if target_eng2kor and target_eng2kor != target:
+      keys.append(target_eng2kor)
+    import pandas as _pd
+    mask = _pd.Series(False, index=codes.index)
+    for k in keys:
+      mask = mask | norms.str.contains(re.escape(k), na=False) | norms.apply(
+        lambda x, _k=k: _k in x or (x and x in _k)
+      )
     candidates = codes[mask]
     if not candidates.empty:
-      logger.info(f'{name}: corp_name 부분 일치 {len(candidates)}개 — 자동차 업종 우선 선택')
+      suffix = f' (영문→한글: {target_eng2kor!r})' if len(keys) > 1 else ''
+      logger.info(
+        f'{name}: corp_name 부분 일치 {len(candidates)}개{suffix} — 자동차 업종 우선 선택'
+      )
 
   # 3차: 영문/숫자 부분(ascii_part) 매치 — 'SNT모티브' ↔ 'SNT Motiv' 같은 영한 혼용 케이스
   if candidates.empty:
