@@ -82,13 +82,13 @@ def _get_dart():
   """OpenDartReader 클라이언트 반환."""
   try:
     import OpenDartReader as ODR
-    if not DART_KEY:
-      logger.error('DART_API_KEY 없음')
-      return None
-    return ODR(DART_KEY)
-  except ImportError:
-    logger.error('pip install opendartreader')
+  except ImportError as e:
+    logger.error(f'OpenDartReader import 실패: {e!r}')
     return None
+  if not DART_KEY:
+    logger.error('DART_API_KEY 없음')
+    return None
+  return ODR(DART_KEY)
 
 
 def _normalize(s: str) -> str:
