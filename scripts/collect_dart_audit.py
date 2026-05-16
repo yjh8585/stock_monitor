@@ -16,6 +16,8 @@
 
 단위: DART 문서의 원(KRW) 단위 → 백만원으로 변환해 저장.
 """
+import contextlib
+import io as _io_mod
 import os
 import re
 import sys
@@ -237,18 +239,30 @@ def _with_retry(
   _attempts: int = 2,
   _backoff: float = 0.5,
   _deadline: float | None = None,
+  _silence_stdout: bool = False,
   **kwargs,
 ):
   """지수 백오프 재시도. 일시적 네트워크/SSL 에러만 재시도, 다른 예외는 즉시 raise.
   기본 2회(즉시+1회 재시도, 0.5s 대기). _deadline 지정 시 별도 스레드에서 실행해 시간 초과면
-  강제로 TimeoutError 발생(OpenDartReader 내부의 무한 hang 방어용)."""
+  강제로 TimeoutError 발생(OpenDartReader 내부의 무한 hang 방어용).
+  _silence_stdout=True 시 fn 호출 동안 stdout을 캡처(OpenDartReader가 status 013 같은
+  빈 응답을 raw print하는 노이즈 차단)."""
   last = None
+
+  def _silencer():
+    return (
+      contextlib.redirect_stdout(_io_mod.StringIO())
+      if _silence_stdout
+      else contextlib.nullcontext()
+    )
+
   for i in range(_attempts):
     try:
-      if _deadline is None:
-        return fn(*args, **kwargs)
-      with ThreadPoolExecutor(max_workers=1) as ex:
-        return ex.submit(fn, *args, **kwargs).result(timeout=_deadline)
+      with _silencer():
+        if _deadline is None:
+          return fn(*args, **kwargs)
+        with ThreadPoolExecutor(max_workers=1) as ex:
+          return ex.submit(fn, *args, **kwargs).result(timeout=_deadline)
     except Exception as e:
       last = e
       if i < _attempts - 1 and _is_transient_error(e):
@@ -444,6 +458,7 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
       end=end_date,
       final=False,
       _deadline=60,
+      _silence_stdout=True,
     )
   except Exception as e:
     logger.warning(f'{corp_code} {fiscal_year}년: dart.list 실패 — {e}')
@@ -528,7 +543,7 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
 def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
   """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환. 실패 시 main.do 직접 파싱."""
   try:
-    docs = _with_retry(dart.sub_docs, rcpt_no, _deadline=60)
+    docs = _with_retry(dart.sub_docs, rcpt_no, _deadline=60, _silence_stdout=True)
   except Exception as e:
     logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
     return _fallback_viewer_url(rcpt_no)
