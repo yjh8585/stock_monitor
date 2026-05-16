@@ -401,6 +401,61 @@ def _collect_company(dart, company_id: str, corp_code: str, years: list[int]) ->
   return rows
 
 
+# 자동차/운송장비 업종 식별용 induty_code prefix (한국표준산업분류 KSIC).
+# DART company.json은 대분류 2자리만 반환하는 경우가 있어 prefix 매칭으로 처리.
+# 30 = 자동차 및 트레일러 제조업, 31 = 기타 운송장비, 33 = 기타 제품(부품 일부 포함).
+_AUTO_INDUTY_PREFIXES = ('30', '31', '33')
+
+
+def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
+  """회사명에서 DART corp_code를 식별. 동명 회사는 자동차 업종 우선으로 해소.
+
+  우선순위:
+    1) companies.dart_corp_code에 수동 매핑이 있으면 그대로 사용(가장 신뢰).
+    2) corp_codes(전체 회사 목록)에서 corp_name 완전 일치 후보 추출.
+    3) 후보 1개면 그대로. 여럿이면 company.json의 induty_code가
+       자동차/운송장비(30/31/33...)인 회사 우선, 그 안에서 modify_date 최신.
+    4) 자동차 업종 후보가 없으면 modify_date 최신(현재 활동 중) 선택.
+  """
+  if db_corp_code:
+    return db_corp_code
+
+  codes = getattr(dart, 'corp_codes', None)
+  if codes is None or codes.empty:
+    return None
+  candidates = codes[codes['corp_name'] == name]
+  if candidates.empty:
+    return None
+  if len(candidates) == 1:
+    return str(candidates.iloc[0]['corp_code'])
+
+  logger.info(f'{name}: 동명 회사 {len(candidates)}개 — 자동차 업종 우선 선택')
+  scored: list[tuple[int, str, str]] = []  # (auto_priority, modify_date, corp_code)
+  for _, row in candidates.iterrows():
+    code = str(row['corp_code'])
+    modify = str(row.get('modify_date') or '')
+    try:
+      info = requests.get(
+        'https://opendart.fss.or.kr/api/company.json',
+        params={'crtfc_key': DART_KEY, 'corp_code': code},
+        timeout=15,
+      ).json()
+    except Exception as e:
+      logger.warning(f'  {code}: company.json 조회 실패 ({e})')
+      scored.append((0, modify, code))
+      continue
+    if info.get('status') != '000':
+      scored.append((0, modify, code))
+      continue
+    induty = str(info.get('induty_code') or '')
+    is_auto = any(induty.startswith(p) for p in _AUTO_INDUTY_PREFIXES)
+    scored.append((1 if is_auto else 0, modify, code))
+    logger.info(f'  {code} induty={induty} modify={modify} {"← 자동차" if is_auto else ""}')
+
+  scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+  return scored[0][2]
+
+
 def collectDartAudit() -> None:
   """data_source='dart'인 비상장사의 연결감사보고서 재무 데이터를 수집한다."""
   if not DART_KEY:
@@ -416,7 +471,7 @@ def collectDartAudit() -> None:
   target_filter: set[str] = {t.strip() for t in raw.split(',') if t.strip()}
 
   companies = [
-    r for r in client.table('companies').select('id,ticker,name_kr,data_source').execute().data
+    r for r in client.table('companies').select('id,ticker,name_kr,data_source,dart_corp_code').execute().data
     if r.get('data_source') == 'dart'
     and (not target_filter or r.get('ticker') in target_filter)
   ]
@@ -432,9 +487,10 @@ def collectDartAudit() -> None:
     name = company['name_kr']
     company_id = company['id']
 
-    logger.info(f'{name} DART 코드 검색 중...')
+    db_corp_code = company.get('dart_corp_code')
+    logger.info(f'{name} DART 코드 검색 중...' + (f' (DB 매핑: {db_corp_code})' if db_corp_code else ''))
     try:
-      corp_code = dart.find_corp_code(name)
+      corp_code = _resolve_corp_code(dart, name, db_corp_code)
     except Exception as e:
       logger.error(f'{name} corp_code 검색 실패: {e}')
       continue
