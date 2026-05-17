@@ -1,7 +1,7 @@
 """
 DART 연결감사보고서 주석에서 인건비를 추출하기 위한 회사별 매핑.
 
-비교 페이지(companies.pages contains 'compare') 회사가 자동 수집 대상이며,
+비교 페이지(company_pages.page='compare') 매핑 회사가 자동 수집 대상이며,
 회사별 섹션/키워드 차이를 흡수하기 위해 LABOR_TARGETS에 명시적 매핑을 둔다.
 매핑이 없는 새 회사는 DEFAULT_*을 사용해 자동 탐지를 시도한다.
 

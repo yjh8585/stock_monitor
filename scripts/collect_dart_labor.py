@@ -31,6 +31,7 @@ from lib.labor_targets import (
 )
 from collect_dart_audit import (
   _get_audit_rcpt, _normalize, _parse_num, _detect_unit_divider,
+  _with_retry, _fallback_viewer_url,
 )
 
 DART_KEY = os.environ.get('DART_API_KEY', '')
@@ -74,9 +75,15 @@ def _get_dart():
 
 
 def _all_sub_doc_urls(dart, rcpt_no: str) -> list[str]:
-  docs = dart.sub_docs(rcpt_no)
+  try:
+    docs = _with_retry(dart.sub_docs, rcpt_no, _deadline=60, _silence_stdout=True)
+  except Exception as e:
+    logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
+    fb = _fallback_viewer_url(rcpt_no)
+    return [fb] if fb else []
   if docs is None or docs.empty:
-    return []
+    fb = _fallback_viewer_url(rcpt_no)
+    return [fb] if fb else []
 
   def length(u: str) -> int:
     m = re.search(r'length=(\d+)', str(u))
@@ -362,9 +369,9 @@ def _find_candidate_tables(soup: BeautifulSoup, target: dict) -> list:
 
 
 def _find_report_rcpt(dart, corp_code: str, fiscal_year: int) -> str | None:
-  rcpt = _get_audit_rcpt(dart, corp_code, fiscal_year)
-  if rcpt:
-    return rcpt
+  rcpt_no, _, _ = _get_audit_rcpt(dart, corp_code, fiscal_year)
+  if rcpt_no:
+    return rcpt_no
   filings = dart.list(
     corp_code,
     start=f'{fiscal_year}-01-01',
@@ -478,15 +485,15 @@ def collect_dart_labor(target_years: list[int]) -> int:
     sys.exit(1)
 
   client = get_client()
-  # 비교 페이지(pages='compare')에 포함된 회사를 자동 수집 대상으로 사용
+  # 비교 페이지(company_pages.page='compare')에 매핑된 회사를 자동 수집 대상으로 사용
   companies = (
     client.table('companies')
-    .select('id,name_kr')
-    .contains('pages', ['compare'])
+    .select('id,name_kr,company_pages!inner(page)')
+    .eq('company_pages.page', 'compare')
     .execute().data
   )
   if not companies:
-    logger.error('companies.pages에 compare 포함된 회사 없음. DB에서 pages 컬럼에 \'compare\' 추가 필요.')
+    logger.error("company_pages.page='compare' 매핑된 회사 없음. 마이그레이션 20260513000004 적용 필요.")
     return 0
   logger.info(f'비교 페이지 대상 회사: {[c["name_kr"] for c in companies]}')
 
@@ -570,5 +577,6 @@ if __name__ == '__main__':
   except SystemExit:
     raise
   except Exception as e:
-    logger.error(f'인건비 수집 실패: {e}')
+    import traceback
+    logger.error(f'인건비 수집 실패: {e}\n{traceback.format_exc()}')
     sys.exit(1)

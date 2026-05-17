@@ -302,12 +302,26 @@ def _normalize(s: str) -> str:
 
 
 def _parse_num(s: str) -> float | None:
-  """문자열에서 숫자 파싱. 괄호는 음수로 처리."""
-  s = s.strip().replace(',', '').replace(' ', '')
+  """문자열에서 숫자 파싱. 괄호는 음수로 처리.
+
+  콤마는 한국 회계 천 단위 구분자만 허용 (3자리 그룹).
+  주석번호 셀(예: '6,27,35', '17,18')은 콤마 위치가 비표준이라 None을 반환.
+  """
+  s = s.strip().replace(' ', '')
   negative = s.startswith('(') and s.endswith(')')
   s = s.strip('()')
   if not s or s in ('-', '', 'None'):
     return None
+  if ',' in s:
+    body = s.lstrip('-')
+    parts = body.split(',')
+    if not parts[0].isdigit() or not (1 <= len(parts[0]) <= 3):
+      return None
+    for p in parts[1:]:
+      head = p.split('.')[0]
+      if not head.isdigit() or len(head) != 3:
+        return None
+    s = s.replace(',', '')
   try:
     v = float(s)
     return -v if negative else v
@@ -349,6 +363,32 @@ def _detect_unit_divider(tbl_text: str) -> int:
   return MILLION
 
 
+def _table_unit_divider(table) -> int:
+  """표 본문 + 직전 5개 sibling 텍스트에서 단위 인식.
+  단위 표기가 표 위 sibling 요소(예: '(단위:백만원)')에 있는 보고서 대응."""
+  text = _normalize(table.get_text())
+  prev = table
+  for _ in range(5):
+    prev = prev.find_previous(['p', 'div', 'td', 'b', 'strong', 'span', 'th'])
+    if prev is None:
+      break
+    text += ' ' + _normalize(prev.get_text())
+  return _detect_unit_divider(text)
+
+
+def _filter_annotation_nums(nums: list[float]) -> list[float]:
+  """주석번호처럼 자릿수가 본 데이터보다 4자리 이상 작은 값을 제거.
+  예: 손익계산서 매출액 행 [33, 125_356_270_873, 117_677_526_325]에서 '33'은 주석번호."""
+  if len(nums) < 2:
+    return nums
+  nonzero = [abs(v) for v in nums if v != 0]
+  if not nonzero:
+    return nums
+  mx = max(nonzero)
+  threshold = mx / 10000
+  return [v for v in nums if v == 0 or abs(v) >= threshold]
+
+
 def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
   """재무제표 테이블 목록에서 {db_col: {current, prior}} 형태로 파싱한다.
 
@@ -365,7 +405,7 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
     if not any(kw in tbl_text for kw in ACCT_TO_DB):
       continue
 
-    divider = _detect_unit_divider(tbl_text)
+    divider = _table_unit_divider(tbl)
 
     for row in tbl.find_all('tr'):
       cells = [td.get_text(strip=True) for td in row.find_all(['th', 'td'])]
@@ -380,6 +420,8 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
       nums = [v for c in cells[1:] for v in (_parse_num(c),) if v is not None]
       if not nums:
         continue
+      # 자릿수가 본 데이터보다 4자리 이상 작은 값(주석번호 등)을 제거
+      nums = _filter_annotation_nums(nums)
 
       n = len(nums)
       if n == 1:
