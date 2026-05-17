@@ -1,0 +1,49 @@
+name: 한세 종목토론 감성 분석 (Claude Haiku, 1시간)
+
+on:
+  schedule:
+    # 매시간 정각 — 신규 글 분석 (pending 모드, 대부분 적은 건수)
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '실행 모드 (pending | all)'
+        required: false
+        default: 'pending'
+      limit:
+        description: '한 회차 최대 건수'
+        required: false
+        default: '200'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 감성 분석
+        run: |
+          python analyze_board_sentiment.py \
+            --mode "${MODE}" \
+            --limit "${LIMIT}"
+        env:
+          MODE: ${{ github.event.inputs.mode || 'pending' }}
+          LIMIT: ${{ github.event.inputs.limit || '200' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
