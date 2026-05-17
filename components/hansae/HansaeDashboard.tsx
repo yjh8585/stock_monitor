@@ -16,18 +16,22 @@ import HansaeBoardPanel from './HansaeBoardPanel';
 import HansaeSupplyPanel from './HansaeSupplyPanel';
 import type {
   BoardPostSummary,
+  DailyPrice,
   HansaeCompany,
   IntradayPoint,
+  IntradaySupplyPoint,
   SentimentSummary,
   SupplyDemandRow,
 } from '@/lib/hansae/data';
 
 export interface HansaeBundle {
   company: HansaeCompany;
+  daily: DailyPrice[];
   intraday: IntradayPoint[];
   posts: BoardPostSummary[];
   sentiment: SentimentSummary;
   supply: SupplyDemandRow[];
+  intradaySupply: IntradaySupplyPoint[];
 }
 
 interface Props {
@@ -36,9 +40,6 @@ interface Props {
 
 export default function HansaeDashboard({ initial }: Props) {
   const [bundles, setBundles] = useState<HansaeBundle[]>(initial);
-  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(
-    initial[0]?.company.id ?? null
-  );
 
   // Realtime: stock_quotes_5min INSERT 구독
   useEffect(() => {
@@ -104,39 +105,36 @@ export default function HansaeDashboard({ initial }: Props) {
     );
   }
 
-  const activeBundle = bundles.find((b) => b.company.id === activeCompanyId) ?? bundles[0];
-
   return (
-    <div className="flex flex-col gap-4">
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {bundles.map((b) => (
-          <HansaeStockCard
-            key={b.company.id}
-            bundle={b}
-            isActive={b.company.id === activeCompanyId}
-            onClick={() => setActiveCompanyId(b.company.id)}
+    <div className="flex flex-col gap-6">
+      {bundles.map((b) => (
+        <section
+          key={b.company.id}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+        >
+          {/* 왼쪽 2단위: 주가 + [뉴스 | 종목토론] */}
+          <div className="flex flex-col gap-4">
+            <HansaeStockCard bundle={b} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <HansaeNewsPanel companyName={b.company.name_kr} />
+              <HansaeBoardPanel
+                companyName={b.company.name_kr}
+                ticker={b.company.ticker}
+                posts={b.posts}
+                summary={b.sentiment}
+              />
+            </div>
+          </div>
+          {/* 오른쪽 1단위: 수급 */}
+          <HansaeSupplyPanel
+            supply={b.supply}
+            intradaySupply={b.intradaySupply}
+            companyName={b.company.name_kr}
           />
-        ))}
-      </section>
+        </section>
+      ))}
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <HansaeSupplyPanel
-          supply={activeBundle.supply}
-          companyName={activeBundle.company.name_kr}
-        />
-        <HansaeNewsPanel companyName={activeBundle.company.name_kr} />
-      </section>
-
-      <section>
-        <HansaeBoardPanel
-          companyName={activeBundle.company.name_kr}
-          ticker={activeBundle.company.ticker}
-          posts={activeBundle.posts}
-          summary={activeBundle.sentiment}
-        />
-      </section>
-
-      <div className="text-[11px] text-muted-foreground text-right">
+      <div className="text-sm text-muted-foreground text-right">
         수급은 참고용 — 한세 계열은 거래대금이 작아 단일 매매로도 비율이 크게 흔들립니다 ·{' '}
         <button onClick={handleManualRefresh} className="underline">
           수동 새로고침

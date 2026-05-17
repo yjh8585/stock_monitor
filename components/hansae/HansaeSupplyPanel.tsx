@@ -1,9 +1,12 @@
 'use client';
 
-import type { SupplyDemandRow } from '@/lib/hansae/data';
+import { useState } from 'react';
+import type { IntradaySupplyPoint, SupplyDemandRow } from '@/lib/hansae/data';
+import IntradaySupplyChart from './IntradaySupplyChart';
 
 interface Props {
   supply: SupplyDemandRow[];
+  intradaySupply: IntradaySupplyPoint[];
   companyName: string;
 }
 
@@ -14,27 +17,116 @@ const fmt = (n: number | null) => {
   return new Intl.NumberFormat('ko-KR').format(n);
 };
 
-function Bar({ value, max, color }: { value: number | null; max: number; color: string }) {
-  if (value === null || max === 0) {
-    return <div className="h-2 w-full bg-muted/40 rounded" />;
-  }
-  const pct = Math.min(100, (Math.abs(value) / max) * 100);
-  const negative = value < 0;
+const fmtPrice = (n: number | null) =>
+  n === null ? '—' : new Intl.NumberFormat('ko-KR').format(Math.round(n));
+
+const fmtPct = (n: number | null) => {
+  if (n === null) return '—';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+};
+
+const pctColor = (n: number | null) =>
+  n === null
+    ? 'text-muted-foreground'
+    : n > 0
+      ? 'text-red-500'
+      : n < 0
+        ? 'text-blue-500'
+        : 'text-foreground';
+
+type InvestorKey = 'foreignNet' | 'institutionNet' | 'individualNet';
+
+// 한국 차트 관례: 매수(양수)=빨강, 매도(음수)=파랑. 모든 투자자 동일 색.
+const POSITIVE_BAR = 'bg-red-500';
+const NEGATIVE_BAR = 'bg-blue-500';
+
+const INVESTORS: Array<{
+  key: InvestorKey;
+  label: string;
+  accent: string; // 헤더 점·라벨 색 (투자자 구분용)
+}> = [
+  { key: 'foreignNet', label: '외국인', accent: 'bg-amber-500' },
+  { key: 'institutionNet', label: '기관', accent: 'bg-emerald-500' },
+  { key: 'individualNet', label: '개인', accent: 'bg-sky-500' },
+];
+
+/** 외국인/기관/개인 한 명에 대한 5일 가로 막대 차트 (양수: 오른쪽, 음수: 왼쪽). */
+/** KST 기준 오늘(YYYY-MM-DD). SSR/CSR 동일 결과 보장(타임존 명시). */
+function kstToday(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}
+
+function InvestorBars({
+  rows,
+  investor,
+  maxAbs,
+  todayStr,
+}: {
+  rows: SupplyDemandRow[];
+  investor: (typeof INVESTORS)[number];
+  maxAbs: number;
+  todayStr: string;
+}) {
   return (
-    <div className="relative h-2 w-full bg-muted/40 rounded overflow-hidden">
-      <div
-        className={`absolute top-0 bottom-0 ${color}`}
-        style={{
-          width: `${pct / 2}%`,
-          [negative ? 'right' : 'left']: '50%',
-        }}
-      />
-      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-border" />
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`inline-block w-2.5 h-2.5 rounded ${investor.accent}`} />
+        <span className="text-sm font-semibold">{investor.label}</span>
+      </div>
+      <div className="grid grid-cols-[3.5rem_1fr_4.5rem] gap-2 items-center text-sm">
+        {rows.map((r) => {
+          const v = r[investor.key];
+          const widthPct = v !== null && maxAbs > 0 ? (Math.abs(v) / maxAbs) * 50 : 0;
+          const negative = v !== null && v < 0;
+          const isToday = r.tradeDate === todayStr;
+          return (
+            <div key={r.tradeDate} className="contents">
+              <span
+                className={`tabular-nums ${isToday ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-muted-foreground'}`}
+              >
+                {isToday
+                  ? '오늘(잠정)'
+                  : new Date(r.tradeDate).toLocaleDateString('ko-KR', {
+                      month: '2-digit',
+                      day: '2-digit',
+                    })}
+              </span>
+              <div className="relative h-4 w-full bg-muted/30 rounded overflow-hidden">
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-border" />
+                {v !== null && (
+                  <div
+                    className={`absolute top-0 bottom-0 ${negative ? NEGATIVE_BAR : POSITIVE_BAR}`}
+                    style={{
+                      width: `${widthPct}%`,
+                      [negative ? 'right' : 'left']: '50%',
+                    }}
+                  />
+                )}
+              </div>
+              <span
+                className={`text-right tabular-nums font-medium ${
+                  v === null
+                    ? 'text-muted-foreground'
+                    : v > 0
+                      ? 'text-red-500'
+                      : v < 0
+                        ? 'text-blue-500'
+                        : 'text-foreground'
+                }`}
+              >
+                {fmt(v)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-export default function HansaeSupplyPanel({ supply, companyName }: Props) {
+export default function HansaeSupplyPanel({ supply, intradaySupply, companyName }: Props) {
+  const [view, setView] = useState<'daily' | 'intraday'>('daily');
   // 절대값 기준 색 농도 정규화
   const maxAbs = supply.reduce((m, r) => {
     return Math.max(
@@ -45,57 +137,100 @@ export default function HansaeSupplyPanel({ supply, companyName }: Props) {
     );
   }, 0);
 
+  // 최신순으로 위에서 아래 (initial은 ascending 정렬 → reverse)
+  const ordered = [...supply].reverse();
+  const todayStr = kstToday();
+
   return (
-    <div className="rounded-md border border-border bg-card p-4">
+    <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0 overflow-auto">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-semibold">수급 (외국인 / 기관 / 개인 순매수)</h2>
-        <span className="text-[11px] text-muted-foreground">{companyName} · 최근 5거래일</span>
+        <h2 className="text-sm font-semibold">수급 (투자자별 순매수)</h2>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setView('daily')}
+              className={`px-2 py-0.5 rounded text-sm ${
+                view === 'daily'
+                  ? 'bg-foreground text-background'
+                  : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
+              }`}
+            >
+              일별 5일
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('intraday')}
+              className={`px-2 py-0.5 rounded text-sm ${
+                view === 'intraday'
+                  ? 'bg-foreground text-background'
+                  : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
+              }`}
+            >
+              오늘 분단위
+            </button>
+          </div>
+          <span className="text-sm text-muted-foreground">{companyName}</span>
+        </div>
       </div>
+
+      {view === 'intraday' && (
+        <div>
+          <IntradaySupplyChart data={intradaySupply} height={260} />
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            누적 순매수 추세 — 외국인(amber) / 기관(emerald) / 개인(sky) · KRX 잠정 5분 갱신
+          </p>
+        </div>
+      )}
+
+      {view === 'daily' && (
+        <>
       {supply.length === 0 ? (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           수급 데이터 없음 (PYKRX 야간 배치가 한 번 이상 실행되어야 함)
         </div>
       ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-[10px] text-muted-foreground">
-              <th className="text-left py-1">날짜</th>
-              <th className="text-left py-1 w-1/4">외국인</th>
-              <th className="text-left py-1 w-1/4">기관</th>
-              <th className="text-left py-1 w-1/4">개인</th>
-            </tr>
-          </thead>
-          <tbody>
-            {supply.map((r) => (
-              <tr key={r.tradeDate} className="border-t border-border/50">
-                <td className="py-1 text-muted-foreground">
+        <>
+          {/* 가격 요약 — 일자별 종가/등락 */}
+          <div className="mb-4 grid grid-cols-[3.5rem_1fr_1fr] gap-2 items-center text-sm border-b border-border/50 pb-3">
+            <span className="text-[11px] text-muted-foreground">날짜</span>
+            <span className="text-right text-[11px] text-muted-foreground">종가</span>
+            <span className="text-right text-[11px] text-muted-foreground">등락</span>
+            {ordered.map((r) => (
+              <div key={r.tradeDate} className="contents">
+                <span className="text-muted-foreground tabular-nums">
                   {new Date(r.tradeDate).toLocaleDateString('ko-KR', {
                     month: '2-digit',
                     day: '2-digit',
                   })}
-                </td>
-                <td className="py-1">
-                  <div className="flex items-center gap-2">
-                    <Bar value={r.foreignNet} max={maxAbs} color="bg-amber-500" />
-                    <span className="w-12 text-right tabular-nums">{fmt(r.foreignNet)}</span>
-                  </div>
-                </td>
-                <td className="py-1">
-                  <div className="flex items-center gap-2">
-                    <Bar value={r.institutionNet} max={maxAbs} color="bg-emerald-500" />
-                    <span className="w-12 text-right tabular-nums">{fmt(r.institutionNet)}</span>
-                  </div>
-                </td>
-                <td className="py-1">
-                  <div className="flex items-center gap-2">
-                    <Bar value={r.individualNet} max={maxAbs} color="bg-sky-500" />
-                    <span className="w-12 text-right tabular-nums">{fmt(r.individualNet)}</span>
-                  </div>
-                </td>
-              </tr>
+                </span>
+                <span className="text-right tabular-nums">{fmtPrice(r.closePrice)}</span>
+                <span className={`text-right tabular-nums ${pctColor(r.changePct)}`}>
+                  {fmtPct(r.changePct)}
+                </span>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+
+          {/* 외국인/기관/개인 각자 가로 막대 차트 */}
+          <div className="space-y-4">
+            {INVESTORS.map((inv) => (
+              <InvestorBars
+                key={inv.key}
+                rows={ordered}
+                investor={inv}
+                maxAbs={maxAbs}
+                todayStr={todayStr}
+              />
+            ))}
+          </div>
+
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            막대 길이 = 절대값 기준 상대 강도 · 양수(오른쪽) 순매수, 음수(왼쪽) 순매도
+          </p>
+        </>
+      )}
+        </>
       )}
     </div>
   );

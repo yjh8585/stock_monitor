@@ -44,21 +44,21 @@ export default function HansaeNewsPanel({ companyName }: Props) {
   }, [companyName]);
 
   return (
-    <div className="rounded-md border border-border bg-card p-4">
-      <div className="flex items-baseline justify-between mb-2">
+    <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0">
+      <div className="flex items-baseline justify-between mb-2 shrink-0">
         <h2 className="text-sm font-semibold">관련 뉴스</h2>
-        <span className="text-[11px] text-muted-foreground">{companyName} · Google News</span>
+        <span className="text-sm text-muted-foreground">{companyName} · Google News</span>
       </div>
       {loading ? (
-        <div className="text-xs text-muted-foreground">뉴스 로딩…</div>
+        <div className="text-sm text-muted-foreground">뉴스 로딩…</div>
       ) : error ? (
-        <div className="text-xs text-red-500">뉴스 로드 실패: {error}</div>
+        <div className="text-sm text-red-500">뉴스 로드 실패: {error}</div>
       ) : items.length === 0 ? (
-        <div className="text-xs text-muted-foreground">최근 뉴스 없음</div>
+        <div className="text-sm text-muted-foreground">최근 뉴스 없음</div>
       ) : (
-        <ul className="space-y-2">
-          {items.slice(0, 10).map((it) => (
-            <li key={it.url} className="text-xs">
+        <ul className="space-y-2 flex-1 overflow-auto pr-1">
+          {items.slice(0, 5).map((it) => (
+            <li key={it.url} className="text-sm">
               <a
                 href={it.url}
                 target="_blank"
@@ -67,7 +67,7 @@ export default function HansaeNewsPanel({ companyName }: Props) {
               >
                 {it.title}
               </a>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
+              <div className="text-[11px] text-muted-foreground mt-0.5">
                 {it.source}
                 {it.published_at
                   ? ` · ${new Date(it.published_at).toLocaleString('ko-KR', {

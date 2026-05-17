@@ -21,28 +21,35 @@ export default function IntradayMiniChart({ data, changePct, height = 80 }: Prop
       height,
       width: containerRef.current.clientWidth,
       layout: { background: { color: 'transparent' }, textColor: '#999' },
-      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      rightPriceScale: { visible: false },
-      timeScale: { visible: false },
-      handleScroll: false,
-      handleScale: false,
+      grid: {
+        vertLines: { color: 'rgba(127,127,127,0.08)' },
+        horzLines: { color: 'rgba(127,127,127,0.08)' },
+      },
+      rightPriceScale: { visible: true, borderVisible: false },
+      timeScale: { visible: true, borderVisible: false, timeVisible: false },
+      handleScroll: true,
+      handleScale: true,
     });
     chartRef.current = chart;
 
-    const color = (changePct ?? 0) >= 0 ? '#ef4444' : '#3b82f6'; // 한국 관례: 양봉 빨강
     const series = chart.addSeries(LineSeries, {
-      color,
+      color: '#000000',
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
-    const seriesData = data.map((d) => ({
-      time: Math.floor(new Date(d.ts).getTime() / 1000) as unknown as number,
-      value: d.price,
-    }));
+    const seriesData = data
+      .map((d) => ({
+        time: Math.floor(new Date(d.ts).getTime() / 1000) as unknown as number,
+        value: d.price,
+      }))
+      // time 동일하면 lightweight-charts가 throw → 중복 제거 + 정렬
+      .sort((a, b) => (a.time as unknown as number) - (b.time as unknown as number))
+      .filter((p, i, arr) => i === 0 || p.time !== arr[i - 1].time);
     series.setData(
       seriesData as { time: number; value: number }[] as Parameters<typeof series.setData>[0]
     );
+    chart.timeScale().fitContent();
 
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -61,7 +68,7 @@ export default function IntradayMiniChart({ data, changePct, height = 80 }: Prop
   if (data.length === 0) {
     return (
       <div
-        className="flex items-center justify-center text-[11px] text-muted-foreground"
+        className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
         장중 데이터 없음

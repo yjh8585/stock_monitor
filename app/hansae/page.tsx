@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 import HansaeDashboard from '@/components/hansae/HansaeDashboard';
 import {
+  getDailyPrices,
   getHansaeCompanies,
   getIntradayQuotes,
+  getIntradaySupply,
   getRecentBoardPosts,
   getRecentSupplyDemand,
   getSentimentSummary,
@@ -40,10 +42,12 @@ async function HansaeDataLoader() {
   const initial = await Promise.all(
     companies.map(async (c) => ({
       company: c,
+      daily: await getDailyPrices(c.id, 5),
       intraday: await getIntradayQuotes(c.id),
-      posts: await getRecentBoardPosts(c.id, 15),
+      posts: await getRecentBoardPosts(c.id, 5),
       sentiment: await getSentimentSummary(c.id, 7),
       supply: await getRecentSupplyDemand(c.id, 5),
+      intradaySupply: await getIntradaySupply(c.id),
     }))
   );
   return <HansaeDashboard initial={initial} />;

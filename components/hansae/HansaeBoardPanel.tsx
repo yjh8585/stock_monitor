@@ -33,21 +33,21 @@ export default function HansaeBoardPanel({ companyName, ticker, posts, summary }
   const neuPct = pct(summary.neutral, summary.total);
 
   return (
-    <div className="rounded-md border border-border bg-card p-4">
-      <div className="flex items-baseline justify-between mb-3">
+    <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0">
+      <div className="flex items-baseline justify-between mb-3 shrink-0">
         <h2 className="text-sm font-semibold">개인투자자 반응 (네이버 종목토론)</h2>
         <a
           href={`https://finance.naver.com/item/board.naver?code=${ticker}`}
           target="_blank"
           rel="noreferrer"
-          className="text-[11px] text-muted-foreground hover:underline"
+          className="text-sm text-muted-foreground hover:underline"
         >
           {companyName} 토론실 →
         </a>
       </div>
 
       {summary.total === 0 ? (
-        <div className="text-xs text-muted-foreground mb-3">
+        <div className="text-sm text-muted-foreground mb-3">
           최근 7일 감성 분석 결과 없음 (수집 / 분석 cron이 한 번 이상 돌아야 함)
         </div>
       ) : (
@@ -61,7 +61,7 @@ export default function HansaeBoardPanel({ companyName, ticker, posts, summary }
               title={`부정 ${negPct}%`}
             />
           </div>
-          <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+          <div className="mt-1 flex justify-between text-sm text-muted-foreground">
             <span className="text-red-500">긍정 {posPct}%</span>
             <span>중립 {neuPct}%</span>
             <span className="text-blue-500">부정 {negPct}%</span>
@@ -70,15 +70,15 @@ export default function HansaeBoardPanel({ companyName, ticker, posts, summary }
         </div>
       )}
 
-      <ul className="space-y-2 max-h-96 overflow-auto">
+      <ul className="space-y-2 flex-1 overflow-auto pr-1">
         {posts.length === 0 ? (
-          <li className="text-xs text-muted-foreground">수집된 글이 없습니다.</li>
+          <li className="text-sm text-muted-foreground">수집된 글이 없습니다.</li>
         ) : (
           posts.map((p) => (
-            <li key={p.postId} className="text-xs border-b border-border/50 pb-2 last:border-b-0">
+            <li key={p.postId} className="text-sm border-b border-border/50 pb-2 last:border-b-0">
               <div className="flex items-center gap-2">
                 <span
-                  className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${labelColor(p.label)}`}
+                  className={`inline-block px-1.5 py-0.5 rounded border text-[11px] ${labelColor(p.label)}`}
                 >
                   {labelText(p.label)}
                 </span>
@@ -90,7 +90,7 @@ export default function HansaeBoardPanel({ companyName, ticker, posts, summary }
                 >
                   {p.title}
                 </a>
-                <span className="text-[10px] text-muted-foreground shrink-0">
+                <span className="text-[11px] text-muted-foreground shrink-0">
                   {new Date(p.postedAt).toLocaleString('ko-KR', {
                     month: '2-digit',
                     day: '2-digit',
@@ -100,7 +100,7 @@ export default function HansaeBoardPanel({ companyName, ticker, posts, summary }
                 </span>
               </div>
               {p.reason ? (
-                <div className="text-[10px] text-muted-foreground mt-0.5 pl-1">↳ {p.reason}</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 pl-1">↳ {p.reason}</div>
               ) : null}
             </li>
           ))

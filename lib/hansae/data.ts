@@ -5,7 +5,8 @@
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import logger from '@/lib/logger';
 
-export const HANSAE_TICKERS = ['016450', '105630', '069640'] as const;
+// 표시 순서 고정: 한세예스24홀딩스, 한세실업, 한세엠케이, 예스24
+export const HANSAE_TICKERS = ['016450', '105630', '069640', '053280'] as const;
 export type HansaeTicker = (typeof HANSAE_TICKERS)[number];
 
 export interface HansaeCompany {
@@ -45,11 +46,30 @@ export interface SentimentSummary {
   total: number;
 }
 
+export interface DailyPrice {
+  tradeDate: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+  changePct: number | null;
+}
+
+export interface IntradaySupplyPoint {
+  snapshotTs: string;
+  foreignNet: number | null;
+  institutionNet: number | null;
+  individualNet: number | null;
+}
+
 export interface SupplyDemandRow {
   tradeDate: string;
   foreignNet: number | null;
   institutionNet: number | null;
   individualNet: number | null;
+  closePrice: number | null;
+  changePct: number | null;
 }
 
 export async function getHansaeCompanies(): Promise<HansaeCompany[]> {
@@ -57,15 +77,15 @@ export async function getHansaeCompanies(): Promise<HansaeCompany[]> {
   const { data, error } = await sb
     .from('companies')
     .select('id,ticker,name_kr,market,last_price,last_change_pct,last_volume,last_updated_at')
-    .in('ticker', HANSAE_TICKERS as unknown as string[])
-    .order('name_kr', { ascending: true });
+    .in('ticker', HANSAE_TICKERS as unknown as string[]);
   if (error) {
     logger.error({ err: error }, '한세 companies 조회 실패');
     return [];
   }
-  return (data ?? []).map((r) => {
+  const byTicker = new Map<string, HansaeCompany>();
+  for (const r of data ?? []) {
     const row = r as Record<string, unknown>;
-    return {
+    byTicker.set(row.ticker as string, {
       id: row.id as string,
       ticker: row.ticker as string,
       name_kr: (row.name_kr as string) ?? '',
@@ -74,8 +94,12 @@ export async function getHansaeCompanies(): Promise<HansaeCompany[]> {
       lastChangePct: row.last_change_pct as number | null,
       lastVolume: row.last_volume as number | null,
       lastUpdatedAt: row.last_updated_at as string | null,
-    };
-  });
+    });
+  }
+  // HANSAE_TICKERS 배열 순서를 그대로 유지(한세예스24홀딩스→한세실업→한세엠케이→예스24)
+  return HANSAE_TICKERS.map((t) => byTicker.get(t)).filter(
+    (c): c is HansaeCompany => c !== undefined
+  );
 }
 
 /** 종목별 당일 5분봉 — KST 오늘 00:00 이후 데이터 */
@@ -182,6 +206,71 @@ export async function getSentimentSummary(
   return summary;
 }
 
+/** 종목별 최근 N년치 일별 OHLCV */
+export async function getDailyPrices(companyId: string, years = 5): Promise<DailyPrice[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createSupabaseAnonClient() as any;
+  const since = new Date();
+  since.setFullYear(since.getFullYear() - years);
+  const sinceStr = since.toISOString().slice(0, 10);
+  // Supabase PostgREST db-max-rows=1000이라 5년치(~1250행) 한 번에 못 가져옴.
+  // range 페이지네이션으로 1000행씩 누적.
+  const PAGE = 1000;
+  const all: unknown[] = [];
+  for (let from = 0; from < years * 260 + 100; from += PAGE) {
+    const { data, error } = await sb
+      .from('stock_daily_prices')
+      .select('trade_date,open_price,high_price,low_price,close_price,volume,change_pct')
+      .eq('company_id', companyId)
+      .gte('trade_date', sinceStr)
+      .order('trade_date', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      logger.error({ err: error, companyId }, '일봉 조회 실패');
+      return [];
+    }
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return all.map((r) => {
+    const row = r as unknown as Record<string, unknown>;
+    return {
+      tradeDate: row.trade_date as string,
+      open: row.open_price == null ? null : Number(row.open_price),
+      high: row.high_price == null ? null : Number(row.high_price),
+      low: row.low_price == null ? null : Number(row.low_price),
+      close: row.close_price == null ? null : Number(row.close_price),
+      volume: row.volume == null ? null : Number(row.volume),
+      changePct: row.change_pct == null ? null : Number(row.change_pct),
+    };
+  });
+}
+
+/** 종목별 오늘(KST) 분 단위 잠정 수급 스냅샷. 장중 cron이 5분마다 INSERT. */
+export async function getIntradaySupply(companyId: string): Promise<IntradaySupplyPoint[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createSupabaseAnonClient() as any;
+  // KST today (YYYY-MM-DD) — UTC slice은 timezone에 따라 빗나가므로 명시.
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  const { data, error } = await sb
+    .from('stock_supply_demand_intraday')
+    .select('snapshot_ts,foreign_net,institution_net,individual_net')
+    .eq('company_id', companyId)
+    .eq('trade_date', today)
+    .order('snapshot_ts', { ascending: true });
+  if (error) {
+    logger.error({ err: error, companyId }, '분 단위 수급 조회 실패');
+    return [];
+  }
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    snapshotTs: r.snapshot_ts as string,
+    foreignNet: r.foreign_net == null ? null : Number(r.foreign_net),
+    institutionNet: r.institution_net == null ? null : Number(r.institution_net),
+    individualNet: r.individual_net == null ? null : Number(r.individual_net),
+  }));
+}
+
 /** 종목별 최근 N거래일 수급 */
 export async function getRecentSupplyDemand(
   companyId: string,
@@ -190,7 +279,7 @@ export async function getRecentSupplyDemand(
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb
     .from('stock_supply_demand')
-    .select('trade_date,foreign_net,institution_net,individual_net')
+    .select('trade_date,foreign_net,institution_net,individual_net,close_price,change_pct')
     .eq('company_id', companyId)
     .order('trade_date', { ascending: false })
     .limit(days);
@@ -200,12 +289,14 @@ export async function getRecentSupplyDemand(
   }
   return (data ?? [])
     .map((r) => {
-      const row = r as Record<string, unknown>;
+      const row = r as unknown as Record<string, unknown>;
       return {
         tradeDate: row.trade_date as string,
         foreignNet: row.foreign_net === null ? null : Number(row.foreign_net),
         institutionNet: row.institution_net === null ? null : Number(row.institution_net),
         individualNet: row.individual_net === null ? null : Number(row.individual_net),
+        closePrice: row.close_price == null ? null : Number(row.close_price),
+        changePct: row.change_pct == null ? null : Number(row.change_pct),
       };
     })
     .reverse();
