@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import HansaeDashboard from '@/components/hansae/HansaeDashboard';
 import {
   getDailyPrices,
@@ -9,12 +10,17 @@ import {
   getRecentSupplyDemand,
   getSentimentSummary,
 } from '@/lib/hansae/data';
+import { getCurrentUser } from '@/lib/auth/get-current-user';
 
 // Next.js 16 cacheComponents 하에서는 page 기본이 dynamic이므로
 // `dynamic = 'force-dynamic'` / `revalidate = 0` 옵트인은 불필요(빌드 에러를 유발).
 // uncached server fetch는 <Suspense> 경계 안에서 수행해야 prerender가 가능하다.
 
-export default function HansaePage() {
+export default async function HansaePage() {
+  const user = await getCurrentUser();
+  if (!user || user.role === 'mobility') {
+    redirect('/');
+  }
   return (
     <div className="h-full flex flex-col">
       <div className="px-6 py-4 border-b border-border shrink-0">

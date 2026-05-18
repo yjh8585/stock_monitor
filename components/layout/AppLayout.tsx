@@ -6,14 +6,22 @@ import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import Sidebar, { MobileNav } from './Sidebar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import type { CurrentUser } from '@/lib/auth/get-current-user';
 
-/** 팝업 경로에서는 사이드바를 숨기는 레이아웃 래퍼 */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+/** 팝업/로그인 경로에서는 사이드바를 숨기는 레이아웃 래퍼 */
+export default function AppLayout({
+  user,
+  children,
+}: {
+  user: CurrentUser | null;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isPopup = pathname.startsWith('/stock-popup');
+  const isLogin = pathname.startsWith('/login');
 
-  if (isPopup) {
+  if (isPopup || isLogin) {
     return <div className="h-full overflow-hidden">{children}</div>;
   }
 
@@ -33,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             }
           />
           <SheetContent side="left" className="p-0 w-56 sm:max-w-56">
-            <MobileNav onClose={() => setMobileOpen(false)} />
+            <MobileNav user={user} onClose={() => setMobileOpen(false)} />
           </SheetContent>
         </Sheet>
         <Link
@@ -45,7 +53,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       {/* 데스크톱: 사이드바 + 메인 가로 배치 */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        <Sidebar user={user} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
