@@ -11,7 +11,7 @@ interface Props {
   unit: string;
   source: string;
   companies: readonly StockCompany[];
-  /** 초기 선택 ticker. localStorage 저장값이 있으면 그쪽이 우선. */
+  /** 초기 선택 ticker. */
   defaultTickers?: readonly [string, string];
 }
 
@@ -21,7 +21,6 @@ const SECONDARY_COLOR = '#ef4444';
 /** 한 카드 내에서 두 종목을 선택해 듀얼 Y축 라인 차트로 비교.
  *  시계열은 /api/stock-prices?id=... 로 클라이언트에서 받아 메모리 캐시. */
 export default function DualStockCard({ title, unit, source, companies, defaultTickers }: Props) {
-  const storageKey = `stock-pair-${title}`;
   const [selection, setSelection] = useState(() => {
     const findId = (ticker: string) =>
       companies.find((c) => c.ticker === ticker)?.id ?? companies[0]?.id ?? '';
@@ -34,27 +33,6 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
   const inflightRef = useRef<Set<string>>(new Set());
 
   const { primary, secondary } = selection;
-
-  // 마운트 시 localStorage에서 선택값 복원 (단일 상태 업데이트로 cascading render 방지)
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as { primary: string; secondary: string };
-      // localStorage는 브라우저 전용 외부 시스템 — useEffect에서 setState는 의도된 패턴
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelection((prev) => ({
-        primary: companies.find((c) => c.id === parsed.primary) ? parsed.primary : prev.primary,
-        secondary: companies.find((c) => c.id === parsed.secondary)
-          ? parsed.secondary
-          : prev.secondary,
-      }));
-    } catch {
-      // 손상된 데이터 무시
-    }
-    // companies 배열은 서버에서 내려온 고정값이므로 의존성에서 제외
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
 
   useEffect(() => {
     const toFetch = [primary, secondary].filter(
@@ -123,14 +101,8 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
           companies={companies}
           primary={primary}
           secondary={secondary}
-          onPrimaryChange={(v) => {
-            setSelection((prev) => ({ ...prev, primary: v }));
-            localStorage.setItem(storageKey, JSON.stringify({ primary: v, secondary }));
-          }}
-          onSecondaryChange={(v) => {
-            setSelection((prev) => ({ ...prev, secondary: v }));
-            localStorage.setItem(storageKey, JSON.stringify({ primary, secondary: v }));
-          }}
+          onPrimaryChange={(v) => setSelection((prev) => ({ ...prev, primary: v }))}
+          onSecondaryChange={(v) => setSelection((prev) => ({ ...prev, secondary: v }))}
         />
       </div>
       {series.length > 0 ? (

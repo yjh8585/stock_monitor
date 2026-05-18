@@ -15,7 +15,6 @@ interface Props {
 
 const PRIMARY_COLOR = '#2962FF';
 const SECONDARY_COLOR = '#ef4444';
-const STORAGE_KEY = 'stock-cross-market';
 
 /** 국내×해외 듀얼 Y축 비교 카드.
  *  좌축 = 국내(KRW), 우축 = 해외(USD). */
@@ -39,22 +38,6 @@ export default function CrossMarketCard({
   const [seriesCache, setSeriesCache] = useState<Record<string, SeriesPoint[]>>({});
   const inflightRef = useRef<Set<string>>(new Set());
   const { primary, secondary } = selection;
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as { primary: string; secondary: string };
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelection((prev) => ({
-        primary: primaryCompanies.find((c) => c.id === parsed.primary) ? parsed.primary : prev.primary,
-        secondary: secondaryCompanies.find((c) => c.id === parsed.secondary) ? parsed.secondary : prev.secondary,
-      }));
-    } catch {
-      // 손상된 데이터 무시
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     const toFetch = [primary, secondary].filter(
@@ -114,14 +97,8 @@ export default function CrossMarketCard({
           secondaryCompanies={secondaryCompanies}
           primary={primary}
           secondary={secondary}
-          onPrimaryChange={(v) => {
-            setSelection((prev) => ({ ...prev, primary: v }));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ primary: v, secondary }));
-          }}
-          onSecondaryChange={(v) => {
-            setSelection((prev) => ({ ...prev, secondary: v }));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ primary, secondary: v }));
-          }}
+          onPrimaryChange={(v) => setSelection((prev) => ({ ...prev, primary: v }))}
+          onSecondaryChange={(v) => setSelection((prev) => ({ ...prev, secondary: v }))}
         />
       </div>
       {series.length > 0 ? (

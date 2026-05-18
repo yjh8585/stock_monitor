@@ -68,7 +68,7 @@ export default function HansaeStockCard({ bundle }: Props) {
           ? 'text-blue-500'
           : 'text-foreground';
   const isExtreme = pct !== null && Math.abs(pct) >= 3;
-  const [range, setRange] = useState<TimeRange>('3M');
+  const [range, setRange] = useState<TimeRange>('1Y');
   const chartData = useMemo(() => buildChartSeries(bundle, range), [bundle, range]);
 
   return (

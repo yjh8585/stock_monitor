@@ -32,7 +32,7 @@ export default function SeriesChart({
   data,
   height = 240,
   color = '#2962FF',
-  initialRange = '5y',
+  initialRange = '1y',
 }: SeriesChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);

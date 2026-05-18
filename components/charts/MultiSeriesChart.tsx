@@ -39,7 +39,7 @@ export default function MultiSeriesChart({
   source,
   series,
   height = 240,
-  initialRange = '5y',
+  initialRange = '1y',
   secondaryFor,
 }: MultiSeriesChartProps) {
   const useDualAxis = (secondaryFor?.length ?? 0) > 0;
