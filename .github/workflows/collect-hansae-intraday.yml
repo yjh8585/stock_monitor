@@ -1,4 +1,4 @@
-name: 한세 장중 잠정 수급 (5분 간격)
+name: 한세 장중 시세·수급 (5분 간격)
 
 on:
   schedule:
@@ -27,7 +27,15 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: 장중 잠정 수급 수집 (오늘)
+      - name: 장중 분 단위 시세 수집 (네이버, 오늘)
+        run: python collect_naver_intraday.py --mode today
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: 장중 잠정 수급 수집 (KRX, 오늘)
+        # 시세 수집 실패에 발이 묶이지 않도록 if: always()
+        if: always()
         run: python collect_supply_demand.py --mode intraday
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
