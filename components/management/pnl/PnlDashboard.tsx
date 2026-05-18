@@ -84,7 +84,11 @@ export default function PnlDashboard({ data }: Props) {
       <ProductCustomerCross annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <SilPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <LazyMount className="min-h-[420px] md:min-h-[520px]">
-        <MarginScatter annualEntries={annualEntries} annualByBasis={annualByBasis} />
+        <MarginScatter
+          annualEntries={annualEntries}
+          annualByBasis={annualByBasis}
+          monthlyByBasis={monthlyByBasis}
+        />
       </LazyMount>
       <LazyMount className="min-h-[420px] md:min-h-[540px]">
         <YoyMonthlyCompare data={data} monthlyByBasis={monthlyByBasis} />
@@ -97,8 +101,8 @@ export default function PnlDashboard({ data }: Props) {
           monthlyByBasis={monthlyByBasis}
         />
       </LazyMount>
-      {/* Insights: 모바일은 3개 차트 세로 stack → 더 큰 예약 높이 필요 */}
-      <LazyMount className="min-h-[1200px] lg:min-h-[960px]">
+      {/* Insights: 2개 차트 (워터폴 + 파레토). 모바일은 세로 stack. */}
+      <LazyMount className="min-h-[820px] lg:min-h-[460px]">
         <Insights annualEntries={annualEntries} annualByBasis={annualByBasis} />
       </LazyMount>
     </div>

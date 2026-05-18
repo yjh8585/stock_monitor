@@ -5,10 +5,15 @@ import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { aggregateBy, entriesForYear, getDisplayYearLabels, opMarginOf } from '@/lib/pnl/aggregate';
+import {
+  aggregateBy,
+  entriesForYearOrYtd,
+  getDisplayYearLabels,
+  opMarginOf,
+  ytdMonthsOfYear,
+} from '@/lib/pnl/aggregate';
 import type { Basis, DimensionKey, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
-import { OEM_COLORS } from '@/components/oem/helpers';
 
 const ChartFallback = () => (
   <div className="h-[280px] md:h-[380px] bg-muted/20 animate-pulse rounded" />
@@ -23,21 +28,23 @@ const Scatter = dynamic(() => import('recharts').then((m) => m.Scatter), { ssr: 
 const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
 const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
 const ZAxis = dynamic(() => import('recharts').then((m) => m.ZAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
-  ssr: false,
-});
 const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
 const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
   ssr: false,
 });
+const LabelList = dynamic(() => import('recharts').then((m) => m.LabelList), { ssr: false });
 const ReferenceLine = dynamic(() => import('recharts').then((m) => m.ReferenceLine), {
   ssr: false,
 });
-const Legend = dynamic(() => import('recharts').then((m) => m.Legend), { ssr: false });
+const ReferenceArea = dynamic(() => import('recharts').then((m) => m.ReferenceArea), {
+  ssr: false,
+});
 
 interface Props {
   annualEntries: PnlEntry[];
   annualByBasis: EntriesByBasis;
+  /** basis별 월별 원본 — 진행 중 연도 YTD 비교용 */
+  monthlyByBasis: EntriesByBasis;
 }
 
 type DimChoice = 'customer' | 'product' | 'division';
@@ -59,6 +66,112 @@ interface BubblePoint {
   baseRevenue: number;
   compareRevenue: number;
   opIncome: number;
+  /** dim='customer'일 때 해당 고객이 속한 부문 목록 (호버 툴팁 첫 줄용) */
+  divisions?: string[];
+}
+
+/** 라벨 배치 후보 위치 (버블 중심으로부터의 픽셀 offset과 textAnchor) */
+interface LabelPos {
+  dx: number;
+  dy: number;
+  anchor: 'start' | 'middle' | 'end';
+}
+const LABEL_POSITIONS: readonly LabelPos[] = [
+  { dx: 0, dy: -14, anchor: 'middle' }, // above (기본)
+  { dx: 0, dy: 20, anchor: 'middle' }, // below
+  { dx: 12, dy: 4, anchor: 'start' }, // right
+  { dx: -12, dy: 4, anchor: 'end' }, // left
+  { dx: 10, dy: -10, anchor: 'start' }, // top-right
+  { dx: -10, dy: -10, anchor: 'end' }, // top-left
+  { dx: 10, dy: 16, anchor: 'start' }, // bottom-right
+  { dx: -10, dy: 16, anchor: 'end' }, // bottom-left
+];
+
+/**
+ * 라벨 충돌 회피 — 매출 desc 순서로 점을 돌며, 이미 배치된 라벨과 겹치지 않는 후보 위치를 선택.
+ *
+ * 충돌 판단: 두 점이 (xRange*xFrac, yRange*yFrac) 박스 안에 있고 같은 후보 위치 인덱스를 쓰면 충돌.
+ * 큰 버블이 'above'(기본) 우선권을 갖도록 매출 desc 정렬된 입력 순서를 유지한다.
+ */
+function assignLabelPositions(
+  points: readonly BubblePoint[],
+  xDomain: readonly [number, number],
+  yDomain: readonly [number, number]
+): LabelPos[] {
+  const xRange = xDomain[1] - xDomain[0] || 1;
+  const yRange = yDomain[1] - yDomain[0] || 1;
+  // 화면상 라벨이 차지하는 영역(추정): 너비 약 8%, 높이 약 7%
+  const xTol = xRange * 0.08;
+  const yTol = yRange * 0.07;
+  const placed: { p: BubblePoint; posIdx: number }[] = [];
+  const result: LabelPos[] = [];
+  for (const p of points) {
+    // 8방향 중 충돌(같은 위치에 가까운 기배치 라벨)이 가장 적은 위치 선택.
+    // 8방향 모두 충돌이어도 가장 덜 겹치는 방향을 고르므로 라벨이 누락되지 않는다.
+    let bestIdx = 0;
+    let bestCount = Infinity;
+    for (let i = 0; i < LABEL_POSITIONS.length; i += 1) {
+      let count = 0;
+      for (const e of placed) {
+        if (
+          e.posIdx === i &&
+          Math.abs(p.yoy - e.p.yoy) < xTol &&
+          Math.abs(p.margin - e.p.margin) < yTol
+        ) {
+          count += 1;
+        }
+      }
+      if (count < bestCount) {
+        bestCount = count;
+        bestIdx = i;
+        if (count === 0) break;
+      }
+    }
+    placed.push({ p, posIdx: bestIdx });
+    result.push(LABEL_POSITIONS[bestIdx]);
+  }
+  return result;
+}
+
+/**
+ * D3 스타일 nice step — raw step을 1·2·5×10ⁿ 의 배수로 반올림해
+ * 10%, 20%, 25% 같은 깔끔한 간격을 만든다.
+ */
+function niceStep(range: number, targetCount: number): number {
+  if (range <= 0) return 1;
+  const raw = range / targetCount;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  let factor: number;
+  if (norm < 1.5) factor = 1;
+  else if (norm < 3) factor = 2;
+  else if (norm < 7) factor = 5;
+  else factor = 10;
+  return factor * mag;
+}
+
+/**
+ * 데이터의 raw min/max → nice domain(step 단위로 floor/ceil) + 균일 간격 nice ticks.
+ *
+ * 결과 ticks는 양 끝이 도메인과 정확히 일치하고 step 간격이 균일.
+ * 사용 측에서 외곽(첫·마지막)과 0(십자축이 표시)을 걸러내 격자 좌표로 사용.
+ */
+function niceDomainAndTicks(
+  rawLo: number,
+  rawHi: number,
+  targetCount = 7
+): { domain: [number, number]; ticks: number[] } {
+  if (rawHi - rawLo <= 0) return { domain: [-1, 1], ticks: [] };
+  const step = niceStep(rawHi - rawLo, targetCount);
+  const lo = Math.floor(rawLo / step) * step;
+  const hi = Math.ceil(rawHi / step) * step;
+  const ticks: number[] = [];
+  const count = Math.round((hi - lo) / step);
+  for (let i = 0; i <= count; i += 1) {
+    // 부동소수 누적 오차 정리
+    ticks.push(Math.round((lo + step * i) / step) * step);
+  }
+  return { domain: [lo, hi], ticks };
 }
 
 function fmtMillion(n: number | null | undefined): string {
@@ -73,6 +186,55 @@ function fmtPct(v: number | null | undefined, digits = 1): string {
   return `${sign}${v.toFixed(digits)}%`;
 }
 
+/** 백분위(0~1) 값을 보간으로 계산. 빈 배열이면 0. */
+function quantile(sorted: readonly number[], q: number): number {
+  if (sorted.length === 0) return 0;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] * (hi - pos) + sorted[hi] * (pos - lo);
+}
+
+/** 매출 비중이 이 값 미만인 경우에만 이상치 후보. 영향력 있는 점은 항상 차트에 표시한다. */
+const OUTLIER_SHARE_MAX = 0.02;
+
+/**
+ * YoY와 영업이익률 두 축에 대해 IQR 1.5배 규칙으로 이상치 분리.
+ *
+ * 추가 보호: 매출 비중이 OUTLIER_SHARE_MAX(2%) 이상인 점은 IQR 밖이어도 regular 유지.
+ * → 부문(5개)에서 매출 4%인 조향이 yoy 극단이라 빠지는 일을 막고, '기타'(0.6%)만 분리.
+ *
+ * 이상치는 차트 축 도메인을 과도하게 늘려 다른 점들을 식별하기 어렵게 만드므로
+ * 차트에서 제외하고 footer에 따로 표기한다.
+ */
+function classifyOutliers(pts: readonly BubblePoint[]): {
+  regular: BubblePoint[];
+  outliers: BubblePoint[];
+} {
+  if (pts.length < 5) return { regular: [...pts], outliers: [] };
+  const totalRev = pts.reduce((s, p) => s + p.revenue, 0);
+  const yoySorted = pts.map((p) => p.yoy).sort((a, b) => a - b);
+  const marginSorted = pts.map((p) => p.margin).sort((a, b) => a - b);
+  const yQ1 = quantile(yoySorted, 0.25);
+  const yQ3 = quantile(yoySorted, 0.75);
+  const yLo = yQ1 - 1.5 * (yQ3 - yQ1);
+  const yHi = yQ3 + 1.5 * (yQ3 - yQ1);
+  const mQ1 = quantile(marginSorted, 0.25);
+  const mQ3 = quantile(marginSorted, 0.75);
+  const mLo = mQ1 - 1.5 * (mQ3 - mQ1);
+  const mHi = mQ3 + 1.5 * (mQ3 - mQ1);
+  const regular: BubblePoint[] = [];
+  const outliers: BubblePoint[] = [];
+  for (const p of pts) {
+    const share = totalRev > 0 ? p.revenue / totalRev : 0;
+    const outOfRange = p.yoy < yLo || p.yoy > yHi || p.margin < mLo || p.margin > mHi;
+    if (share < OUTLIER_SHARE_MAX && outOfRange) outliers.push(p);
+    else regular.push(p);
+  }
+  return { regular, outliers };
+}
+
 /**
  * 7. 매출 YoY × 영업이익률 버블 차트.
  *
@@ -83,44 +245,87 @@ function fmtPct(v: number | null | undefined, digits = 1): string {
  *
  * 성능: basis 토글 시 `annualByBasis[basis]` 작은 배열만 사용.
  */
-export default function MarginScatter({ annualByBasis }: Props) {
+export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
   const [dim, setDim] = useState<DimChoice>('customer');
+  const [showOutliers, setShowOutliers] = useState<boolean>(false);
 
   const basisEntries = annualByBasis[basis];
+  const basisMonthly = monthlyByBasis[basis];
 
+  // YoY는 직전 연도와 비교 — 2023을 base로 두면 2022 데이터가 없어 yoy=0이 된다.
+  // 따라서 base 드롭다운에서 2023(라벨 prefix '2023')은 제외.
   const yearLabels = useMemo(
-    () => getDisplayYearLabels(basisEntries, basis),
+    () => getDisplayYearLabels(basisEntries, basis).filter((y) => !y.startsWith('2023')),
     [basisEntries, basis]
   );
 
   const defaultBase = yearLabels[yearLabels.length - 1] ?? '';
-  const defaultCompare = yearLabels[yearLabels.length - 2] ?? defaultBase;
   const [baseYear, setBaseYear] = useState<string>('');
-  const [compareYear, setCompareYear] = useState<string>('');
   const effBase = useMemo(
     () => (baseYear && yearLabels.includes(baseYear) ? baseYear : defaultBase),
     [baseYear, yearLabels, defaultBase]
   );
-  const effCompare = useMemo(
-    () => (compareYear && yearLabels.includes(compareYear) ? compareYear : defaultCompare),
-    [compareYear, yearLabels, defaultCompare]
-  );
+
+  /**
+   * 비교 연도 = 기준 연도의 직전 연도.
+   *
+   * yearLabels에는 '2025(E)' / '2026' 처럼 라벨 suffix가 붙어 있을 수 있어
+   * 4자리 prefix로 매칭한다. (예: 기준 '2026' → 비교 '2025(E)')
+   */
+  const effCompare = useMemo(() => {
+    if (!effBase) return '';
+    const m = effBase.match(/(\d{4})/);
+    if (!m) return effBase;
+    const prev = String(parseInt(m[1], 10) - 1);
+    return yearLabels.find((y) => y.startsWith(prev)) ?? effBase;
+  }, [effBase, yearLabels]);
 
   const dimConfig = useMemo(
     () => DIM_OPTIONS.find((d) => d.value === dim) ?? DIM_OPTIONS[0],
     [dim]
   );
 
+  /** 기준 연도가 진행 중(YTD)이면 비교도 동일 월수까지 잘라 비교. 0/12면 연간 비교. */
+  const baseYearNum = useMemo(() => {
+    const m = effBase.match(/(\d{4})/);
+    return m ? parseInt(m[1], 10) : 0;
+  }, [effBase]);
+  const ytdMonths = useMemo(
+    () => (baseYearNum ? ytdMonthsOfYear(basisMonthly, basis, baseYearNum) : 0),
+    [basisMonthly, basis, baseYearNum]
+  );
+
   const points: BubblePoint[] = useMemo(() => {
     if (!effBase) return [];
-    const baseEntries = entriesForYear(basisEntries, basis, effBase);
-    const compareEntries = entriesForYear(basisEntries, basis, effCompare);
+    const baseEntries = entriesForYearOrYtd(basisEntries, basisMonthly, basis, effBase, ytdMonths);
+    const compareEntries = entriesForYearOrYtd(
+      basisEntries,
+      basisMonthly,
+      basis,
+      effCompare,
+      ytdMonths
+    );
     const baseAgg = aggregateBy(baseEntries, [dimConfig.key]);
     const compareAgg = aggregateBy(compareEntries, [dimConfig.key]);
     const compareMap = new Map<string, number>();
     for (const r of compareAgg) {
       compareMap.set(r.dims[dimConfig.key] || '(미분류)', r.revenue);
+    }
+    // dim='customer'일 때 고객→부문 매핑 (호버 툴팁 첫 줄용)
+    const divsByCustomer = new Map<string, Set<string>>();
+    if (dimConfig.key === 'customer') {
+      for (const e of baseEntries) {
+        const cust = e.customer;
+        if (!cust) continue;
+        const div = e.division || '(미분류)';
+        let s = divsByCustomer.get(cust);
+        if (!s) {
+          s = new Set<string>();
+          divsByCustomer.set(cust, s);
+        }
+        s.add(div);
+      }
     }
     return baseAgg
       .filter((r) => r.revenue > 0)
@@ -128,6 +333,10 @@ export default function MarginScatter({ annualByBasis }: Props) {
         const name = r.dims[dimConfig.key] || '(미분류)';
         const cmp = compareMap.get(name) ?? 0;
         const yoy = cmp !== 0 ? ((r.revenue - cmp) / Math.abs(cmp)) * 100 : 0;
+        const divisions =
+          dimConfig.key === 'customer'
+            ? Array.from(divsByCustomer.get(name) ?? []).sort((a, b) => a.localeCompare(b, 'ko'))
+            : undefined;
         return {
           name,
           yoy,
@@ -136,37 +345,80 @@ export default function MarginScatter({ annualByBasis }: Props) {
           baseRevenue: r.revenue,
           compareRevenue: cmp,
           opIncome: r.op_income,
+          divisions,
         };
       })
       .sort((a, b) => b.revenue - a.revenue);
-  }, [basisEntries, basis, effBase, effCompare, dimConfig.key]);
+  }, [basisEntries, basisMonthly, basis, effBase, effCompare, dimConfig.key, ytdMonths]);
 
-  const maxRev = useMemo(() => points.reduce((m, p) => Math.max(m, p.revenue), 0), [points]);
+  /** 이상치 분리. showOutliers=false면 차트는 regular만, true면 outlier 포함. */
+  const { regular: regularPoints, outliers } = useMemo(() => classifyOutliers(points), [points]);
 
-  /** 축에 0이 항상 보이도록 domain을 [min(0, dataMin)-pad, max(0, dataMax)+pad]로 강제 */
-  const xDomain = useMemo<[number, number]>(() => {
-    if (points.length === 0) return [-10, 10];
+  /** 차트에 실제로 들어갈 점 — 토글 상태에 따라 outlier 포함 여부 결정 */
+  const chartPoints = useMemo(
+    () => (showOutliers ? [...regularPoints, ...outliers] : regularPoints),
+    [showOutliers, regularPoints, outliers]
+  );
+
+  const maxRev = useMemo(
+    () => chartPoints.reduce((m, p) => Math.max(m, p.revenue), 0),
+    [chartPoints]
+  );
+
+  /**
+   * Nice domain + 균일 간격 ticks 계산.
+   *
+   * - 0이 항상 포함되도록 raw min/max를 [min(0, dataMin), max(0, dataMax)]로 보정한 뒤
+   *   D3 스타일 niceDomainAndTicks로 도메인을 step 단위로 round.
+   * - 결과 ticks는 step 간격이 균일 (예: -20, -10, 0, 10, 20).
+   */
+  const xMeta = useMemo(() => {
+    if (chartPoints.length === 0) {
+      return { domain: [-10, 10] as [number, number], ticks: [] as number[] };
+    }
     let lo = 0;
     let hi = 0;
-    for (const p of points) {
+    for (const p of chartPoints) {
       if (p.yoy < lo) lo = p.yoy;
       if (p.yoy > hi) hi = p.yoy;
     }
-    const pad = Math.max(Math.abs(lo), Math.abs(hi)) * 0.1 || 1;
-    return [lo - pad, hi + pad];
-  }, [points]);
+    return niceDomainAndTicks(lo, hi);
+  }, [chartPoints]);
 
-  const yDomain = useMemo<[number, number]>(() => {
-    if (points.length === 0) return [-10, 10];
+  const yMeta = useMemo(() => {
+    if (chartPoints.length === 0) {
+      return { domain: [-10, 10] as [number, number], ticks: [] as number[] };
+    }
     let lo = 0;
     let hi = 0;
-    for (const p of points) {
+    for (const p of chartPoints) {
       if (p.margin < lo) lo = p.margin;
       if (p.margin > hi) hi = p.margin;
     }
-    const pad = Math.max(Math.abs(lo), Math.abs(hi)) * 0.1 || 1;
-    return [lo - pad, hi + pad];
-  }, [points]);
+    return niceDomainAndTicks(lo, hi);
+  }, [chartPoints]);
+
+  const xDomain = xMeta.domain;
+  const yDomain = yMeta.domain;
+
+  /** 라벨 충돌 회피 위치 사전 계산 — index 순으로 LABEL_POSITIONS 배열 */
+  const labelPositions = useMemo(
+    () => assignLabelPositions(chartPoints, xDomain, yDomain),
+    [chartPoints, xDomain, yDomain]
+  );
+
+  /**
+   * 격자/tick 좌표 = nice ticks에서 양 끝(도메인 경계 = 외곽 테두리)과 0(십자축이 별도 강조)을 제외.
+   * → 균일 간격 + 깔끔한 1·2·5 배수 값 + 네모 테두리 없음.
+   */
+  const gridX = useMemo(
+    () => xMeta.ticks.filter((v, i, arr) => i > 0 && i < arr.length - 1 && v !== 0),
+    [xMeta]
+  );
+  const gridY = useMemo(
+    () => yMeta.ticks.filter((v, i, arr) => i > 0 && i < arr.length - 1 && v !== 0),
+    [yMeta]
+  );
 
   const h = useChartHeight(280, 380, 460);
 
@@ -176,14 +428,13 @@ export default function MarginScatter({ annualByBasis }: Props) {
         <h2 className="text-base font-semibold">7. 매출 YoY × 영업이익률 (버블=매출)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
-          <YearSelect label="기준" options={yearLabels} value={effBase} onChange={setBaseYear} />
-          <YearSelect
-            label="비교"
-            options={yearLabels}
-            value={effCompare}
-            onChange={setCompareYear}
-          />
+          <YearSelect label="연도" options={yearLabels} value={effBase} onChange={setBaseYear} />
           <DimRadio value={dim} onChange={setDim} />
+          <OutlierToggle
+            value={showOutliers}
+            onChange={setShowOutliers}
+            disabled={outliers.length === 0}
+          />
         </div>
       </header>
       {points.length === 0 ? (
@@ -192,35 +443,75 @@ export default function MarginScatter({ annualByBasis }: Props) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={h}>
-          <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 24 }}>
+            {/*
+              - X/Y축은 axisLine·tickLine 없이 tick 숫자만 표시
+              - 안쪽 격자는 ReferenceLine을 도메인 등분으로 직접 그려 외곽 테두리가 생기지 않게 함
+              - 3사분면(YoY<0 & 영업이익률<0)은 연한 붉은색 음영으로 강조
+              - 십자축은 ReferenceLine x=0 / y=0
+            */}
+            {/* 3사분면 (YoY<0 & 영업이익률<0) — 연한 빨강 */}
+            <ReferenceArea
+              x1={xDomain[0]}
+              x2={0}
+              y1={yDomain[0]}
+              y2={0}
+              fill="#ef4444"
+              fillOpacity={0.08}
+              stroke="none"
+              ifOverflow="visible"
+            />
+            {/* 1사분면 (YoY>0 & 영업이익률>0) — 연한 파랑 */}
+            <ReferenceArea
+              x1={0}
+              x2={xDomain[1]}
+              y1={0}
+              y2={yDomain[1]}
+              fill="#3b82f6"
+              fillOpacity={0.08}
+              stroke="none"
+              ifOverflow="visible"
+            />
+            {gridX.map((v) => (
+              <ReferenceLine
+                key={`gx-${v}`}
+                x={v}
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                strokeOpacity={0.6}
+              />
+            ))}
+            {gridY.map((v) => (
+              <ReferenceLine
+                key={`gy-${v}`}
+                y={v}
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                strokeOpacity={0.6}
+              />
+            ))}
             <XAxis
               type="number"
               dataKey="yoy"
-              name="매출 YoY"
               domain={xDomain}
+              ticks={gridX}
+              interval={0}
               tickFormatter={(v: number) => `${v.toFixed(0)}%`}
-              tick={{ fontSize: 11 }}
-              label={{
-                value: `매출 YoY (${effBase} vs ${effCompare}, %)`,
-                position: 'insideBottom',
-                offset: -10,
-                style: { fontSize: 11, fill: 'var(--muted-foreground)' },
-              }}
+              tick={{ fontSize: 13 }}
+              axisLine={false}
+              tickLine={false}
             />
             <YAxis
               type="number"
               dataKey="margin"
-              name="영업이익률"
               domain={yDomain}
+              ticks={gridY}
+              interval={0}
               tickFormatter={(v: number) => `${v.toFixed(0)}%`}
-              tick={{ fontSize: 11 }}
-              label={{
-                value: '영업이익률 (%)',
-                angle: -90,
-                position: 'insideLeft',
-                style: { fontSize: 11, fill: 'var(--muted-foreground)' },
-              }}
+              tick={{ fontSize: 13 }}
+              axisLine={false}
+              tickLine={false}
+              width={50}
             />
             <ZAxis
               type="number"
@@ -229,8 +520,33 @@ export default function MarginScatter({ annualByBasis }: Props) {
               domain={[0, Math.max(maxRev, 1)]}
               name="매출"
             />
-            <ReferenceLine y={0} stroke="var(--muted-foreground)" strokeDasharray="3 3" />
-            <ReferenceLine x={0} stroke="var(--muted-foreground)" strokeDasharray="3 3" />
+            <ReferenceLine
+              y={0}
+              stroke="var(--foreground)"
+              strokeWidth={1.5}
+              ifOverflow="extendDomain"
+              label={{
+                value:
+                  ytdMonths >= 1 && ytdMonths <= 11
+                    ? `매출 YoY (${effBase} 1~${ytdMonths}월 vs ${effCompare} 1~${ytdMonths}월, %)`
+                    : `매출 YoY (${effBase} vs ${effCompare}, %)`,
+                position: 'insideTopRight',
+                fontSize: 13,
+                fill: 'var(--muted-foreground)',
+              }}
+            />
+            <ReferenceLine
+              x={0}
+              stroke="var(--foreground)"
+              strokeWidth={1.5}
+              ifOverflow="extendDomain"
+              label={{
+                value: '영업이익률 (%)',
+                position: 'insideTopLeft',
+                fontSize: 13,
+                fill: 'var(--muted-foreground)',
+              }}
+            />
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
               contentStyle={{
@@ -240,22 +556,83 @@ export default function MarginScatter({ annualByBasis }: Props) {
               }}
               content={<BubbleTooltip baseYear={effBase} compareYear={effCompare} />}
             />
-            <Legend
-              verticalAlign="top"
-              wrapperStyle={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                justifyContent: 'center',
-                gap: '6px 10px',
-                paddingBottom: 4,
-              }}
-            />
-            <Scatter name={dimConfig.label} data={points} fill={OEM_COLORS[0]} shape="circle" />
+            <Scatter
+              name={dimConfig.label}
+              data={chartPoints}
+              fill="#000000"
+              shape="circle"
+            >
+              <LabelList
+                dataKey="name"
+                content={(p: unknown) => {
+                  const props = p as {
+                    x?: number;
+                    y?: number;
+                    index?: number;
+                    value?: string | number;
+                  };
+                  const pos = labelPositions[props.index ?? 0] ?? LABEL_POSITIONS[0];
+                  return <BubbleLabel {...props} pos={pos} />;
+                }}
+              />
+            </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
       )}
+      {outliers.length > 0 && !showOutliers && (
+        <div className="mt-3 rounded-md border border-dashed border-border bg-muted/20 p-3 text-sm">
+          <div className="font-semibold text-foreground mb-1.5">
+            이상치 {outliers.length}건 — 차트 가독성을 위해 제외 (토글로 반영 가능)
+          </div>
+          <ul className="space-y-1 text-muted-foreground">
+            {outliers.map((o) => (
+              <li key={o.name} className="tabular-nums">
+                <span className="text-foreground font-medium">{o.name}</span> · 매출{' '}
+                {fmtMillion(o.baseRevenue)} 백만원 · YoY{' '}
+                <span className={o.yoy < 0 ? 'text-red-500 font-bold' : ''}>{fmtPct(o.yoy)}</span>
+                {' · '}영업이익률{' '}
+                <span className={o.margin < 0 ? 'text-red-500 font-bold' : ''}>
+                  {fmtPct(o.margin)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
+}
+
+/**
+ * 데이터 레이블 — 사전 계산된 LabelPos를 사용해 겹치지 않게 배치 (기본 above).
+ */
+function BubbleLabel(props: {
+  x?: number;
+  y?: number;
+  value?: string | number;
+  pos?: LabelPos;
+}) {
+  const { x = 0, y = 0, value, pos } = props;
+  if (value == null) return null;
+  const p = pos ?? LABEL_POSITIONS[0];
+  return (
+    <text
+      x={x + p.dx}
+      y={y + p.dy}
+      textAnchor={p.anchor}
+      fontSize={13}
+      fontWeight={500}
+      fill="var(--foreground)"
+      pointerEvents="none"
+    >
+      {String(value)}
+    </text>
+  );
+}
+
+/** 음수면 빨강 볼드, 아니면 일반 medium */
+function neg(v: number): string {
+  return v < 0 ? 'text-red-500 font-bold' : 'font-medium';
 }
 
 function BubbleTooltip({
@@ -280,18 +657,68 @@ function BubbleTooltip({
       }}
     >
       <div className="font-semibold mb-1">{p.name}</div>
+      {p.divisions && p.divisions.length > 0 && (
+        <div className="text-muted-foreground mb-1">{p.divisions.join(' / ')}</div>
+      )}
       <div>
-        매출 {baseYear}: <span className="font-medium">{fmtMillion(p.baseRevenue)}</span> 백만원
-      </div>
-      <div>
-        매출 {compareYear}: <span className="font-medium">{fmtMillion(p.compareRevenue)}</span>{' '}
+        매출 {baseYear}: <span className={neg(p.baseRevenue)}>{fmtMillion(p.baseRevenue)}</span>{' '}
         백만원
       </div>
-      <div>매출 YoY: {fmtPct(p.yoy)}</div>
-      <div>영업이익률: {fmtPct(p.margin)}</div>
-      <div className={p.opIncome < 0 ? 'text-red-500' : ''}>
-        영업이익: {fmtMillion(p.opIncome)} 백만원
+      <div>
+        매출 {compareYear}:{' '}
+        <span className={neg(p.compareRevenue)}>{fmtMillion(p.compareRevenue)}</span> 백만원
       </div>
+      <div>
+        매출 YoY: <span className={neg(p.yoy)}>{fmtPct(p.yoy)}</span>
+      </div>
+      <div>
+        영업이익률: <span className={neg(p.margin)}>{fmtPct(p.margin)}</span>
+      </div>
+      <div>
+        영업이익: <span className={neg(p.opIncome)}>{fmtMillion(p.opIncome)}</span> 백만원
+      </div>
+    </div>
+  );
+}
+
+/** 이상치 제외/반영 토글 — 매출 비중 < 2% & IQR 밖인 점을 차트에 포함할지 결정. */
+function OutlierToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  const opts: { v: boolean; label: string }[] = [
+    { v: false, label: '이상치 제외' },
+    { v: true, label: '이상치 반영' },
+  ];
+  return (
+    <div
+      className={`inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5 ${
+        disabled ? 'opacity-40 pointer-events-none' : ''
+      }`}
+    >
+      {opts.map(({ v, label }) => {
+        const active = v === value;
+        return (
+          <button
+            key={String(v)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(v)}
+            className={`text-xs px-2.5 py-1 rounded-sm transition-colors ${
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -4,7 +4,12 @@ import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
+import {
+  aggregateBy,
+  entriesForYearOrYtd,
+  getDisplayYearLabels,
+  ytdMonthsOfYear,
+} from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -74,26 +79,51 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
   /** 현재 basis의 작은 reference 배열들 */
   const basisAnnual = annualByBasis[basis];
   const basisMonthly = monthlyByBasis[basis];
-  const yearLabels = useMemo(() => getDisplayYearLabels(basisAnnual, basis), [basisAnnual, basis]);
+  // YoY는 직전 연도와 비교 — 2023을 base로 두면 2022 데이터가 없어 yoy=0이 된다.
+  const yearLabels = useMemo(
+    () => getDisplayYearLabels(basisAnnual, basis).filter((y) => !y.startsWith('2023')),
+    [basisAnnual, basis]
+  );
 
   const defaultBase = yearLabels[yearLabels.length - 1] ?? '';
-  const defaultCompare = yearLabels[yearLabels.length - 2] ?? defaultBase;
   const [baseYear, setBaseYear] = useState<string>('');
-  const [compareYear, setCompareYear] = useState<string>('');
   const effBase = useMemo(
     () => (baseYear && yearLabels.includes(baseYear) ? baseYear : defaultBase),
     [baseYear, yearLabels, defaultBase]
   );
-  const effCompare = useMemo(
-    () => (compareYear && yearLabels.includes(compareYear) ? compareYear : defaultCompare),
-    [compareYear, yearLabels, defaultCompare]
+
+  /**
+   * 비교 = 기준 직전 연도. yearLabels에 '2025(E)' 등 suffix가 있을 수 있어 4자리 prefix로 매칭.
+   */
+  const effCompare = useMemo(() => {
+    if (!effBase) return '';
+    const m = effBase.match(/(\d{4})/);
+    if (!m) return effBase;
+    const prev = String(parseInt(m[1], 10) - 1);
+    return yearLabels.find((y) => y.startsWith(prev)) ?? effBase;
+  }, [effBase, yearLabels]);
+
+  /** 기준 연도가 진행 중이면 비교도 동일 월수까지 잘라 비교 (2026 1~N월 vs 2025 1~N월). */
+  const baseYearNum = useMemo(() => {
+    const m = effBase.match(/(\d{4})/);
+    return m ? parseInt(m[1], 10) : 0;
+  }, [effBase]);
+  const ytdMonths = useMemo(
+    () => (baseYearNum ? ytdMonthsOfYear(basisMonthly, basis, baseYearNum) : 0),
+    [basisMonthly, basis, baseYearNum]
   );
 
   // 매출 상위 N개 (제품, 고객) 쌍 추출 + YoY 계산
   const { rows, products, customers, maxAbsYoy } = useMemo(() => {
     if (!effBase) return { rows: [], products: [], customers: [], maxAbsYoy: 0 };
-    const baseEntries = entriesForYear(basisAnnual, basis, effBase);
-    const compareEntries = entriesForYear(basisAnnual, basis, effCompare);
+    const baseEntries = entriesForYearOrYtd(basisAnnual, basisMonthly, basis, effBase, ytdMonths);
+    const compareEntries = entriesForYearOrYtd(
+      basisAnnual,
+      basisMonthly,
+      basis,
+      effCompare,
+      ytdMonths
+    );
 
     const baseAgg = aggregateBy(baseEntries, ['product', 'customer']);
     const compareAgg = aggregateBy(compareEntries, ['product', 'customer']);
@@ -131,7 +161,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
     }
     if (maxAbsYoy === 0) maxAbsYoy = 1;
     return { rows: cells, products, customers, maxAbsYoy };
-  }, [basisAnnual, basis, effBase, effCompare]);
+  }, [basisAnnual, basisMonthly, basis, effBase, effCompare, ytdMonths]);
 
   /** 빠른 lookup */
   const cellMap = useMemo(() => {
@@ -149,13 +179,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
         <h2 className="text-base font-semibold">9. 제품·고객 YoY 매트릭스</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
-          <YearDropdown label="기준" options={yearLabels} value={effBase} onChange={setBaseYear} />
-          <YearDropdown
-            label="비교"
-            options={yearLabels}
-            value={effCompare}
-            onChange={setCompareYear}
-          />
+          <YearDropdown label="연도" options={yearLabels} value={effBase} onChange={setBaseYear} />
         </div>
       </header>
       {rows.length === 0 ? (
@@ -167,6 +191,11 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
           <div className="text-[11px] text-muted-foreground mb-2">
             매출 상위 {TOP_N}쌍 표시 · 셀 클릭 시 월별 추이 차트 · 색조: 빨강(YoY 감소) ~ 초록(YoY
             증가)
+            {ytdMonths >= 1 && ytdMonths <= 11 && (
+              <span className="ml-1">
+                · 진행 중: {effBase} 1~{ytdMonths}월 누적 vs {effCompare} 1~{ytdMonths}월 누적
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="text-xs border-separate border-spacing-0">

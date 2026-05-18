@@ -273,6 +273,58 @@ export function getUniqueValuesByRevenue(
 }
 
 /**
+ * 진행 중 연도(YTD) 판정 — 특정 연도의 monthly 데이터에서 가장 큰 period_month를 반환.
+ *
+ * - 0: 해당 연도 월별 데이터 없음
+ * - 12: 연간 완료 (1~12월 전부 적재)
+ * - 1~11: YTD (1~N월 누적까지만 적재됨)
+ *
+ * 7·9번 차트에서 기준 연도가 YTD면 비교 연도도 동일 월수까지 잘라 비교한다.
+ */
+export function ytdMonthsOfYear(
+  monthly: readonly PnlEntry[],
+  basis: Basis,
+  year: number
+): number {
+  let maxM = 0;
+  for (const e of monthly) {
+    if (e.basis !== basis) continue;
+    if (e.period_year !== year) continue;
+    if (e.period_month < 1 || e.period_month > 12) continue;
+    if (e.period_month > maxM) maxM = e.period_month;
+  }
+  return maxM;
+}
+
+/**
+ * 연간 또는 YTD 누적 행 반환.
+ *
+ * - ytdMonths가 1~11이면 monthly에서 해당 연도 1~ytdMonths월 행만 반환 → aggregateBy로 합산하면 YTD 누적.
+ * - 그 외(0 또는 12 이상)는 entriesForYear와 동일.
+ */
+export function entriesForYearOrYtd(
+  annualEntries: readonly PnlEntry[],
+  monthly: readonly PnlEntry[],
+  basis: Basis,
+  yearLabel: string,
+  ytdMonths: number
+): PnlEntry[] {
+  if (ytdMonths >= 1 && ytdMonths <= 11) {
+    const m = yearLabel.match(/(\d{4})/);
+    if (!m) return [];
+    const y = parseInt(m[1], 10);
+    return monthly.filter(
+      (e) =>
+        e.basis === basis &&
+        e.period_year === y &&
+        e.period_month >= 1 &&
+        e.period_month <= ytdMonths
+    );
+  }
+  return entriesForYear(annualEntries, basis, yearLabel);
+}
+
+/**
  * 매출 대비 %를 계산. 매출이 0이면 null.
  */
 export function ratioOfRevenue(value: number, revenue: number): number | null {

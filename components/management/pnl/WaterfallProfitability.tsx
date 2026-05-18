@@ -49,7 +49,7 @@ function fmtMillion(n: number): string {
   return Math.round(n).toLocaleString('ko-KR');
 }
 
-/** 워터폴 데이터 빌더 — 매출에서 영업이익까지 순차 차감 */
+/** 워터폴 데이터 빌더 — 매출 → 비용 차감 → 영업이익 (매출총이익 단계는 표시하지 않음). */
 function buildWaterfall(row: {
   revenue: number;
   material_cost: number;
@@ -63,71 +63,36 @@ function buildWaterfall(row: {
   const materialCost = row.material_cost;
   const laborCost = row.labor_cost;
   const expense = row.expense;
-  const grossProfit = revenue - materialCost - laborCost - expense;
   const sga = row.sga;
   const rnd = row.rnd;
   const opIncome = row.op_income;
 
+  // 누적 잔액 (각 단계 시작점). 영업이익이 음수면 base가 음수가 되므로 BarChart도 음수 영역에 그려진다.
+  let running = revenue;
   const bars: WaterfallBar[] = [];
-  // 1. 매출 — 절대값
+
   bars.push({ name: '매출', base: 0, value: revenue, display: revenue, kind: 'absolute' });
-  // 2. -재료비
-  bars.push({
-    name: '재료비',
-    base: revenue - materialCost,
-    value: materialCost,
-    display: -materialCost,
-    kind: 'subtract',
-  });
-  // 3. -노무비
-  bars.push({
-    name: '노무비',
-    base: revenue - materialCost - laborCost,
-    value: laborCost,
-    display: -laborCost,
-    kind: 'subtract',
-  });
-  // 4. -경비
-  bars.push({
-    name: '경비',
-    base: grossProfit,
-    value: expense,
-    display: -expense,
-    kind: 'subtract',
-  });
-  // 5. 매출총이익 — 절대값
-  bars.push({
-    name: '매출총이익',
-    base: 0,
-    value: grossProfit,
-    display: grossProfit,
-    kind: 'absolute',
-  });
-  // 6. -판관비
-  bars.push({
-    name: '판관비',
-    base: grossProfit - sga,
-    value: sga,
-    display: -sga,
-    kind: 'subtract',
-  });
-  // 7. -연구비
-  bars.push({
-    name: '연구비',
-    base: opIncome,
-    value: rnd,
-    display: -rnd,
-    kind: 'subtract',
-  });
-  // 8. 영업이익 — 절대값
-  bars.push({
-    name: '영업이익',
-    base: 0,
-    value: opIncome,
-    display: opIncome,
-    kind: 'absolute',
-  });
+
+  const subtract = (name: string, amount: number) => {
+    running -= amount;
+    bars.push({ name, base: running, value: amount, display: -amount, kind: 'subtract' });
+  };
+
+  subtract('재료비', materialCost);
+  subtract('노무비', laborCost);
+  subtract('경비', expense);
+  subtract('판관비', sga);
+  subtract('연구비', rnd);
+
+  bars.push({ name: '영업이익', base: 0, value: opIncome, display: opIncome, kind: 'absolute' });
   return bars;
+}
+
+/** 막대 색상: 매출=파랑, 비용 차감=빨강, 영업이익=흑자 초록 / 적자 빨강 */
+function barColor(b: WaterfallBar): string {
+  if (b.kind === 'subtract') return '#dc2626';
+  if (b.name === '영업이익') return b.display < 0 ? '#dc2626' : '#16a34a';
+  return '#2563eb';
 }
 
 /**
@@ -189,11 +154,11 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={bars} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
+            <XAxis dataKey="name" tick={{ fontSize: 13 }} interval={0} />
             <YAxis
               tickFormatter={(v: number) => fmtMillion(v)}
-              tick={{ fontSize: 10 }}
-              width={70}
+              tick={{ fontSize: 13 }}
+              width={80}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)' }}
@@ -206,10 +171,10 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
             />
             {/* invisible base */}
             <Bar dataKey="base" stackId="wf" fill="transparent" />
-            {/* visible delta — absolute=blue, subtract=red */}
+            {/* visible delta — 매출=파랑 / 비용=빨강 / 영업이익 흑자=초록·적자=빨강 */}
             <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]}>
               {bars.map((b, i) => (
-                <Cell key={i} fill={b.kind === 'absolute' ? '#2563eb' : '#dc2626'} />
+                <Cell key={i} fill={barColor(b)} />
               ))}
             </Bar>
           </BarChart>

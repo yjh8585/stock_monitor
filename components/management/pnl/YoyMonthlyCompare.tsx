@@ -5,10 +5,11 @@ import { Fragment, useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import GroupMultiSelect from '@/components/common/GroupMultiSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { aggregateMonthly, getMonthlyYears } from '@/lib/pnl/aggregate';
+import { aggregateMonthly } from '@/lib/pnl/aggregate';
 import {
   METRIC_LABELS,
   METRIC_ORDER,
+  METRICS_WITH_RATIO,
   type Basis,
   type MetricKey,
   type PnlEntry,
@@ -21,11 +22,11 @@ const ChartFallback = () => (
 );
 
 // 동적 import
-const ComposedChart = dynamic(() => import('recharts').then((m) => m.ComposedChart), {
+const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), {
   ssr: false,
   loading: ChartFallback,
 });
-const Line = dynamic(() => import('recharts').then((m) => m.Line), { ssr: false });
+const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false });
 const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
 const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
 const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
@@ -57,11 +58,23 @@ function fmtYoy(pct: number | null): string {
   return `${sign}${pct.toFixed(1)}%`;
 }
 
+/** hex(#RRGGBB) → rgba(r,g,b,a) 변환. fillOpacity 대신 색 자체에 알파를 넣어
+ *  Legend가 표시하는 색과 막대의 실제 색이 일치하도록 한다. */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 interface ChartRow {
   month: number;
   monthLabel: string;
+  /** 비율 계산용 매출 (매출이 selectedMetrics에 없어도 항상 채워둠) */
+  _baseRev?: number;
+  _compareRev?: number;
   /** 동적 키: `${metric}_base`, `${metric}_compare` */
-  [k: string]: number | string | null;
+  [k: string]: number | string | null | undefined;
 }
 
 /**
@@ -76,10 +89,19 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
   /** 현재 basis의 작은 reference 배열 */
   const basisMonthly = monthlyByBasis[basis];
-  const yearOptions = useMemo(
-    () => getMonthlyYears(basisMonthly, basis).map(String),
-    [basisMonthly, basis]
-  );
+  // 월별 데이터(period_month=1~12)가 있는 연도만 옵션에 노출 — 빈 차트 옵션을 만들지 않는다.
+  // consolidated: 2025, 2026. standalone: 2023, 2024, 2025.
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    for (const e of basisMonthly) {
+      if (e.basis !== basis) continue;
+      if (e.period_month < 1 || e.period_month > 12) continue;
+      if (e.period_year >= 2023 && e.period_year <= 2026) years.add(e.period_year);
+    }
+    return Array.from(years)
+      .sort((a, b) => a - b)
+      .map(String);
+  }, [basisMonthly, basis]);
 
   // 기본: 최신=기준, 그 전 연도=비교
   const defaultBase = yearOptions[yearOptions.length - 1] ?? '';
@@ -95,8 +117,8 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
     [compareYear, yearOptions, defaultCompare]
   );
 
-  // 지표 선택 — 기본: 매출 + 영업이익
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(['revenue', 'op_income']);
+  // 지표 선택 — 기본: 매출만
+  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(['revenue']);
   const onToggleMetric = (m: string) => {
     setSelectedMetrics((prev) =>
       (prev as string[]).includes(m)
@@ -104,9 +126,9 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
         : [...prev, m as MetricKey]
     );
   };
-  const onResetMetrics = () => setSelectedMetrics(['revenue', 'op_income']);
+  const onResetMetrics = () => setSelectedMetrics(['revenue']);
 
-  // 월별 데이터 계산
+  // 월별 데이터 계산. 비율 계산을 위해 매출(_baseRev / _compareRev)은 항상 포함.
   const chartData: ChartRow[] = useMemo(() => {
     if (!effBase || !effCompare) return [];
     const baseNum = parseInt(effBase, 10);
@@ -119,6 +141,8 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
       const row: ChartRow = {
         month,
         monthLabel: `${month}월`,
+        _baseRev: baseAgg[i].revenue,
+        _compareRev: compareAgg[i].revenue,
       };
       for (const m of selectedMetrics) {
         row[`${m}_base`] = baseAgg[i][m];
@@ -150,6 +174,7 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
             selected={selectedMetrics}
             onToggle={onToggleMetric}
             onReset={onResetMetrics}
+            getLabel={(m) => METRIC_LABELS[m as MetricKey]}
           />
         </div>
       </header>
@@ -159,16 +184,21 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={h}>
-          <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 20, bottom: 10, left: 10 }}
+            barGap={2}
+            barCategoryGap="20%"
+          >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="monthLabel" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="monthLabel" tick={{ fontSize: 13 }} />
             <YAxis
               tickFormatter={(v: number) => fmtMillion(v)}
-              tick={{ fontSize: 11 }}
-              width={70}
+              tick={{ fontSize: 13 }}
+              width={80}
             />
             <Tooltip
-              cursor={{ strokeDasharray: '3 3' }}
+              cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
@@ -181,45 +211,70 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
             <Legend
               verticalAlign="top"
               wrapperStyle={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                justifyContent: 'center',
-                gap: '6px 10px',
                 paddingBottom: 4,
               }}
+              content={({ payload }) => (
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs">
+                  {(payload ?? []).map((entry) => (
+                    <span
+                      key={String(entry.value)}
+                      className="inline-flex items-center gap-1.5 font-medium"
+                      style={{ color: entry.color }}
+                    >
+                      <span
+                        className="inline-block w-3 h-3 rounded-sm"
+                        style={{ background: entry.color }}
+                      />
+                      {entry.value}
+                    </span>
+                  ))}
+                </div>
+              )}
             />
             {selectedMetrics.map((m, i) => {
-              const color = OEM_COLORS[i % OEM_COLORS.length];
+              const baseColor = OEM_COLORS[i % OEM_COLORS.length];
+              const compareColor = hexToRgba(baseColor, 0.45);
               return (
                 <Fragment key={m}>
-                  <Line
-                    type="monotone"
-                    dataKey={`${m}_base`}
-                    name={`${METRIC_LABELS[m]} ${effBase}`}
-                    stroke={color}
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                  />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey={`${m}_compare`}
                     name={`${METRIC_LABELS[m]} ${effCompare}`}
-                    stroke={color}
-                    strokeWidth={1.5}
-                    strokeDasharray="4 3"
-                    dot={false}
+                    fill={compareColor}
+                    radius={[2, 2, 0, 0]}
+                  />
+                  <Bar
+                    dataKey={`${m}_base`}
+                    name={`${METRIC_LABELS[m]} ${effBase}`}
+                    fill={baseColor}
+                    radius={[2, 2, 0, 0]}
                   />
                 </Fragment>
               );
             })}
-          </ComposedChart>
+          </BarChart>
         </ResponsiveContainer>
       )}
     </section>
   );
 }
 
-/** 호버 툴팁 — 지표별 기준값 / 비교값 / YoY% */
+/** 음수면 빨강 볼드 */
+function negCls(v: number | null | undefined): string {
+  return v != null && v < 0 ? 'text-red-500 font-bold' : 'font-medium';
+}
+
+/** 매출 대비 % — 매출이 0이면 null */
+function ratio(value: number, rev: number): number | null {
+  if (!rev) return null;
+  return (value / rev) * 100;
+}
+
+function fmtPct(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return `${v.toFixed(1)}%`;
+}
+
+/** 호버 툴팁 — 지표별 기준값 / 비교값 / YoY% + 매출 제외 비율(매출 대비 %) */
 function YoyTooltip({
   active,
   payload,
@@ -229,14 +284,23 @@ function YoyTooltip({
   compareYear,
 }: {
   active?: boolean;
-  payload?: Array<{ name: string; value: number | string | null; dataKey: string }>;
+  payload?: Array<{
+    name: string;
+    value: number | string | null;
+    dataKey: string;
+    payload?: ChartRow;
+  }>;
   label?: string;
   metrics: MetricKey[];
   baseYear: string;
   compareYear: string;
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  // payload에서 metric별 base/compare 값 추출
+  // 같은 row의 매출(_baseRev / _compareRev) 추출 — 비율 계산용
+  const row = payload[0]?.payload;
+  const baseRev = Number(row?._baseRev ?? 0);
+  const compareRev = Number(row?._compareRev ?? 0);
+
   const rows = metrics
     .map((m) => {
       const basePayload = payload.find((p) => p.dataKey === `${m}_base`);
@@ -244,7 +308,9 @@ function YoyTooltip({
       const baseVal = basePayload ? Number(basePayload.value ?? 0) : 0;
       const compVal = comparePayload ? Number(comparePayload.value ?? 0) : 0;
       const yoy = compVal !== 0 ? ((baseVal - compVal) / Math.abs(compVal)) * 100 : null;
-      return { metric: m, baseVal, compVal, yoy };
+      const baseRatio = METRICS_WITH_RATIO.has(m) ? ratio(baseVal, baseRev) : null;
+      const compRatio = METRICS_WITH_RATIO.has(m) ? ratio(compVal, compareRev) : null;
+      return { metric: m, baseVal, compVal, yoy, baseRatio, compRatio };
     })
     .sort((a, b) => Math.abs(b.baseVal) - Math.abs(a.baseVal));
   return (
@@ -257,13 +323,20 @@ function YoyTooltip({
     >
       <div className="font-semibold mb-1">{label}</div>
       {rows.map((r) => (
-        <div key={r.metric} className="mb-0.5">
+        <div key={r.metric} className="mb-1 leading-relaxed">
           <span className="text-muted-foreground">{METRIC_LABELS[r.metric]}:</span>{' '}
-          <span className="font-medium">{fmtMillion(r.baseVal)}</span>
-          <span className="text-muted-foreground">
-            {' '}
-            ({baseYear} / 전년 {compareYear} {fmtMillion(r.compVal)} / YoY {fmtYoy(r.yoy)})
-          </span>
+          <span className={negCls(r.baseVal)}>{fmtMillion(r.baseVal)}</span>
+          {r.baseRatio != null && (
+            <span className={`ml-1 ${negCls(r.baseRatio)}`}>[{fmtPct(r.baseRatio)}]</span>
+          )}
+          <span className="text-muted-foreground"> ({baseYear})</span>
+          <span className="text-muted-foreground"> / 전년 {compareYear} </span>
+          <span className={negCls(r.compVal)}>{fmtMillion(r.compVal)}</span>
+          {r.compRatio != null && (
+            <span className={`ml-1 ${negCls(r.compRatio)}`}>[{fmtPct(r.compRatio)}]</span>
+          )}
+          <span className="text-muted-foreground"> / YoY </span>
+          <span className={negCls(r.yoy)}>{fmtYoy(r.yoy)}</span>
         </div>
       ))}
     </div>

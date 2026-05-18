@@ -4,14 +4,28 @@ import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import PnlTable, { type PnlTableRow } from './PnlTable';
-import {
-  aggregateBy,
-  entriesForYear,
-  getDisplayYearLabels,
-  getUniqueValuesByRevenue,
-} from '@/lib/pnl/aggregate';
+import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
 import type { Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
+
+/** 실 라벨에서 앞의 숫자를 추출. 숫자가 없으면 null. */
+function parseSilNumber(label: string): number | null {
+  const m = label.match(/(\d+)\s*실/);
+  if (!m) return null;
+  return parseInt(m[1], 10);
+}
+
+/** 실 옵션 정렬: 1실 → 2실 → 3실 → ... → 그 외(기타 포함, 가나다순) */
+function sortSilOptions(labels: readonly string[]): string[] {
+  return [...labels].sort((a, b) => {
+    const na = parseSilNumber(a);
+    const nb = parseSilNumber(b);
+    if (na != null && nb != null) return na - nb;
+    if (na != null) return -1;
+    if (nb != null) return 1;
+    return a.localeCompare(b, 'ko');
+  });
+}
 
 interface Props {
   annualEntries: PnlEntry[];
@@ -43,12 +57,17 @@ export default function SilPerformance({ annualByBasis }: Props) {
     return yearLabels[yearLabels.length - 1] ?? '';
   }, [yearLabel, yearLabels]);
 
-  /** 실 옵션 — 최근 연도 매출-desc */
-  const silOptions = useMemo(
-    () =>
-      effectiveYear ? getUniqueValuesByRevenue(basisEntries, 'sil', basis, effectiveYear) : [],
-    [basisEntries, basis, effectiveYear]
-  );
+  /** 실 옵션 — 1실 → 2실 → 3실 → 기타 순 (basis 필터 + period_month=0 연간 행에서 unique 추출) */
+  const silOptions = useMemo(() => {
+    if (!effectiveYear) return [];
+    const set = new Set<string>();
+    for (const e of basisEntries) {
+      if (e.basis !== basis) continue;
+      if (e.period_month !== 0) continue;
+      if (typeof e.sil === 'string' && e.sil.length > 0) set.add(e.sil);
+    }
+    return sortSilOptions(Array.from(set));
+  }, [basisEntries, basis, effectiveYear]);
 
   const [sil, setSil] = useState<string>('');
   const effectiveSil = useMemo(() => {

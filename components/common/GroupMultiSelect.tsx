@@ -9,6 +9,8 @@ interface GroupMultiSelectProps {
   selected: readonly string[];
   onToggle: (g: string) => void;
   onReset: () => void;
+  /** option 값 → 표시 라벨 매핑. 미지정 시 option 그대로 표시. */
+  getLabel?: (option: string) => string;
 }
 
 /** 다중선택 드롭다운 — 외부 클릭 시 자동으로 닫힘 */
@@ -18,7 +20,9 @@ export default function GroupMultiSelect({
   selected,
   onToggle,
   onReset,
+  getLabel,
 }: GroupMultiSelectProps) {
+  const toLabel = (v: string) => getLabel?.(v) ?? v;
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +41,7 @@ export default function GroupMultiSelect({
     selected.length === 0
       ? '전체'
       : selected.length === 1
-        ? selected[0]
+        ? toLabel(selected[0])
         : `${selected.length}개 선택`;
 
   return (
@@ -85,7 +89,7 @@ export default function GroupMultiSelect({
                 <span className="w-4 h-4 flex items-center justify-center">
                   {active && <Check size={12} />}
                 </span>
-                <span className="truncate">{g}</span>
+                <span className="truncate">{toLabel(g)}</span>
               </button>
             );
           })}

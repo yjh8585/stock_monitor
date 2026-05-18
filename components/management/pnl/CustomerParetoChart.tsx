@@ -115,24 +115,24 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 13 }}
               angle={-30}
               textAnchor="end"
               interval={0}
-              height={60}
+              height={80}
             />
             <YAxis
               yAxisId="left"
               tickFormatter={(v: number) => fmtMillion(v)}
-              tick={{ fontSize: 10 }}
-              width={70}
+              tick={{ fontSize: 13 }}
+              width={80}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
               tickFormatter={(v: number) => `${v.toFixed(0)}%`}
-              tick={{ fontSize: 10 }}
-              width={45}
+              tick={{ fontSize: 13 }}
+              width={55}
               domain={[0, 100]}
             />
             <ReferenceLine
@@ -140,7 +140,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
               y={PARETO_LINE}
               stroke="#dc2626"
               strokeDasharray="4 3"
-              label={{ value: '80%', position: 'right', fontSize: 10, fill: '#dc2626' }}
+              label={{ value: '80%', position: 'right', fontSize: 12, fill: '#dc2626' }}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)' }}
