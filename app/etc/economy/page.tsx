@@ -7,7 +7,7 @@ import {
   type SeriesMeta,
 } from '@/lib/series';
 
-const SINGLE_CODES = ['KOSPI', 'KOSDAQ', 'SPX', 'IXIC', 'GOLD', 'SILVER'] as const;
+const SINGLE_CODES = ['KOSPI', 'KOSDAQ', 'SPX', 'IXIC', 'GOLD', 'SILVER', 'BTC', 'ETH'] as const;
 const COLOR: Record<string, string> = {
   KOSPI: '#2962FF',
   KOSDAQ: '#0ea5e9',
@@ -15,6 +15,8 @@ const COLOR: Record<string, string> = {
   IXIC: '#a855f7',
   GOLD: '#f59e0b',
   SILVER: '#64748b',
+  BTC: '#f7931a',
+  ETH: '#627eea',
 };
 const SENTIMENT_STYLE: Record<string, string> = {
   bullish: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -23,18 +25,22 @@ const SENTIMENT_STYLE: Record<string, string> = {
 };
 
 export default async function EconomyPage() {
-  const [tnx, irx, kospi, kosdaq, spx, ixic, gold, silver, metas, outlook] = await Promise.all([
-    getMarketSeries('UST10Y'),
-    getMarketSeries('UST2Y'),
-    getMarketSeries('KOSPI'),
-    getMarketSeries('KOSDAQ'),
-    getMarketSeries('SPX'),
-    getMarketSeries('IXIC'),
-    getMarketSeries('GOLD'),
-    getMarketSeries('SILVER'),
-    getSeriesMetaByCategory('economy'),
-    getEconomyOutlook(),
-  ]);
+  const [tnx, irx, tyx, kospi, kosdaq, spx, ixic, gold, silver, btc, eth, metas, outlook] =
+    await Promise.all([
+      getMarketSeries('UST10Y'),
+      getMarketSeries('UST2Y'),
+      getMarketSeries('UST30Y'),
+      getMarketSeries('KOSPI'),
+      getMarketSeries('KOSDAQ'),
+      getMarketSeries('SPX'),
+      getMarketSeries('IXIC'),
+      getMarketSeries('GOLD'),
+      getMarketSeries('SILVER'),
+      getMarketSeries('BTC'),
+      getMarketSeries('ETH'),
+      getSeriesMetaByCategory('economy'),
+      getEconomyOutlook(),
+    ]);
 
   const metaOf = (code: string): SeriesMeta | undefined =>
     metas.find((m) => m.series_code === code);
@@ -52,11 +58,16 @@ export default async function EconomyPage() {
         return gold;
       case 'SILVER':
         return silver;
+      case 'BTC':
+        return btc;
+      case 'ETH':
+        return eth;
     }
   };
 
   const ust10 = metaOf('UST10Y');
   const ust2 = metaOf('UST2Y');
+  const ust30 = metaOf('UST30Y');
   const ustSource = ust10?.source ?? 'Yahoo Finance';
 
   return (
@@ -64,18 +75,19 @@ export default async function EconomyPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">경제</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          미국 국채(10Y/2Y) · 한국·미국 주가지수 · 금/은 · 미국 경제 전망 노트 · 지수 매시간 · 전망
-          매일 KST 06:30 갱신
+          미국 국채(30Y/10Y/2Y) · 한국·미국 주가지수 · 금/은 · 비트코인·이더리움 · 미국 경제 전망
+          노트 · 지수 매시간 · 전망 매일 KST 06:30 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {ust10 && ust2 && (
+          {ust10 && ust2 && ust30 && (
             <MultiSeriesChart
-              title="미국 국채 수익률 (10Y / 2Y)"
+              title="미국 국채 수익률 (30Y / 10Y / 2Y)"
               unit="%"
               source={ustSource}
               series={[
+                { label: ust30.label, color: '#9333ea', data: tyx },
                 { label: ust10.label, color: '#2962FF', data: tnx },
                 { label: ust2.label, color: '#ef4444', data: irx },
               ]}
