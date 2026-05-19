@@ -565,6 +565,36 @@ export type Database = {
         Update: { sales?: number; segment?: string; vehicle_type?: string; year_month?: number };
         Relationships: [];
       };
+      pnl_cost_structure: {
+        Row: {
+          account: string;
+          category: string;
+          kind: string;
+          period_kind: string;
+          period_month: number;
+          period_year: number;
+          value_mwon: number | null;
+        };
+        Insert: {
+          account: string;
+          category: string;
+          kind: string;
+          period_kind: string;
+          period_month?: number;
+          period_year: number;
+          value_mwon?: number | null;
+        };
+        Update: {
+          account?: string;
+          category?: string;
+          kind?: string;
+          period_kind?: string;
+          period_month?: number;
+          period_year?: number;
+          value_mwon?: number | null;
+        };
+        Relationships: [];
+      };
       pnl_entries: {
         Row: {
           basis: string;

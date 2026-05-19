@@ -88,9 +88,14 @@ const LABEL_POSITIONS: readonly LabelPos[] = [
 ];
 
 /**
- * 라벨 충돌 회피 — 매출 desc 순서로 점을 돌며, 이미 배치된 라벨과 겹치지 않는 후보 위치를 선택.
+ * 라벨 충돌 회피 — 매출 desc 순서로 점을 돌며, 가장 점수 낮은 후보 위치를 선택.
  *
- * 충돌 판단: 두 점이 (xRange*xFrac, yRange*yFrac) 박스 안에 있고 같은 후보 위치 인덱스를 쓰면 충돌.
+ * 점수 = (다른 라벨과 겹침) + (다른 버블 위에 라벨이 떨어짐) + (차트 경계 밖으로 벗어남 × 큰 가중치)
+ *
+ *  - 라벨 겹침       : 두 라벨 box 사이 거리가 labelW/labelH 안이면 +1
+ *  - 버블 겹침       : 라벨이 다른 점의 버블 영역 근처에 있으면 +0.5
+ *  - 경계 밖 벗어남  : 데이터 도메인 밖으로 새는 양에 ×100 페널티 → 항상 안쪽 우선
+ *
  * 큰 버블이 'above'(기본) 우선권을 갖도록 매출 desc 정렬된 입력 순서를 유지한다.
  */
 function assignLabelPositions(
@@ -101,30 +106,60 @@ function assignLabelPositions(
   const xRange = xDomain[1] - xDomain[0] || 1;
   const yRange = yDomain[1] - yDomain[0] || 1;
   // 화면상 라벨이 차지하는 영역(추정): 너비 약 8%, 높이 약 7%
-  const xTol = xRange * 0.08;
-  const yTol = yRange * 0.07;
+  const labelW = xRange * 0.08;
+  const labelH = yRange * 0.07;
+  // 후보 위치별 라벨 중심까지의 데이터 단위 offset (LABEL_POSITIONS 픽셀 방향과 동일)
+  const candDataOffsets = LABEL_POSITIONS.map((p) => ({
+    dataDx: Math.sign(p.dx) * labelW * 0.6,
+    dataDy: -Math.sign(p.dy) * labelH * 0.6, // dy 픽셀은 ↓+ ↑- 이므로 데이터 좌표(↑+)는 부호 반전
+  }));
   const placed: { p: BubblePoint; posIdx: number }[] = [];
   const result: LabelPos[] = [];
   for (const p of points) {
-    // 8방향 중 충돌(같은 위치에 가까운 기배치 라벨)이 가장 적은 위치 선택.
-    // 8방향 모두 충돌이어도 가장 덜 겹치는 방향을 고르므로 라벨이 누락되지 않는다.
     let bestIdx = 0;
-    let bestCount = Infinity;
+    let bestScore = Infinity;
     for (let i = 0; i < LABEL_POSITIONS.length; i += 1) {
-      let count = 0;
+      const c = candDataOffsets[i];
+      const labelCx = p.yoy + c.dataDx;
+      const labelCy = p.margin + c.dataDy;
+      // 1) 도메인 경계 검사
+      const left = labelCx - labelW / 2;
+      const right = labelCx + labelW / 2;
+      const bottom = labelCy - labelH / 2;
+      const top = labelCy + labelH / 2;
+      let outX = 0;
+      let outY = 0;
+      if (left < xDomain[0]) outX = (xDomain[0] - left) / xRange;
+      else if (right > xDomain[1]) outX = (right - xDomain[1]) / xRange;
+      if (bottom < yDomain[0]) outY = (yDomain[0] - bottom) / yRange;
+      else if (top > yDomain[1]) outY = (top - yDomain[1]) / yRange;
+      const outOfBounds = outX + outY;
+      // 2) 다른 라벨 / 다른 버블과의 겹침
+      let conflict = 0;
       for (const e of placed) {
+        const eC = candDataOffsets[e.posIdx];
+        const eLabelCx = e.p.yoy + eC.dataDx;
+        const eLabelCy = e.p.margin + eC.dataDy;
+        // 두 라벨 사각형이 겹치는지(중심 거리 < 라벨 크기)
         if (
-          e.posIdx === i &&
-          Math.abs(p.yoy - e.p.yoy) < xTol &&
-          Math.abs(p.margin - e.p.margin) < yTol
+          Math.abs(labelCx - eLabelCx) < labelW &&
+          Math.abs(labelCy - eLabelCy) < labelH
         ) {
-          count += 1;
+          conflict += 1;
+        }
+        // 라벨이 다른 점의 버블 영역에 닿는지(버블 크기는 모르므로 인접 임계로 근사)
+        if (
+          Math.abs(labelCx - e.p.yoy) < labelW * 0.7 &&
+          Math.abs(labelCy - e.p.margin) < labelH * 0.7
+        ) {
+          conflict += 0.5;
         }
       }
-      if (count < bestCount) {
-        bestCount = count;
+      const score = conflict + outOfBounds * 100;
+      if (score < bestScore) {
+        bestScore = score;
         bestIdx = i;
-        if (count === 0) break;
+        if (score === 0) break;
       }
     }
     placed.push({ p, posIdx: bestIdx });
@@ -425,7 +460,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-base font-semibold">7. 매출 YoY × 영업이익률 (버블=매출)</h2>
+        <h2 className="text-lg font-semibold">8. 매출 YoY × 영업이익률 (버블=매출)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect label="연도" options={yearLabels} value={effBase} onChange={setBaseYear} />
@@ -497,7 +532,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               ticks={gridX}
               interval={0}
               tickFormatter={(v: number) => `${v.toFixed(0)}%`}
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 14 }}
               axisLine={false}
               tickLine={false}
             />
@@ -508,7 +543,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               ticks={gridY}
               interval={0}
               tickFormatter={(v: number) => `${v.toFixed(0)}%`}
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 14 }}
               axisLine={false}
               tickLine={false}
               width={50}
@@ -531,7 +566,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
                     ? `매출 YoY (${effBase} 1~${ytdMonths}월 vs ${effCompare} 1~${ytdMonths}월, %)`
                     : `매출 YoY (${effBase} vs ${effCompare}, %)`,
                 position: 'insideTopRight',
-                fontSize: 13,
+                fontSize: 14,
                 fill: 'var(--muted-foreground)',
               }}
             />
@@ -543,7 +578,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               label={{
                 value: '영업이익률 (%)',
                 position: 'insideTopLeft',
-                fontSize: 13,
+                fontSize: 14,
                 fill: 'var(--muted-foreground)',
               }}
             />
@@ -552,7 +587,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
               content={<BubbleTooltip baseYear={effBase} compareYear={effCompare} />}
             />
@@ -620,7 +655,7 @@ function BubbleLabel(props: {
       x={x + p.dx}
       y={y + p.dy}
       textAnchor={p.anchor}
-      fontSize={13}
+      fontSize={14}
       fontWeight={500}
       fill="var(--foreground)"
       pointerEvents="none"
@@ -650,7 +685,7 @@ function BubbleTooltip({
   const p = payload[0].payload;
   return (
     <div
-      className="rounded-md p-2 text-xs"
+      className="rounded-md p-2 text-base"
       style={{
         backgroundColor: 'var(--card)',
         border: '1px solid var(--border)',
@@ -709,7 +744,7 @@ function OutlierToggle({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(v)}
-            className={`text-xs px-2.5 py-1 rounded-sm transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-sm transition-colors ${
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground'
@@ -734,7 +769,7 @@ function DimRadio({ value, onChange }: { value: DimChoice; onChange: (v: DimChoi
             type="button"
             aria-pressed={active}
             onClick={() => onChange(opt.value)}
-            className={`text-xs px-2.5 py-1 rounded-sm transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-sm transition-colors ${
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground'

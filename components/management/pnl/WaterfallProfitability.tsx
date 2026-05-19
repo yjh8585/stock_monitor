@@ -121,7 +121,7 @@ function barColor(b: Omit<WaterfallBar, 'fill'>): string {
 }
 
 /**
- * 10-1. 수익성 워터폴.
+ * 13-1. 수익성 워터폴.
  *
  * - basis 토글 + 단일 연도 선택
  * - 매출 → −재료비 → −노무비 → −경비 → 매출총이익 → −판관비 → −연구비 → 영업이익
@@ -162,7 +162,7 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
   return (
     <div className="rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-        <div className="text-sm font-medium">수익성 워터폴</div>
+        <div className="text-lg font-semibold">수익성 워터폴</div>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect
@@ -179,10 +179,10 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={bars} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="name" tick={{ fontSize: 13 }} interval={0} />
+            <XAxis dataKey="name" tick={{ fontSize: 14 }} interval={0} />
             <YAxis
               tickFormatter={(v: number) => fmtMillion(v)}
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 14 }}
               width={80}
             />
             <Tooltip
@@ -190,7 +190,7 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
               content={<WaterfallTooltip />}
             />
@@ -232,7 +232,7 @@ function WaterfallTooltip({
   const ratioClass = isNegative ? 'text-red-500' : 'text-muted-foreground';
   return (
     <div
-      className="rounded-md p-2 text-xs"
+      className="rounded-md p-2 text-base"
       style={{
         backgroundColor: 'var(--card)',
         border: '1px solid var(--border)',

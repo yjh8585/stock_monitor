@@ -8,8 +8,6 @@ import { useChartHeight } from '@/lib/useChartHeight';
 import { aggregateMonthly } from '@/lib/pnl/aggregate';
 import {
   METRIC_LABELS,
-  METRIC_ORDER,
-  METRICS_WITH_RATIO,
   type Basis,
   type MetricKey,
   type PnlEntry,
@@ -21,7 +19,6 @@ const ChartFallback = () => (
   <div className="h-[280px] md:h-[380px] bg-muted/20 animate-pulse rounded" />
 );
 
-// 동적 import
 const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), {
   ssr: false,
   loading: ChartFallback,
@@ -39,27 +36,22 @@ const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.Respo
 const Legend = dynamic(() => import('recharts').then((m) => m.Legend), { ssr: false });
 
 interface Props {
-  /** 원본 데이터 (월별 행 포함) */
-  data: PnlEntry[];
-  /** basis별 월별 원본 분리 — 토글 반응성 개선 */
   monthlyByBasis: EntriesByBasis;
 }
 
-/** 백만원 천 단위 콤마. null/NaN은 '—' */
+const SUPPORTED_METRICS: readonly MetricKey[] = ['revenue', 'op_income'];
+
 function fmtMillion(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—';
   return Math.round(n).toLocaleString('ko-KR');
 }
 
-/** YoY% 포맷 — null은 '—' */
 function fmtYoy(pct: number | null): string {
   if (pct == null) return '—';
   const sign = pct > 0 ? '+' : '';
   return `${sign}${pct.toFixed(1)}%`;
 }
 
-/** hex(#RRGGBB) → rgba(r,g,b,a) 변환. fillOpacity 대신 색 자체에 알파를 넣어
- *  Legend가 표시하는 색과 막대의 실제 색이 일치하도록 한다. */
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -70,27 +62,21 @@ function hexToRgba(hex: string, alpha: number): string {
 interface ChartRow {
   month: number;
   monthLabel: string;
-  /** 비율 계산용 매출 (매출이 selectedMetrics에 없어도 항상 채워둠) */
-  _baseRev?: number;
-  _compareRev?: number;
-  /** 동적 키: `${metric}_base`, `${metric}_compare` */
-  [k: string]: number | string | null | undefined;
+  base: number;
+  compare: number;
 }
 
 /**
- * 8. 전년 대비 전사 월별 비교 차트.
+ * 10. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
  *
- * - basis 토글 + 기준 연도 + 비교 연도 + 지표 multi-select
- * - X = 1~12월
- * - Y = 선택 지표 (기준 진한 색 / 비교 동일 색 dashed)
- * - 호버: 절대값 + YoY%
+ * - 9번과 동일한 막대 비교 패턴, 단 지표는 매출/영업이익 중 1개만 선택(디폴트=매출)
+ * - 고객/제품 multi-select 필터 — 미선택 = 전체
  */
-export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
+export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
-  /** 현재 basis의 작은 reference 배열 */
   const basisMonthly = monthlyByBasis[basis];
-  // 월별 데이터(period_month=1~12)가 있는 연도만 옵션에 노출 — 빈 차트 옵션을 만들지 않는다.
-  // consolidated: 2025, 2026. standalone: 2023, 2024, 2025.
+
+  /** 월별 데이터가 존재하는 연도 옵션 (2023~2026 범위) */
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
     for (const e of basisMonthly) {
@@ -103,7 +89,6 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
       .map(String);
   }, [basisMonthly, basis]);
 
-  // 기본: 최신=기준, 그 전 연도=비교
   const defaultBase = yearOptions[yearOptions.length - 1] ?? '';
   const defaultCompare = yearOptions[yearOptions.length - 2] ?? defaultBase;
   const [baseYear, setBaseYear] = useState<string>('');
@@ -117,48 +102,80 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
     [compareYear, yearOptions, defaultCompare]
   );
 
-  // 지표 선택 — 기본: 매출만
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(['revenue']);
-  const onToggleMetric = (m: string) => {
-    setSelectedMetrics((prev) =>
-      (prev as string[]).includes(m)
-        ? (prev as string[]).filter((x) => x !== m).map((x) => x as MetricKey)
-        : [...prev, m as MetricKey]
-    );
-  };
-  const onResetMetrics = () => setSelectedMetrics(['revenue']);
+  /** 단일 지표 선택 — 디폴트 매출 */
+  const [metric, setMetric] = useState<MetricKey>('revenue');
 
-  // 월별 데이터 계산. 비율 계산을 위해 매출(_baseRev / _compareRev)은 항상 포함.
+  /** 고객·제품 옵션 (현재 basis 월별 데이터에서 매출 desc 정렬) */
+  const customerOptions = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const e of basisMonthly) {
+      if (e.basis !== basis) continue;
+      if (e.period_month < 1 || e.period_month > 12) continue;
+      const v = e.revenue ?? 0;
+      totals.set(e.customer, (totals.get(e.customer) ?? 0) + v);
+    }
+    return Array.from(totals.entries())
+      .filter(([c]) => c.length > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([c]) => c);
+  }, [basisMonthly, basis]);
+
+  const productOptions = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const e of basisMonthly) {
+      if (e.basis !== basis) continue;
+      if (e.period_month < 1 || e.period_month > 12) continue;
+      const v = e.revenue ?? 0;
+      totals.set(e.product, (totals.get(e.product) ?? 0) + v);
+    }
+    return Array.from(totals.entries())
+      .filter(([p]) => p.length > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([p]) => p);
+  }, [basisMonthly, basis]);
+
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>(['Stellantis NA']);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>(['HALFSHAFT']);
+  const onToggleCustomer = (c: string) =>
+    setSelectedCustomers((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+    );
+  const onToggleProduct = (p: string) =>
+    setSelectedProducts((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+
   const chartData: ChartRow[] = useMemo(() => {
     if (!effBase || !effCompare) return [];
     const baseNum = parseInt(effBase, 10);
     const compareNum = parseInt(effCompare, 10);
-    const baseAgg = aggregateMonthly(basisMonthly, basis, baseNum);
-    const compareAgg = aggregateMonthly(basisMonthly, basis, compareNum);
+    const filter = (e: PnlEntry) => {
+      if (selectedCustomers.length > 0 && !selectedCustomers.includes(e.customer)) return false;
+      if (selectedProducts.length > 0 && !selectedProducts.includes(e.product)) return false;
+      return true;
+    };
+    const baseAgg = aggregateMonthly(basisMonthly, basis, baseNum, filter);
+    const compareAgg = aggregateMonthly(basisMonthly, basis, compareNum, filter);
     const rows: ChartRow[] = [];
     for (let i = 0; i < 12; i += 1) {
-      const month = i + 1;
-      const row: ChartRow = {
-        month,
-        monthLabel: `${month}월`,
-        _baseRev: baseAgg[i].revenue,
-        _compareRev: compareAgg[i].revenue,
-      };
-      for (const m of selectedMetrics) {
-        row[`${m}_base`] = baseAgg[i][m];
-        row[`${m}_compare`] = compareAgg[i][m];
-      }
-      rows.push(row);
+      rows.push({
+        month: i + 1,
+        monthLabel: `${i + 1}월`,
+        base: baseAgg[i][metric],
+        compare: compareAgg[i][metric],
+      });
     }
     return rows;
-  }, [basisMonthly, basis, effBase, effCompare, selectedMetrics]);
+  }, [basisMonthly, basis, effBase, effCompare, metric, selectedCustomers, selectedProducts]);
 
   const h = useChartHeight(300, 400, 480);
+  const baseColor = OEM_COLORS[0];
+  const compareColor = hexToRgba(baseColor, 0.45);
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">9. 전년 대비 월별 비교</h2>
+        <h2 className="text-lg font-semibold">
+          10. 전년 대비 월별 비교 (고객·제품 선택)
+        </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="기준" options={yearOptions} value={effBase} onChange={setBaseYear} />
@@ -168,19 +185,26 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
             value={effCompare}
             onChange={setCompareYear}
           />
+          <MetricToggle value={metric} onChange={setMetric} />
           <GroupMultiSelect
-            label="지표"
-            options={METRIC_ORDER}
-            selected={selectedMetrics}
-            onToggle={onToggleMetric}
-            onReset={onResetMetrics}
-            getLabel={(m) => METRIC_LABELS[m as MetricKey]}
+            label="고객"
+            options={customerOptions}
+            selected={selectedCustomers}
+            onToggle={onToggleCustomer}
+            onReset={() => setSelectedCustomers([])}
+          />
+          <GroupMultiSelect
+            label="제품"
+            options={productOptions}
+            selected={selectedProducts}
+            onToggle={onToggleProduct}
+            onReset={() => setSelectedProducts([])}
           />
         </div>
       </header>
-      {chartData.length === 0 || selectedMetrics.length === 0 ? (
+      {chartData.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          {selectedMetrics.length === 0 ? '지표를 1개 이상 선택하세요.' : '월별 데이터가 없습니다.'}
+          월별 데이터가 없습니다.
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={h}>
@@ -205,14 +229,12 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
                 fontSize: '16px',
               }}
               content={
-                <YoyTooltip metrics={selectedMetrics} baseYear={effBase} compareYear={effCompare} />
+                <FilteredTooltip metric={metric} baseYear={effBase} compareYear={effCompare} />
               }
             />
             <Legend
               verticalAlign="top"
-              wrapperStyle={{
-                paddingBottom: 4,
-              }}
+              wrapperStyle={{ paddingBottom: 4 }}
               content={({ payload }) => (
                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm">
                   {(payload ?? []).map((entry) => (
@@ -231,26 +253,20 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
                 </div>
               )}
             />
-            {selectedMetrics.map((m, i) => {
-              const baseColor = OEM_COLORS[i % OEM_COLORS.length];
-              const compareColor = hexToRgba(baseColor, 0.45);
-              return (
-                <Fragment key={m}>
-                  <Bar
-                    dataKey={`${m}_compare`}
-                    name={`${METRIC_LABELS[m]} ${effCompare}`}
-                    fill={compareColor}
-                    radius={[2, 2, 0, 0]}
-                  />
-                  <Bar
-                    dataKey={`${m}_base`}
-                    name={`${METRIC_LABELS[m]} ${effBase}`}
-                    fill={baseColor}
-                    radius={[2, 2, 0, 0]}
-                  />
-                </Fragment>
-              );
-            })}
+            <Fragment>
+              <Bar
+                dataKey="compare"
+                name={`${METRIC_LABELS[metric]} ${effCompare}`}
+                fill={compareColor}
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                dataKey="base"
+                name={`${METRIC_LABELS[metric]} ${effBase}`}
+                fill={baseColor}
+                radius={[2, 2, 0, 0]}
+              />
+            </Fragment>
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -258,61 +274,31 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   );
 }
 
-/** 음수면 빨강 볼드 */
 function negCls(v: number | null | undefined): string {
   return v != null && v < 0 ? 'text-red-500 font-bold' : 'font-medium';
 }
 
-/** 매출 대비 % — 매출이 0이면 null */
-function ratio(value: number, rev: number): number | null {
-  if (!rev) return null;
-  return (value / rev) * 100;
-}
-
-function fmtPct(v: number | null): string {
-  if (v == null || !Number.isFinite(v)) return '—';
-  return `${v.toFixed(1)}%`;
-}
-
-/** 호버 툴팁 — 지표별 기준값 / 비교값 / YoY% + 매출 제외 비율(매출 대비 %) */
-function YoyTooltip({
+function FilteredTooltip({
   active,
   payload,
   label,
-  metrics,
+  metric,
   baseYear,
   compareYear,
 }: {
   active?: boolean;
-  payload?: Array<{
-    name: string;
-    value: number | string | null;
-    dataKey: string;
-    payload?: ChartRow;
-  }>;
+  payload?: Array<{ dataKey: string; value: number | string | null }>;
   label?: string;
-  metrics: MetricKey[];
+  metric: MetricKey;
   baseYear: string;
   compareYear: string;
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  // 같은 row의 매출(_baseRev / _compareRev) 추출 — 비율 계산용
-  const row = payload[0]?.payload;
-  const baseRev = Number(row?._baseRev ?? 0);
-  const compareRev = Number(row?._compareRev ?? 0);
-
-  const rows = metrics
-    .map((m) => {
-      const basePayload = payload.find((p) => p.dataKey === `${m}_base`);
-      const comparePayload = payload.find((p) => p.dataKey === `${m}_compare`);
-      const baseVal = basePayload ? Number(basePayload.value ?? 0) : 0;
-      const compVal = comparePayload ? Number(comparePayload.value ?? 0) : 0;
-      const yoy = compVal !== 0 ? ((baseVal - compVal) / Math.abs(compVal)) * 100 : null;
-      const baseRatio = METRICS_WITH_RATIO.has(m) ? ratio(baseVal, baseRev) : null;
-      const compRatio = METRICS_WITH_RATIO.has(m) ? ratio(compVal, compareRev) : null;
-      return { metric: m, baseVal, compVal, yoy, baseRatio, compRatio };
-    })
-    .sort((a, b) => Math.abs(b.baseVal) - Math.abs(a.baseVal));
+  const basePayload = payload.find((p) => p.dataKey === 'base');
+  const comparePayload = payload.find((p) => p.dataKey === 'compare');
+  const baseVal = basePayload ? Number(basePayload.value ?? 0) : 0;
+  const compVal = comparePayload ? Number(comparePayload.value ?? 0) : 0;
+  const yoy = compVal !== 0 ? ((baseVal - compVal) / Math.abs(compVal)) * 100 : null;
   return (
     <div
       className="rounded-md p-2 text-base"
@@ -322,28 +308,51 @@ function YoyTooltip({
       }}
     >
       <div className="font-semibold mb-1">{label}</div>
-      {rows.map((r) => (
-        <div key={r.metric} className="mb-1 leading-relaxed">
-          <span className="text-muted-foreground">{METRIC_LABELS[r.metric]}:</span>{' '}
-          <span className={negCls(r.baseVal)}>{fmtMillion(r.baseVal)}</span>
-          {r.baseRatio != null && (
-            <span className={`ml-1 ${negCls(r.baseRatio)}`}>[{fmtPct(r.baseRatio)}]</span>
-          )}
-          <span className="text-muted-foreground"> ({baseYear})</span>
-          <span className="text-muted-foreground"> / 전년 {compareYear} </span>
-          <span className={negCls(r.compVal)}>{fmtMillion(r.compVal)}</span>
-          {r.compRatio != null && (
-            <span className={`ml-1 ${negCls(r.compRatio)}`}>[{fmtPct(r.compRatio)}]</span>
-          )}
-          <span className="text-muted-foreground"> / YoY </span>
-          <span className={negCls(r.yoy)}>{fmtYoy(r.yoy)}</span>
-        </div>
-      ))}
+      <div className="mb-1 leading-relaxed">
+        <span className="text-muted-foreground">{METRIC_LABELS[metric]}:</span>{' '}
+        <span className={negCls(baseVal)}>{fmtMillion(baseVal)}</span>
+        <span className="text-muted-foreground"> ({baseYear})</span>
+        <span className="text-muted-foreground"> / 전년 {compareYear} </span>
+        <span className={negCls(compVal)}>{fmtMillion(compVal)}</span>
+        <span className="text-muted-foreground"> / YoY </span>
+        <span className={negCls(yoy)}>{fmtYoy(yoy)}</span>
+      </div>
     </div>
   );
 }
 
-/** 연도 단일 선택 드롭다운 (native select) */
+/** 매출/영업이익 토글 (세그먼트 버튼) */
+function MetricToggle({
+  value,
+  onChange,
+}: {
+  value: MetricKey;
+  onChange: (v: MetricKey) => void;
+}) {
+  return (
+    <div className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5">
+      {SUPPORTED_METRICS.map((m) => {
+        const active = m === value;
+        return (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(m)}
+            className={`text-sm px-2.5 py-1 rounded-sm transition-colors ${
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {METRIC_LABELS[m]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function YearDropdown({
   label,
   options,

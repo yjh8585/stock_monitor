@@ -51,7 +51,7 @@ function fmtMillion(n: number): string {
 }
 
 /**
- * 10-2. 고객 매출 집중도 (파레토).
+ * 13-2. 고객 매출 집중도 (파레토).
  *
  * - 막대 = 고객별 매출 (내림차순)
  * - 라인 = 누적 매출 점유율 (%)
@@ -96,7 +96,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
   return (
     <div className="rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-        <div className="text-sm font-medium">고객 매출 집중도 (파레토)</div>
+        <div className="text-lg font-semibold">고객 매출 집중도 (파레토)</div>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect
@@ -115,7 +115,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 14 }}
               angle={-30}
               textAnchor="end"
               interval={0}
@@ -124,14 +124,14 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
             <YAxis
               yAxisId="left"
               tickFormatter={(v: number) => fmtMillion(v)}
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 14 }}
               width={80}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
               tickFormatter={(v: number) => `${v.toFixed(0)}%`}
-              tick={{ fontSize: 13 }}
+              tick={{ fontSize: 14 }}
               width={55}
               domain={[0, 100]}
             />
@@ -140,14 +140,14 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
               y={PARETO_LINE}
               stroke="#dc2626"
               strokeDasharray="4 3"
-              label={{ value: '80%', position: 'right', fontSize: 12, fill: '#dc2626' }}
+              label={{ value: '80%', position: 'right', fontSize: 14, fill: '#dc2626' }}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)' }}
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
               content={<ParetoTooltip />}
             />
@@ -197,7 +197,7 @@ function ParetoTooltip({
   const r = payload[0].payload;
   return (
     <div
-      className="rounded-md p-2 text-xs"
+      className="rounded-md p-2 text-base"
       style={{
         backgroundColor: 'var(--card)',
         border: '1px solid var(--border)',

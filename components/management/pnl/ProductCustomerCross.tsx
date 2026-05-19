@@ -9,20 +9,20 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
-/** 5. 제품·고객 cross 실적 — 디폴트: HALFSHAFT × (Stellantis NA, VW NA) */
+/** 6. 고객·제품 cross 실적 — 디폴트: (Stellantis NA, VW NA) × HALFSHAFT */
 export default function ProductCustomerCross({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
-      title="5. 제품·고객 실적"
+      title="6. 고객·제품 실적"
       dimensions={[
-        { key: 'product', label: '제품' },
         { key: 'customer', label: '고객' },
+        { key: 'product', label: '제품' },
       ]}
       annualEntries={annualEntries}
       annualByBasis={annualByBasis}
       defaultSelections={{
-        product: ['HALFSHAFT'],
         customer: ['Stellantis NA', 'VW NA'],
+        product: ['HALFSHAFT'],
       }}
     />
   );

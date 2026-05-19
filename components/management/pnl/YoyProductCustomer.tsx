@@ -46,6 +46,76 @@ interface Props {
 
 const TOP_N = 20;
 
+/**
+ * 제품 표시 순서 — 사용자 지정.
+ * 목록에 없는 제품은 뒤에 가나다순으로 붙는다.
+ */
+const PRODUCT_ORDER: readonly string[] = [
+  'HALFSHAFT',
+  'CALIPER BRK.',
+  'POWER BRK.',
+  'DRUM BRK.',
+  'DRUM',
+  'COLUMN',
+  'INTERM',
+  'GEAR',
+  'Alternator',
+  'EGR VALVE',
+  'ADAS',
+];
+
+function productRank(name: string): number {
+  const i = PRODUCT_ORDER.indexOf(name);
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+}
+
+function sortProducts(names: readonly string[]): string[] {
+  return [...names].sort((a, b) => {
+    const ra = productRank(a);
+    const rb = productRank(b);
+    if (ra !== rb) return ra - rb;
+    // 둘 다 목록 외 → 가나다순
+    return a.localeCompare(b, 'ko');
+  });
+}
+
+/**
+ * 고객 표시 순서 — 사용자 지정.
+ * 같은 모회사 그룹사 우선(Stellantis NA→EU, VW NA→EU→Porsche), 이어 주요 거래처.
+ * 목록에 없는 고객은 뒤에 가나다순으로 붙는다.
+ */
+const CUSTOMER_ORDER: readonly string[] = [
+  'Stellantis NA',
+  'Stellantis EU',
+  'VW NA',
+  'VW EU',
+  'Porsche',
+  'RIVIAN',
+  'Vinfast',
+  '군수사업',
+  'KG모빌리티',
+  'GMK',
+  'GM 직수출',
+  'UZ Auto',
+  'POLARIS',
+  'HKMC',
+  '직수출',
+];
+
+function customerRank(name: string): number {
+  const i = CUSTOMER_ORDER.indexOf(name);
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+}
+
+function sortCustomers(names: readonly string[]): string[] {
+  return [...names].sort((a, b) => {
+    const ra = customerRank(a);
+    const rb = customerRank(b);
+    if (ra !== rb) return ra - rb;
+    return a.localeCompare(b, 'ko');
+  });
+}
+
 /** 백만원 천 단위 콤마. null/NaN은 '—' */
 function fmtMillion(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—';
@@ -127,34 +197,42 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
 
     const baseAgg = aggregateBy(baseEntries, ['product', 'customer']);
     const compareAgg = aggregateBy(compareEntries, ['product', 'customer']);
+    // key 정규화: 빈 dim → '(미분류)' (표시값과 매핑 일치)
+    const normKey = (p: string, c: string) => `${p || '(미분류)'} | ${c || '(미분류)'}`;
+    const baseMap = new Map<string, AggregatedRow>();
+    for (const r of baseAgg) baseMap.set(normKey(r.dims.product, r.dims.customer), r);
     const compareMap = new Map<string, AggregatedRow>();
-    for (const r of compareAgg) compareMap.set(r.key, r);
+    for (const r of compareAgg) compareMap.set(normKey(r.dims.product, r.dims.customer), r);
 
-    const cells: HeatmapCell[] = baseAgg
-      .map((r) => {
-        const compRow = compareMap.get(r.key);
-        const compRev = compRow?.revenue ?? 0;
-        const yoy = compRev !== 0 ? ((r.revenue - compRev) / Math.abs(compRev)) * 100 : null;
-        return {
-          product: r.dims.product || '(미분류)',
-          customer: r.dims.customer || '(미분류)',
-          baseRevenue: r.revenue,
-          compareRevenue: compRev,
-          yoy,
-        };
-      })
-      .filter((c) => c.baseRevenue > 0 || c.compareRevenue > 0)
-      .sort((a, b) => b.baseRevenue - a.baseRevenue)
+    // 1) TOP 20 매출 쌍으로 표시 축(product/customer) 결정
+    const topPairs = baseAgg
+      .filter((r) => r.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue)
       .slice(0, TOP_N);
-
     const productSet = new Set<string>();
     const customerSet = new Set<string>();
-    for (const c of cells) {
-      productSet.add(c.product);
-      customerSet.add(c.customer);
+    for (const r of topPairs) {
+      productSet.add(r.dims.product || '(미분류)');
+      customerSet.add(r.dims.customer || '(미분류)');
     }
-    const products = Array.from(productSet).sort((a, b) => a.localeCompare(b, 'ko'));
-    const customers = Array.from(customerSet).sort((a, b) => a.localeCompare(b, 'ko'));
+    const products = sortProducts(Array.from(productSet));
+    const customers = sortCustomers(Array.from(customerSet));
+
+    // 2) 결정된 축의 모든 교차 셀을 다시 채워 YoY 표시 — TOP 20 밖이라도 같은 축의 매출이면 보임
+    const cells: HeatmapCell[] = [];
+    for (const product of products) {
+      for (const customer of customers) {
+        const baseRow = baseMap.get(normKey(product, customer));
+        const compRow = compareMap.get(normKey(product, customer));
+        const baseRev = baseRow?.revenue ?? 0;
+        const compRev = compRow?.revenue ?? 0;
+        if (baseRev === 0 && compRev === 0) continue;
+        const yoy =
+          compRev !== 0 ? ((baseRev - compRev) / Math.abs(compRev)) * 100 : null;
+        cells.push({ product, customer, baseRevenue: baseRev, compareRevenue: compRev, yoy });
+      }
+    }
+
     let maxAbsYoy = 0;
     for (const c of cells) {
       if (c.yoy != null && Math.abs(c.yoy) > maxAbsYoy) maxAbsYoy = Math.abs(c.yoy);
@@ -176,7 +254,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-base font-semibold">9. 제품·고객 YoY 매트릭스</h2>
+        <h2 className="text-lg font-semibold">12. 제품·고객 YoY 매트릭스</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="연도" options={yearLabels} value={effBase} onChange={setBaseYear} />
@@ -188,7 +266,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
         </div>
       ) : (
         <>
-          <div className="text-[11px] text-muted-foreground mb-2">
+          <div className="text-sm text-muted-foreground mb-2">
             매출 상위 {TOP_N}쌍 표시 · 셀 클릭 시 월별 추이 차트 · 색조: 빨강(YoY 감소) ~ 초록(YoY
             증가)
             {ytdMonths >= 1 && ytdMonths <= 11 && (
@@ -198,7 +276,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
             )}
           </div>
           <div className="overflow-x-auto">
-            <table className="text-xs border-separate border-spacing-0">
+            <table className="text-base border-separate border-spacing-0">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-card p-2 text-left border-b border-border min-w-[140px]">
@@ -297,7 +375,7 @@ function HeatCell({
       onClick={onClick}
     >
       <div className="font-medium">{fmtYoy(yoy)}</div>
-      <div className="text-[10px] opacity-80">{fmtMillion(cell.baseRevenue)}</div>
+      <div className="text-sm opacity-80">{fmtMillion(cell.baseRevenue)}</div>
     </td>
   );
 }
@@ -345,19 +423,19 @@ function MonthlyTrendChart({
 
   return (
     <div className="mt-2">
-      <div className="text-[11px] text-muted-foreground mb-2">
+      <div className="text-sm text-muted-foreground mb-2">
         매출 (백만원) · {baseYear} (실선) vs {compareYear} (점선)
       </div>
       <ResponsiveContainer width="100%" height={h}>
         <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-          <YAxis tickFormatter={(v: number) => fmtMillion(v)} tick={{ fontSize: 11 }} width={70} />
+          <XAxis dataKey="month" tick={{ fontSize: 14 }} />
+          <YAxis tickFormatter={(v: number) => fmtMillion(v)} tick={{ fontSize: 14 }} width={70} />
           <Tooltip
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '12px',
+              fontSize: '16px',
             }}
             formatter={(v) => `${fmtMillion(Number(v))} 백만원`}
           />
@@ -407,7 +485,7 @@ function YearDropdown({
   onChange: (v: string) => void;
 }) {
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs">
+    <label className="inline-flex items-center gap-1.5 text-sm">
       <span className="text-muted-foreground">{label}:</span>
       <select
         value={value}

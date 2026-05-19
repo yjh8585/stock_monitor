@@ -18,8 +18,10 @@ export interface PnlTableRow {
   sga: number;
   rnd: number;
   op_income: number;
-  /** 합계 행 등 강조 표시 */
+  /** 합계 행 등 강조 표시 (옅은 회색) */
   isSummary?: boolean;
+  /** 전체 합계 행 — isSummary보다 더 짙은 회색으로 강조 */
+  isGrandTotal?: boolean;
 }
 
 interface PnlTableProps {
@@ -134,7 +136,7 @@ export default function PnlTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
+      <table className="w-full text-base border-collapse">
         <thead>
           <tr className="border-b border-border bg-muted/40">
             {leftHeaders.map((h, i) => (
@@ -168,7 +170,7 @@ export default function PnlTable({
                 >
                   {METRIC_LABELS[m]}
                   {METRICS_WITH_RATIO.has(m) && (
-                    <span className="text-[10px] text-muted-foreground/70"> (%)</span>
+                    <span className="text-sm text-muted-foreground/70"> (%)</span>
                   )}
                 </th>
               );
@@ -220,15 +222,24 @@ function PnlRow({ row, meta, leftCount, dimCount, highlighted, onToggle }: PnlRo
   };
 
   const groupBorder = meta.isGroupBoundary ? 'border-t-2 border-t-border' : '';
-  const summary = row.isSummary ? 'bg-muted/30 font-semibold' : '';
+  // 1번 전사 비용구조 표와 동일한 파랑 두 단계 톤:
+  //  전체 합계        = 진한 파랑 (bg-blue-100 / dark bg-blue-900/40)
+  //  그룹·customer 소계 = 옅은 파랑 (bg-blue-50  / dark bg-blue-950/30)
+  const summary = row.isGrandTotal
+    ? 'bg-blue-100 dark:bg-blue-900/40 font-bold'
+    : row.isSummary
+      ? 'bg-blue-50 dark:bg-blue-950/30 font-semibold'
+      : '';
   const hl = highlighted ? 'bg-yellow-100/70 dark:bg-yellow-900/30' : 'hover:bg-muted/30';
   // sticky 셀의 배경. tr의 색을 덮지 않도록 row 상태에 맞춰 직접 지정.
   // 참고: rowspan으로 병합된 owner cell은 다른 행 클릭 시 own 상태를 따른다(병합 그룹 전체 강조 아님)
   const stickyBg = highlighted
     ? 'bg-yellow-100/70 dark:bg-yellow-900/30'
-    : row.isSummary
-      ? 'bg-muted/30'
-      : 'bg-background';
+    : row.isGrandTotal
+      ? 'bg-blue-100 dark:bg-blue-900/40'
+      : row.isSummary
+        ? 'bg-blue-50 dark:bg-blue-950/30'
+        : 'bg-background';
 
   return (
     <tr
@@ -310,7 +321,7 @@ function MetricCell({
   return (
     <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">
       <div className={`${valueColor} ${fontWeight}`}>{fmtMillion(value)}</div>
-      {showRatio && <div className={`text-[10px] ${ratioColor}`}>{fmtRatio(value, revenue)}</div>}
+      {showRatio && <div className={`text-sm ${ratioColor}`}>{fmtRatio(value, revenue)}</div>}
     </td>
   );
 }

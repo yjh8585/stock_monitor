@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import PnlDashboard from '@/components/management/pnl/PnlDashboard';
-import type { Basis, PnlEntry } from '@/lib/pnl/types';
+import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 
 // PostgREST 기본 max-rows=1000. 페이지네이션으로 전체 fetch.
 const SUPABASE_PAGE_SIZE = 1000;
@@ -63,8 +63,41 @@ async function getPnlData() {
   return fetchAllPnlEntries();
 }
 
+/** Supabase pnl_cost_structure 전체 fetch (≤ 수백 행이라 페이지네이션 불필요) */
+async function fetchAllCostStructure(): Promise<CostStructureRow[]> {
+  const supabase = createSupabaseAnonClient();
+  const { data, error } = await supabase
+    .from('pnl_cost_structure')
+    .select('*')
+    .order('period_year', { ascending: true })
+    .order('period_month', { ascending: true });
+  if (error) {
+    logger.error({ err: error }, 'pnl_cost_structure 조회 실패');
+    throw new Error(`Supabase pnl_cost_structure 조회 실패: ${error.message}`);
+  }
+  return (data ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      period_year: Number(r.period_year ?? 0),
+      period_kind: (r.period_kind as 'annual' | 'monthly') ?? 'annual',
+      period_month: Number(r.period_month ?? 0),
+      kind: (r.kind as 'actual' | 'plan') ?? 'actual',
+      category: String(r.category ?? ''),
+      account: String(r.account ?? ''),
+      value_mwon: r.value_mwon == null ? null : Number(r.value_mwon),
+    };
+  });
+}
+
+async function getCostStructureData() {
+  'use cache';
+  cacheLife('hours');
+  cacheTag('pnl_cost_structure');
+  return fetchAllCostStructure();
+}
+
 /** 손익 페이지 (server) — pnl_entries 전체 select 후 클라이언트에서 집계 */
 export default async function PnlPage() {
-  const data = await getPnlData();
-  return <PnlDashboard data={data} />;
+  const [data, costStructure] = await Promise.all([getPnlData(), getCostStructureData()]);
+  return <PnlDashboard data={data} costStructure={costStructure} />;
 }

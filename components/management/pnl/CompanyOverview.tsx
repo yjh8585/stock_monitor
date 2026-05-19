@@ -15,7 +15,7 @@ interface Props {
 }
 
 /**
- * 1. 전사 실적 — 연도 × 지표 표.
+ * 2. 전사 실적 — 연도 × 지표 표.
  *
  * - 연결/별도 토글
  * - 각 연도 1행 + 매출/재료비/노무비/경비/판관비/연구비/영업이익 컬럼
@@ -68,7 +68,7 @@ export default function CompanyOverview({ annualByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-semibold">1. 전사 실적</h2>
+        <h2 className="text-lg font-semibold">2. 전사 실적</h2>
         <BasisToggle value={basis} onChange={setBasis} />
       </header>
       <PnlTable leftHeaders={['연도']} rows={rows} />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import CostStructure from './CostStructure';
 import CompanyOverview from './CompanyOverview';
 import DivisionPerformance from './DivisionPerformance';
 import CustomerPerformance from './CustomerPerformance';
@@ -9,14 +10,17 @@ import ProductCustomerCross from './ProductCustomerCross';
 import SilPerformance from './SilPerformance';
 import MarginScatter from './MarginScatter';
 import YoyMonthlyCompare from './YoyMonthlyCompare';
+import YoyMonthlyFiltered from './YoyMonthlyFiltered';
+import Forecast2026 from './Forecast2026';
 import YoyProductCustomer from './YoyProductCustomer';
 import Insights from './Insights';
 import LazyMount from '@/components/common/LazyMount';
 import { deriveAnnualFromMonthly, deriveStandaloneAnnual } from '@/lib/pnl/aggregate';
-import type { Basis, PnlEntry } from '@/lib/pnl/types';
+import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 
 interface Props {
   data: PnlEntry[];
+  costStructure: CostStructureRow[];
 }
 
 /** basis별로 분리된 PnlEntry 묶음 (성능 최적화용 reference) */
@@ -36,7 +40,7 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  *   YoyProductCustomer / Insights)은 `LazyMount`로 감싸 viewport 진입 시
  *   1회 마운트. 초기 렌더에서 Recharts ResizeObserver/parse 비용을 절약.
  */
-export default function PnlDashboard({ data }: Props) {
+export default function PnlDashboard({ data, costStructure }: Props) {
   const annualEntries = useMemo<PnlEntry[]>(() => {
     // 연결 연간: period_month=0 행. 단 '2026(P)'(계획값)는 표시에서 제외 — 사용자 요구로
     // 2026 실적은 월별 1~N 누적(YTD)으로 별도 derive.
@@ -77,6 +81,7 @@ export default function PnlDashboard({ data }: Props) {
 
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">
+      <CostStructure costStructure={costStructure} />
       <CompanyOverview annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <DivisionPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <CustomerPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
@@ -92,6 +97,12 @@ export default function PnlDashboard({ data }: Props) {
       </LazyMount>
       <LazyMount className="min-h-[420px] md:min-h-[540px]">
         <YoyMonthlyCompare data={data} monthlyByBasis={monthlyByBasis} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px] md:min-h-[540px]">
+        <YoyMonthlyFiltered monthlyByBasis={monthlyByBasis} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px] md:min-h-[520px]">
+        <Forecast2026 monthlyByBasis={monthlyByBasis} annualByBasis={annualByBasis} />
       </LazyMount>
       <LazyMount className="min-h-[440px] md:min-h-[560px]">
         <YoyProductCustomer

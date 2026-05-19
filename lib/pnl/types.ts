@@ -78,6 +78,23 @@ export const METRIC_ORDER: readonly MetricKey[] = [
 /** 집계 차원 키 */
 export type DimensionKey = 'sil' | 'division' | 'factory' | 'product' | 'customer';
 
+/** `pnl_cost_structure` 테이블 row */
+export interface CostStructureRow {
+  period_year: number;
+  /** 'annual' = 연간 합계, 'monthly' = 월별 */
+  period_kind: 'annual' | 'monthly';
+  /** annual=0, monthly=1..12 */
+  period_month: number;
+  /** 'actual' = 실적, 'plan' = 계획 */
+  kind: 'actual' | 'plan';
+  /** 매출 / 재료비성 / 경비성 / 인건비성 / 영업이익 */
+  category: string;
+  /** 매출 / 재료비 / 관세 / 운반및보관료 / 인건비 / 외주가공비 / 경비 / 영업이익 */
+  account: string;
+  /** 백만원 단위 */
+  value_mwon: number | null;
+}
+
 /** 집계 결과 1행 (차원 + 7개 지표 합계) */
 export interface AggregatedRow {
   /** 차원 값 join 결과 — 단일 차원이면 그 값, 복합 차원이면 "A | B" */

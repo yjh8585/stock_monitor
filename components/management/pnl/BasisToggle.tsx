@@ -29,7 +29,7 @@ export default function BasisToggle({ value, onChange }: BasisToggleProps) {
             type="button"
             aria-pressed={active}
             onClick={() => onChange(opt.value)}
-            className={`text-xs px-2.5 py-1 rounded-sm transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-sm transition-colors ${
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground'

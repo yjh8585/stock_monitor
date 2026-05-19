@@ -15,7 +15,7 @@ interface YearSelectProps {
  */
 export default function YearSelect({ label, options, value, onChange }: YearSelectProps) {
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs">
+    <label className="inline-flex items-center gap-1.5 text-sm">
       <span className="text-muted-foreground">{label}:</span>
       <select
         value={value}
