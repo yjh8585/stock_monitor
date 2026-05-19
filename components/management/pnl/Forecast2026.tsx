@@ -334,8 +334,8 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
         />
       </div>
 
-      {/* 근거 표 — 상단 데이터 행 */}
-      <div className="overflow-x-auto">
+      {/* 추정 박스 — thead + ①·②·③ + 평균 추정치 강조 (최상단) */}
+      <div className="overflow-x-auto rounded-lg ring-2 ring-blue-500/50 dark:ring-blue-400/50 bg-blue-50/40 dark:bg-blue-950/20">
         <table className="w-full text-base border-collapse table-fixed">
           <colgroup>
             <col className="w-1/2" />
@@ -349,35 +349,6 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
               <th className="px-3 py-2 text-right font-medium">영업이익 (백만원)</th>
             </tr>
           </thead>
-          <tbody>
-            <Row
-              label="2025 연간 실적"
-              rev={calc.actual2025.revenue}
-              op={calc.actual2025.op_income}
-            />
-            <Row label="2025 1~3월" rev={calc.q1_2025.revenue} op={calc.q1_2025.op_income} />
-            <Row label="2026 1~3월" rev={calc.q1_2026.revenue} op={calc.q1_2026.op_income} />
-            <tr className="border-t border-border/60 bg-muted/20">
-              <td className="px-3 py-2 font-medium">1~3월 YoY</td>
-              <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyRev)}`}>
-                {fmtPct(calc.yoyRev)}
-              </td>
-              <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyOp)}`}>
-                {fmtPct(calc.yoyOp)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* 추정 박스 — ①·②·③ + 평균 추정치 강조 */}
-      <div className="mt-3 overflow-x-auto rounded-lg ring-2 ring-blue-500/50 dark:ring-blue-400/50 bg-blue-50/40 dark:bg-blue-950/20">
-        <table className="w-full text-base border-collapse table-fixed">
-          <colgroup>
-            <col className="w-1/2" />
-            <col className="w-1/4" />
-            <col className="w-1/4" />
-          </colgroup>
           <tbody>
             <Row
               label="① YTD 연환산 (1~3월 × 4)"
@@ -421,6 +392,35 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
                 }`}
               >
                 {fmtMillion(calc.estOp)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* 근거 데이터 표 — 박스 아래 (thead 생략, 위 박스의 헤더 재사용) */}
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-base border-collapse table-fixed">
+          <colgroup>
+            <col className="w-1/2" />
+            <col className="w-1/4" />
+            <col className="w-1/4" />
+          </colgroup>
+          <tbody>
+            <Row
+              label="2025 연간 실적"
+              rev={calc.actual2025.revenue}
+              op={calc.actual2025.op_income}
+            />
+            <Row label="2025 1~3월" rev={calc.q1_2025.revenue} op={calc.q1_2025.op_income} />
+            <Row label="2026 1~3월" rev={calc.q1_2026.revenue} op={calc.q1_2026.op_income} />
+            <tr className="border-t border-border/60 bg-muted/20">
+              <td className="px-3 py-2 font-medium">1~3월 YoY</td>
+              <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyRev)}`}>
+                {fmtPct(calc.yoyRev)}
+              </td>
+              <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyOp)}`}>
+                {fmtPct(calc.yoyOp)}
               </td>
             </tr>
           </tbody>
