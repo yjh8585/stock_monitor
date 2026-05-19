@@ -6,12 +6,7 @@ import BasisToggle from './BasisToggle';
 import GroupMultiSelect from '@/components/common/GroupMultiSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { aggregateMonthly } from '@/lib/pnl/aggregate';
-import {
-  METRIC_LABELS,
-  type Basis,
-  type MetricKey,
-  type PnlEntry,
-} from '@/lib/pnl/types';
+import { METRIC_LABELS, type Basis, type MetricKey, type PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { OEM_COLORS } from '@/components/oem/helpers';
 
@@ -67,7 +62,7 @@ interface ChartRow {
 }
 
 /**
- * 10. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
+ * 11. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
  *
  * - 9번과 동일한 막대 비교 패턴, 단 지표는 매출/영업이익 중 1개만 선택(디폴트=매출)
  * - 고객/제품 multi-select 필터 — 미선택 = 전체
@@ -137,9 +132,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>(['Stellantis NA']);
   const [selectedProducts, setSelectedProducts] = useState<string[]>(['HALFSHAFT']);
   const onToggleCustomer = (c: string) =>
-    setSelectedCustomers((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
-    );
+    setSelectedCustomers((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   const onToggleProduct = (p: string) =>
     setSelectedProducts((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
 
@@ -173,9 +166,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">
-          10. 전년 대비 월별 비교 (고객·제품 선택)
-        </h2>
+        <h2 className="text-lg font-semibold">11. 전년 대비 월별 비교 (고객·제품 선택)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="기준" options={yearOptions} value={effBase} onChange={setBaseYear} />
@@ -322,13 +313,7 @@ function FilteredTooltip({
 }
 
 /** 매출/영업이익 토글 (세그먼트 버튼) */
-function MetricToggle({
-  value,
-  onChange,
-}: {
-  value: MetricKey;
-  onChange: (v: MetricKey) => void;
-}) {
+function MetricToggle({ value, onChange }: { value: MetricKey; onChange: (v: MetricKey) => void }) {
   return (
     <div className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5">
       {SUPPORTED_METRICS.map((m) => {

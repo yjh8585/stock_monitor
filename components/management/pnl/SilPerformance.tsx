@@ -50,7 +50,7 @@ interface Props {
 }
 
 /**
- * 7. 실별 손익.
+ * 8. 실별 손익.
  *
  * - basis 토글 + 단일 연도 선택 + 실 선택 (1실/2실/3실/...)
  * - 해당 실의 (고객 × 제품) 조합별 표 — 매출-desc 정렬
@@ -118,7 +118,9 @@ export default function SilPerformance({ annualByBasis }: Props) {
         return (groupRevenue.get(gb) ?? 0) - (groupRevenue.get(ga) ?? 0);
       }
       if (a.dims.customer !== b.dims.customer) {
-        return (customerRevenue.get(b.dims.customer) ?? 0) - (customerRevenue.get(a.dims.customer) ?? 0);
+        return (
+          (customerRevenue.get(b.dims.customer) ?? 0) - (customerRevenue.get(a.dims.customer) ?? 0)
+        );
       }
       return b.revenue - a.revenue;
     });
@@ -213,7 +215,7 @@ export default function SilPerformance({ annualByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">7. 실별 손익</h2>
+        <h2 className="text-lg font-semibold">8. 실별 손익</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect

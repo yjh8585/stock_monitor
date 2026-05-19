@@ -141,10 +141,7 @@ function assignLabelPositions(
         const eLabelCx = e.p.yoy + eC.dataDx;
         const eLabelCy = e.p.margin + eC.dataDy;
         // 두 라벨 사각형이 겹치는지(중심 거리 < 라벨 크기)
-        if (
-          Math.abs(labelCx - eLabelCx) < labelW &&
-          Math.abs(labelCy - eLabelCy) < labelH
-        ) {
+        if (Math.abs(labelCx - eLabelCx) < labelW && Math.abs(labelCy - eLabelCy) < labelH) {
           conflict += 1;
         }
         // 라벨이 다른 점의 버블 영역에 닿는지(버블 크기는 모르므로 인접 임계로 근사)
@@ -271,7 +268,7 @@ function classifyOutliers(pts: readonly BubblePoint[]): {
 }
 
 /**
- * 7. 매출 YoY × 영업이익률 버블 차트.
+ * 9. 매출 YoY × 영업이익률 버블 차트.
  *
  * - X = 매출 YoY (%) — 기준 연도 매출 / 비교 연도 매출 - 1
  * - Y = 영업이익률 (%) — 기준 연도 영업이익 / 기준 연도 매출
@@ -460,7 +457,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">8. 매출 YoY × 영업이익률 (버블=매출)</h2>
+        <h2 className="text-lg font-semibold">9. 매출 YoY × 영업이익률 (버블=매출)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect label="연도" options={yearLabels} value={effBase} onChange={setBaseYear} />
@@ -591,12 +588,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               }}
               content={<BubbleTooltip baseYear={effBase} compareYear={effCompare} />}
             />
-            <Scatter
-              name={dimConfig.label}
-              data={chartPoints}
-              fill="#000000"
-              shape="circle"
-            >
+            <Scatter name={dimConfig.label} data={chartPoints} fill="#000000" shape="circle">
               <LabelList
                 dataKey="name"
                 content={(p: unknown) => {
@@ -641,12 +633,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
 /**
  * 데이터 레이블 — 사전 계산된 LabelPos를 사용해 겹치지 않게 배치 (기본 above).
  */
-function BubbleLabel(props: {
-  x?: number;
-  y?: number;
-  value?: string | number;
-  pos?: LabelPos;
-}) {
+function BubbleLabel(props: { x?: number; y?: number; value?: string | number; pos?: LabelPos }) {
   const { x = 0, y = 0, value, pos } = props;
   if (value == null) return null;
   const p = pos ?? LABEL_POSITIONS[0];

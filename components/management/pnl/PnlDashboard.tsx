@@ -82,6 +82,11 @@ export default function PnlDashboard({ data, costStructure }: Props) {
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">
       <CostStructure costStructure={costStructure} />
+      <Forecast2026
+        monthlyByBasis={monthlyByBasis}
+        annualByBasis={annualByBasis}
+        costStructure={costStructure}
+      />
       <CompanyOverview annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <DivisionPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <CustomerPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
@@ -100,9 +105,6 @@ export default function PnlDashboard({ data, costStructure }: Props) {
       </LazyMount>
       <LazyMount className="min-h-[420px] md:min-h-[540px]">
         <YoyMonthlyFiltered monthlyByBasis={monthlyByBasis} />
-      </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[520px]">
-        <Forecast2026 monthlyByBasis={monthlyByBasis} annualByBasis={annualByBasis} />
       </LazyMount>
       <LazyMount className="min-h-[440px] md:min-h-[560px]">
         <YoyProductCustomer

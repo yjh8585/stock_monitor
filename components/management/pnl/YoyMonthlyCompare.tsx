@@ -78,7 +78,7 @@ interface ChartRow {
 }
 
 /**
- * 8. 전년 대비 전사 월별 비교 차트.
+ * 10. 전년 대비 전사 월별 비교 차트.
  *
  * - basis 토글 + 기준 연도 + 비교 연도 + 지표 multi-select
  * - X = 1~12월
@@ -158,7 +158,7 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">9. 전년 대비 월별 비교</h2>
+        <h2 className="text-lg font-semibold">10. 전년 대비 월별 비교</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="기준" options={yearOptions} value={effBase} onChange={setBaseYear} />
