@@ -57,17 +57,17 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div>
-        <div className="text-xs font-medium text-muted-foreground mb-2">
+        <div className="text-sm font-medium text-muted-foreground mb-2">
           승자 TOP10 — 2024년 10만 대 이상 중
         </div>
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={winners} layout="vertical" margin={{ left: 40, right: 50 }}>
-            <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)}%`} className="text-xs" />
+            <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)}%`} className="text-sm" />
             <YAxis
               type="category"
               dataKey="name"
               width={150}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 14 }}
               interval={0}
             />
             <Tooltip
@@ -83,7 +83,7 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '11px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="yoy" radius={[0, 4, 4, 0]}>
@@ -96,17 +96,17 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
       </div>
 
       <div>
-        <div className="text-xs font-medium text-muted-foreground mb-2">
+        <div className="text-sm font-medium text-muted-foreground mb-2">
           패자 BOTTOM10 — 2024년 10만 대 이상 중
         </div>
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={losers} layout="vertical" margin={{ left: 40, right: 50 }}>
-            <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)}%`} className="text-xs" />
+            <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)}%`} className="text-sm" />
             <YAxis
               type="category"
               dataKey="name"
               width={150}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 14 }}
               interval={0}
             />
             <Tooltip
@@ -122,7 +122,7 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '11px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="yoy" radius={[0, 4, 4, 0]}>

@@ -107,7 +107,7 @@ export default function SeriesChart({
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-sm font-medium truncate">{title}</div>
+          <div className="text-base font-medium truncate">{title}</div>
           <div className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
             {lastLabel}
           </div>

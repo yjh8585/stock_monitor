@@ -49,14 +49,14 @@ export default function UsaOemTrendChart({ series }: Props) {
 
   return (
     <div>
-      <div className="text-xs text-muted-foreground mb-2">
+      <div className="text-sm text-muted-foreground mb-2">
         전체 기간 USA 판매 합계 기준 TOP10 · 범례 클릭으로 항목 제외 가능
       </div>
       <ResponsiveContainer width="100%" height={h}>
         <LineChart data={data} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="ymLabel" className="text-xs" tick={{ fontSize: 10 }} interval={5} />
-          <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
+          <XAxis dataKey="ymLabel" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
+          <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
           <Tooltip
             formatter={(v, name, entry) => {
               const total = (entry.payload as Record<string, number>).usaTotal ?? 0;
@@ -67,7 +67,7 @@ export default function UsaOemTrendChart({ series }: Props) {
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '11px',
+              fontSize: '16px',
             }}
           />
           <Legend

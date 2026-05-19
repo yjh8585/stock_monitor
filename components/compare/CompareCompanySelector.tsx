@@ -34,7 +34,7 @@ export default function CompareCompanySelector({ candidates, selectedIds, onChan
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-muted-foreground">비교 대상</span>
+      <span className="text-sm text-muted-foreground">비교 대상</span>
       <Slot
         value={slot1}
         excludeId={slot2}

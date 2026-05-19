@@ -68,21 +68,21 @@ export default function Top10MonthlyLines({ groupMonth }: Props) {
 
   return (
     <div>
-      <div className="text-xs text-muted-foreground mb-2">
+      <div className="text-sm text-muted-foreground mb-2">
         2025년 TOP10 기준 · 범례 클릭으로 항목 제외 가능
       </div>
       <ResponsiveContainer width="100%" height={h}>
         <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="label" className="text-xs" tick={{ fontSize: 10 }} interval={5} />
-          <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
+          <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
+          <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
           <Tooltip
             formatter={(v, name) => [fmtFull(Number(v)) + ' 대', String(name)]}
             itemSorter={(item) => -(item.value as number)}
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '11px',
+              fontSize: '16px',
             }}
           />
           <Legend

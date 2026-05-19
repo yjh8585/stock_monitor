@@ -21,7 +21,7 @@ export default function Top40YearlyTable({ groupMonth }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40">
             <th className="text-left p-2 w-12">2025 #</th>
@@ -36,7 +36,7 @@ export default function Top40YearlyTable({ groupMonth }: Props) {
           {rows.map((r) => (
             <tr key={r.oem_group} className="border-b border-border/50 hover:bg-muted/40">
               <td className="p-2 tabular-nums font-medium">{r.rank}</td>
-              <td className="p-2 text-center tabular-nums text-xs">
+              <td className="p-2 text-center tabular-nums text-sm">
                 <RankChange change={r.rank_change} prevRank={r.rank_prev} />
               </td>
               <td className="p-2" title={r.oem_group}>

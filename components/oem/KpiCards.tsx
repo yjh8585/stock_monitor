@@ -77,12 +77,12 @@ function KpiCard({
 }) {
   return (
     <div className="rounded-md border border-border bg-card p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
       <div className="text-2xl font-semibold mt-1 tabular-nums">{fmtUnits(value)}</div>
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-[10px] text-muted-foreground">{sub}</span>
         {yoy != null && (
-          <span className={`text-xs font-medium tabular-nums ${arrowColor(yoy)}`}>
+          <span className={`text-sm font-medium tabular-nums ${arrowColor(yoy)}`}>
             {fmtChange(yoy)}
           </span>
         )}

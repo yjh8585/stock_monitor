@@ -46,7 +46,7 @@ export function MermaidBlock({ chart }: Props) {
     return (
       <div className="my-4 rounded-md border border-dashed p-3 text-sm">
         <p className="text-muted-foreground mb-2">다이어그램을 표시하지 못했습니다.</p>
-        <pre className="overflow-x-auto text-xs">
+        <pre className="overflow-x-auto text-sm">
           <code>{chart}</code>
         </pre>
       </div>

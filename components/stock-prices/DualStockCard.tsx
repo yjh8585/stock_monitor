@@ -96,7 +96,7 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-base font-semibold">{title}</div>
         <StockPairSelector
           companies={companies}
           primary={primary}

@@ -77,7 +77,9 @@ export default function MultiSeriesChart({
         : { visible: false },
       timeScale: {
         borderColor: isDark ? '#3f3f46' : '#e4e4e7',
-        timeVisible: false,
+        // 같은 일자 안에 다수 5분봉이 있을 때 일자 라벨이 반복되지 않도록 시각 표시 켬.
+        timeVisible: true,
+        secondsVisible: false,
       },
       crosshair: { mode: 1 },
       autoSize: false,
@@ -128,7 +130,7 @@ export default function MultiSeriesChart({
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-sm font-medium truncate">{title}</div>
+          <div className="text-base font-medium truncate">{title}</div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 tabular-nums mt-0.5">
             {series.map((s, i) => {
               const v = lastValues[i];
@@ -138,7 +140,7 @@ export default function MultiSeriesChart({
                     className="inline-block w-2.5 h-2.5 rounded-full"
                     style={{ background: s.color }}
                   />
-                  <span className="text-xs text-muted-foreground">{s.label}</span>
+                  <span className="text-sm text-muted-foreground">{s.label}</span>
                   <span className="text-lg font-semibold text-foreground">
                     {v != null
                       ? `${v.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} ${unit}`

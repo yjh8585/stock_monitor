@@ -94,7 +94,7 @@ function ChartCard({ title, data, colors }: { title: string; data: SliceRow[]; c
   const h = useChartHeight(220, 300, 360);
   return (
     <div>
-      <div className="text-xs font-medium text-muted-foreground mb-2">
+      <div className="text-sm font-medium text-muted-foreground mb-2">
         {title} — 합계 {fmtUnits(total)}
       </div>
       <ResponsiveContainer width="100%" height={h}>
@@ -103,7 +103,7 @@ function ChartCard({ title, data, colors }: { title: string; data: SliceRow[]; c
             layout="horizontal"
             verticalAlign="top"
             align="center"
-            wrapperStyle={{ fontSize: '10px', paddingBottom: 4 }}
+            wrapperStyle={{ fontSize: '16px', paddingBottom: 4 }}
           />
           <Pie
             data={data}
@@ -134,7 +134,7 @@ function ChartCard({ title, data, colors }: { title: string; data: SliceRow[]; c
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '11px',
+              fontSize: '16px',
             }}
           />
         </PieChart>

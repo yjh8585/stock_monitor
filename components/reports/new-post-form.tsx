@@ -92,7 +92,7 @@ export function NewPostForm() {
             value={youtubeUrl}
             onChange={(e) => setYoutubeUrl(e.target.value)}
           />
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             Gemini 가 영상 전체의 자막을 추출해 한국어 본문으로 풀어 씁니다. 무료 티어 한도(분당
             25만 토큰) 때문에 매우 긴 영상은 실패할 수 있어요. 처음에는{' '}
             <span className="font-medium">10분 이내 영상</span>으로 테스트해 보세요.
@@ -108,7 +108,7 @@ export function NewPostForm() {
             value={reportWebUrl}
             onChange={(e) => setReportWebUrl(e.target.value)}
           />
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             페이지 본문을 추출하고 PDF 첨부가 있으면 자동으로 함께 분석합니다.
           </p>
         </TabsContent>
@@ -121,7 +121,7 @@ export function NewPostForm() {
             accept="application/pdf"
             onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
           />
-          <p className="text-muted-foreground text-xs">100MB 이하 PDF 만 업로드 가능합니다.</p>
+          <p className="text-muted-foreground text-sm">100MB 이하 PDF 만 업로드 가능합니다.</p>
         </TabsContent>
       </Tabs>
 

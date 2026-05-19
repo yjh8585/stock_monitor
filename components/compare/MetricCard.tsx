@@ -40,14 +40,16 @@ const UNIT_LABEL: Record<MetricUnit, string> = {
   million: '억원',
 };
 
-/** 단위 없이 숫자만 표시 (데이터 레이블 전용) */
-function formatRaw(v: number | null, unit: MetricUnit): string {
+/** 단위 없이 숫자만 표시 (데이터 레이블 전용). digits 미지정 시 unit 기본값. */
+function formatRaw(v: number | null, unit: MetricUnit, digits?: number): string {
   if (v == null || Number.isNaN(v)) return '—';
+  const defaultD = unit === 'percent' ? 1 : unit === 'times' ? 2 : 0;
+  const d = digits ?? defaultD;
   switch (unit) {
     case 'percent':
-      return `${(v * 100).toFixed(1)}`;
+      return `${(v * 100).toFixed(d)}`;
     case 'times':
-      return `${v.toFixed(2)}`;
+      return `${v.toFixed(d)}`;
     case 'million':
       // 억원 단위로 환산, "억" 텍스트 없이 숫자만
       return `${Math.round(v / 100)}`;
@@ -96,27 +98,34 @@ export default function MetricCard({ metric, companies }: Props) {
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex items-baseline gap-1">
-        <span className="text-sm font-semibold">{metric.label}</span>
-        <span className="text-xs text-muted-foreground">({UNIT_LABEL[metric.unit]})</span>
+        <span className="text-base font-semibold">{metric.label}</span>
+        <span className="text-sm text-muted-foreground">({UNIT_LABEL[metric.unit]})</span>
       </div>
       <ResponsiveContainer width="100%" height={h}>
-        <BarChart data={chartData} margin={{ top: 18, right: 12, bottom: 5, left: 5 }}>
-          <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+        {/* margin.top 을 LabelList(14px) 가 잘리지 않게 24px 로 확장 + YAxis domain 에 15% 헤드룸 */}
+        <BarChart data={chartData} margin={{ top: 28, right: 12, bottom: 5, left: 5 }}>
+          <XAxis dataKey="year" tick={{ fontSize: 14 }} />
           <YAxis
             tickFormatter={(v) =>
               metric.unit === 'million'
                 ? `${Math.round(v / 100)}`
-                : formatMetricTick(v, metric.unit)
+                : formatMetricTick(v, metric.unit, metric.digits)
             }
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 14 }}
             width={55}
+            domain={[
+              (min: number) => (min < 0 ? min * 1.15 : 0),
+              (max: number) => (max > 0 ? max * 1.15 : 0),
+            ]}
           />
           <Tooltip
-            formatter={(v) => formatMetricValue(typeof v === 'number' ? v : null, metric.unit)}
+            formatter={(v) =>
+              formatMetricValue(typeof v === 'number' ? v : null, metric.unit, metric.digits)
+            }
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: 12,
+              fontSize: 16,
             }}
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
           />
@@ -130,7 +139,7 @@ export default function MetricCard({ metric, companies }: Props) {
                   flexWrap: 'wrap',
                   justifyContent: 'center',
                   gap: '6px 10px',
-                  fontSize: 11,
+                  fontSize: 14,
                   listStyle: 'none',
                   margin: 0,
                   padding: '0 0 4px 0',
@@ -178,10 +187,10 @@ export default function MetricCard({ metric, companies }: Props) {
                   dataKey={c.id}
                   position="top"
                   formatter={(v: unknown) =>
-                    formatRaw(typeof v === 'number' ? v : null, metric.unit)
+                    formatRaw(typeof v === 'number' ? v : null, metric.unit, metric.digits)
                   }
                   style={{
-                    fontSize: 9,
+                    fontSize: 14,
                     fontWeight: isPrimary ? 700 : 400,
                     fill: isPrimary ? 'var(--foreground)' : 'var(--muted-foreground)',
                   }}

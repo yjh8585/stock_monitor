@@ -38,11 +38,18 @@ export async function getActiveStockCompanies(): Promise<StockCompany[]> {
   }));
 }
 
-/** 단일 종목 5년치 일봉 시계열 (close 기준) */
+/**
+ * 단일 종목 5년치 일봉 시계열 (close 기준).
+ *
+ * 오늘 일봉은 stock_prices 에 장 마감 후에야 들어오므로, 장중에는 stock_quotes_5min
+ * 의 가장 최근 가격을 "오늘 일자" 점으로 합성해 차트가 멈춰 보이는 현상을 막는다.
+ * 5분 단위 갱신을 위해 cacheLife('minutes') 사용.
+ */
 export async function getStockPriceSeries(companyId: string): Promise<SeriesPoint[]> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('minutes');
   cacheTag('stock_prices');
+  cacheTag('stock_quotes_5min');
   const sb = createSupabaseAnonClient();
 
   const rows: { trade_date: string; close: number }[] = [];
@@ -63,5 +70,33 @@ export async function getStockPriceSeries(companyId: string): Promise<SeriesPoin
     rows.push(...data);
     if (data.length < PAGE_SIZE) break;
   }
-  return rows.map((r) => ({ time: r.trade_date, value: Number(r.close) }));
+  const series: SeriesPoint[] = rows.map((r) => ({
+    time: r.trade_date,
+    value: Number(r.close),
+  }));
+
+  // 최신 5분봉 1건 — 오늘 일봉 점 합성용
+  const { data: lastQuote } = await sb
+    .from('stock_quotes_5min')
+    .select('ts,price')
+    .eq('company_id', companyId)
+    .order('ts', { ascending: false })
+    .limit(1);
+  const last = lastQuote?.[0];
+  if (last) {
+    // ts(UTC) → KST 일자
+    const kstDate = new Date(
+      new Date(last.ts).getTime() + 9 * 60 * 60_000
+    )
+      .toISOString()
+      .slice(0, 10);
+    const price = Number(last.price);
+    const lastSeries = series[series.length - 1];
+    if (lastSeries && lastSeries.time === kstDate) {
+      lastSeries.value = price;
+    } else if (!lastSeries || lastSeries.time < kstDate) {
+      series.push({ time: kstDate, value: price });
+    }
+  }
+  return series;
 }

@@ -12,7 +12,7 @@ export default function NewReportPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold">새 게시글</h1>
+          <h1 className="text-lg font-semibold">새 게시글</h1>
           <p className="text-muted-foreground text-sm">
             소스 형태를 선택하면 LLM 이 본문을 자동으로 생성합니다.
           </p>

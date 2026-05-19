@@ -29,7 +29,7 @@ interface ToggleFilterBarProps {
 function ToggleGroup({ label, options, selected, onToggle }: ToggleFilterGroup) {
   return (
     <>
-      <span className="text-xs font-medium text-muted-foreground shrink-0">{label}</span>
+      <span className="text-sm font-medium text-muted-foreground shrink-0">{label}</span>
       {options.map((opt) => {
         const active = selected.includes(opt);
         return (
@@ -38,7 +38,7 @@ function ToggleGroup({ label, options, selected, onToggle }: ToggleFilterGroup) 
             type="button"
             aria-pressed={active}
             onClick={() => onToggle(opt)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-full border transition-colors ${
               active
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'border-border text-muted-foreground hover:border-primary/50'
@@ -71,13 +71,13 @@ export default function ToggleFilterBar({ groups, search, rightSlot }: ToggleFil
       ))}
       {search && (
         <>
-          <span className="text-xs font-medium text-muted-foreground shrink-0">{search.label}</span>
+          <span className="text-sm font-medium text-muted-foreground shrink-0">{search.label}</span>
           <div className="relative">
             <Input
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
               placeholder={search.placeholder}
-              className={`h-7 text-xs pr-6 ${search.width ?? 'w-36'}`}
+              className={`h-7 text-sm pr-6 ${search.width ?? 'w-36'}`}
             />
             {search.value && (
               <button
@@ -91,7 +91,7 @@ export default function ToggleFilterBar({ groups, search, rightSlot }: ToggleFil
         </>
       )}
       {rightSlot && (
-        <div className="ml-auto text-xs text-muted-foreground shrink-0">{rightSlot}</div>
+        <div className="ml-auto text-sm text-muted-foreground shrink-0">{rightSlot}</div>
       )}
     </div>
   );

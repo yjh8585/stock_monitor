@@ -24,8 +24,9 @@ function dailyToSeries(rows: HansaeBundle['daily']): IntradayPoint[] {
 }
 
 /** 선택 기간에 따라 daily/intraday를 필터링해 단일 라인 시계열로 반환.
- *  1D: 장중 5분봉. 비어있으면(주말/장외) 최근 일봉 5거래일을 폴백.
- *  그 외: 기간 내 일봉 + 오늘 5분봉. */
+ *  1D : 장중 5분봉. 비어있으면(주말/장외) 최근 일봉 5거래일을 폴백.
+ *  그 외 : 기간 내 일봉만 표시하되, 오늘 일봉의 가격은 최신 5분봉 가격으로 갱신.
+ *         (X축 일자 고정 + 값만 실시간 반영) */
 function buildChartSeries(bundle: HansaeBundle, range: TimeRange): IntradayPoint[] {
   if (range === '1D') {
     if (bundle.intraday.length > 0) return bundle.intraday;
@@ -41,7 +42,25 @@ function buildChartSeries(bundle: HansaeBundle, range: TimeRange): IntradayPoint
   }
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   const daily = dailyToSeries(bundle.daily.filter((r) => r.tradeDate >= cutoffStr));
-  return [...daily, ...bundle.intraday];
+
+  // 오늘 5분봉 마지막 가격으로 오늘 일봉 점만 갱신(또는 신규 추가).
+  // 일자 단위 X축은 그대로 두면서, 오늘 종가만 실시간 반영되는 효과를 낸다.
+  const last = bundle.intraday[bundle.intraday.length - 1];
+  if (!last) return daily;
+  const todayDate = last.ts.slice(0, 10);
+  const todayPoint: IntradayPoint = {
+    ts: `${todayDate}T15:30:00+09:00`,
+    price: last.price,
+    changePct: last.changePct,
+    volume: last.volume,
+  };
+  const idx = daily.findIndex((d) => d.ts.slice(0, 10) === todayDate);
+  if (idx >= 0) {
+    daily[idx] = todayPoint;
+  } else {
+    daily.push(todayPoint);
+  }
+  return daily;
 }
 
 const formatKRW = (n: number | null) =>
@@ -81,7 +100,7 @@ export default function HansaeStockCard({ bundle }: Props) {
     >
       <div className="flex items-baseline justify-between">
         <div>
-          <div className="text-sm font-semibold">{company.name_kr}</div>
+          <div className="text-base font-semibold">{company.name_kr}</div>
           <div className="text-sm text-muted-foreground">
             {company.ticker} · {company.market ?? '—'}
           </div>

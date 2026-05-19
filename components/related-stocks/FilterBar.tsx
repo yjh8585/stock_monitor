@@ -66,7 +66,7 @@ function ToggleBtn({
       type="button"
       aria-pressed={active}
       onClick={onToggle}
-      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+      className={`text-sm px-2.5 py-1 rounded-full border transition-colors ${
         active
           ? 'bg-primary text-primary-foreground border-primary'
           : 'border-border text-muted-foreground hover:border-primary/50'
@@ -82,7 +82,7 @@ function Divider() {
 }
 
 function GroupLabel({ label }: { label: string }) {
-  return <span className="text-xs font-medium text-muted-foreground shrink-0">{label}</span>;
+  return <span className="text-sm font-medium text-muted-foreground shrink-0">{label}</span>;
 }
 
 /** 관련회사 페이지 전용 필터 바 */
@@ -140,7 +140,7 @@ export default function FilterBar({
         onToggle={(v) => onProductCategoryToggle(v as ProductCategoryFilter)}
         onReset={onProductCategoryReset}
       />
-      <div className="ml-auto text-xs text-muted-foreground shrink-0">
+      <div className="ml-auto text-sm text-muted-foreground shrink-0">
         (매출 : 십억원, 시가총액 : 조원{rateLabel ? `, ${rateLabel}` : ''})
       </div>
     </div>

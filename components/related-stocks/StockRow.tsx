@@ -44,7 +44,7 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount, frozenCount
   return (
     <>
       <tr
-        className={`border-b border-border text-xs align-middle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`border-b border-border text-sm align-middle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           highlighted ? 'bg-yellow-100/70 dark:bg-yellow-900/30' : 'hover:bg-muted/30'
         }`}
         tabIndex={0}

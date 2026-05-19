@@ -72,7 +72,7 @@ function InvestorBars({
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 mb-1">
         <span className={`inline-block w-2.5 h-2.5 rounded ${investor.accent}`} />
-        <span className="text-sm font-semibold">{investor.label}</span>
+        <span className="text-base font-semibold">{investor.label}</span>
       </div>
       <div className="grid grid-cols-[3.5rem_1fr_4.5rem] gap-2 items-center text-sm">
         {rows.map((r) => {
@@ -144,7 +144,7 @@ export default function HansaeSupplyPanel({ supply, intradaySupply, companyName 
   return (
     <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0 overflow-auto">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-semibold">수급 (투자자별 순매수)</h2>
+        <h2 className="text-lg font-semibold">수급 (투자자별 순매수)</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
             <button

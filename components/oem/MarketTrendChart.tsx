@@ -57,7 +57,7 @@ export default function MarketTrendChart({ groupMonth }: Props) {
       <div
         role="tablist"
         aria-label="기간 단위 선택"
-        className="flex items-center gap-2 mb-3 text-xs"
+        className="flex items-center gap-2 mb-3 text-sm"
       >
         <button
           role="tab"
@@ -96,15 +96,15 @@ export default function MarketTrendChart({ groupMonth }: Props) {
         {mode === 'year' ? (
           <BarChart data={yearData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="year" className="text-xs" />
-            <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
+            <XAxis dataKey="year" className="text-sm" />
+            <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
             <Tooltip
               formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
               cursor={{ fill: 'var(--muted)' }}
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="sales" fill="#2563eb" radius={[3, 3, 0, 0]} />
@@ -118,14 +118,14 @@ export default function MarketTrendChart({ groupMonth }: Props) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="label" className="text-xs" tick={{ fontSize: 10 }} interval={5} />
-            <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
+            <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
+            <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
             <Tooltip
               formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
             />
             <Area

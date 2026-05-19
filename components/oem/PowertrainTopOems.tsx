@@ -50,7 +50,7 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
             type="button"
             aria-selected={active === pt}
             onClick={() => setActive(pt)}
-            className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+            className={`px-3 py-1 text-sm rounded-md border transition-colors ${
               active === pt
                 ? 'border-foreground bg-foreground text-background'
                 : 'border-border text-muted-foreground hover:bg-muted'
@@ -69,7 +69,7 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
             type="button"
             aria-selected={active === pt}
             onClick={() => setActive(pt as PowerTrain)}
-            className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+            className={`px-3 py-1 text-sm rounded-md border transition-colors ${
               active === pt
                 ? 'border-foreground bg-foreground text-background'
                 : 'border-border text-muted-foreground hover:bg-muted'
@@ -85,12 +85,12 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
       ) : (
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={data} layout="vertical" margin={{ left: 60, right: 40 }}>
-            <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
+            <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-sm" />
             <YAxis
               type="category"
               dataKey="name"
               width={180}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 14 }}
               interval={0}
             />
             <Tooltip
@@ -103,7 +103,7 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>

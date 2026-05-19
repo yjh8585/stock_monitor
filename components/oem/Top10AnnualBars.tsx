@@ -73,7 +73,7 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
 
   return (
     <div>
-      <div className="text-xs text-muted-foreground mb-2">
+      <div className="text-sm text-muted-foreground mb-2">
         2025년 TOP10 기준 ·{' '}
         {latestMonth2026
           ? `2026년은 1~${latestMonth2026}월 누적 (연간 환산 아님)`
@@ -83,8 +83,8 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
       <ResponsiveContainer width="100%" height={h}>
         <BarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="year" className="text-xs" />
-          <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-xs" width={60} />
+          <XAxis dataKey="year" className="text-sm" />
+          <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
           <Tooltip
             formatter={(v, name) => [fmtFull(Number(v)) + ' 대', String(name)]}
             itemSorter={(item) => -(item.value as number)}
@@ -92,7 +92,7 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '11px',
+              fontSize: '16px',
             }}
           />
           <Legend

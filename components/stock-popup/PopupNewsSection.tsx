@@ -93,11 +93,11 @@ export default function PopupNewsSection({ companyId, companyName, ticker, count
   return (
     <div className="flex flex-col overflow-hidden h-full">
       <header className="px-3 py-2 border-b border-border shrink-0">
-        <h2 className="text-sm font-semibold">최신 뉴스</h2>
+        <h2 className="text-lg font-semibold">최신 뉴스</h2>
       </header>
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground">로딩 중…</p>
+          <p className="px-3 py-4 text-sm text-muted-foreground">로딩 중…</p>
         ) : news.length > 0 ? (
           <ul className="divide-y divide-border">
             {news.map((item) => {
@@ -108,7 +108,7 @@ export default function PopupNewsSection({ companyId, companyName, ticker, count
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-medium text-foreground hover:underline block leading-snug"
+                    className="text-sm font-medium text-foreground hover:underline block leading-snug"
                   >
                     {item.title}
                   </a>
@@ -130,7 +130,7 @@ export default function PopupNewsSection({ companyId, companyName, ticker, count
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-medium text-foreground hover:underline block leading-snug"
+                    className="text-sm font-medium text-foreground hover:underline block leading-snug"
                   >
                     {item.title}
                   </a>
@@ -143,7 +143,7 @@ export default function PopupNewsSection({ companyId, companyName, ticker, count
             })}
           </ul>
         ) : (
-          <p className="px-3 py-4 text-xs text-muted-foreground">수집된 뉴스가 없습니다.</p>
+          <p className="px-3 py-4 text-sm text-muted-foreground">수집된 뉴스가 없습니다.</p>
         )}
       </div>
       <div className="px-3 py-2 border-t border-border shrink-0">
@@ -151,7 +151,7 @@ export default function PopupNewsSection({ companyId, companyName, ticker, count
           href={link.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+          className="text-sm text-primary hover:underline inline-flex items-center gap-1"
         >
           {link.label} <ExternalLink size={10} />
         </a>

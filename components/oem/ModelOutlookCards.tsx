@@ -37,7 +37,7 @@ export default function ModelOutlookCards({ outlooks }: Props) {
 
   return (
     <div>
-      <div className="text-xs text-muted-foreground mb-3">
+      <div className="text-sm text-muted-foreground mb-3">
         Claude Haiku 4.5 기반 종합 평가 · 매주 월요일 자동 갱신 · 색상은 소비자 평가 + 판매전망 종합
         판단
       </div>
@@ -58,25 +58,25 @@ function OutlookCard({ outlook }: { outlook: OemModelOutlook }) {
         <div className="font-semibold text-base">{outlook.model_name}</div>
         <div className="flex items-center gap-1.5">
           <span className={`inline-block w-2.5 h-2.5 rounded-full ${style.dot}`} />
-          <span className={`text-xs font-medium ${style.text}`}>{outlook.label}</span>
+          <span className={`text-sm font-medium ${style.text}`}>{outlook.label}</span>
         </div>
       </div>
-      <div className="text-xs text-muted-foreground mb-3">
+      <div className="text-sm text-muted-foreground mb-3">
         {outlook.oem_group} · {outlook.region} · {outlook.note_date}
       </div>
       <div className="space-y-3 text-sm">
         <div>
-          <div className="text-xs text-muted-foreground font-medium uppercase mb-1">
+          <div className="text-sm text-muted-foreground font-medium uppercase mb-1">
             소비자 평가
           </div>
           <p className="leading-relaxed">{outlook.consumer_view}</p>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground font-medium uppercase mb-1">판매 전망</div>
+          <div className="text-sm text-muted-foreground font-medium uppercase mb-1">판매 전망</div>
           <p className="leading-relaxed">{outlook.outlook}</p>
         </div>
         <div className="pt-2 border-t border-border/50">
-          <div className="text-xs text-muted-foreground italic leading-relaxed">
+          <div className="text-sm text-muted-foreground italic leading-relaxed">
             {outlook.rationale}
           </div>
         </div>

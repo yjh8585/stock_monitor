@@ -54,7 +54,8 @@ const DomesticRow = memo(function DomesticRow({
 
   const handleRowClick = (e: React.SyntheticEvent<HTMLTableRowElement>) => {
     const t = e.target as HTMLElement;
-    if (t.closest('button, a, input, [role="button"], [role="link"]')) return;
+    // tr 자신이 role="button"이므로 selector에서 제외 — 안 그러면 항상 매칭되어 토글 무시됨.
+    if (t.closest('button, a, input, [role="link"]')) return;
     setHighlighted((v) => !v);
   };
 
@@ -69,7 +70,7 @@ const DomesticRow = memo(function DomesticRow({
   return (
     <>
       <tr
-        className={`border-b border-border text-xs align-middle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`border-b border-border text-sm align-middle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           highlighted ? 'bg-yellow-100/70 dark:bg-yellow-900/30' : 'hover:bg-muted/30'
         }`}
         tabIndex={0}

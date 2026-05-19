@@ -172,7 +172,7 @@ export default function StickyTable<R, K extends string>({
       className="flex-1 overflow-auto"
       style={{ WebkitOverflowScrolling: 'touch' as const }}
     >
-      <table className="text-xs border-collapse" style={tableStyle}>
+      <table className="text-sm border-collapse" style={tableStyle}>
         <colgroup>
           {columns.map((_, i) => (
             <col key={i} style={{ width: colWidths[i] }} />

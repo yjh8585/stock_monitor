@@ -66,18 +66,18 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div>
-        <div className="text-xs font-medium text-muted-foreground mb-2">
+        <div className="text-sm font-medium text-muted-foreground mb-2">
           EV+PHEV 판매량 TOP10 (2025)
         </div>
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={sales} layout="vertical" margin={{ left: 40, right: 30 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
+            <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-sm" />
             <YAxis
               type="category"
               dataKey="name"
               width={150}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 14 }}
               interval={0}
             />
             <Tooltip
@@ -86,7 +86,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '11px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
@@ -99,7 +99,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
       </div>
 
       <div>
-        <div className="text-xs font-medium text-muted-foreground mb-2">
+        <div className="text-sm font-medium text-muted-foreground mb-2">
           EV 비율 TOP10 — 전체 50만 대 이상 OEM (2025)
         </div>
         <ResponsiveContainer width="100%" height={h}>
@@ -108,14 +108,14 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
             <XAxis
               type="number"
               tickFormatter={(v) => `${v.toFixed(0)}%`}
-              className="text-xs"
+              className="text-sm"
               domain={[0, 100]}
             />
             <YAxis
               type="category"
               dataKey="name"
               width={150}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 14 }}
               interval={0}
             />
             <Tooltip
@@ -124,7 +124,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '11px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="ratio" radius={[0, 4, 4, 0]}>

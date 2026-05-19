@@ -46,7 +46,7 @@ export default function HansaeNewsPanel({ companyName }: Props) {
   return (
     <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0">
       <div className="flex items-baseline justify-between mb-2 shrink-0">
-        <h2 className="text-sm font-semibold">관련 뉴스</h2>
+        <h2 className="text-lg font-semibold">관련 뉴스</h2>
         <span className="text-sm text-muted-foreground">{companyName} · Google News</span>
       </div>
       {loading ? (

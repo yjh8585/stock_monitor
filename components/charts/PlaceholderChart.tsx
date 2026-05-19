@@ -17,12 +17,12 @@ export default function PlaceholderChart({
       className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10"
       style={{ minHeight: height + 80 }}
     >
-      <div className="text-sm font-medium truncate">{title}</div>
+      <div className="text-base font-medium truncate">{title}</div>
       <div
         className="flex-1 flex flex-col items-center justify-center text-center gap-1 rounded-md border border-dashed border-border bg-muted/20"
         style={{ minHeight: height }}
       >
-        <div className="text-xs text-muted-foreground">데이터 수집 준비 중</div>
+        <div className="text-sm text-muted-foreground">데이터 수집 준비 중</div>
         {note && <div className="text-[10px] text-muted-foreground px-3">{note}</div>}
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">

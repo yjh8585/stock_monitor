@@ -91,7 +91,7 @@ export default function CrossMarketCard({
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-semibold">국내×해외</div>
+        <div className="text-base font-semibold">국내×해외</div>
         <StockPairSelector
           companies={primaryCompanies}
           secondaryCompanies={secondaryCompanies}

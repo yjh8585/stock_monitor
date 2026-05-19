@@ -124,9 +124,9 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
           <DialogTitle className="text-sm">{companyName} 최신 뉴스</DialogTitle>
         </DialogHeader>
         {loading ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">로딩 중…</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">로딩 중…</p>
         ) : errorMsg ? (
-          <p className="text-xs text-red-500 py-4 text-center">{errorMsg}</p>
+          <p className="text-sm text-red-500 py-4 text-center">{errorMsg}</p>
         ) : (
           <div className="space-y-3">
             {news.length > 0 && (
@@ -139,7 +139,7 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
                         href={n.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-foreground hover:underline block"
+                        className="text-sm text-foreground hover:underline block"
                       >
                         {n.title}
                       </a>
@@ -162,7 +162,7 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
                         href={n.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-foreground hover:underline block"
+                        className="text-sm text-foreground hover:underline block"
                       >
                         {n.title}
                       </a>
@@ -176,7 +176,7 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
               </ul>
             )}
             {news.length === 0 && external.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-2">
+              <p className="text-sm text-muted-foreground text-center py-2">
                 수집된 뉴스가 없습니다.
               </p>
             )}
@@ -185,7 +185,7 @@ export default function NewsModal({ companyId, companyName, ticker, country }: N
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
               >
                 {link.label} <ExternalLink size={10} />
               </a>

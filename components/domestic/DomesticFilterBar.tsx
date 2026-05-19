@@ -76,7 +76,7 @@ export default function DomesticFilterBar({
         onReset={onGroupReset}
       />
       <span className="w-px h-4 bg-border mx-1 shrink-0" />
-      <span className="text-xs font-medium text-muted-foreground shrink-0">상장</span>
+      <span className="text-sm font-medium text-muted-foreground shrink-0">상장</span>
       {LISTING_OPTIONS.map((opt) => {
         const active = listingFilter.includes(opt);
         return (
@@ -85,7 +85,7 @@ export default function DomesticFilterBar({
             type="button"
             aria-pressed={active}
             onClick={() => onListingToggle(opt)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-full border transition-colors ${
               active
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'border-border text-muted-foreground hover:border-primary/50'
@@ -98,12 +98,12 @@ export default function DomesticFilterBar({
       {showAllToggle && onShowAllToggle && (
         <>
           <span className="w-px h-4 bg-border mx-1 shrink-0" />
-          <span className="text-xs font-medium text-muted-foreground shrink-0">TOP100</span>
+          <span className="text-sm font-medium text-muted-foreground shrink-0">TOP100</span>
           <button
             type="button"
             aria-pressed={showAllRows}
             onClick={onShowAllToggle}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            className={`text-sm px-2.5 py-1 rounded-full border transition-colors ${
               showAllRows
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'border-border text-muted-foreground hover:border-primary/50'
@@ -115,7 +115,7 @@ export default function DomesticFilterBar({
         </>
       )}
       <span className="w-px h-4 bg-border mx-1 shrink-0" />
-      <span className="text-xs font-medium text-muted-foreground shrink-0">제품군</span>
+      <span className="text-sm font-medium text-muted-foreground shrink-0">제품군</span>
       <GroupMultiSelect
         label="카테고리"
         options={PRODUCT_CATEGORY_OPTIONS}
@@ -124,13 +124,13 @@ export default function DomesticFilterBar({
         onReset={onProductCategoryReset}
       />
       <span className="w-px h-4 bg-border mx-1 shrink-0" />
-      <span className="text-xs font-medium text-muted-foreground shrink-0">제품</span>
+      <span className="text-sm font-medium text-muted-foreground shrink-0">제품</span>
       <div className="relative">
         <Input
           value={productQuery}
           onChange={(e) => onProductChange(e.target.value)}
           placeholder="제품 검색…"
-          className="h-7 text-xs pr-6 w-36"
+          className="h-7 text-sm pr-6 w-36"
         />
         {productQuery && (
           <button
@@ -141,7 +141,7 @@ export default function DomesticFilterBar({
           </button>
         )}
       </div>
-      <div className="ml-auto text-xs text-muted-foreground shrink-0">
+      <div className="ml-auto text-sm text-muted-foreground shrink-0">
         (매출 : 십억원, 시가총액 : 조원{rateLabel ? `, ${rateLabel}` : ''})
       </div>
     </div>

@@ -54,18 +54,18 @@ export default function Top30YtdChart({ groupMonth }: Props) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_500px] gap-4">
       <div>
-        <div className="text-xs text-muted-foreground mb-2">
+        <div className="text-sm text-muted-foreground mb-2">
           2026년 1월~{latestMonth}월 누적, 전년 동기(2025.01~{latestMonth}) 대비 YoY
         </div>
         <ResponsiveContainer width="100%" height={Math.max(600, TOP_N * 22)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 60, right: 40 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-xs" />
+            <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-sm" />
             <YAxis
               type="category"
               dataKey="name"
               width={180}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 14 }}
               interval={0}
             />
             <Tooltip
@@ -74,7 +74,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 border: '1px solid var(--border)',
-                fontSize: '12px',
+                fontSize: '16px',
               }}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
@@ -87,7 +87,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
       </div>
 
       <div className="overflow-auto max-h-[400px] xl:max-h-[700px]">
-        <table className="w-full text-xs">
+        <table className="w-full text-sm">
           <thead className="sticky top-0 bg-card">
             <tr className="border-b border-border">
               <th className="text-left p-2 w-10">#</th>

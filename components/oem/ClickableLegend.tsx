@@ -11,7 +11,7 @@ interface Props {
 /** 차트 위 가로 범례 — 큰 순(왼쪽) 강제, 클릭 시 hide 토글. Recharts 자동 정렬 우회용. */
 export default function ClickableLegend({ items, hidden, onToggle }: Props) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs px-2">
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm px-2">
       {items.map((label, i) => {
         const isHidden = hidden.has(label);
         const color = OEM_COLORS[i % OEM_COLORS.length];

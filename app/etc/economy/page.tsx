@@ -111,7 +111,7 @@ export default async function EconomyPage() {
 
         <section className="rounded-xl bg-card p-5 ring-1 ring-foreground/10">
           <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-base font-semibold">미국 경제 전망</h2>
+            <h2 className="text-lg font-semibold">미국 경제 전망</h2>
             {outlook?.sentiment && (
               <span
                 className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${SENTIMENT_STYLE[outlook.sentiment] ?? 'bg-muted text-muted-foreground'}`}

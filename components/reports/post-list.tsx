@@ -57,6 +57,16 @@ function buildSortHref(
   return `/reports?${params.toString()}`;
 }
 
+/**
+ * 제목 끝의 출처 괄호를 표시 시점에 제거.
+ * 예: "글로벌 자동차 부품사 TOP 100 시장 현황 보고서 (2026-05-19)" → "글로벌 자동차 부품사 TOP 100 시장 현황 보고서"
+ *      "차량 동향 (차플레이 Chaplay)" → "차량 동향"
+ * DB 원본은 그대로 유지하고 UI 표시만 정리한다.
+ */
+function stripTrailingParens(title: string): string {
+  return title.replace(/\s*\([^)]*\)\s*$/u, '').trim();
+}
+
 function SortIcon({ active, order }: { active: boolean; order: SortOrder }) {
   if (!active) {
     return <ChevronsUpDown className="ml-1 inline h-3 w-3 opacity-40" aria-hidden />;
@@ -99,7 +109,7 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               </Link>
             </TableHead>
             <TableHead className="w-16">구분</TableHead>
-            <TableHead className="w-16">카테고리</TableHead>
+            <TableHead className="w-32">카테고리</TableHead>
             <TableHead>제목</TableHead>
             <TableHead className="hidden w-32 md:table-cell">출처</TableHead>
             <TableHead
@@ -141,27 +151,30 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               <TableCell>
                 <PostSourceBadge sourceType={row.source_type} />
               </TableCell>
-              <TableCell className="text-muted-foreground text-xs">{row.category ?? '—'}</TableCell>
+              <TableCell className="text-muted-foreground truncate text-sm" title={row.category ?? undefined}>
+                {row.category ?? '—'}
+              </TableCell>
               <TableCell className="whitespace-normal">
                 <Link
                   href={`/reports/${row.id}`}
                   className="hover:text-primary line-clamp-2 font-medium break-words"
+                  title={row.title}
                 >
-                  {row.title}
+                  {stripTrailingParens(row.title)}
                 </Link>
-                <div className="text-muted-foreground mt-0.5 line-clamp-1 text-xs md:hidden">
+                <div className="text-muted-foreground mt-0.5 line-clamp-1 text-sm md:hidden">
                   {row.source_name ?? '—'}
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground hidden whitespace-normal md:table-cell">
                 <span className="line-clamp-1">{row.source_name ?? '—'}</span>
               </TableCell>
-              <TableCell className="text-muted-foreground hidden text-xs md:table-cell">
+              <TableCell className="text-muted-foreground hidden text-sm md:table-cell">
                 {row.source_published_at
                   ? dayjs(row.source_published_at).format('YYYY.MM.DD')
                   : '—'}
               </TableCell>
-              <TableCell className="text-muted-foreground text-xs">
+              <TableCell className="text-muted-foreground text-sm">
                 {dayjs(row.created_at).format('YYYY.MM.DD')}
               </TableCell>
             </TableRow>

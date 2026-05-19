@@ -20,7 +20,7 @@ export default function OemCountryHeatmap({ data }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="text-xs border-separate border-spacing-0">
+      <table className="text-sm border-separate border-spacing-0">
         <caption className="sr-only">TOP10 OEM별 TOP10 국가 판매량 매트릭스 (2025년)</caption>
         <thead>
           <tr>
@@ -56,7 +56,7 @@ export default function OemCountryHeatmap({ data }: Props) {
           ))}
         </tbody>
       </table>
-      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
         <span>약함</span>
         <div className="flex">
           {[0.05, 0.2, 0.4, 0.6, 0.8, 1].map((v) => (

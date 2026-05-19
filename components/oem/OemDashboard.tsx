@@ -202,8 +202,8 @@ function Section({
   return (
     <section className="rounded-lg border border-border bg-card overflow-hidden">
       <header className="px-4 py-3 border-b border-border bg-muted/30">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
       </header>
       <div className="p-4">{children}</div>
     </section>

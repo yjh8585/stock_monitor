@@ -34,6 +34,8 @@ export interface MetricDefinition {
   unit: MetricUnit;
   /** 단일 row에서 지표 값 계산. 분모 0/누락 시 null. */
   compute: (row: FinancialRow) => number | null;
+  /** 표시 소수 자리수 override. 미지정 시 unit 기본값(percent=1, times=2). */
+  digits?: number;
 }
 
 const ratio = (num: number | null, denom: number | null): number | null => {
@@ -53,6 +55,7 @@ export const COMPARE_METRICS: readonly MetricDefinition[] = [
     id: 'inventory_turnover',
     label: '재고회전율',
     unit: 'times',
+    digits: 1,
     compute: (r) => ratio(r.revenue, r.inventory),
   },
   {
@@ -71,6 +74,7 @@ export const COMPARE_METRICS: readonly MetricDefinition[] = [
     id: 'debt_ratio',
     label: '부채비율',
     unit: 'percent',
+    digits: 0,
     compute: (r) => ratio(r.total_liabilities, r.total_equity),
   },
   {
@@ -101,27 +105,48 @@ export function formatKoreanCompact(millionValue: number): string {
   return `${millionValue.toFixed(0)}M`;
 }
 
-/** 지표값 표시용 (툴팁/범례) */
-export function formatMetricValue(v: number | null | undefined, unit: MetricUnit): string {
-  if (v == null || Number.isNaN(v)) return '—';
+function defaultDigits(unit: MetricUnit): number {
   switch (unit) {
     case 'percent':
-      return `${(v * 100).toFixed(1)}%`;
+      return 1;
     case 'times':
-      return `${v.toFixed(2)}회`;
+      return 2;
+    case 'million':
+      return 0;
+  }
+}
+
+/** 지표값 표시용 (툴팁/범례). digits 미지정 시 unit 기본값. */
+export function formatMetricValue(
+  v: number | null | undefined,
+  unit: MetricUnit,
+  digits?: number
+): string {
+  if (v == null || Number.isNaN(v)) return '—';
+  const d = digits ?? defaultDigits(unit);
+  switch (unit) {
+    case 'percent':
+      return `${(v * 100).toFixed(d)}%`;
+    case 'times':
+      return `${v.toFixed(d)}회`;
     case 'million':
       return formatKoreanCompact(v);
   }
 }
 
-/** Y축 tick 포맷 (간결) */
-export function formatMetricTick(v: number | null | undefined, unit: MetricUnit): string {
+/** Y축 tick 포맷 (간결) — digits 옵션 동일 처리. */
+export function formatMetricTick(
+  v: number | null | undefined,
+  unit: MetricUnit,
+  digits?: number
+): string {
   if (v == null || Number.isNaN(v)) return '';
+  const d = digits ?? defaultDigits(unit);
   switch (unit) {
     case 'percent':
-      return `${Math.round(v * 100)}%`;
+      return `${(v * 100).toFixed(d)}%`;
     case 'times':
-      return v.toFixed(1);
+      return v.toFixed(d);
     case 'million':
       return formatKoreanCompact(v);
   }

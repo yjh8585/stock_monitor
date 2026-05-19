@@ -26,7 +26,15 @@ export default function IntradayMiniChart({ data, changePct, height = 80 }: Prop
         horzLines: { color: 'rgba(127,127,127,0.08)' },
       },
       rightPriceScale: { visible: true, borderVisible: false },
-      timeScale: { visible: true, borderVisible: false, timeVisible: false },
+      // 같은 일자 안의 5분봉이 다수일 때 일자 라벨이 반복 표시되는 것을 피하기 위해
+      // timeVisible 을 켠다 — lightweight-charts 가 자동으로 같은 날에서는 시각(HH:mm)을
+      // 표시하고 날짜가 바뀌는 지점에서만 일자 라벨을 노출한다.
+      timeScale: {
+        visible: true,
+        borderVisible: false,
+        timeVisible: true,
+        secondsVisible: false,
+      },
       handleScroll: true,
       handleScale: true,
     });

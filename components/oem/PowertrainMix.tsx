@@ -62,22 +62,22 @@ export default function PowertrainMix({ groupPtMonth }: Props) {
           stackOffset="expand"
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="label" className="text-xs" tick={{ fontSize: 10 }} interval={5} />
-          <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} className="text-xs" width={50} />
+          <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
+          <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} className="text-sm" width={50} />
           <Tooltip
             formatter={(v, name) => [`${Number(v).toFixed(1)}%`, String(name)]}
             itemSorter={(item) => -(item.value as number)}
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '11px',
+              fontSize: '16px',
             }}
           />
           <Legend
             layout="horizontal"
             verticalAlign="top"
             align="center"
-            wrapperStyle={{ fontSize: '11px', paddingBottom: 8 }}
+            wrapperStyle={{ fontSize: '16px', paddingBottom: 8 }}
           />
           {PT_VISIBLE.map((pt) => (
             <Area

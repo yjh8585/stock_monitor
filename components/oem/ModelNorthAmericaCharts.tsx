@@ -62,18 +62,18 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
             strokeDasharray="3 3"
             className="stroke-border"
           />
-          <XAxis dataKey="ymLabel" tick={{ fontSize: 9 }} interval={11} />
+          <XAxis dataKey="ymLabel" tick={{ fontSize: 14 }} interval={11} />
           <YAxis
             yAxisId="left"
             tickFormatter={(v) => fmtUnits(v)}
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: 14 }}
             width={45}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
             tickFormatter={(v) => `${v.toFixed(0)}%`}
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: 14 }}
             width={35}
           />
           <Tooltip
@@ -87,7 +87,7 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '11px',
+              fontSize: '16px',
             }}
           />
           <Bar
@@ -108,7 +108,7 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
             dot={false}
             connectNulls
           />
-          <Legend verticalAlign="top" wrapperStyle={{ fontSize: '10px', paddingBottom: 4 }} />
+          <Legend verticalAlign="top" wrapperStyle={{ fontSize: '16px', paddingBottom: 4 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
