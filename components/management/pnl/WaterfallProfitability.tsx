@@ -16,7 +16,6 @@ const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), {
   loading: ChartFallback,
 });
 const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false });
-const Cell = dynamic(() => import('recharts').then((m) => m.Cell), { ssr: false });
 const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
 const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
 const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
@@ -42,6 +41,10 @@ interface WaterfallBar {
   display: number;
   /** 카테고리: 'absolute' = 누적값, 'subtract' = 비용 차감 */
   kind: 'absolute' | 'subtract';
+  /** 같은 행의 매출액 — 툴팁에서 비율 계산용 */
+  revenueRef: number;
+  /** recharts Bar가 직접 읽는 fill (Cell 없이 데이터 단위로 색 지정) */
+  fill: string;
 }
 
 function fmtMillion(n: number): string {
@@ -69,13 +72,27 @@ function buildWaterfall(row: {
 
   // 누적 잔액 (각 단계 시작점). 영업이익이 음수면 base가 음수가 되므로 BarChart도 음수 영역에 그려진다.
   let running = revenue;
-  const bars: WaterfallBar[] = [];
+  const partial: Omit<WaterfallBar, 'fill'>[] = [];
 
-  bars.push({ name: '매출', base: 0, value: revenue, display: revenue, kind: 'absolute' });
+  partial.push({
+    name: '매출',
+    base: 0,
+    value: revenue,
+    display: revenue,
+    kind: 'absolute',
+    revenueRef: revenue,
+  });
 
   const subtract = (name: string, amount: number) => {
     running -= amount;
-    bars.push({ name, base: running, value: amount, display: -amount, kind: 'subtract' });
+    partial.push({
+      name,
+      base: running,
+      value: amount,
+      display: -amount,
+      kind: 'subtract',
+      revenueRef: revenue,
+    });
   };
 
   subtract('재료비', materialCost);
@@ -84,15 +101,23 @@ function buildWaterfall(row: {
   subtract('판관비', sga);
   subtract('연구비', rnd);
 
-  bars.push({ name: '영업이익', base: 0, value: opIncome, display: opIncome, kind: 'absolute' });
-  return bars;
+  partial.push({
+    name: '영업이익',
+    base: 0,
+    value: opIncome,
+    display: opIncome,
+    kind: 'absolute',
+    revenueRef: revenue,
+  });
+
+  return partial.map((b) => ({ ...b, fill: barColor(b) }));
 }
 
-/** 막대 색상: 매출=파랑, 비용 차감=빨강, 영업이익=흑자 초록 / 적자 빨강 */
-function barColor(b: WaterfallBar): string {
-  if (b.kind === 'subtract') return '#dc2626';
-  if (b.name === '영업이익') return b.display < 0 ? '#dc2626' : '#16a34a';
-  return '#2563eb';
+/** 막대 색상: 매출=파랑, 나머지(비용·영업이익 흑자)=회색, 영업이익 적자만 빨강. */
+function barColor(b: Omit<WaterfallBar, 'fill'>): string {
+  if (b.name === '매출') return '#2563eb';
+  if (b.name === '영업이익' && b.display < 0) return '#dc2626';
+  return '#9ca3af';
 }
 
 /**
@@ -171,17 +196,20 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
             />
             {/* invisible base */}
             <Bar dataKey="base" stackId="wf" fill="transparent" />
-            {/* visible delta — 매출=파랑 / 비용=빨강 / 영업이익 흑자=초록·적자=빨강 */}
-            <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]}>
-              {bars.map((b, i) => (
-                <Cell key={i} fill={barColor(b)} />
-              ))}
-            </Bar>
+            {/* visible delta — 데이터의 fill 필드를 막대별로 적용 */}
+            <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]} />
+
           </BarChart>
         </ResponsiveContainer>
       )}
     </div>
   );
+}
+
+function fmtRatio(part: number, total: number): string | null {
+  if (!Number.isFinite(part) || !Number.isFinite(total) || total === 0) return null;
+  const pct = (part / total) * 100;
+  return `${pct.toFixed(1)}%`;
 }
 
 function WaterfallTooltip({
@@ -193,7 +221,15 @@ function WaterfallTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const b = payload[0].payload;
-  const label = b.kind === 'subtract' ? '차감' : '소계';
+  const isRevenue = b.name === '매출';
+  // subtract 막대(비용)는 호버 시 절대값으로 표시. 영업이익 적자는 음수 그대로.
+  const shownAmount = b.kind === 'subtract' ? Math.abs(b.display) : b.display;
+  // 비율: 비용은 절대값(양수), 영업이익은 부호 유지(적자면 음수).
+  const ratioInput = b.kind === 'subtract' ? Math.abs(b.display) : b.display;
+  const ratio = isRevenue ? null : fmtRatio(ratioInput, b.revenueRef);
+  const isNegative = shownAmount < 0;
+  const valueClass = isNegative ? 'text-red-500' : '';
+  const ratioClass = isNegative ? 'text-red-500' : 'text-muted-foreground';
   return (
     <div
       className="rounded-md p-2 text-xs"
@@ -203,10 +239,8 @@ function WaterfallTooltip({
       }}
     >
       <div className="font-semibold mb-1">{b.name}</div>
-      <div className="text-muted-foreground">{label}</div>
-      <div className={b.kind === 'subtract' ? 'text-red-500' : b.display < 0 ? 'text-red-500' : ''}>
-        {fmtMillion(b.display)} 백만원
-      </div>
+      <div className={valueClass}>{fmtMillion(shownAmount)} 백만원</div>
+      {ratio ? <div className={`mt-0.5 ${ratioClass}`}>매출액 대비 {ratio}</div> : null}
     </div>
   );
 }
