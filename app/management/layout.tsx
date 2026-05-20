@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 /** 경영관리 탭 정의 */
 const MANAGEMENT_TABS = [
   { label: '손익', href: '/management/pnl' },
+  { label: '계획', href: '/management/plan' },
   { label: '재고', href: '/management/inventory' },
   { label: '생산', href: '/management/production' },
 ] as const;
