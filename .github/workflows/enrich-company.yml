@@ -38,6 +38,9 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
+      - name: Playwright Chromium 설치
+        run: python -m playwright install --with-deps chromium
+
       - name: '회사 정보 보강 (재무 + 메타: 설명·제품·고객사)'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
