@@ -61,6 +61,63 @@ export async function getExchangeRateSeries(base: 'USD' | 'EUR' | 'CNY'): Promis
   return rows.map((r) => ({ time: r.rate_date, value: Number(r.rate) }));
 }
 
+/**
+ * 라이브 환율 조회 (USD/EUR/CNY → KRW).
+ *
+ * `exchange_rates_live`는 평일 매시 정각(UTC) cron이 yfinance fast_info로 갱신한다.
+ * 일봉(`exchange_rates`)은 종가 기반이라 당일 데이터가 늦게 들어오므로,
+ * 차트 끝점만 라이브 값으로 갈아치우기 위한 보조 데이터.
+ *
+ * cache는 minutes 단위로 짧게 — cron이 매시간이라 5~10분 캐시면 충분.
+ */
+export async function getLiveExchangeRate(
+  base: 'USD' | 'EUR' | 'CNY'
+): Promise<{ rate: number; updated_at: string } | null> {
+  'use cache';
+  cacheLife('minutes');
+  cacheTag('exchange_rates_live');
+  const sb = createSupabaseAnonClient();
+  const { data, error } = await sb
+    .from('exchange_rates_live')
+    .select('rate,updated_at')
+    .eq('base', base)
+    .eq('quote', 'KRW')
+    .maybeSingle();
+  if (error) {
+    logger.error({ err: error, base }, 'exchange_rates_live 조회 실패');
+    return null;
+  }
+  if (!data) return null;
+  return { rate: Number(data.rate), updated_at: data.updated_at as string };
+}
+
+/**
+ * 일봉 시리즈 끝에 라이브 가격 점을 합쳐 반환.
+ *
+ * - live KST 일자 > 일봉 마지막 일자 → 새 점 추가 ("오늘" 끝점)
+ * - live KST 일자 == 일봉 마지막 일자 → 마지막 점 값을 live로 덮어쓰기
+ * - live가 더 오래되거나 없으면 일봉 그대로
+ *
+ * 과거 일자는 손대지 않음 — 종가가 그대로 유지된다.
+ */
+export function appendLivePoint(
+  series: SeriesPoint[],
+  live: { rate: number; updated_at: string } | null
+): SeriesPoint[] {
+  if (!live) return series;
+  // updated_at(UTC) → KST(=+9) 기준 'YYYY-MM-DD' 추출
+  const utcMs = new Date(live.updated_at).getTime();
+  if (!Number.isFinite(utcMs)) return series;
+  const kstDate = new Date(utcMs + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const last = series.at(-1);
+  if (!last) return [{ time: kstDate, value: live.rate }];
+  if (kstDate < last.time) return series;
+  if (kstDate === last.time) {
+    return [...series.slice(0, -1), { time: kstDate, value: live.rate }];
+  }
+  return [...series, { time: kstDate, value: live.rate }];
+}
+
 /** market_series_daily에서 특정 series_code의 일봉 시계열 조회 */
 export async function getMarketSeries(seriesCode: string): Promise<SeriesPoint[]> {
   'use cache';

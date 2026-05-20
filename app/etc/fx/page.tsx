@@ -1,6 +1,8 @@
 import SeriesChart from '@/components/charts/SeriesChart';
 import {
+  appendLivePoint,
   getExchangeRateSeries,
+  getLiveExchangeRate,
   getMarketSeries,
   getSeriesMetaByCategory,
   type SeriesMeta,
@@ -15,14 +17,22 @@ const SERIES_COLOR: Record<string, string> = {
 };
 
 export default async function FxPage() {
-  const [usd, eur, cny, dxy, eurusd, metas] = await Promise.all([
+  const [usd, eur, cny, dxy, eurusd, metas, usdLive, eurLive, cnyLive] = await Promise.all([
     getExchangeRateSeries('USD'),
     getExchangeRateSeries('EUR'),
     getExchangeRateSeries('CNY'),
     getMarketSeries('DXY'),
     getMarketSeries('EURUSD'),
     getSeriesMetaByCategory('fx_extra'),
+    getLiveExchangeRate('USD'),
+    getLiveExchangeRate('EUR'),
+    getLiveExchangeRate('CNY'),
   ]);
+
+  // 차트 끝점만 라이브 가격으로 갱신 (과거 종가는 그대로)
+  const usdData = appendLivePoint(usd, usdLive);
+  const eurData = appendLivePoint(eur, eurLive);
+  const cnyData = appendLivePoint(cny, cnyLive);
 
   const metaOf = (code: string): SeriesMeta | undefined =>
     metas.find((m) => m.series_code === code);
@@ -34,7 +44,8 @@ export default async function FxPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">환율</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          USD·EUR·CNY → KRW · 달러 인덱스(DXY) · EUR/USD (5년 일봉) · 평일 매시간 갱신
+          USD·EUR·CNY → KRW · 달러 인덱스(DXY) · EUR/USD (5년 일봉) · USD·EUR·CNY 차트 끝점은 평일
+          매시간 라이브 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">
@@ -43,21 +54,21 @@ export default async function FxPage() {
             title="USD/KRW"
             unit="KRW"
             source="Yahoo Finance"
-            data={usd}
+            data={usdData}
             color={SERIES_COLOR.USDKRW}
           />
           <SeriesChart
             title="EUR/KRW"
             unit="KRW"
             source="Yahoo Finance"
-            data={eur}
+            data={eurData}
             color={SERIES_COLOR.EURKRW}
           />
           <SeriesChart
             title="CNY/KRW"
             unit="KRW"
             source="Yahoo Finance"
-            data={cny}
+            data={cnyData}
             color={SERIES_COLOR.CNYKRW}
           />
           {dxyMeta && (
