@@ -31,7 +31,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`cacheComponents: true`** (next.config.ts). 페이지·서버 함수에 `'use cache'` 디렉티브로 캐싱. 무효화는 `updateTag(...)`. `unstable_cache`는 더 이상 사용하지 않는다. 상세 패턴은 `/reports` 라우트와 메모리 `project_reports_migration.md` 참고.
 - `experimental.staleTimes`: 라우터 캐시 TTL 0 → 페이지 재방문 시 클라이언트 컴포넌트 재마운트, 서버 데이터는 `use cache`로 보존.
 - `serverExternalPackages`로 `@napi-rs/canvas`, `pdfjs-dist`, `jsdom`, `@mozilla/readability`, `youtube-transcript`, `@supabase/ssr`을 외부 패키지로 격리(번들 제외).
-- 배포 설정은 **`vercel.json`** 사용 중 (`vercel.ts`로 옮기지 말 것; 사용자가 요청한 적 없음).
+- 배포 설정은 **`vercel.json`** 사용 중 (`vercel.ts`로 옮기지 말 것; 사용자가 요청한 적 없음). Vercel cron은 Hobby 플랜 제약(일 1회) 때문에 사용하지 않고, 짧은 간격 cron은 GitHub Actions `.github/workflows/cron-*.yml` 에서 curl로 트리거한다.
 
 ## 검증 명령 (작업 완료 후 반드시 실행)
 
@@ -129,18 +129,19 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ### `.github/workflows/`
 
-19개 수집 워크플로. GitHub Actions에서 직접 Python 호출 (로컬 `scripts/venv` 없이).
+22개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-* 3종은 Vercel cron 대체용으로 curl 호출.
 
 - 가격·환율: 매일/매시간
 - 재무: 분기별 (1/4/7/10월 15일)
 - 뉴스·감성: 4시간/일간
 - DART·매크로·해운·철강·원자재: 일간/주간
+- Vercel cron 대체(curl 트리거): `cron-quotes-5min`, `cron-naver-board`, `cron-sentiment` — Hobby 플랜 일 1회 제약 회피. secret 필요: `APP_BASE_URL`, `CRON_SECRET`
 
 ### 루트 설정
 
 - `proxy.ts` — 라우트 미들웨어 (Next.js 16에서 구 middleware의 새 이름)
 - `next.config.ts` — `cacheComponents` + `staleTimes` + `serverExternalPackages`
-- `vercel.json` — 배포·크론 설정 (vercel.ts로 옮기지 말 것)
+- `vercel.json` — 배포 설정 (vercel.ts로 옮기지 말 것). cron은 Hobby 플랜 제약으로 GitHub Actions(`cron-*.yml`)로 이전됨
 - `.claude/agents/` — 서브 에이전트 4종 (dashboard-ui, data-collector, db-architect, qa-tester)
 - `.mcp.json` — MCP 서버 등록
 
@@ -160,7 +161,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 │ Marklines      │   │ collect_marklines*   │   │ (TOP100 매핑)   │   │ /management       │
 └────────────────┘   └──────────────────────┘   └─────────────────┘   └───────────────────┘
                               │                                              ▲
-                  GitHub Actions 19개 워크플로                                │
+                  GitHub Actions 22개 워크플로                                │
                   (cron · 수동 dispatch)                                      │
                               │                                              │
                               ▼                                              │
