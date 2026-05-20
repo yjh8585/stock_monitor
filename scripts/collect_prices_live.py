@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 21개사 현재가를 수집해 companies 테이블의
-last_price / last_change_pct / last_volume / last_updated_at을 갱신한다.
-- KR 8개사: pykrx 당일 OHLCV
-- 글로벌 13개사: yfinance fast_info
+last_price / last_change_pct / last_volume / last_updated_at / market_cap을 갱신한다.
+- KR 8개사: pykrx 당일 OHLCV + 시가총액 (보통주 기준, KRX 공식)
+- 글로벌 13개사: yfinance fast_info (시총은 collect_global_snapshot.py 담당, 여기서는 미갱신)
 """
 import sys
 from datetime import datetime, timezone
@@ -20,9 +20,18 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 from lib.companies import get_global_companies, get_kr_companies
 from lib.db import get_client
 
+# pykrx 시총은 KRW 원 단위 — DB 표준은 KRW 억원
+EOK = 100_000_000
 
-def _update_company(ticker: str, price: float, change_pct: float | None, volume: int | None) -> None:
-  """companies 테이블의 현재가 관련 필드를 갱신한다."""
+
+def _update_company(
+  ticker: str,
+  price: float,
+  change_pct: float | None,
+  volume: int | None,
+  market_cap_eok: float | None = None,
+) -> None:
+  """companies 테이블의 현재가·시총 관련 필드를 갱신한다."""
   client = get_client()
   payload: dict = {
     'last_price': price,
@@ -32,12 +41,14 @@ def _update_company(ticker: str, price: float, change_pct: float | None, volume:
     payload['last_change_pct'] = change_pct
   if volume is not None:
     payload['last_volume'] = volume
+  if market_cap_eok is not None:
+    payload['market_cap'] = market_cap_eok
 
   client.table('companies').update(payload).eq('ticker', ticker).execute()
 
 
 def _collect_kr_live() -> int:
-  """pykrx로 KR 8개사 현재가를 수집해 갱신한다. 처리 성공 건수를 반환한다."""
+  """pykrx로 KR 8개사 현재가·시총을 수집해 갱신한다. 처리 성공 건수를 반환한다."""
   today_str = datetime.now().strftime('%Y%m%d')
   count = 0
 
@@ -56,8 +67,23 @@ def _collect_kr_live() -> int:
 
       change_pct = float(row.get('등락률', 0))
       volume = int(row.get('거래량', 0)) or None
-      _update_company(ticker, price, change_pct, volume)
-      logger.debug(f"KR {ticker}: {price:,.0f}원 ({change_pct:+.2f}%)")
+
+      # 시가총액 — 별도 API 호출. 보통주 기준(KRX 종목코드 단위) KRW 원 → 억원 변환
+      market_cap_eok: float | None = None
+      try:
+        cap_df = pykrx_stock.get_market_cap(today_str, today_str, ticker)
+        if not cap_df.empty:
+          raw = float(cap_df.iloc[-1].get('시가총액', 0))
+          if raw > 0:
+            market_cap_eok = round(raw / EOK, 2)
+      except Exception as e:
+        logger.warning(f"KR {ticker} 시가총액 수집 실패(가격은 갱신 진행): {e}")
+
+      _update_company(ticker, price, change_pct, volume, market_cap_eok)
+      logger.debug(
+        f"KR {ticker}: {price:,.0f}원 ({change_pct:+.2f}%) "
+        f"market_cap={market_cap_eok}억원"
+      )
       count += 1
     except Exception as e:
       logger.error(f"KR {ticker} 현재가 수집 실패: {e}")

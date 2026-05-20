@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-국내 8개사 Snapshot 데이터 수집 (fnguide.com Playwright).
+국내 active 한국 상장사들의 fnguide Snapshot 페이지에서 기업개요(bizSummaryContent)만 수집한다.
 
-수집 항목:
-- 시가총액 → companies.market_cap UPDATE
-- 기업개요 → companies.business_summary UPDATE
+수집 항목 분담:
+- 기업개요 → companies.business_summary  (이 스크립트)
+- PER/PBR/EV-EBITDA → financials (collect_financials.py가 이미 분기 1회 fnguide로 수집)
+- 시가총액·주가 → companies.market_cap/last_price (collect_prices_live.py가 pykrx로 매시간)
+
+운영: 분기 1회 (collect-financials.yml에 step으로 통합 실행).
 """
 import sys
 from pathlib import Path
@@ -29,7 +32,7 @@ FNGUIDE_SNAPSHOT_URL = (
   '?pGB=1&gicode={gicode}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701'
 )
 FNGUIDE_PAGE_TIMEOUT = 30_000   # 30초 (ms)
-FNGUIDE_NAV_WAIT_MS  = 2_000    # 탭 전환 후 대기 (ms)
+FNGUIDE_NAV_WAIT_MS  = 2_000    # 페이지 안정화 대기 (ms)
 
 
 # ──────────────────────────────────────────────
@@ -41,17 +44,6 @@ def _to_gicode(ticker: str) -> str:
   return f'A{ticker}'
 
 
-def _parse_number(text: str) -> Optional[float]:
-  """숫자 문자열(쉼표 포함)을 float으로 파싱한다. 실패 시 None 반환."""
-  s = str(text).strip().replace(',', '').replace(' ', '')
-  if s in ('', '-', 'N/A', 'NA', '--', 'None', 'null'):
-    return None
-  try:
-    return float(s)
-  except (ValueError, TypeError):
-    return None
-
-
 def _load_company_id_map() -> dict[str, str]:
   """DB에서 ticker → company_id 매핑을 로드한다."""
   rows = get_client().table('companies').select('id,ticker').execute().data
@@ -59,34 +51,8 @@ def _load_company_id_map() -> dict[str, str]:
 
 
 # ──────────────────────────────────────────────
-# 파싱 함수
+# 파싱·DB
 # ──────────────────────────────────────────────
-
-def _parse_market_cap(page) -> Optional[float]:
-  """Snapshot 페이지에서 시가총액(억원)을 파싱해 반환한다."""
-  try:
-    value_text: str = page.evaluate("""
-      () => {
-        const rows = document.querySelectorAll('#svdMainGrid1 table tbody tr');
-        for (const tr of rows) {
-          const cells = tr.querySelectorAll('td, th');
-          if (cells.length >= 2) {
-            const label = cells[0].innerText.trim();
-            if (label.includes('시가총액')) {
-              return cells[1].innerText.trim();
-            }
-          }
-        }
-        return null;
-      }
-    """)
-    if value_text is None:
-      return None
-    return _parse_number(value_text)
-  except Exception as e:
-    logger.debug(f"시가총액 파싱 실패: {e}")
-    return None
-
 
 def _parse_business_summary(page) -> Optional[str]:
   """Snapshot 페이지의 기업개요 li 항목을 합쳐 반환한다."""
@@ -104,32 +70,28 @@ def _parse_business_summary(page) -> Optional[str]:
     return None
 
 
-# ──────────────────────────────────────────────
-# 회사별 스크레이핑
-# ──────────────────────────────────────────────
-
-def _update_company_info(
-  company_id: str,
-  market_cap: Optional[float],
-  business_summary: Optional[str],
-) -> None:
-  """companies 테이블의 market_cap, business_summary를 UPDATE한다."""
-  payload: dict = {}
-  if market_cap is not None:
-    payload['market_cap'] = market_cap
-  if business_summary is not None:
-    payload['business_summary'] = business_summary
-  if not payload:
+def _update_business_summary(company_id: str, summary: Optional[str]) -> None:
+  """companies.business_summary만 갱신 (시총·주가는 pykrx 담당이라 손대지 않음)."""
+  if not summary:
     return
   try:
-    get_client().table('companies').update(payload).eq('id', company_id).execute()
-    logger.debug(f"companies {company_id} UPDATE 완료: {list(payload.keys())}")
+    (
+      get_client()
+      .table('companies')
+      .update({'business_summary': summary})
+      .eq('id', company_id)
+      .execute()
+    )
   except Exception as e:
-    logger.error(f"companies {company_id} UPDATE 실패: {e}")
+    logger.error(f"companies {company_id} business_summary 갱신 실패: {e}")
 
+
+# ──────────────────────────────────────────────
+# 스크레이핑
+# ──────────────────────────────────────────────
 
 def _scrape_company(page, ticker: str, company_id: str) -> None:
-  """단일 회사의 Snapshot 페이지를 스크레이핑해 DB에 반영한다."""
+  """단일 회사 Snapshot 페이지에서 기업개요 추출 후 DB UPDATE."""
   gicode       = _to_gicode(ticker)
   snapshot_url = FNGUIDE_SNAPSHOT_URL.format(gicode=gicode)
 
@@ -141,11 +103,9 @@ def _scrape_company(page, ticker: str, company_id: str) -> None:
     logger.error(f"KR {ticker}: Snapshot 페이지 로드 실패: {e}")
     return
 
-  market_cap       = _parse_market_cap(page)
-  business_summary = _parse_business_summary(page)
-  _update_company_info(company_id, market_cap, business_summary)
-
-  logger.info(f"KR {ticker}: market_cap={market_cap}")
+  summary = _parse_business_summary(page)
+  _update_business_summary(company_id, summary)
+  logger.info(f"KR {ticker}: business_summary={'OK' if summary else '미수집'}")
 
 
 # ──────────────────────────────────────────────
@@ -153,7 +113,7 @@ def _scrape_company(page, ticker: str, company_id: str) -> None:
 # ──────────────────────────────────────────────
 
 def collectKrSnapshot() -> None:
-  """국내 8개사 Snapshot 데이터를 수집해 DB에 반영한다."""
+  """국내 active 한국 상장사들의 기업개요를 fnguide Snapshot에서 수집해 DB 반영."""
   try:
     from playwright.sync_api import sync_playwright
   except ImportError:
@@ -189,12 +149,12 @@ def collectKrSnapshot() -> None:
     finally:
       browser.close()
 
-  logger.info("국내 Snapshot 수집 완료")
+  logger.info("국내 기업개요 수집 완료")
 
 
 if __name__ == '__main__':
   try:
     collectKrSnapshot()
   except Exception as e:
-    logger.error(f"Snapshot 수집 실패: {e}")
+    logger.error(f"기업개요 수집 실패: {e}")
     sys.exit(1)

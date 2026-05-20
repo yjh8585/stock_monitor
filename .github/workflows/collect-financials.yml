@@ -52,3 +52,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
+
+      - name: 국내 상장사 기업개요(business_summary) 수집 — fnguide Snapshot
+        run: python collect_kr_snapshot.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

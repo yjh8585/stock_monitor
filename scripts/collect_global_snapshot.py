@@ -5,6 +5,10 @@
 - financials 테이블: per (TTM), pbr, ev_ebitda (TTM)
   → 회사별로 financials 테이블에서 매출이 존재하는 가장 최근 annual fiscal_year 행에 기록한다.
     회계연도가 진행되어 새 annual 행이 생기면 자동으로 그 연도로 이전된다.
+
+한국 상장사는 yfinance가 trailingPE·priceToBook을 제공하지 않아 별도 경로로 처리한다:
+  - 주가·시총·거래량: pykrx → collect_prices_live.py
+  - PER/PBR/EV-EBITDA + 기업개요: fnguide Playwright → collect_kr_snapshot.py
 """
 import math
 import os
