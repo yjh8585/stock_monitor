@@ -181,6 +181,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 - **Supabase 마이그레이션**: `supabase/migrations/YYYYMMDD000NNN_*.sql` 시간 정렬 컨벤션 유지. 새 파일을 만들지 말고 기존 컨벤션을 따른다.
 - **상태 컬럼**: `companies.status` = `active` | `hidden` | `merged_into`. 과거 `delisted`는 `hidden`으로 개명됨 (2026-05-20 마이그레이션). 화면 노출은 `active`만.
+- **회사명 정규화**: `companies.name` / `name_kr`은 BEFORE INSERT/UPDATE 트리거(`companies_clean_legal_form_before_iu`)가 한글 법인격 표기((주)·㈜·(株)·주식회사·유한회사·유한책임회사)를 자동 제거(20260520000009 마이그레이션). seed/enrich/dart/수동 어떤 경로든 자동 정리.
 - **재무(`financials`)**: 연결(consolidated) 우선, 종속회사 없을 때만 별도. period CHECK 제약 강화됨 — `annual`은 12월만 허용.
 - **append-only 보강**: `customers`, `description` 등 기존 보강 필드는 **덮어쓰지 말고 append-only**. 자동 enrich 시 diff 로그(`scripts/_*_diff_*.json`) 생성.
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지+인터넷 검색 결과만, Claude Code가 직접 작성하는 워크플로 유지(`enrich_description_*.py` 참고).
