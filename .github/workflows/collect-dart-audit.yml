@@ -8,11 +8,11 @@ on:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     defaults:
       run:
         working-directory: scripts
@@ -31,11 +31,11 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: DART 감사보고서 수집 — shard ${{ matrix.shard }}/4
+      - name: DART 감사보고서 수집 — shard ${{ matrix.shard }}/8
         run: python collect_dart_audit.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           SHARD_INDEX: ${{ matrix.shard }}
-          SHARD_COUNT: '4'
+          SHARD_COUNT: '8'

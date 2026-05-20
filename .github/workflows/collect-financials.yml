@@ -41,14 +41,14 @@ jobs:
           VALLEY_EMAIL: ${{ secrets.VALLEY_EMAIL }}
           VALLEY_PASSWORD: ${{ secrets.VALLEY_PASSWORD }}
 
-  # 비상장사 DART 수집 — SHARD 4-way 병렬로 분할
+  # 비상장사 DART 수집 — SHARD 8-way 병렬로 분할 (회사당 ~150s 처리, 33개/shard 기준 82분 예상)
   dart-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     defaults:
       run:
         working-directory: scripts
@@ -67,14 +67,14 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements-phase3.txt
 
-      - name: 비상장사 재무 데이터 수집 — shard ${{ matrix.shard }}/4
+      - name: 비상장사 재무 데이터 수집 — shard ${{ matrix.shard }}/8
         run: python collect_dart_audit.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           SHARD_INDEX: ${{ matrix.shard }}
-          SHARD_COUNT: '4'
+          SHARD_COUNT: '8'
 
   # 국내자동차(5사) DART 자동 갱신 — DART 호출하지만 회사 수 적어 단일 job
   domestic:
