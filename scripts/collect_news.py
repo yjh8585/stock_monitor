@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
-모든 active 상장사의 최신 뉴스를 수집해 news 테이블에 upsert한다.
+모든 active 회사의 최신 뉴스를 수집해 news 테이블에 upsert한다.
 - 한국 상장사: Naver Finance 모바일 API — 종목별 큐레이션 (관련성 100%)
+- 한국 비상장사(market=NULL): Google News RSS — 회사명 기반 검색
 - 글로벌 상장사(yfinance): Ticker.news → 최근 20건
-- 비상장사: 수집 생략 (data_source='dart' 또는 market=NULL)
 
 환경변수:
   TARGET_TICKERS  콤마 구분 ticker (옵션) — 신규 회사 추가 직후 즉시 수집용
-  NEWS_RETENTION_DAYS  뉴스 보존 일수 (default 90, 0 이하면 삭제 skip)
-  NEWS_SLEEP_SEC  회사 간 sleep 초 (default 0.5) — Naver/yfinance rate limit 회피
+  NEWS_RETENTION_DAYS  뉴스 보존 일수 (default 60, 0 이하면 삭제 skip)
+  NEWS_SLEEP_SEC  회사 간 sleep 초 (default 0.5) — Naver/yfinance/Google RSS rate limit 회피
 """
 import html
 import os
 import sys
 import time
+import urllib.parse
 import uuid
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
@@ -32,7 +35,7 @@ MAX_NEWS = 20  # 회사당 최대 수집 건수
 _HTTP_HEADERS = {'User-Agent': 'Mozilla/5.0'}
 _KST = timezone(timedelta(hours=9))
 SLEEP_SEC = float(os.environ.get('NEWS_SLEEP_SEC', '0.5'))
-RETENTION_DAYS = int(os.environ.get('NEWS_RETENTION_DAYS', '90'))
+RETENTION_DAYS = int(os.environ.get('NEWS_RETENTION_DAYS', '60'))
 
 
 # ── 한국 상장사: Naver Finance 모바일 API (종목별 큐레이션) ────────
@@ -65,6 +68,56 @@ def _naver_item_to_row(item: dict, company_id: str) -> dict | None:
   try:
     published_at = datetime.strptime(dt_str, '%Y%m%d%H%M').replace(tzinfo=_KST).isoformat()
   except (ValueError, TypeError):
+    published_at = datetime.now(timezone.utc).isoformat()
+
+  if not title or not url:
+    return None
+
+  return {
+    'id': str(uuid.uuid4()),
+    'company_id': company_id,
+    'title': title[:500],
+    'url': url[:1000],
+    'source': source[:100],
+    'summary': '',
+    'published_at': published_at,
+  }
+
+
+# ── 한국 비상장사: Google News RSS (회사명 검색) ────────────────
+
+
+def _fetch_kr_news_google_rss(name_kr: str) -> list[dict]:
+  """Google News RSS로 회사명 검색 결과를 반환한다. 자격증명 불필요."""
+  query = urllib.parse.quote(name_kr)
+  url = f'https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko'
+  try:
+    resp = requests.get(url, timeout=10, headers=_HTTP_HEADERS)
+    resp.raise_for_status()
+    root = ET.fromstring(resp.content)
+    items = []
+    for item in root.findall('.//item')[:MAX_NEWS]:
+      title = (item.findtext('title') or '').strip()
+      link = (item.findtext('link') or '').strip()
+      pub = (item.findtext('pubDate') or '').strip()
+      src = item.find('source')
+      source = (src.text or '').strip() if src is not None else ''
+      desc = (item.findtext('description') or '').strip()
+      items.append({'title': title, 'link': link, 'pubDate': pub, 'source': source, 'description': desc})
+    return items
+  except Exception as e:
+    logger.warning(f'{name_kr} Google News RSS 오류: {e}')
+    return []
+
+
+def _google_rss_item_to_row(item: dict, company_id: str) -> dict | None:
+  """Google News RSS item → news 테이블 행."""
+  title = html.unescape(item.get('title') or '').strip()
+  url = (item.get('link') or '').strip()
+  source = (item.get('source') or '').strip()
+  try:
+    published_at = parsedate_to_datetime(item.get('pubDate') or '').astimezone(timezone.utc).isoformat()
+  except (TypeError, ValueError):
     published_at = datetime.now(timezone.utc).isoformat()
 
   if not title or not url:
@@ -179,21 +232,33 @@ def collectNews() -> None:
     market = company.get('market')
     data_source = company.get('data_source', '')
 
-    # 비상장사(DART) 또는 거래소 없으면 스킵
-    if data_source == 'dart' or not market:
-      logger.debug(f'{name}: 비상장/비대상 — 뉴스 스킵')
-      continue
-
     rows = []
+    is_kr_listed = country == 'KR' and market in ('KOSPI', 'KOSDAQ')
+    is_kr_unlisted = country == 'KR' and not market
 
-    if country == 'KR' and market in ('KOSPI', 'KOSDAQ'):
+    if is_kr_listed:
       # 한국 상장사: Naver Finance 모바일 API (종목별 큐레이션)
       naver_items = _fetch_kr_news_naver(ticker, name)
       if not naver_items:
         logger.info(f'{name}({ticker}): 뉴스 없음 (Naver)')
+        if SLEEP_SEC > 0:
+          time.sleep(SLEEP_SEC)
         continue
       for item in naver_items:
         row = _naver_item_to_row(item, company['id'])
+        if row and row['url'] not in existing_urls:
+          rows.append(row)
+          existing_urls.add(row['url'])
+    elif is_kr_unlisted:
+      # 한국 비상장사: Google News RSS (회사명 검색)
+      g_items = _fetch_kr_news_google_rss(name)
+      if not g_items:
+        logger.info(f'{name}: 뉴스 없음 (Google RSS)')
+        if SLEEP_SEC > 0:
+          time.sleep(SLEEP_SEC)
+        continue
+      for item in g_items:
+        row = _google_rss_item_to_row(item, company['id'])
         if row and row['url'] not in existing_urls:
           rows.append(row)
           existing_urls.add(row['url'])
@@ -203,6 +268,8 @@ def collectNews() -> None:
       raw_news = _fetch_news(yf_sym)
       if not raw_news:
         logger.info(f'{name}({yf_sym}): 뉴스 없음')
+        if SLEEP_SEC > 0:
+          time.sleep(SLEEP_SEC)
         continue
       for item in raw_news:
         row = _to_news_row(item, company['id'])

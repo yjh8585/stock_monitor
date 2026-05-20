@@ -1,0 +1,684 @@
+{
+  "_meta": {
+    "source": "data/auto_audit_candidates_2026-05-17.md (1~84)",
+    "verified_at": "2026-05-20",
+    "verifier": "Claude Code (WebSearch)",
+    "decision_values": ["parts", "oem", "exclude", "hold"],
+    "summary": { "parts": 42, "oem": 2, "exclude": 39, "hold": 1 },
+    "page_mapping": { "parts": "domestic", "oem": "related-stocks" }
+  },
+  "candidates": [
+    {
+      "idx": 1,
+      "corp_code": "00136572",
+      "name_kr": "신양금속공업",
+      "decision": "parts",
+      "reason": "알루미늄 압출 + 자동차 ABS/범퍼/루프랙 부품 (안산, 매출 218B, 47년차)",
+      "homepage_url": "https://www.shin-yang.com",
+      "products": ["알루미늄 압출", "ABS", "범퍼", "루프랙"],
+      "customers": ["현대차", "기아"]
+    },
+    {
+      "idx": 2,
+      "corp_code": "01667185",
+      "name_kr": "로바메탈스코리아",
+      "decision": "exclude",
+      "reason": "Roba Metals 한국지사 - 일반 철강 도매(자동차 특정 X)"
+    },
+    {
+      "idx": 3,
+      "corp_code": "00249645",
+      "name_kr": "계양정밀",
+      "decision": "parts",
+      "reason": "터보차저(WGT/VGT) 제조, GM 공급, 2015 Supplier of Year Award",
+      "homepage_url": "http://www.keyyang.co.kr",
+      "products": ["터보차저 WGT", "터보차저 VGT"],
+      "customers": ["GM"]
+    },
+    {
+      "idx": 4,
+      "corp_code": "01477157",
+      "name_kr": "메탈다인코리아",
+      "decision": "parts",
+      "reason": "글로벌 Metaldyne(American Axle 2016 인수) 한국법인. induty 30310 자동차 엔진 부품",
+      "group_name": "American Axle"
+    },
+    {
+      "idx": 5,
+      "corp_code": "01586358",
+      "name_kr": "우즈오토코리아",
+      "decision": "oem",
+      "reason": "우즈베키스탄 UzAuto Motors 한국 부품 공급법인. 사용자 OEM 지정",
+      "page": "related-stocks",
+      "products": ["UzAuto 차량 부품 한국 공급"],
+      "homepage_url": "http://www.uzautokorea.com"
+    },
+    {
+      "idx": 6,
+      "corp_code": "00875185",
+      "name_kr": "커민스필터",
+      "decision": "parts",
+      "reason": "Cummins Filtration 한국법인(수원). 자동차/중장비 필터·터보·후처리·연료시스템",
+      "group_name": "Cummins",
+      "products": ["필터", "터보차저", "후처리", "연료시스템"],
+      "customers": ["현대차", "타타대우", "두산인프라코어", "현대건설기계", "볼보", "DAF"]
+    },
+    {
+      "idx": 7,
+      "corp_code": "00484831",
+      "name_kr": "동산공업",
+      "decision": "parts",
+      "reason": "DongSan Korea(안성) 자동차 사업부",
+      "homepage_url": "http://dongsanind.co.kr"
+    },
+    {
+      "idx": 8,
+      "corp_code": "01582316",
+      "name_kr": "일신캐스팅",
+      "decision": "parts",
+      "reason": "원주 문막산단, 자동차 부품 다이캐스팅·주조 (induty 303)"
+    },
+    {
+      "idx": 9,
+      "corp_code": "00928201",
+      "name_kr": "한국캐스팅",
+      "decision": "parts",
+      "reason": "자동차 변속기 케이스 등 알루미늄 주조 부품 (induty 24321)",
+      "homepage_url": "http://www.diecastingkorea.com"
+    },
+    {
+      "idx": 10,
+      "corp_code": "01780653",
+      "name_kr": "그린메탈",
+      "decision": "exclude",
+      "reason": "구리(동) 스크랩 유통 도매"
+    },
+    {
+      "idx": 11,
+      "corp_code": "00462440",
+      "name_kr": "동일기계공업",
+      "decision": "parts",
+      "reason": "안성 소재, 자동차 에어컨 컴프레서용 밸브 (induty 30391)",
+      "homepage_url": "http://dongilm.com",
+      "products": ["에어컨 컴프레서 밸브"]
+    },
+    {
+      "idx": 12,
+      "corp_code": "00446868",
+      "name_kr": "타타대우모빌리티",
+      "decision": "oem",
+      "reason": "군산 소재 한국 2위 상용차 OEM, Tata Motors 자회사. 2024.11 사명 변경",
+      "page": "related-stocks",
+      "group_name": "타타",
+      "products": ["맥센(Maxen)", "프리마", "기쎈(전기트럭)"]
+    },
+    {
+      "idx": 13,
+      "corp_code": "01594940",
+      "name_kr": "디지공업",
+      "decision": "exclude",
+      "reason": "정보 부족(induty 24290) — 보수적 제외"
+    },
+    {
+      "idx": 14,
+      "corp_code": "01701425",
+      "name_kr": "코아오토모티브",
+      "decision": "parts",
+      "reason": "전기차 구동모터·모터코어·BLDC·In-Wheel Motor (의성/광주/태주)",
+      "homepage_url": "http://koaautomotive.com",
+      "products": ["모터코어", "ABS 모터", "EVP/EOP 펌프모터", "BLDC"]
+    },
+    {
+      "idx": 15,
+      "corp_code": "00921970",
+      "name_kr": "에이취알메탈",
+      "decision": "exclude",
+      "reason": "스테인레스 강관 수입/수출/유통(자동차 특정 X)"
+    },
+    {
+      "idx": 16,
+      "corp_code": "00872489",
+      "name_kr": "의신정밀",
+      "decision": "parts",
+      "reason": "인천 남동구, 자동차 부품 + PRESS TOOL 정밀가공 (induty 25913)"
+    },
+    {
+      "idx": 17,
+      "corp_code": "01460412",
+      "name_kr": "케이시시정공",
+      "decision": "exclude",
+      "reason": "공압/유압 산업 자동화 부품(POSCO·삼성·LG·현대차 등 다양 공급, 자동차 전문 X)"
+    },
+    {
+      "idx": 18,
+      "corp_code": "01101768",
+      "name_kr": "대진정밀",
+      "decision": "parts",
+      "reason": "전북 완주, 자동차 부품 전문 (induty 30)"
+    },
+    {
+      "idx": 19,
+      "corp_code": "01920729",
+      "name_kr": "유림공업",
+      "decision": "exclude",
+      "reason": "전기차/철도/방산/선박 엔진 다업종 (자동차 전문 X)"
+    },
+    {
+      "idx": 20,
+      "corp_code": "00252621",
+      "name_kr": "한국메탈",
+      "decision": "parts",
+      "reason": "induty 30(자동차 부품 분류) 단조 회사",
+      "homepage_url": "http://hankookmetal.com"
+    },
+    {
+      "idx": 21,
+      "corp_code": "00918763",
+      "name_kr": "현대철강",
+      "decision": "hold",
+      "reason": "현대제철(005490)과 다른 corp_code(00918763). 정보 부족 — 사용자 확인 필요"
+    },
+    {
+      "idx": 22,
+      "corp_code": "00236641",
+      "name_kr": "태창공업",
+      "decision": "parts",
+      "reason": "1985 설립 자동차 엔진/섀시 부품 전문 (공주/구미)",
+      "homepage_url": "http://www.taechang-ec.co.kr",
+      "products": ["엔진 부품", "섀시 부품"]
+    },
+    {
+      "idx": 23,
+      "corp_code": "01298833",
+      "name_kr": "한진하이메탈",
+      "decision": "exclude",
+      "reason": "정보 부족, induty 46721 도매업"
+    },
+    {
+      "idx": 24,
+      "corp_code": "00481144",
+      "name_kr": "금오중공업",
+      "decision": "parts",
+      "reason": "다이캐스팅, 자동차 램프 부품·가전 부품",
+      "homepage_url": "http://kumohheavy.com",
+      "products": ["자동차 램프 부품", "다이캐스팅"]
+    },
+    {
+      "idx": 25,
+      "corp_code": "00589048",
+      "name_kr": "대한메탈",
+      "decision": "parts",
+      "reason": "경산, 자동차 냉간단조 부품 1위, 조향장치, 현대기아 SQ 인증, 40년차",
+      "products": ["조향장치 냉간단조 부품"],
+      "customers": ["현대차", "기아"]
+    },
+    {
+      "idx": 26,
+      "corp_code": "01148769",
+      "name_kr": "산청기공",
+      "decision": "exclude",
+      "reason": "정보 부족 — 보수적 제외"
+    },
+    {
+      "idx": 27,
+      "corp_code": "00628514",
+      "name_kr": "신진정밀",
+      "decision": "exclude",
+      "reason": "지게차/트랙터용 Power Steering Unit/유압 부품 (산업차량, 자동차 X)"
+    },
+    {
+      "idx": 28,
+      "corp_code": "00184913",
+      "name_kr": "이화기계공업",
+      "decision": "exclude",
+      "reason": "산업용 에어컨/공조 시스템 (섬유/화학/자동차/조선 등 범용, 자동차 전문 X)"
+    },
+    {
+      "idx": 29,
+      "corp_code": "01486553",
+      "name_kr": "기산정공",
+      "decision": "exclude",
+      "reason": "정보 부족 — 보수적 제외"
+    },
+    {
+      "idx": 30,
+      "corp_code": "01836518",
+      "name_kr": "두진정공",
+      "decision": "exclude",
+      "reason": "정보 부족 — 보수적 제외"
+    },
+    {
+      "idx": 31,
+      "corp_code": "00832454",
+      "name_kr": "성신파츠",
+      "decision": "parts",
+      "reason": "induty 30(자동차 부품 분류) + 회사명 '파츠'"
+    },
+    {
+      "idx": 32,
+      "corp_code": "01041624",
+      "name_kr": "성덕중공업",
+      "decision": "exclude",
+      "reason": "정보 부족 — 보수적 제외"
+    },
+    {
+      "idx": 33,
+      "corp_code": "01660678",
+      "name_kr": "세화자동차",
+      "decision": "parts",
+      "reason": "특장차 + 부품 제조 (induty 30201)",
+      "homepage_url": "http://esmotors.co.kr"
+    },
+    {
+      "idx": 34,
+      "corp_code": "01769641",
+      "name_kr": "황성공업",
+      "decision": "parts",
+      "reason": "induty 30320(자동차 차체 부품 분류)"
+    },
+    {
+      "idx": 35,
+      "corp_code": "01927607",
+      "name_kr": "오토글로벌",
+      "decision": "parts",
+      "reason": "induty 30201(자동차 차체 분류) + 회사명 '오토'"
+    },
+    {
+      "idx": 36,
+      "corp_code": "00661795",
+      "name_kr": "유진기공",
+      "decision": "parts",
+      "reason": "안산, 차량 브레이크 시스템/공급장치 (induty 29174)",
+      "homepage_url": "http://www.yujinltd.co.kr",
+      "products": ["브레이크 시스템", "브레이크 컨트롤", "공급장치"]
+    },
+    {
+      "idx": 37,
+      "corp_code": "01663815",
+      "name_kr": "다이나믹오토",
+      "decision": "parts",
+      "reason": "induty 30399(그 외 자동차 부품 분류) + 회사명 '오토'"
+    },
+    {
+      "idx": 38,
+      "corp_code": "01090587",
+      "name_kr": "금강창호기공",
+      "decision": "exclude",
+      "reason": "건축 창호(커튼월/슬라이딩 도어), 자동차 X"
+    },
+    {
+      "idx": 39,
+      "corp_code": "01738599",
+      "name_kr": "제이에프컨트롤",
+      "decision": "exclude",
+      "reason": "FieldBus 산업 자동화 제어 (자동차 명확 X)"
+    },
+    {
+      "idx": 40,
+      "corp_code": "01864122",
+      "name_kr": "현대연마",
+      "decision": "exclude",
+      "reason": "연마재 도매 (자동차 특정 X)"
+    },
+    {
+      "idx": 41,
+      "corp_code": "01359347",
+      "name_kr": "다올정밀",
+      "decision": "exclude",
+      "reason": "반도체/FPD/PCB/연료전지 정밀판금 (자동차 X)"
+    },
+    {
+      "idx": 42,
+      "corp_code": "01839816",
+      "name_kr": "백산정밀판금",
+      "decision": "exclude",
+      "reason": "분전반/태양광 패널/인버터 판금 (자동차 X)"
+    },
+    {
+      "idx": 43,
+      "corp_code": "00657792",
+      "name_kr": "태영메탈",
+      "decision": "exclude",
+      "reason": "정보 부족 — 동명 회사 다수, 보수적 제외"
+    },
+    {
+      "idx": 44,
+      "corp_code": "00451259",
+      "name_kr": "금강와이어메쉬산업",
+      "decision": "exclude",
+      "reason": "건축 와이어메쉬 (자동차 X)"
+    },
+    {
+      "idx": 45,
+      "corp_code": "01137550",
+      "name_kr": "동우특장차",
+      "decision": "parts",
+      "reason": "당진, 트레일러/특장차/카 캐리어 (induty 29161)",
+      "homepage_url": "http://www.dongwoomotor.com",
+      "products": ["평판트레일러", "저상트레일러", "카 캐리어"]
+    },
+    {
+      "idx": 46,
+      "corp_code": "00809720",
+      "name_kr": "세일정밀",
+      "decision": "parts",
+      "reason": "자동차 파워트레인 부품(실린더 블록/헤드/크랭크/캠) + 방산",
+      "homepage_url": "http://www.seilpt.com",
+      "products": ["실린더 블록", "실린더 헤드", "크랭크샤프트", "캠샤프트", "변속기 케이스"]
+    },
+    {
+      "idx": 47,
+      "corp_code": "01952472",
+      "name_kr": "거진정공",
+      "decision": "exclude",
+      "reason": "정보 부족 — 보수적 제외"
+    },
+    {
+      "idx": 48,
+      "corp_code": "00367969",
+      "name_kr": "비엠씨",
+      "decision": "parts",
+      "reason": "Best Mobility Core Tech, 친환경차 구동모터 코어(스테이터·로터), 현대기아 외 OEM 공급. 안성",
+      "homepage_url": "http://www.bmcmobility.com",
+      "products": ["구동모터 코어", "스테이터 코어", "로터 코어"],
+      "customers": ["현대차", "기아"]
+    },
+    {
+      "idx": 49,
+      "corp_code": "00146588",
+      "name_kr": "일진금속공업",
+      "decision": "parts",
+      "reason": "ILJIN 그룹, 전륜구동차량용 CV조인트 부품, 1973 설립",
+      "group_name": "ILJIN",
+      "homepage_url": "http://iljinmi.co.kr",
+      "products": ["CV 조인트", "냉간단조 부품"]
+    },
+    {
+      "idx": 50,
+      "corp_code": "00918143",
+      "name_kr": "대성정공",
+      "decision": "parts",
+      "reason": "대성사 50년차, 현대차 협력, 차체 부품 (induty 30320, 울산)",
+      "homepage_url": "http://dstrust.co.kr",
+      "products": ["차체 부품", "경량화 부품"],
+      "customers": ["현대차"]
+    },
+    {
+      "idx": 51,
+      "corp_code": "00284240",
+      "name_kr": "한국브룩스오토메이션",
+      "decision": "exclude",
+      "reason": "Brooks Automation 한국법인, 반도체 웨이퍼 이송 로봇"
+    },
+    {
+      "idx": 52,
+      "corp_code": "00210360",
+      "name_kr": "신성전자정밀",
+      "decision": "parts",
+      "reason": "41년차, 자동차 전장 부품 Sub assembly (induty 25924)",
+      "homepage_url": "http://ssep.co.kr",
+      "products": ["자동차 전장 부품 Sub assembly"]
+    },
+    {
+      "idx": 53,
+      "corp_code": "00968102",
+      "name_kr": "카네비모빌리티",
+      "decision": "parts",
+      "reason": "차량용 LiDAR·내비·V2X·DCU·블랙박스. 자율주행 부품",
+      "homepage_url": "http://carnavi.com",
+      "products": ["LiDAR 센서", "차량용 내비게이션", "V2X 통신", "DCU"]
+    },
+    {
+      "idx": 54,
+      "corp_code": "00473862",
+      "name_kr": "화영오토텍",
+      "decision": "parts",
+      "reason": "휠허브베어링/트랜스미션/알터네이터/스타터 모터 (현대 공급)",
+      "homepage_url": "https://hyautotec.co.kr",
+      "products": ["휠허브 베어링", "알터네이터", "스타터 모터", "트랜스미션", "라디에이터 팬"],
+      "customers": ["현대차"]
+    },
+    {
+      "idx": 55,
+      "corp_code": "01510595",
+      "name_kr": "에이치디현대크랭크샤프트",
+      "decision": "exclude",
+      "reason": "선박 대형 저속엔진 크랭크샤프트 (조선)",
+      "group_name": "HD현대"
+    },
+    {
+      "idx": 56,
+      "corp_code": "01664878",
+      "name_kr": "엘에스이모빌리티솔루션",
+      "decision": "parts",
+      "reason": "LS그룹, EV Relay/BDU 전문, 현대기아 2,500억 계약, GM/르노/벤츠/VW/볼보/포르쉐 공급",
+      "group_name": "LS",
+      "homepage_url": "https://www.lsems.com",
+      "products": ["EV Relay", "BDU", "고전압 보호장치"],
+      "customers": ["현대차", "기아", "GM", "르노", "벤츠", "VW", "볼보", "포르쉐"]
+    },
+    {
+      "idx": 57,
+      "corp_code": "01824124",
+      "name_kr": "제이디오토모티브",
+      "decision": "parts",
+      "reason": "아산, 자동차 브레이크 가공/조립 (캘리퍼·하우징·MOC)",
+      "products": ["브레이크 캘리퍼", "프론트 하우징", "MOC 리어 하우징"]
+    },
+    {
+      "idx": 58,
+      "corp_code": "00304748",
+      "name_kr": "기화정밀",
+      "decision": "exclude",
+      "reason": "정보 부족 — 보수적 제외"
+    },
+    {
+      "idx": 59,
+      "corp_code": "00353115",
+      "name_kr": "한국에바라정밀기계",
+      "decision": "exclude",
+      "reason": "EBARA 한국법인 — 반도체 장비 제조(Dry Vacuum Pump, CMP). 자동차 X"
+    },
+    {
+      "idx": 60,
+      "corp_code": "00482277",
+      "name_kr": "신라공업",
+      "decision": "parts",
+      "reason": "induty 30 — 신라공업과 동명사 다수, audit 시 추가 확인 필요"
+    },
+    {
+      "idx": 61,
+      "corp_code": "00453150",
+      "name_kr": "원당중공업",
+      "decision": "exclude",
+      "reason": "induty 31114(조선/플랜트)"
+    },
+    {
+      "idx": 62,
+      "corp_code": "01535840",
+      "name_kr": "에이치디현대사이트솔루션",
+      "decision": "exclude",
+      "reason": "HD현대 건설기계 부문 중간 지주사",
+      "group_name": "HD현대"
+    },
+    {
+      "idx": 63,
+      "corp_code": "01755198",
+      "name_kr": "대양전장",
+      "decision": "parts",
+      "reason": "자동차 전기 하네스/예비 부품",
+      "homepage_url": "http://dsc.daeyang.co.kr",
+      "products": ["자동차 전기 하네스"]
+    },
+    {
+      "idx": 64,
+      "corp_code": "00784184",
+      "name_kr": "동원파츠",
+      "decision": "exclude",
+      "reason": "반도체 정밀 부품(진공챔버/히터블록/샤워헤드/척). 자동차 X"
+    },
+    {
+      "idx": 65,
+      "corp_code": "00684495",
+      "name_kr": "르네사스일렉트로닉스한국",
+      "decision": "parts",
+      "reason": "Renesas Electronics 한국법인, RH850 자동차 MCU 글로벌 1위",
+      "group_name": "Renesas",
+      "products": ["자동차 MCU(RH850)", "자동차 SoC", "차량용 반도체"]
+    },
+    {
+      "idx": 66,
+      "corp_code": "00660370",
+      "name_kr": "모베이스오토테크",
+      "decision": "parts",
+      "reason": "모베이스 그룹, 자동차 스마트키/ECU/스위치 (현대기아 공급)",
+      "group_name": "모베이스",
+      "products": ["스마트키 시스템", "ECU", "차량용 스위치"],
+      "customers": ["현대차", "기아"]
+    },
+    {
+      "idx": 67,
+      "corp_code": "01621749",
+      "name_kr": "케이피엑스헌츠만폴리우레탄오토모티브",
+      "decision": "parts",
+      "reason": "KPX Chemical-Huntsman JV(2021.08), 자동차 시트/후드 폴리우레탄 폼 (울산)",
+      "group_name": "KPX/Huntsman",
+      "products": ["자동차 시트 폴리우레탄", "후드 라이너 폼"]
+    },
+    {
+      "idx": 68,
+      "corp_code": "01247778",
+      "name_kr": "엘에스오토모티브테크놀로지스",
+      "decision": "parts",
+      "reason": "LS그룹, 자동차 전장(스위치/릴레이/센서/모터), 매출 1.47조, 현대기아/GM/벤츠/아우디 공급",
+      "group_name": "LS",
+      "homepage_url": "https://lsautomotive.com",
+      "products": ["스위치 모듈", "차량용 릴레이", "센서", "E-모듈", "인테리어 램프"],
+      "customers": ["현대차", "기아", "쌍용차", "GM", "닛산", "다임러", "아우디"]
+    },
+    {
+      "idx": 69,
+      "corp_code": "01616109",
+      "name_kr": "쎄보모빌리티",
+      "decision": "exclude",
+      "reason": "초소형 EV OEM(CEVO-C). 사용자 결정: 모니터링 범위 외(소형 모빌리티)"
+    },
+    {
+      "idx": 70,
+      "corp_code": "00185912",
+      "name_kr": "엘티정밀",
+      "decision": "parts",
+      "reason": "LT그룹, 자동차 AL 단조부품/에어컨 컴프레서/EV 배터리 냉각",
+      "group_name": "LT",
+      "homepage_url": "http://ltpr.co.kr",
+      "products": ["AL 단조 부품", "자동차 솔레노이드 밸브", "EV 배터리 쿨링핀", "AC 컴프레서 부품"]
+    },
+    {
+      "idx": 71,
+      "corp_code": "01879373",
+      "name_kr": "엠에스오토시스",
+      "decision": "parts",
+      "reason": "엠에스오토텍 그룹 2024.08 분할 신설 차체 부품사. 현대/기아 공급",
+      "group_name": "엠에스오토텍",
+      "homepage_url": "https://msautosys.ms-global.com",
+      "products": ["차체 프레임", "핫스탬핑 부품", "BIW"],
+      "customers": ["현대차", "기아"]
+    },
+    {
+      "idx": 72,
+      "corp_code": "00140371",
+      "name_kr": "연합정밀",
+      "decision": "exclude",
+      "reason": "방산/항공 슬립링·커넥터 전문 (K-2 전차/K-9 자주포). 자동차 비중 작음"
+    },
+    {
+      "idx": 73,
+      "corp_code": "00477105",
+      "name_kr": "앱스",
+      "decision": "exclude",
+      "reason": "Autronic Auto Parking Systems — 기계식 주차 시스템 인프라 (자동차 부품 X)"
+    },
+    {
+      "idx": 74,
+      "corp_code": "00370103",
+      "name_kr": "경원기계공업",
+      "decision": "exclude",
+      "reason": "공기압축기 산업기계 (자동차 X)"
+    },
+    {
+      "idx": 75,
+      "corp_code": "01282300",
+      "name_kr": "디앤에이모터스",
+      "decision": "exclude",
+      "reason": "구 대림오토바이, 이륜차 OEM. 사용자 지시로 제외"
+    },
+    {
+      "idx": 76,
+      "corp_code": "01324271",
+      "name_kr": "아사아블로이코리아삼화정밀",
+      "decision": "exclude",
+      "reason": "ASSA ABLOY 자회사 — 도어 클로저/플로어 스프링 (건축 X)"
+    },
+    {
+      "idx": 77,
+      "corp_code": "01767096",
+      "name_kr": "세일전장",
+      "decision": "parts",
+      "reason": "induty 30332(자동차 전장 분류) + 회사명 '전장'"
+    },
+    {
+      "idx": 78,
+      "corp_code": "01434116",
+      "name_kr": "광주글로벌모터스",
+      "decision": "exclude",
+      "reason": "현대 캐스퍼 위탁생산. 사용자 결정: 합작 위탁 구조로 모니터링 범위 외"
+    },
+    {
+      "idx": 79,
+      "corp_code": "00807403",
+      "name_kr": "오리엔탈정밀기계",
+      "decision": "exclude",
+      "reason": "induty 31114(조선/플랜트)"
+    },
+    {
+      "idx": 80,
+      "corp_code": "01356465",
+      "name_kr": "포레시아코리아시트",
+      "decision": "parts",
+      "reason": "FORVIA/Faurecia 한국 시트 부문 영천공장 (FAS Yeongcheon)",
+      "group_name": "FORVIA/Faurecia",
+      "products": ["자동차 시트"],
+      "customers": ["현대차", "기아", "르노", "닛산"]
+    },
+    {
+      "idx": 81,
+      "corp_code": "00604435",
+      "name_kr": "갤럭시아일렉트로닉스",
+      "decision": "exclude",
+      "reason": "효성그룹, LED 디스플레이/조명/스마트홈 (자동차 X)"
+    },
+    {
+      "idx": 82,
+      "corp_code": "01384820",
+      "name_kr": "모티바코리아",
+      "decision": "exclude",
+      "reason": "의료기기 도매(보형물/화장품) (자동차 X)"
+    },
+    {
+      "idx": 83,
+      "corp_code": "00631952",
+      "name_kr": "에이치디현대엔진",
+      "decision": "exclude",
+      "reason": "현 HD현대마린엔진(2024.07 사명변경) — 선박 대형 디젤 엔진",
+      "group_name": "HD현대"
+    },
+    {
+      "idx": 84,
+      "corp_code": "00441410",
+      "name_kr": "세진메탈",
+      "decision": "parts",
+      "reason": "1987 설립, 다이캐스팅용 알루미늄 합금 (울산), 연 187,200톤",
+      "homepage_url": "http://www.sejinmetal.kr"
+    }
+  ]
+}
