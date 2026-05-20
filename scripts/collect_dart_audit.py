@@ -48,6 +48,10 @@ MILLION = 1_000_000
 GENERATED_COLS = frozenset({'operating_margin', 'gross_margin', 'net_margin', 'debt_ratio'})
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
+# DART는 매번 새 연결을 열면 SSL_EOF가 폭증한다 — 모듈 싱글톤 세션으로 keep-alive 유지.
+_session = requests.Session()
+_session.headers.update(HEADERS)
+
 # 회사 간 sleep (DART rate limit 완화)
 COMPANY_SLEEP = float(os.environ.get('COMPANY_SLEEP', '0.5'))
 # 정정본 추적용 검색 기간 확장 (회계연도 N → N+AUDIT_LOOKBACK_YEARS년까지 정정 추적)
@@ -236,8 +240,8 @@ def _is_transient_error(e: Exception) -> bool:
 def _with_retry(
   fn,
   *args,
-  _attempts: int = 2,
-  _backoff: float = 0.5,
+  _attempts: int = 5,
+  _backoff: float = 1.0,
   _deadline: float | None = None,
   _silence_stdout: bool = False,
   **kwargs,
@@ -476,17 +480,12 @@ def _infer_fiscal_year_from_rcept(rcept_dt: str) -> int | None:
 
 
 def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None, str | None, bool]:
-  """회계연도 fiscal_year의 가장 적합한 감사보고서를 선택.
+  """회계연도 fiscal_year의 가장 적합한 보고서를 선택.
+
+  1순위: 감사보고서. 없으면 연간 사업보고서 fallback (분기·반기 제외).
 
   Returns:
     (rcept_no, report_nm, is_consolidated) — 못 찾으면 (None, None, False).
-
-  검색 기간: fiscal_year-01-01 ~ min(today, (fiscal_year + AUDIT_LOOKBACK_YEARS)-12-31).
-  정정본이 과거 회계연도에 대해 최근 제출되는 케이스 추적.
-
-  매치 조건: '감사보고서' 키워드 + (str(fiscal_year) in report_nm
-            OR rcept_dt에서 추정한 회계연도 == fiscal_year).
-  선택: _score_report 점수가 가장 높은 보고서.
   """
   today = datetime.now()
   end_year = min(today.year, fiscal_year + AUDIT_LOOKBACK_YEARS)
@@ -509,19 +508,32 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
   if filings is None or filings.empty:
     return None, None, False
 
-  candidates: list[tuple[tuple[int, str], str, str, bool]] = []
-  for _, row in filings.iterrows():
-    rpt = str(row.get('report_nm', ''))
-    rcept_no = str(row.get('rcept_no', ''))
-    rcept_dt = str(row.get('rcept_dt', ''))
-    if '감사보고서' not in rpt:
-      continue
-    year_match = str(fiscal_year) in rpt
-    inferred = _infer_fiscal_year_from_rcept(rcept_dt)
-    if not year_match and inferred != fiscal_year:
-      continue
-    score = _score_report(rpt, rcept_dt)
-    candidates.append((score, rcept_no, rpt, '연결' in rpt))
+  def _scan(predicate) -> list[tuple[tuple[int, str], str, str, bool]]:
+    out: list[tuple[tuple[int, str], str, str, bool]] = []
+    for _, row in filings.iterrows():
+      rpt = str(row.get('report_nm', ''))
+      rcept_no = str(row.get('rcept_no', ''))
+      rcept_dt = str(row.get('rcept_dt', ''))
+      if not predicate(rpt):
+        continue
+      year_match = str(fiscal_year) in rpt
+      inferred = _infer_fiscal_year_from_rcept(rcept_dt)
+      if not year_match and inferred != fiscal_year:
+        continue
+      score = _score_report(rpt, rcept_dt)
+      out.append((score, rcept_no, rpt, '연결' in rpt))
+    return out
+
+  # 1순위: 감사보고서
+  candidates = _scan(lambda rpt: '감사보고서' in rpt)
+
+  # 2순위 fallback: 연간 사업보고서 (분기·반기 제외)
+  if not candidates:
+    candidates = _scan(
+      lambda rpt: '사업보고서' in rpt and '분기' not in rpt and '반기' not in rpt
+    )
+    if candidates:
+      logger.info(f'{corp_code} {fiscal_year}년: 감사보고서 부재 → 사업보고서 fallback')
 
   if not candidates:
     return None, None, False
@@ -553,7 +565,7 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
   """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다."""
   url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
   try:
-    r = _with_retry(requests.get, url, headers=HEADERS, timeout=(10, 30))
+    r = _with_retry(_session.get, url, timeout=(10, 30))
   except Exception as e:
     logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
     return None
@@ -603,9 +615,8 @@ def _is_pdf_only_report(rcpt_no: str) -> bool:
   """main.do에서 PDF 다운로드 링크가 있고 HTML 본문 트리/viewDoc 리터럴이 없으면 True."""
   try:
     r = _with_retry(
-      requests.get,
+      _session.get,
       f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}',
-      headers=HEADERS,
       timeout=(10, 30),
     )
   except Exception:
@@ -617,9 +628,9 @@ def _is_pdf_only_report(rcpt_no: str) -> bool:
 
 
 def _fetch_tables(url: str) -> list:
-  """DART 뷰어 URL에서 HTML 테이블 목록을 반환 (3회 재시도)."""
+  """DART 뷰어 URL에서 HTML 테이블 목록을 반환."""
   try:
-    r = _with_retry(requests.get, url, headers=HEADERS, timeout=(10, 30))
+    r = _with_retry(_session.get, url, timeout=(10, 30))
     soup = BeautifulSoup(r.content, 'html.parser')
     return soup.find_all('table')
   except Exception as e:
@@ -640,7 +651,7 @@ def _collect_company(
   for year in years:
     rcept_no, report_nm, is_cons = _get_audit_rcpt(dart, corp_code, year)
     if not rcept_no:
-      logger.warning(f'{corp_code} {year}년: 결산감사보고서 없음')
+      logger.warning(f'{corp_code} {year}년: 감사보고서·사업보고서 모두 없음')
       continue
 
     logger.info(f'{corp_code} {year}년: rcpNo={rcept_no} | {report_nm}')
@@ -799,7 +810,7 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
     modify = str(row.get('modify_date') or '')
     try:
       info = _with_retry(
-        requests.get,
+        _session.get,
         'https://opendart.fss.or.kr/api/company.json',
         params={'crtfc_key': DART_KEY, 'corp_code': code},
         timeout=(10, 15),
@@ -887,6 +898,15 @@ def collectDartAudit() -> None:
   ]
   if target_filter:
     logger.info(f'TARGET_TICKERS 필터 적용: {sorted(target_filter)} → {len(companies)}개')
+
+  # GitHub Actions matrix 분할: SHARD_INDEX/SHARD_COUNT가 주어지면 id 기준 round-robin.
+  shard_index = int(os.environ.get('SHARD_INDEX', '0'))
+  shard_count = int(os.environ.get('SHARD_COUNT', '1'))
+  if shard_count > 1:
+    companies.sort(key=lambda r: r['id'])
+    total = len(companies)
+    companies = [c for i, c in enumerate(companies) if i % shard_count == shard_index]
+    logger.info(f'SHARD {shard_index}/{shard_count} 슬라이싱: 전체 {total} → 본 shard {len(companies)}개')
 
   if not companies:
     logger.info('DART 수집 대상 기업 없음')
