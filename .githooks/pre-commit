@@ -1,0 +1,48 @@
+#!/bin/sh
+# AGENTS.md stale 방지 pre-commit hook.
+# 트리거 패턴은 AGENTS.md "이 파일(AGENTS.md) 갱신 트리거" 섹션과 동기화 유지.
+
+if [ "$SKIP_AGENTS_CHECK" = "1" ]; then
+  exit 0
+fi
+
+ALL_CHANGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$ALL_CHANGED" ] && exit 0
+
+# AGENTS.md 자체가 같이 스테이지되었으면 통과
+if printf '%s\n' "$ALL_CHANGED" | grep -qx "AGENTS.md"; then
+  exit 0
+fi
+
+ADDED=$(git diff --cached --name-only --diff-filter=A)
+ADDED_PATTERN='^(supabase/migrations/.+\.sql|app/[^/]+/page\.tsx|app/api/.+/route\.ts|scripts/lib/.+|\.github/workflows/.+)$'
+MODIFIED_PATTERN='^(next\.config\.ts|proxy\.ts|vercel\.json)$'
+
+MATCHED_ADDED=$(printf '%s\n' "$ADDED"         | grep -E "$ADDED_PATTERN"    2>/dev/null || true)
+MATCHED_MODIFIED=$(printf '%s\n' "$ALL_CHANGED" | grep -E "$MODIFIED_PATTERN" 2>/dev/null || true)
+
+if [ -z "$MATCHED_ADDED" ] && [ -z "$MATCHED_MODIFIED" ]; then
+  exit 0
+fi
+
+cat >&2 <<EOF
+
+[AGENTS.md stale 경고]
+
+구조 변경 트리거가 포함되어 있지만 AGENTS.md는 스테이지되지 않았습니다.
+
+신규 트리거 파일:
+${MATCHED_ADDED:-(없음)}
+
+설정 파일 변경:
+${MATCHED_MODIFIED:-(없음)}
+
+AGENTS.md의 "이 파일(AGENTS.md) 갱신 트리거" 섹션을 확인하고,
+필요하면 AGENTS.md도 함께 수정한 뒤 다시 커밋해 주세요.
+
+이번 커밋만 우회하려면:
+  SKIP_AGENTS_CHECK=1 git commit ...
+
+EOF
+
+exit 1

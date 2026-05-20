@@ -100,3 +100,25 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 VALLEY_EMAIL=your@email.com
 VALLEY_PASSWORD=yourpassword
 ```
+
+---
+
+## 8. Git pre-commit hook 활성화
+
+저장소 구조(라우트·마이그레이션·워크플로 등)가 바뀌었는데 `AGENTS.md`를 깜빡한 채로 커밋하는 것을 막는 hook입니다. **clone 직후 한 번 실행하면 됩니다.**
+
+```bash
+git config core.hooksPath .githooks
+```
+
+확인:
+
+```bash
+git config core.hooksPath
+# .githooks  ← 이렇게 출력되면 OK
+```
+
+- 트리거 패턴과 갱신 규칙은 `AGENTS.md`의 "이 파일(AGENTS.md) 갱신 트리거" 섹션에 정리되어 있습니다.
+- hook이 오탐일 때 이번 커밋만 우회:
+  - bash: `SKIP_AGENTS_CHECK=1 git commit -m "..."`
+  - PowerShell: `$env:SKIP_AGENTS_CHECK=1; git commit -m "..."; Remove-Item Env:SKIP_AGENTS_CHECK`
