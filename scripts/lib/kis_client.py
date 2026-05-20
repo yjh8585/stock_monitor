@@ -263,8 +263,13 @@ class KisClient:
       params={'FID_COND_MRKT_DIV_CODE': 'J', 'FID_INPUT_ISCD': ticker},
     )
 
-  def get_minute_bars(self, ticker: str, interval: int = 5, include_past_data: bool = True) -> dict:
-    """주식당일분봉조회. tr_id=FHKST03010200. interval 단위: 분."""
+  def get_minute_bars(self, ticker: str, end_hhmmss: str = '153000', include_past_data: bool = False) -> dict:
+    """주식당일분봉조회. tr_id=FHKST03010200.
+
+    `end_hhmmss` (HHMMSS): 조회 종료 시각. 1회 호출당 30건이 응답되며,
+    호출자가 시각을 슬라이딩하며 09:00 시작까지 반복 조회한다.
+    `include_past_data` (Y/N): KIS의 과거영업일 데이터 포함 옵션. 당일만 받을 때는 N.
+    """
     return self.get(
       '/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice',
       tr_id='FHKST03010200',
@@ -272,15 +277,32 @@ class KisClient:
         'FID_ETC_CLS_CODE': '',
         'FID_COND_MRKT_DIV_CODE': 'J',
         'FID_INPUT_ISCD': ticker,
-        'FID_INPUT_HOUR_1': f'{interval:02d}',  # 단위 분
+        'FID_INPUT_HOUR_1': end_hhmmss,
         'FID_PW_DATA_INCU_YN': 'Y' if include_past_data else 'N',
       },
     )
 
   def get_investor_trend(self, ticker: str) -> dict:
-    """주식현재가 투자자 (외국인/기관/개인 매매동향). tr_id=FHKST01010900."""
+    """주식현재가 투자자 (일별 외국인/기관/개인 매매동향). tr_id=FHKST01010900.
+
+    당일 행은 장중에는 빈 문자열로 옴 (KIS는 장 마감 후 publish).
+    어제 이전 30영업일 시계열 확정값 보강에 사용.
+    """
     return self.get(
       '/uapi/domestic-stock/v1/quotations/inquire-investor',
       tr_id='FHKST01010900',
       params={'FID_COND_MRKT_DIV_CODE': 'J', 'FID_INPUT_ISCD': ticker},
+    )
+
+  def get_investor_estimate(self, ticker: str) -> dict:
+    """종목투자자별 매매추정 — 장중 잠정 외국인+기관 누적. tr_id=HHPTJ04160200.
+
+    응답 output2가 시간 슬롯 배열 (output2[0]이 가장 최신). 갱신 시각:
+    외국인 09:30/11:20/13:20/14:30, 기관 10:00/11:20/13:20/14:30 (±10분).
+    개인 필드 미제공 — 한국 시장 제로섬으로 도출(individual ≈ -(foreign+institution)).
+    """
+    return self.get(
+      '/uapi/domestic-stock/v1/quotations/investor-trend-estimate',
+      tr_id='HHPTJ04160200',
+      params={'MKSC_SHRN_ISCD': ticker},
     )

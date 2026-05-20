@@ -139,11 +139,12 @@ class GetRequestTest(unittest.TestCase):
 
   def test_minute_bars_endpoint(self):
     self.session.get.return_value = _make_response(200, {'rt_cd': '0', 'output1': {}, 'output2': []})
-    self.client.get_minute_bars('016450', interval=5)
+    self.client.get_minute_bars('016450', end_hhmmss='153000')
     args, kwargs = self.session.get.call_args
     self.assertIn('inquire-time-itemchartprice', args[0])
     self.assertEqual(kwargs['headers']['tr_id'], 'FHKST03010200')
-    self.assertEqual(kwargs['params']['FID_INPUT_HOUR_1'], '05')
+    self.assertEqual(kwargs['params']['FID_INPUT_HOUR_1'], '153000')
+    self.assertEqual(kwargs['params']['FID_PW_DATA_INCU_YN'], 'N')
 
   def test_investor_trend_endpoint(self):
     self.session.get.return_value = _make_response(200, {'rt_cd': '0', 'output': []})
@@ -151,6 +152,14 @@ class GetRequestTest(unittest.TestCase):
     args, kwargs = self.session.get.call_args
     self.assertIn('inquire-investor', args[0])
     self.assertEqual(kwargs['headers']['tr_id'], 'FHKST01010900')
+
+  def test_investor_estimate_endpoint(self):
+    self.session.get.return_value = _make_response(200, {'rt_cd': '0', 'output2': []})
+    self.client.get_investor_estimate('016450')
+    args, kwargs = self.session.get.call_args
+    self.assertIn('investor-trend-estimate', args[0])
+    self.assertEqual(kwargs['headers']['tr_id'], 'HHPTJ04160200')
+    self.assertEqual(kwargs['params']['MKSC_SHRN_ISCD'], '016450')
 
 
 class RateLimiterTest(unittest.TestCase):
