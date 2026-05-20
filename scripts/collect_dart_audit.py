@@ -58,6 +58,8 @@ COMPANY_SLEEP = float(os.environ.get('COMPANY_SLEEP', '0.5'))
 AUDIT_LOOKBACK_YEARS = int(os.environ.get('AUDIT_LOOKBACK_YEARS', '5'))
 # 수집 대상 회계연도 — 직전 회계연도부터 과거 N년치
 YEARS_BACK = int(os.environ.get('YEARS_BACK', '4'))
+# corp_code 해소 1회당 최대 대기 (단일 회사 hang 방지)
+RESOLVE_CORP_CODE_TIMEOUT = int(os.environ.get('RESOLVE_CORP_CODE_TIMEOUT', '60'))
 
 # DART 계정명 → DB 컬럼 매핑 (완전 일치 우선, 부분 일치 fallback)
 ACCT_TO_DB: dict[str, str] = {
@@ -713,6 +715,25 @@ def _collect_company(
 
 
 def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
+  """`_resolve_corp_code_impl`을 회사 단위 timeout 가드로 감싼 wrapper.
+
+  과거 일부 회사에서 corp_codes 조회·company.json 호출이 무한 hang하며
+  shard 전체를 240분 timeout으로 cancelled 시키는 사례가 있어 도입.
+  타임아웃 시 None 반환 + 호출부는 그 회사를 unmapped로 처리하고 다음 회사로 진행.
+  """
+  try:
+    with ThreadPoolExecutor(max_workers=1) as ex:
+      return ex.submit(_resolve_corp_code_impl, dart, name, db_corp_code).result(
+        timeout=RESOLVE_CORP_CODE_TIMEOUT
+      )
+  except FuturesTimeout:
+    logger.warning(
+      f'{name}: corp_code 해소 {RESOLVE_CORP_CODE_TIMEOUT}s timeout — 스킵'
+    )
+    return None
+
+
+def _resolve_corp_code_impl(dart, name: str, db_corp_code: str | None) -> str | None:
   """회사명에서 DART corp_code를 식별. 동명/표기 차이/이름 변경 모두 대응.
 
   우선순위:
