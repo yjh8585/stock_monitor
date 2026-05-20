@@ -83,7 +83,7 @@ function InvestorBars({
                 className={`tabular-nums ${isToday ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-muted-foreground'}`}
               >
                 {isToday
-                  ? '오늘(잠정)'
+                  ? '오늘'
                   : new Date(r.tradeDate).toLocaleDateString('ko-KR', {
                       month: '2-digit',
                       day: '2-digit',
@@ -188,6 +188,9 @@ export default function HansaeSupplyPanel({ supply, companyName }: Props) {
           <p className="mt-3 text-[11px] text-muted-foreground">
             막대 길이 = 절대값 기준 상대 강도 · 양수(오른쪽) 순매수, 음수(왼쪽) 순매도 ·
             오늘 분단위 잠정 추세는 위 가격 차트(1D) 하단 pane 참조
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            * 오늘 수치는 장중 잠정값이며, 장 마감 후 야간 배치로 확정값이 갱신됩니다.
           </p>
         </>
       )}
