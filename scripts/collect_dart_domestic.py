@@ -4,20 +4,23 @@
 
 처리 흐름 (회사별):
   1. find_corp_code(name_kr) → 매칭 실패 시 manual_dart_mapping.json 폴백
-     → 둘 다 실패 → status='delisted' 마킹 + DART_NO_MATCH 로그
+     → 둘 다 실패 → dart_collection_status='no_match' + DART_NO_MATCH 로그
   2. dart.company(corp_code) 의 corp_name 회수 → companies.name_kr 자동 갱신
      (옛 회사명 → 최신 회사명. 예: 이래에이엠에스 → 한세모빌리티)
   3. 결산감사보고서 rcpNo → 본문 HTML 파싱 (CFS 우선)
      없으면 finstate_all(fs_div='CFS') → 'OFS' 순차 폴백
-     모두 실패 → status='delisted' 마킹 + NO_AUDIT_REPORT 로그
+     모두 실패 → dart_collection_status='no_audit_report' + NO_AUDIT_REPORT 로그
   4. 매출/영업이익/순이익/총자산/부채/자본/재고 → financials upsert (백만원)
 
-재실행 안전: status='active' 회사만 처리. delisted 마킹된 회사는 스킵.
+재실행 안전: status='active' 회사만 처리.
+수집 실패는 dart_collection_status / last_collect_error / retry_after에 기록되며
+companies.status 는 변경하지 않는다(상장 상태와 수집 결과를 분리).
+실패 회사는 retry_after(기본 7일 backoff) 만료 시 자동 재시도.
 """
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv, dotenv_values
@@ -186,9 +189,14 @@ def _flush_company(
   cid: str,
   rows: list[dict],
   rename: tuple[str, str] | None,
-  delisted_reason: str | None,
+  collect_result: tuple[str, str | None] | None,
 ) -> None:
-  """단일 회사의 변경사항을 즉시 DB에 반영(중간 종료 시 손실 방지)."""
+  """단일 회사의 변경사항을 즉시 DB에 반영(중간 종료 시 손실 방지).
+
+  collect_result: (dart_collection_status, last_collect_error)
+    - 'success': 정상 수집 (error=None)
+    - 'failed' | 'no_match' | 'no_audit_report': 실패 → retry_after를 7일 뒤로 세팅
+  """
   if rows:
     deduped: dict[tuple, dict] = {}
     for r in rows:
@@ -201,13 +209,24 @@ def _flush_company(
   if rename:
     _old, new_name = rename
     client.table('companies').update({'name_kr': new_name, 'name': new_name}).eq('id', cid).execute()
-  if delisted_reason:
-    client.table('companies').update({'status': 'delisted'}).eq('id', cid).execute()
+  if collect_result:
+    dcs, err = collect_result
+    updates: dict = {
+      'dart_collection_status': dcs,
+      'last_collect_error': err,
+    }
+    if dcs in ('failed', 'no_match', 'no_audit_report'):
+      # 실패는 점진적 backoff: 7일 후 재시도
+      updates['retry_after'] = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    else:
+      updates['retry_after'] = None
+    client.table('companies').update(updates).eq('id', cid).execute()
 
 
 def collectDartDomestic() -> None:
   """page='domestic' AND status='active' 회사를 수집 대상으로 처리.
-  회사별 즉시 flush — 중간 종료해도 진행분 보존. 이미 financials 있는 회사는 skip."""
+  회사별 즉시 flush — 중간 종료해도 진행분 보존. 이미 financials 있는 회사는 skip.
+  수집 실패 시 status가 아닌 dart_collection_status에만 기록한다."""
   if not DART_KEY:
     logger.error('DART_API_KEY 없음 (scripts/.env)')
     sys.exit(1)
@@ -220,7 +239,10 @@ def collectDartDomestic() -> None:
 
   resp = (
     client.table('companies')
-    .select('id,ticker,name_kr,status,company_pages!inner(page)')
+    .select(
+      'id,ticker,name_kr,status,dart_collection_status,retry_after,'
+      'company_pages!inner(page)'
+    )
     .eq('status', 'active')
     .eq('company_pages.page', 'domestic')
     .execute()
@@ -239,15 +261,30 @@ def collectDartDomestic() -> None:
   force = _load_force_set()
   if force:
     logger.info(f'FORCE_TICKERS 적용: {force}')
+
+  # 실패 backoff 만료 회사도 재시도 대상 (force와 동급)
+  now_iso = datetime.now(timezone.utc).isoformat()
+  retry_statuses = {'failed', 'no_match', 'no_audit_report'}
+  retry_ids: set[str] = {
+    c['id'] for c in companies
+    if c.get('dart_collection_status') in retry_statuses
+    and (c.get('retry_after') is None or c['retry_after'] < now_iso)
+  }
+  if retry_ids:
+    logger.info(f'재시도 대상(backoff 만료): {len(retry_ids)}개')
+
   pending = [
     c for c in companies
-    if c['id'] not in has_fin or c['ticker'] in force or c['name_kr'] in force
+    if c['id'] not in has_fin
+    or c['ticker'] in force
+    or c['name_kr'] in force
+    or c['id'] in retry_ids
   ]
   logger.info(f'대상 {len(companies)}개 / 미수집 {len(pending)}개 처리 시작')
 
   years = _target_years()
   total_renames = 0
-  total_delisted = 0
+  total_failed = 0
   total_rows = 0
 
   for idx, c in enumerate(pending, 1):
@@ -259,8 +296,8 @@ def collectDartDomestic() -> None:
       corp_code = _resolve_corp_code(odr, name, ticker, manual)
       if not corp_code:
         logger.warning(f'[{idx}/{len(pending)}] [{ticker}] {name}: DART_NO_MATCH')
-        _flush_company(client, cid, [], None, 'DART_NO_MATCH')
-        total_delisted += 1
+        _flush_company(client, cid, [], None, ('no_match', 'DART_NO_MATCH'))
+        total_failed += 1
         continue
 
       new_name = _resolve_corp_name(odr, corp_code)
@@ -281,13 +318,13 @@ def collectDartDomestic() -> None:
         logger.warning(
           f'[{idx}/{len(pending)}] [{ticker}] {name}({corp_code}): NO_AUDIT_REPORT'
         )
-        _flush_company(client, cid, [], rename, 'NO_AUDIT_REPORT')
-        total_delisted += 1
+        _flush_company(client, cid, [], rename, ('no_audit_report', 'NO_AUDIT_REPORT'))
+        total_failed += 1
         if rename:
           total_renames += 1
         continue
 
-      _flush_company(client, cid, company_rows, rename, None)
+      _flush_company(client, cid, company_rows, rename, ('success', None))
       total_rows += len(company_rows)
       if rename:
         total_renames += 1
@@ -297,7 +334,7 @@ def collectDartDomestic() -> None:
       continue
 
   logger.info(
-    f'요약: 처리 {len(pending)} / 갱신 {total_renames} / delisted {total_delisted} / financials {total_rows}'
+    f'요약: 처리 {len(pending)} / 갱신 {total_renames} / failed {total_failed} / financials {total_rows}'
   )
 
 

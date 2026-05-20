@@ -104,18 +104,14 @@ def main() -> None:
     }
 
     if new_stock:
-      # 상장사 ticker 교체 시도. 충돌이면 삭제 후 기존 row에 page 매핑만 추가
+      # 상장사 ticker 교체 시도. 충돌이면 종속 row 를 target 으로 재매핑 후 old 는 soft delete.
       if new_stock in existing_tickers and existing_tickers[new_stock] != existing_tickers.get(ticker):
         old_id = existing_tickers.get(ticker)
         target_id = existing_tickers[new_stock]
         if old_id:
-          # company_pages 'domestic' 매핑을 target으로 옮김 (이미 있으면 추가 안 함)
-          client.table('company_pages').upsert(
-            {'company_id': target_id, 'page': 'domestic'},
-            on_conflict='company_id,page', ignore_duplicates=True,
-          ).execute()
-          # 기존 unmatched row 삭제 (cascade: company_pages 자동 삭제)
-          client.table('companies').delete().eq('id', old_id).execute()
+          # merge_company(old, new) RPC: 9개 종속 테이블 재매핑 + companies.status='merged' 일괄 처리.
+          # PK/UNIQUE 충돌 row 는 함수 내부에서 old 쪽만 정리(보존 우선순위는 target).
+          client.rpc('merge_company', {'p_old_id': old_id, 'p_new_id': target_id}).execute()
           record['action'] = 'merged_to_existing'
       else:
         client.table('companies').update({

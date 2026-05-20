@@ -312,10 +312,22 @@ def _build_kr_rows(
   period_data: dict[str, dict],
   invest_map: Optional[dict[str, dict]] = None,
 ) -> list[dict]:
-  """period_data를 financials DB 행 목록으로 변환한다."""
+  """period_data를 financials DB 행 목록으로 변환한다.
+
+  fnguide Snapshot의 연간 Financial Highlight 테이블은 가장 우측에 최근 분기 열을
+  포함하는 경우가 있어, 그대로 적재하면 분기 데이터가 annual로 잘못 분류된다.
+  KR 회사는 12월 결산이 표준이므로 annual + period_end.month != 12 는 스킵한다.
+  (비12월 결산 한국 상장사는 거의 없음 — 발견 시 별도 정책 결정.)
+  """
   rows: list[dict] = []
   for vals in period_data.values():
     period_end: date = vals['_period_end']
+    if period_type == 'annual' and period_end.month != 12:
+      logger.warning(
+        f"KR {company_id}: annual period_end={period_end} (월 {period_end.month}!=12) "
+        f"→ fnguide 분기 열 오적재로 추정, 스킵"
+      )
+      continue
     fiscal_quarter = _month_to_quarter(period_end.month) if period_type == 'quarterly' else None
 
     row: dict = {

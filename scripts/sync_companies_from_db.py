@@ -65,7 +65,7 @@ def main() -> None:
   unmatched = []
   for r in rows:
     pages = pages_by_id.get(r['id'], [])
-    if 'domestic' in pages and r.get('status') == 'delisted':
+    if 'domestic' in pages and r.get('status') == 'hidden':
       unmatched.append({
         'ticker': r['ticker'],
         'name_kr': r['name_kr'],
