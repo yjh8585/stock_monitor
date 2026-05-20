@@ -125,12 +125,8 @@ export default function HansaeDashboard({ initial }: Props) {
               />
             </div>
           </div>
-          {/* 오른쪽 1단위: 수급 */}
-          <HansaeSupplyPanel
-            supply={b.supply}
-            intradaySupply={b.intradaySupply}
-            companyName={b.company.name_kr}
-          />
+          {/* 오른쪽 1단위: 일별 수급 (장중 분단위는 좌측 가격 차트에 결합됨) */}
+          <HansaeSupplyPanel supply={b.supply} companyName={b.company.name_kr} />
         </section>
       ))}
 

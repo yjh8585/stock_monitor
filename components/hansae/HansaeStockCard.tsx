@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import IntradayMiniChart from './IntradayMiniChart';
+import IntradayCombinedChart from './IntradayCombinedChart';
 import type { HansaeBundle } from './HansaeDashboard';
 import type { IntradayPoint } from '@/lib/hansae/data';
 
@@ -128,11 +129,19 @@ export default function HansaeStockCard({ bundle }: Props) {
         ))}
       </div>
       <div className="mt-2">
-        <IntradayMiniChart data={chartData} changePct={pct} height={320} />
+        {range === '1D' ? (
+          <IntradayCombinedChart
+            intraday={bundle.intraday}
+            supply={bundle.intradaySupply}
+            height={360}
+          />
+        ) : (
+          <IntradayMiniChart data={chartData} changePct={pct} height={320} />
+        )}
       </div>
       <div className="mt-2 flex justify-between text-sm text-muted-foreground">
         <span>
-          {range === '1D' ? '당일 5분봉' : `${range} 일봉 + 당일 5분봉`} · 거래량{' '}
+          {range === '1D' ? '당일 분봉 + 수급 (KIS)' : `${range} 일봉 + 당일 5분봉`} · 거래량{' '}
           {formatVol(company.lastVolume)}
         </span>
         <span>

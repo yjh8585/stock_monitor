@@ -1,12 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import type { IntradaySupplyPoint, SupplyDemandRow } from '@/lib/hansae/data';
-import IntradaySupplyChart from './IntradaySupplyChart';
+import type { SupplyDemandRow } from '@/lib/hansae/data';
 
 interface Props {
   supply: SupplyDemandRow[];
-  intradaySupply: IntradaySupplyPoint[];
   companyName: string;
 }
 
@@ -125,8 +122,7 @@ function InvestorBars({
   );
 }
 
-export default function HansaeSupplyPanel({ supply, intradaySupply, companyName }: Props) {
-  const [view, setView] = useState<'daily' | 'intraday'>('daily');
+export default function HansaeSupplyPanel({ supply, companyName }: Props) {
   // 절대값 기준 색 농도 정규화
   const maxAbs = supply.reduce((m, r) => {
     return Math.max(
@@ -144,47 +140,11 @@ export default function HansaeSupplyPanel({ supply, intradaySupply, companyName 
   return (
     <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0 overflow-auto">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-lg font-semibold">수급 (투자자별 순매수)</h2>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => setView('daily')}
-              className={`px-2 py-0.5 rounded text-sm ${
-                view === 'daily'
-                  ? 'bg-foreground text-background'
-                  : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
-              }`}
-            >
-              일별 5일
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('intraday')}
-              className={`px-2 py-0.5 rounded text-sm ${
-                view === 'intraday'
-                  ? 'bg-foreground text-background'
-                  : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
-              }`}
-            >
-              오늘 분단위
-            </button>
-          </div>
-          <span className="text-sm text-muted-foreground">{companyName}</span>
-        </div>
+        <h2 className="text-lg font-semibold">수급 일별 (최근 5일)</h2>
+        <span className="text-sm text-muted-foreground">{companyName}</span>
       </div>
 
-      {view === 'intraday' && (
-        <div>
-          <IntradaySupplyChart data={intradaySupply} height={260} />
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            누적 순매수 추세 — 외국인(amber) / 기관(emerald) / 개인(sky) · KRX 잠정 5분 갱신
-          </p>
-        </div>
-      )}
-
-      {view === 'daily' && (
-        <>
+      <>
       {supply.length === 0 ? (
         <div className="text-sm text-muted-foreground">
           수급 데이터 없음 (PYKRX 야간 배치가 한 번 이상 실행되어야 함)
@@ -226,12 +186,12 @@ export default function HansaeSupplyPanel({ supply, intradaySupply, companyName 
           </div>
 
           <p className="mt-3 text-[11px] text-muted-foreground">
-            막대 길이 = 절대값 기준 상대 강도 · 양수(오른쪽) 순매수, 음수(왼쪽) 순매도
+            막대 길이 = 절대값 기준 상대 강도 · 양수(오른쪽) 순매수, 음수(왼쪽) 순매도 ·
+            오늘 분단위 잠정 추세는 위 가격 차트(1D) 하단 pane 참조
           </p>
         </>
       )}
-        </>
-      )}
+      </>
     </div>
   );
 }
