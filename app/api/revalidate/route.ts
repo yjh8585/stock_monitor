@@ -11,18 +11,33 @@
  *
  * tag=all → 모든 페이지 캐시 무효화
  */
-import { updateTag } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
+// 실제 사용 중인 cacheTag 전수 — git grep 'cacheTag('로 도출.
+// 동적 태그(company:${id}, post:${id})는 특정 id 단위라 ALL에 포함하지 않음.
 const ALL_TAGS = [
   'related_stocks_view',
   'domestic_stocks_view',
   'parts_top100_stocks_view',
   'exchange_rates_live',
+  'exchange_rates',
+  'market_series_daily',
+  'market_series',
+  'macro_outlook_notes',
   'oem_sales_group_month',
   'oem_sales_group_pt_month',
   'oem_sales_group_country_month',
   'oem_sales_type_seg_month',
+  'oem_sales_model_country_month',
+  'oem_model_outlook',
+  'pnl_entries',
+  'pnl_cost_structure',
+  'posts',
+  'companies',
+  'financials',
+  'stock_prices',
+  'stock_quotes_5min',
 ];
 
 export async function POST(req: NextRequest) {
@@ -56,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   const revalidated: string[] = [];
   for (const t of tags) {
-    updateTag(t);
+    revalidateTag(t, 'max');
     revalidated.push(t);
   }
 

@@ -6,6 +6,9 @@ import { gfm } from 'turndown-plugin-gfm';
 import logger from '@/lib/logger';
 import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
 import { formatRelatedSection, searchRelated } from '@/lib/reports/search.service';
+import { assertSafeReportUrl, shouldAttachMarklinesCookie } from './url-guard';
+
+const FETCH_TIMEOUT_MS = 20000;
 
 export interface ReportWebSummaryResult {
   title: string;
@@ -53,6 +56,27 @@ export async function analyzeReportWebpage(url: string): Promise<ReportWebSummar
 }
 
 async function fetchHtml(url: string): Promise<string> {
+  // SSRF·쿠키 유출 가드. 사설망/loopback/메타데이터 IP는 여기서 차단된다.
+  let safe = await assertSafeReportUrl(url);
+
+  let res = await doFetch(safe);
+
+  // 3xx 응답이면 Location을 다시 검증한 뒤 1회만 follow.
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get('location');
+    if (location) {
+      safe = await assertSafeReportUrl(new URL(location, safe).toString());
+      res = await doFetch(safe);
+    }
+  }
+
+  if (!res.ok) {
+    throw new Error(`보고서 페이지 다운로드 실패 (${res.status})`);
+  }
+  return res.text();
+}
+
+async function doFetch(safe: URL): Promise<Response> {
   const headers: Record<string, string> = {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
@@ -60,15 +84,15 @@ async function fetchHtml(url: string): Promise<string> {
     Referer: 'https://www.marklines.com/en/',
   };
 
-  if (url.includes('marklines.com') && process.env.MARKLINES_COOKIE) {
+  if (shouldAttachMarklinesCookie(safe) && process.env.MARKLINES_COOKIE) {
     headers['Cookie'] = process.env.MARKLINES_COOKIE;
   }
 
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    throw new Error(`보고서 페이지 다운로드 실패 (${res.status})`);
-  }
-  return res.text();
+  return fetch(safe, {
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
 }
 
 interface ArticleResult {
