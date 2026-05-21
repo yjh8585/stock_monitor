@@ -269,8 +269,15 @@ def _with_retry(
       with _silencer():
         if _deadline is None:
           return fn(*args, **kwargs)
-        with ThreadPoolExecutor(max_workers=1) as ex:
+        # `with ThreadPoolExecutor` 패턴은 __exit__에서 shutdown(wait=True) 호출 →
+        # FuturesTimeout fire 후에도 백그라운드 thread가 SSL 핸드셰이크에서 무한
+        # hang하면 with 블록을 못 빠져나가 outer 호출도 마비. shutdown(wait=False,
+        # cancel_futures=True)로 thread leak 허용하되 메인 흐름은 즉시 다음 시도로.
+        ex = ThreadPoolExecutor(max_workers=1)
+        try:
           return ex.submit(fn, *args, **kwargs).result(timeout=_deadline)
+        finally:
+          ex.shutdown(wait=False, cancel_futures=True)
     except Exception as e:
       last = e
       if i < _attempts - 1 and _is_transient_error(e):
@@ -723,17 +730,21 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
   과거 일부 회사에서 corp_codes 조회·company.json 호출이 무한 hang하며
   shard 전체를 240분 timeout으로 cancelled 시키는 사례가 있어 도입.
   타임아웃 시 None 반환 + 호출부는 그 회사를 unmapped로 처리하고 다음 회사로 진행.
+  shutdown(wait=False)로 thread leak 허용 — `with ThreadPoolExecutor` 패턴은
+  __exit__에서 무한 대기라 nested hang을 만든다.
   """
+  ex = ThreadPoolExecutor(max_workers=1)
   try:
-    with ThreadPoolExecutor(max_workers=1) as ex:
-      return ex.submit(_resolve_corp_code_impl, dart, name, db_corp_code).result(
-        timeout=RESOLVE_CORP_CODE_TIMEOUT
-      )
+    return ex.submit(_resolve_corp_code_impl, dart, name, db_corp_code).result(
+      timeout=RESOLVE_CORP_CODE_TIMEOUT
+    )
   except FuturesTimeout:
     logger.warning(
       f'{name}: corp_code 해소 {RESOLVE_CORP_CODE_TIMEOUT}s timeout — 스킵'
     )
     return None
+  finally:
+    ex.shutdown(wait=False, cancel_futures=True)
 
 
 def _resolve_corp_code_impl(dart, name: str, db_corp_code: str | None) -> str | None:
@@ -957,17 +968,22 @@ def collectDartAudit() -> None:
       continue
 
     logger.info(f'{name}: corp_code={corp_code}')
+    # `with ThreadPoolExecutor`는 __exit__에서 wait=True라 백그라운드 thread가
+    # SSL 핸드셰이크에서 hang하면 무한 대기 → 다음 회사로 못 넘어감. 명시적
+    # shutdown(wait=False)로 thread leak 허용하되 메인 흐름은 즉시 진행.
+    ex = ThreadPoolExecutor(max_workers=1)
     try:
-      with ThreadPoolExecutor(max_workers=1) as ex:
-        rows = ex.submit(
-          _collect_company, dart, company_id, corp_code, _target_years()
-        ).result(timeout=COMPANY_TIMEOUT)
+      rows = ex.submit(
+        _collect_company, dart, company_id, corp_code, _target_years()
+      ).result(timeout=COMPANY_TIMEOUT)
     except FuturesTimeout:
       logger.warning(f'{name}({corp_code}): 회사 처리 {COMPANY_TIMEOUT}s timeout — 스킵')
       rows = []
     except Exception as e:
       logger.error(f'{name}({corp_code}): 회사 처리 예외 — {type(e).__name__}: {e}')
       rows = []
+    finally:
+      ex.shutdown(wait=False, cancel_futures=True)
     all_rows.extend(rows)
     logger.info(f'{name}({corp_code}): {len(rows)}행 수집')
     time.sleep(COMPANY_SLEEP)
