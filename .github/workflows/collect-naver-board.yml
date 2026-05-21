@@ -1,0 +1,34 @@
+name: 네이버 종목토론 수집 (한세)
+
+# Vercel /api/cron/naver-board가 Hobby plan 60s 한계로 504 — GHA runner에서 Node 직접 실행으로 전환.
+# 기존 cron-naver-board.yml(curl 호출)을 대체.
+on:
+  schedule:
+    - cron: '*/30 0-6 * * 1-5' # 평일 KST 09:00~15:30 (UTC 0~6시) 30분마다
+  workflow_dispatch:
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 네이버 종목토론 수집
+        run: npx tsx scripts/collect_naver_board.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}

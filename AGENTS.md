@@ -135,7 +135,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - 재무: 분기별 (1/4/7/10월 15일)
 - 뉴스·감성: 4시간/일간
 - DART·매크로·해운·철강·원자재: 일간/주간
-- Vercel cron 대체(curl 트리거): `cron-quotes-5min`, `cron-naver-board`, `cron-sentiment` — Hobby 플랜 일 1회 제약 회피. secret 필요: `APP_BASE_URL`, `CRON_SECRET`
+- Vercel cron 대체(curl 트리거): `cron-quotes-5min`, `cron-sentiment` — Hobby 플랜 일 1회 제약 회피. secret 필요: `APP_BASE_URL`, `CRON_SECRET`
+- 한세 종목토론은 Vercel 60s timeout 우회 위해 GHA runner에서 Node 직접 실행: `collect-naver-board.yml` → `scripts/collect_naver_board.ts`(`@supabase/supabase-js`+`lib/naver/board.ts` 재사용). secret 필요: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 
 ### 루트 설정
 
