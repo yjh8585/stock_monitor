@@ -60,6 +60,8 @@ AUDIT_LOOKBACK_YEARS = int(os.environ.get('AUDIT_LOOKBACK_YEARS', '5'))
 YEARS_BACK = int(os.environ.get('YEARS_BACK', '4'))
 # corp_code 해소 1회당 최대 대기 (단일 회사 hang 방지)
 RESOLVE_CORP_CODE_TIMEOUT = int(os.environ.get('RESOLVE_CORP_CODE_TIMEOUT', '60'))
+# 회사 단위 처리 최대 대기 (HTTP 호출 5년치 누적 hang 방지)
+COMPANY_TIMEOUT = int(os.environ.get('COMPANY_TIMEOUT', '1800'))
 
 # DART 계정명 → DB 컬럼 매핑 (완전 일치 우선, 부분 일치 fallback)
 ACCT_TO_DB: dict[str, str] = {
@@ -567,7 +569,7 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
   """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다."""
   url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
   try:
-    r = _with_retry(_session.get, url, timeout=(10, 30))
+    r = _with_retry(_session.get, url, timeout=(10, 30), _deadline=60)
   except Exception as e:
     logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
     return None
@@ -620,6 +622,7 @@ def _is_pdf_only_report(rcpt_no: str) -> bool:
       _session.get,
       f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}',
       timeout=(10, 30),
+      _deadline=60,
     )
   except Exception:
     return False
@@ -632,7 +635,7 @@ def _is_pdf_only_report(rcpt_no: str) -> bool:
 def _fetch_tables(url: str) -> list:
   """DART 뷰어 URL에서 HTML 테이블 목록을 반환."""
   try:
-    r = _with_retry(_session.get, url, timeout=(10, 30))
+    r = _with_retry(_session.get, url, timeout=(10, 30), _deadline=60)
     soup = BeautifulSoup(r.content, 'html.parser')
     return soup.find_all('table')
   except Exception as e:
@@ -954,7 +957,17 @@ def collectDartAudit() -> None:
       continue
 
     logger.info(f'{name}: corp_code={corp_code}')
-    rows = _collect_company(dart, company_id, corp_code, years=_target_years())
+    try:
+      with ThreadPoolExecutor(max_workers=1) as ex:
+        rows = ex.submit(
+          _collect_company, dart, company_id, corp_code, _target_years()
+        ).result(timeout=COMPANY_TIMEOUT)
+    except FuturesTimeout:
+      logger.warning(f'{name}({corp_code}): 회사 처리 {COMPANY_TIMEOUT}s timeout — 스킵')
+      rows = []
+    except Exception as e:
+      logger.error(f'{name}({corp_code}): 회사 처리 예외 — {type(e).__name__}: {e}')
+      rows = []
     all_rows.extend(rows)
     logger.info(f'{name}({corp_code}): {len(rows)}행 수집')
     time.sleep(COMPANY_SLEEP)

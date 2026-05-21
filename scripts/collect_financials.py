@@ -569,13 +569,18 @@ def _build_yf_row(
   currency: str,
   period_type: str,
   period_end: date,
+  fy_offset: int = 0,
 ) -> dict:
-  """yfinance 재무 데이터 컬럼을 financials DB 행으로 변환한다."""
+  """yfinance 재무 데이터 컬럼을 financials DB 행으로 변환한다.
+
+  fy_offset: 일본 비-12월 결산법인 한국식 표기 보정 (-1) 등에 사용.
+  (예: 덴소 FY2025/4~2026/3 → period_end=2026-03-31, fy_offset=-1 → fiscal_year=2025)
+  """
   fiscal_quarter = _month_to_quarter(period_end.month) if period_type == 'quarterly' else None
   row: dict = {
     'company_id':      company_id,
     'period_type':     period_type,
-    'fiscal_year':     period_end.year,
+    'fiscal_year':     period_end.year + fy_offset,
     'fiscal_quarter':  fiscal_quarter,
     'period_end_date': period_end.isoformat(),
     'currency':        currency,
@@ -612,6 +617,7 @@ def _process_yf_frames(
   company_id: str,
   currency: str,
   period_type: str,
+  fy_offset: int = 0,
 ) -> list[dict]:
   """yfinance income/balance DataFrame 쌍을 DB 행 목록으로 변환한다."""
   if income_df is None or income_df.empty:
@@ -626,7 +632,7 @@ def _process_yf_frames(
       else pd.Series(dtype=float)
     )
     rows.append(
-      _build_yf_row(income_col, balance_col, company_id, currency, period_type, period_end)
+      _build_yf_row(income_col, balance_col, company_id, currency, period_type, period_end, fy_offset)
     )
   return rows
 
@@ -655,12 +661,26 @@ def _collect_global_financials(
       except Exception:
         fin_currency = cur_map.get(ticker, 'USD')
 
+      # 일본 비-12월 결산법인 한국식 표기 보정 (-1).
+      # annual columns의 첫 결산일로 회사 결산월 판단 → 비-12월이면 fy_offset=-1.
+      # 마이그레이션 20260521000002와 동일 정책 (수집 시점부터 일관성 유지).
+      fy_offset = 0
+      annual_income = t.income_stmt
+      if company['country'] == 'JP' and annual_income is not None and not annual_income.empty:
+        first_col = annual_income.columns[0]
+        first_end = first_col.date() if hasattr(first_col, 'date') else first_col
+        if first_end.month != 12:
+          fy_offset = -1
+          logger.info(
+            f"글로벌 {ticker} ({company['name_kr']}): 일본 {first_end.month}월 결산법인 → fiscal_year -1 보정"
+          )
+
       period_rows = _process_yf_frames(
         t.quarterly_income_stmt, t.quarterly_balance_sheet,
-        company_id, fin_currency, 'quarterly',
+        company_id, fin_currency, 'quarterly', fy_offset=fy_offset,
       ) + _process_yf_frames(
-        t.income_stmt, t.balance_sheet,
-        company_id, fin_currency, 'annual',
+        annual_income, t.balance_sheet,
+        company_id, fin_currency, 'annual', fy_offset=fy_offset,
       )
       rows.extend(period_rows)
       logger.info(
