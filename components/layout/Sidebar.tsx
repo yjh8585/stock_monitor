@@ -31,6 +31,18 @@ type NavItem = {
   children?: readonly NavChild[];
 };
 
+/** 같은 페이지면 새로고침 (현재 path와 클릭한 href가 동일할 때) */
+function handleSamePageReload(
+  e: React.MouseEvent<HTMLAnchorElement>,
+  href: string,
+  pathname: string,
+): void {
+  if (pathname === href) {
+    e.preventDefault();
+    window.location.reload();
+  }
+}
+
 const NAV_ITEMS_ALL: readonly NavItem[] = [
   { label: '경영관리', href: '/management', Icon: Briefcase },
   { label: '비교', href: '/compare', Icon: ArrowLeftRight },
@@ -80,7 +92,10 @@ export function MobileNav({
             <div key={item.href} className="flex flex-col">
               <Link
                 href={item.href}
-                onClick={onClose}
+                onClick={(e) => {
+                  handleSamePageReload(e, item.href, pathname);
+                  onClose();
+                }}
                 className={cn(
                   'flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium transition-colors',
                   active
@@ -99,7 +114,10 @@ export function MobileNav({
                       <Link
                         key={c.href}
                         href={c.href}
-                        onClick={onClose}
+                        onClick={(e) => {
+                          handleSamePageReload(e, c.href, pathname);
+                          onClose();
+                        }}
                         className={cn(
                           'rounded-md px-2 py-1 text-xs transition-colors',
                           cActive
@@ -158,7 +176,8 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
       >
         {!collapsed && (
           <Link
-            href="/related-stocks"
+            href="/management"
+            onClick={(e) => handleSamePageReload(e, '/management', pathname)}
             className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors"
           >
             한세모빌리티 BI
@@ -182,6 +201,7 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
               <Link
                 href={item.href}
                 title={item.label}
+                onClick={(e) => handleSamePageReload(e, item.href, pathname)}
                 className={cn(
                   'flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium transition-colors',
                   collapsed ? 'justify-center' : '',
@@ -202,6 +222,7 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
                         key={c.href}
                         href={c.href}
                         title={c.label}
+                        onClick={(e) => handleSamePageReload(e, c.href, pathname)}
                         className={cn(
                           'rounded-md px-2 py-1 text-xs transition-colors',
                           cActive

@@ -45,7 +45,13 @@ export default function AppLayout({
           </SheetContent>
         </Sheet>
         <Link
-          href="/related-stocks"
+          href="/management"
+          onClick={(e) => {
+            if (pathname === '/management') {
+              e.preventDefault();
+              window.location.reload();
+            }
+          }}
           className="ml-3 text-sm font-semibold hover:text-primary transition-colors"
         >
           한세모빌리티 BI
