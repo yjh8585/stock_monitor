@@ -97,7 +97,11 @@ export default function ChatWidget() {
           </button>
         }
       />
-      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="flex w-full flex-col p-0 sm:max-w-md"
+      >
         <SheetTitle className="sr-only">AI 어시스턴트</SheetTitle>
         <SheetDescription className="sr-only">
           한세모빌리티 BI 데이터에 대한 질문에 답변합니다.

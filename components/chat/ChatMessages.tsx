@@ -1,15 +1,30 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Wrench } from 'lucide-react';
+import { Database } from 'lucide-react';
+import { ChatMarkdown } from './ChatMarkdown';
 
 export interface DisplayMessage {
   role: 'user' | 'assistant';
-  /** 표시용 텍스트 (사용자 입력 그대로 또는 어시스턴트 최종 답변) */
+  /** 표시용 텍스트 (사용자 입력 그대로 또는 어시스턴트 최종 답변, 마크다운 가능) */
   text: string;
   /** 어시스턴트 응답에 동반된 도구 호출 추적 (디버깅용 접기/펼치기) */
   toolCalls?: { name: string; input: unknown; resultPreview: string }[];
   warning?: string;
+}
+
+/** 도구 이름을 사용자가 이해할 수 있는 한국어 라벨로 변환 */
+const TOOL_LABEL_KR: Record<string, string> = {
+  query_companies: '회사 검색',
+  query_financials: '재무 조회',
+  query_stock_prices: '주가 조회',
+  query_news: '뉴스 검색',
+  query_oem_sales: 'OEM 판매 조회',
+  query_macro_series: '매크로 시계열 조회',
+};
+
+function toolLabel(name: string): string {
+  return TOOL_LABEL_KR[name] ?? name;
 }
 
 interface Props {
@@ -67,24 +82,35 @@ function MessageBubble({ message }: { message: DisplayMessage }) {
     <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
       <div
         className={
-          'max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ' +
-          (isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground')
+          'max-w-[85%] rounded-lg px-3 py-2 break-words ' +
+          (isUser
+            ? 'bg-primary text-primary-foreground whitespace-pre-wrap text-sm'
+            : 'bg-muted text-foreground')
         }
       >
-        {message.text || (isUser ? '' : '(빈 답변)')}
+        {isUser ? (
+          message.text
+        ) : message.text ? (
+          <ChatMarkdown content={message.text} />
+        ) : (
+          <span className="text-sm">(빈 답변)</span>
+        )}
         {message.warning && (
           <div className="mt-1 text-[11px] text-amber-700">⚠ {message.warning}</div>
         )}
         {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
           <details className="mt-1.5 text-[11px] text-muted-foreground">
             <summary className="cursor-pointer flex items-center gap-1 hover:text-foreground">
-              <Wrench size={11} />
-              <span>도구 호출 {message.toolCalls.length}회</span>
+              <Database size={11} />
+              <span>
+                참조한 데이터 {message.toolCalls.length}건 —{' '}
+                {message.toolCalls.map((t) => toolLabel(t.name)).join(', ')}
+              </span>
             </summary>
             <ul className="mt-1 ml-3 space-y-1">
               {message.toolCalls.map((t, i) => (
                 <li key={i}>
-                  <span className="font-mono">{t.name}</span>
+                  <span className="font-semibold">{toolLabel(t.name)}</span>
                   <span className="ml-1 opacity-70">({JSON.stringify(t.input).slice(0, 80)})</span>
                 </li>
               ))}
