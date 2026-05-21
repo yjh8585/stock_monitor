@@ -94,31 +94,31 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
     <div className="rounded-md border">
       <Table className="w-full table-fixed">
         <TableHeader>
-          <TableRow>
+          <TableRow className="bg-blue-50 hover:bg-blue-50">
             <TableHead
               className="w-12 text-center"
               aria-sort={isCreatedActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
             >
               <Link
                 href={buildSortHref(sort, order, 'created_at', filters)}
-                className="hover:text-primary inline-flex items-center"
+                className="hover:text-primary inline-flex items-center justify-center"
                 scroll={false}
               >
                 No.
                 <SortIcon active={isCreatedActive} order={order} />
               </Link>
             </TableHead>
-            <TableHead className="w-16">구분</TableHead>
-            <TableHead className="w-32">카테고리</TableHead>
-            <TableHead>제목</TableHead>
-            <TableHead className="hidden w-32 md:table-cell">출처</TableHead>
+            <TableHead className="w-16 text-center">구분</TableHead>
+            <TableHead className="w-32 text-center">카테고리</TableHead>
+            <TableHead className="text-center">제목</TableHead>
+            <TableHead className="hidden w-32 text-center md:table-cell">출처</TableHead>
             <TableHead
-              className="hidden w-24 md:table-cell"
+              className="hidden w-24 text-center md:table-cell"
               aria-sort={isSourceActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
             >
               <Link
                 href={buildSortHref(sort, order, 'source_published_at', filters)}
-                className="hover:text-primary inline-flex items-center"
+                className="hover:text-primary inline-flex items-center justify-center"
                 scroll={false}
               >
                 작성일
@@ -126,12 +126,12 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               </Link>
             </TableHead>
             <TableHead
-              className="w-20"
+              className="w-20 text-center"
               aria-sort={isCreatedActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
             >
               <Link
                 href={buildSortHref(sort, order, 'created_at', filters)}
-                className="hover:text-primary inline-flex items-center"
+                className="hover:text-primary inline-flex items-center justify-center"
                 scroll={false}
               >
                 게시일
@@ -142,7 +142,7 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => (
-            <TableRow key={row.id}>
+            <TableRow key={row.id} className="bg-white">
               <TableCell className="text-muted-foreground text-center">
                 {isCreatedActive && order === 'asc'
                   ? startIndex + index + 1
