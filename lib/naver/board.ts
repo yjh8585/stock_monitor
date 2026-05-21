@@ -11,6 +11,7 @@
  *  - 글이 cutoff 안쪽이면 본문도 fetch (본문 fetch 사이도 sleep).
  */
 import * as cheerio from 'cheerio';
+import * as iconv from 'iconv-lite';
 
 const BASE = 'https://finance.naver.com';
 const HEADERS = {
@@ -96,15 +97,14 @@ function parseListPage(html: string): ListItem[] {
   return items;
 }
 
-/** latin1로 디코딩한 byte 문자열을 EUC-KR로 재해석 → UTF-8 문자열 */
+/** latin1로 디코딩한 byte 문자열을 EUC-KR(CP949)로 재해석 → UTF-8 문자열.
+ *  Node 기본 ICU(small)는 'euc-kr' 미지원이라 TextDecoder가 throw하고 fallback에서
+ *  원본 byte를 그대로 반환 → 한글 깨짐(U+FFFD). iconv-lite는 ICU와 무관하게 작동.
+ *  CP949는 EUC-KR 상위호환이라 네이버 응답도 안전하게 디코딩 가능. */
 function decodeLatinToUtf8(s: string): string {
-  const bytes = new Uint8Array(s.length);
+  const bytes = Buffer.alloc(s.length);
   for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
-  try {
-    return new TextDecoder('euc-kr').decode(bytes);
-  } catch {
-    return s; // Node가 euc-kr 미지원이면 원본 반환
-  }
+  return iconv.decode(bytes, 'cp949');
 }
 
 function parseBodyPage(html: string): string | null {

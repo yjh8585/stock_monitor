@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.20",
+    "iconv-lite": "^0.7.2",
     "jose": "^6.2.3",
     "jsdom": "^29.1.1",
     "lightweight-charts": "^5.2.0",
