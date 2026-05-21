@@ -30,14 +30,16 @@ function toolLabel(name: string): string {
 interface Props {
   messages: DisplayMessage[];
   loading: boolean;
+  /** 현재 진행 중인 도구 호출 라벨 (스트리밍 중 텍스트 도착 전 표시) */
+  statusLabel?: string | null;
 }
 
-export default function ChatMessages({ messages, loading }: Props) {
+export default function ChatMessages({ messages, loading, statusLabel }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, loading]);
+  }, [messages, loading, statusLabel]);
 
   if (messages.length === 0 && !loading) {
     return (
@@ -64,10 +66,10 @@ export default function ChatMessages({ messages, loading }: Props) {
         {messages.map((m, i) => (
           <MessageBubble key={i} message={m} />
         ))}
-        {loading && (
+        {loading && statusLabel && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
-            답변 생성 중…
+            {statusLabel}
           </div>
         )}
         <div ref={endRef} />
@@ -93,7 +95,8 @@ function MessageBubble({ message }: { message: DisplayMessage }) {
         ) : message.text ? (
           <ChatMarkdown content={message.text} />
         ) : (
-          <span className="text-sm">(빈 답변)</span>
+          // streaming 시작 직후엔 빈 상태 (외부에서 statusLabel로 진행 상태 표시)
+          <span className="inline-block h-2 w-12 animate-pulse rounded bg-muted-foreground/30" />
         )}
         {message.warning && (
           <div className="mt-1 text-[11px] text-amber-700">⚠ {message.warning}</div>

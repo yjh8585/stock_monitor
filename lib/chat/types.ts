@@ -28,3 +28,18 @@ export interface ChatResponse {
   /** MAX_ITERATIONS 도달 등 비정상 종료 시 표시 */
   warning?: string;
 }
+
+/**
+ * 챗봇 스트리밍 이벤트 (SSE로 전송).
+ * - tool_start: LLM이 도구 호출 시작 (UI: "회사 검색 중…")
+ * - tool_done: 도구 결과 수신 완료
+ * - text_delta: 답변 텍스트 청크 (누적 append)
+ * - done: 응답 종료 + 최종 toolCalls·warning
+ * - error: 처리 실패
+ */
+export type ChatStreamEvent =
+  | { type: 'tool_start'; name: string; input: unknown }
+  | { type: 'tool_done'; name: string }
+  | { type: 'text_delta'; delta: string }
+  | { type: 'done'; toolCalls: ChatToolCallTrace[]; warning?: string }
+  | { type: 'error'; message: string };

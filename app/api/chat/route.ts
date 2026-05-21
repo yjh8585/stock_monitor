@@ -1,19 +1,20 @@
 /**
- * 챗봇 POST 엔드포인트.
+ * 챗봇 POST 엔드포인트 — Server-Sent Events (SSE) 스트리밍.
  *
- * - 세션 인증 (proxy.ts가 PUBLIC_PATH_PREFIXES 외 자동 강제하지만 명시적으로 한 번 더 확인)
+ * 응답 형식: `text/event-stream`로 각 이벤트를 `data: <JSON>\n\n` 줄 단위 전송.
+ * 클라이언트는 fetch().body.getReader()로 점진 파싱.
+ *
+ * - 세션 인증
  * - Zod 입력 검증 (messages 배열)
- * - per-IP in-memory rate limit (분당 20회)
- * - runChatLoop 호출 → { ok, text, toolCalls, warning? } 응답
- *
- * 응답 형식: { ok: true, text, toolCalls, warning? } / { ok: false, error, detail? }
+ * - per-user in-memory rate limit (분당 20회)
+ * - streamChatLoop AsyncGenerator → SSE
  */
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { runChatLoop } from '@/lib/chat/loop';
-import type { ChatMessage } from '@/lib/chat/types';
+import { streamChatLoop } from '@/lib/chat/loop';
+import type { ChatMessage, ChatStreamEvent } from '@/lib/chat/types';
 
 export const maxDuration = 60;
 
@@ -35,34 +36,40 @@ function checkRateLimit(key: string): { ok: boolean; resetAt: number } {
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
-  content: z.union([
-    z.string().min(1).max(4000),
-    z.array(z.unknown()), // assistant 메시지의 ContentBlock 배열 (이전 턴 그대로 전달)
-  ]),
+  content: z.union([z.string().min(1).max(4000), z.array(z.unknown())]),
 });
 
 const BodySchema = z.object({
   messages: z.array(MessageSchema).min(1).max(50),
 });
 
+function sseLine(event: ChatStreamEvent): string {
+  return `data: ${JSON.stringify(event)}\n\n`;
+}
+
+function jsonError(status: number, code: string, detail?: unknown): Response {
+  return new Response(JSON.stringify({ ok: false, error: code, detail }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 export async function POST(req: NextRequest) {
   // 1) 세션 인증
   const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
+  if (!user) return jsonError(401, 'unauthorized');
 
-  // 2) rate limit (사용자 id 기준 — 다중 탭에서도 합산)
+  // 2) rate limit
   const rl = checkRateLimit(`u:${user.id}`);
   if (!rl.ok) {
     logger.warn({ uid: user.id, resetAt: rl.resetAt }, '/api/chat rate limit hit');
-    return NextResponse.json(
-      { ok: false, error: 'rate_limited' },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)) },
-      }
-    );
+    return new Response(JSON.stringify({ ok: false, error: 'rate_limited' }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+      },
+    });
   }
 
   // 3) 입력 검증
@@ -70,28 +77,39 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
+    return jsonError(400, 'invalid_json');
   }
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { ok: false, error: 'invalid_params', detail: parsed.error.issues },
-      { status: 400 }
-    );
+    return jsonError(400, 'invalid_params', parsed.error.issues);
   }
 
-  // 4) tool_use 루프 실행
-  try {
-    const response = await runChatLoop(parsed.data.messages as ChatMessage[], user.role);
-    return NextResponse.json({
-      ok: true,
-      text: response.text,
-      toolCalls: response.toolCalls,
-      warning: response.warning,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.error({ err, uid: user.id }, '/api/chat 실행 실패');
-    return NextResponse.json({ ok: false, error: 'llm_unavailable', detail: msg }, { status: 503 });
-  }
+  // 4) SSE 스트림 생성
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const event of streamChatLoop(
+          parsed.data.messages as ChatMessage[],
+          user.role,
+        )) {
+          controller.enqueue(encoder.encode(sseLine(event)));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error({ err, uid: user.id }, '/api/chat 스트림 실패');
+        controller.enqueue(encoder.encode(sseLine({ type: 'error', message: msg })));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+    },
+  });
 }

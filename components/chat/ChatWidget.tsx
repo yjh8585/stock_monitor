@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * 모든 페이지 우하단 floating 챗봇.
+ * 모든 페이지 우하단 floating 챗봇 (SSE 스트리밍).
  * - useState로 메시지 보존 (세션 메모리, DB 저장 X)
  * - AppLayout 루트에 마운트되므로 페이지 이동 시 유지, 새로고침/탭 닫기 시 소실
+ * - /api/chat의 text/event-stream을 fetch().body.getReader()로 점진 파싱 → 답변이 실시간으로 흘러나옴
  */
 import { useState } from 'react';
 import { MessageCircle, X, Trash2 } from 'lucide-react';
@@ -16,67 +17,143 @@ import {
 } from '@/components/ui/sheet';
 import ChatMessages, { type DisplayMessage } from './ChatMessages';
 import ChatInput from './ChatInput';
-import type { ChatMessage } from '@/lib/chat/types';
+import type { ChatMessage, ChatStreamEvent } from '@/lib/chat/types';
 
-interface ChatResponseBody {
-  ok: boolean;
-  text?: string;
-  toolCalls?: { name: string; input: unknown; resultPreview: string }[];
-  warning?: string;
-  error?: string;
-  detail?: string | unknown;
-}
+const TOOL_LABEL_KR: Record<string, string> = {
+  query_companies: '회사 검색',
+  query_financials: '재무 조회',
+  query_stock_prices: '주가 조회',
+  query_news: '뉴스 검색',
+  query_oem_sales: 'OEM 판매 조회',
+  query_macro_series: '매크로 시계열 조회',
+};
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   /** API에 보낼 형식 (assistant content는 ContentBlock 배열도 가능) */
   const [history, setHistory] = useState<ChatMessage[]>([]);
-  /** UI 표시용 (text만 추출) */
+  /** UI 표시용 */
   const [display, setDisplay] = useState<DisplayMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  /** 현재 진행 중인 도구 호출 라벨 (UI 로딩 상태) */
+  const [activeStatus, setActiveStatus] = useState<string | null>(null);
+
+  function appendDisplay(msg: DisplayMessage) {
+    setDisplay((prev) => [...prev, msg]);
+  }
+
+  function updateLastAssistant(updater: (prev: DisplayMessage) => DisplayMessage) {
+    setDisplay((prev) => {
+      const idx = prev.length - 1;
+      if (idx < 0 || prev[idx].role !== 'assistant') return prev;
+      const next = [...prev];
+      next[idx] = updater(next[idx]);
+      return next;
+    });
+  }
 
   async function sendMessage(text: string) {
     const userMsg: ChatMessage = { role: 'user', content: text };
     const newHistory = [...history, userMsg];
     setHistory(newHistory);
-    setDisplay((prev) => [...prev, { role: 'user', text }]);
+    appendDisplay({ role: 'user', text });
+    // 어시스턴트 자리 미리 만들어두기 → 텍스트 청크 누적
+    appendDisplay({ role: 'assistant', text: '' });
     setLoading(true);
+    setActiveStatus('답변 준비 중…');
+
+    let assistantText = '';
+    const toolCalls: DisplayMessage['toolCalls'] = [];
+    let warning: string | undefined;
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newHistory }),
       });
-      const body: ChatResponseBody = await res.json();
-      if (!res.ok || !body.ok) {
+
+      // 비정상 응답 (text/event-stream 아닌 JSON 에러)
+      if (!res.ok) {
+        let errBody: { error?: string; detail?: unknown } = {};
+        try {
+          errBody = await res.json();
+        } catch {
+          /* ignore */
+        }
         const errText =
-          body.error === 'rate_limited'
+          errBody.error === 'rate_limited'
             ? '요청이 너무 많습니다. 1분 후 다시 시도해 주세요.'
-            : body.error === 'llm_unavailable'
-              ? `LLM 응답 실패: ${typeof body.detail === 'string' ? body.detail : '잠시 후 다시 시도해 주세요.'}`
-              : body.error === 'unauthorized'
-                ? '로그인 후 이용해 주세요.'
-                : `오류: ${body.error ?? '알 수 없음'}`;
-        setDisplay((prev) => [...prev, { role: 'assistant', text: errText }]);
+            : errBody.error === 'unauthorized'
+              ? '로그인 후 이용해 주세요.'
+              : `오류: ${errBody.error ?? `HTTP ${res.status}`}`;
+        updateLastAssistant((p) => ({ ...p, text: errText }));
         return;
       }
-      const assistantText = body.text ?? '';
+
+      const reader = res.body?.getReader();
+      if (!reader) {
+        updateLastAssistant((p) => ({ ...p, text: '오류: 스트림 응답 없음' }));
+        return;
+      }
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let event: ChatStreamEvent;
+          try {
+            event = JSON.parse(line.slice(6)) as ChatStreamEvent;
+          } catch {
+            continue;
+          }
+          if (event.type === 'text_delta') {
+            assistantText += event.delta;
+            updateLastAssistant((p) => ({ ...p, text: assistantText }));
+            // 텍스트가 나오기 시작하면 도구 상태 표시 제거
+            setActiveStatus(null);
+          } else if (event.type === 'tool_start') {
+            const label = TOOL_LABEL_KR[event.name] ?? event.name;
+            setActiveStatus(`${label} 중…`);
+            toolCalls.push({
+              name: event.name,
+              input: event.input,
+              resultPreview: '',
+            });
+          } else if (event.type === 'tool_done') {
+            // 진행률만 갱신 (필요시)
+          } else if (event.type === 'done') {
+            warning = event.warning;
+            // event.toolCalls가 정식 결과 — 누적된 toolCalls를 교체
+            updateLastAssistant((p) => ({
+              ...p,
+              toolCalls: event.toolCalls,
+              warning,
+            }));
+          } else if (event.type === 'error') {
+            updateLastAssistant((p) => ({
+              ...p,
+              text: `오류: ${event.message}`,
+            }));
+          }
+        }
+      }
+
+      // history는 텍스트만 누적 (도구 결과는 다음 turn에 안 보냄 — Claude가 새 컨텍스트로 처리)
       const assistantMsg: ChatMessage = { role: 'assistant', content: assistantText };
       setHistory((prev) => [...prev, assistantMsg]);
-      setDisplay((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: assistantText,
-          toolCalls: body.toolCalls,
-          warning: body.warning,
-        },
-      ]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '네트워크 오류';
-      setDisplay((prev) => [...prev, { role: 'assistant', text: `오류: ${msg}` }]);
+      updateLastAssistant((p) => ({ ...p, text: `오류: ${msg}` }));
     } finally {
       setLoading(false);
+      setActiveStatus(null);
     }
   }
 
@@ -132,7 +209,7 @@ export default function ChatWidget() {
             </button>
           </div>
         </div>
-        <ChatMessages messages={display} loading={loading} />
+        <ChatMessages messages={display} loading={loading} statusLabel={activeStatus} />
         <ChatInput onSubmit={sendMessage} disabled={loading} />
       </SheetContent>
     </Sheet>
