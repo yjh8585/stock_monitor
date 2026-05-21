@@ -184,7 +184,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **상태 컬럼**: `companies.status` = `active` | `hidden` | `merged_into`. 과거 `delisted`는 `hidden`으로 개명됨 (2026-05-20 마이그레이션). 화면 노출은 `active`만.
 - **회사명 정규화**: `companies.name` / `name_kr`은 BEFORE INSERT/UPDATE 트리거(`companies_clean_legal_form_before_iu`)가 한글 법인격 표기((주)·㈜·(株)·주식회사·유한회사·유한책임회사)를 자동 제거(20260520000009 마이그레이션). seed/enrich/dart/수동 어떤 경로든 자동 정리.
 - **재무(`financials`)**: 연결(consolidated) 우선, 종속회사 없을 때만 별도. period CHECK 제약 강화됨 — `annual`은 12월만 허용.
-- **일본 회계연도 한국식 표기**: country=JP AND annual.period_end_date의 월 ≠ 12 회사는 `fiscal_year`를 한국식으로 -1 보정 저장(20260521000002 마이그레이션). 예: 덴소 FY 2025/4~2026/3 → fiscal_year=2025. 12월 결산 일본 회사(르네사스/브리지스톤 등)는 한국식과 동일이라 보정 제외. yfinance 등 수집 스크립트에 같은 규칙 적용해야 향후 데이터도 일관성 유지.
+- **비-12월 결산법인 fiscal_year 한국식 보정**: country!=KR AND annual.period_end_date의 월 ≠ 12 글로벌 회사는 `fiscal_year`를 한국식으로 -1 보정 저장(20260521000002 일본 / 20260521000003 일본 외). 9월 결산 등 비-12월 결산법인의 회계연도를 다수파 12월 결산법인과 같은 시간축에 정렬해 UI 컬럼 일관성 확보. 예: 덴소 FY 2025/4~2026/3 → fiscal_year=2025, 인피니온 FY 2024/10~2025/9 → fiscal_year=2024. yfinance 수집 스크립트(`collect_financials.py`)에서 결산월 != 12면 자동 적용.
 - **부품사 TOP100 뷰 미래 가드**: `parts_top100_stocks_view`의 `financials_by_year`/`latest_revenue_krw`는 `period_end_date <= now()` 가드로 미래 회계연도 데이터 노출 차단(20260521000001).
 - **append-only 보강**: `customers`, `description` 등 기존 보강 필드는 **덮어쓰지 말고 append-only**. 자동 enrich 시 diff 로그(`scripts/_*_diff_*.json`) 생성.
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지+인터넷 검색 결과만, Claude Code가 직접 작성하는 워크플로 유지(`enrich_description_*.py` 참고).

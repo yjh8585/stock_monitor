@@ -661,18 +661,19 @@ def _collect_global_financials(
       except Exception:
         fin_currency = cur_map.get(ticker, 'USD')
 
-      # 일본 비-12월 결산법인 한국식 표기 보정 (-1).
+      # 비-12월 결산 글로벌 회사 한국식 표기 보정 (-1).
       # annual columns의 첫 결산일로 회사 결산월 판단 → 비-12월이면 fy_offset=-1.
-      # 마이그레이션 20260521000002와 동일 정책 (수집 시점부터 일관성 유지).
+      # 마이그레이션 20260521000002(JP) + 20260521000003(JP 외 글로벌)과 동일 정책.
+      # 9월 결산 등 비-12월 결산법인의 FY 표기를 다수파 12월 결산법인과 같은 시간축에 정렬.
       fy_offset = 0
       annual_income = t.income_stmt
-      if company['country'] == 'JP' and annual_income is not None and not annual_income.empty:
+      if annual_income is not None and not annual_income.empty:
         first_col = annual_income.columns[0]
         first_end = first_col.date() if hasattr(first_col, 'date') else first_col
         if first_end.month != 12:
           fy_offset = -1
           logger.info(
-            f"글로벌 {ticker} ({company['name_kr']}): 일본 {first_end.month}월 결산법인 → fiscal_year -1 보정"
+            f"글로벌 {ticker} ({company['name_kr']}): {first_end.month}월 결산법인 → fiscal_year -1 보정"
           )
 
       period_rows = _process_yf_frames(
