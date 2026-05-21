@@ -61,17 +61,16 @@ function parseInt0(s: string | undefined): number {
 async function fetchText(url: string): Promise<string> {
   const r = await fetch(url, { headers: HEADERS, cache: 'no-store' });
   if (!r.ok) throw new Error(`네이버 ${r.status} ${url}`);
-  // 네이버는 EUC-KR/CP949 사용 — Buffer로 받아 cheerio에서 자동 감지
+  // 네이버 응답은 CP949(EUC-KR 상위호환). iconv-lite로 직접 디코딩해 UTF-8 string으로
+  // 반환하면 이후 cheerio가 정상 처리. (이전: latin1 디코딩 후 parse 결과를 다시 cp949
+  // 재해석했으나 cheerio가 high-byte sequence를 entity 변환 등으로 손상시켜 한글 깨짐.)
   const buf = await r.arrayBuffer();
-  // 한국어 페이지는 메타 charset이 cp949이지만 fetch는 기본 UTF-8 해석 → 직접 디코딩
-  // Node 22+에서 TextDecoder('euc-kr') 미지원이라 cheerio가 메타로 감지하도록 latin1 디코딩 후 byte 보존
-  return Buffer.from(buf).toString('latin1');
+  return iconv.decode(Buffer.from(buf), 'cp949');
 }
 
 function parseListPage(html: string): ListItem[] {
+  // fetchText가 이미 cp949 → UTF-8 디코딩한 string이라 cheerio가 정상 처리.
   const $ = cheerio.load(html, { xml: false });
-  // EUC-KR로 받은 byte를 latin1로 디코딩했으므로 본문은 그대로 byte 보존
-  // cheerio는 attr 추출만 하기에 한글 깨짐 영향 없음
   const items: ListItem[] = [];
   $('table.type2 tr').each((_, tr) => {
     const tds = $(tr).find('td');
@@ -81,8 +80,8 @@ function parseListPage(html: string): ListItem[] {
     const m = href.match(/nid=(\d+)/);
     if (!m) return;
     const postId = m[1];
-    const dateRaw = decodeLatinToUtf8($(tds[0]).text());
-    const titleRaw = decodeLatinToUtf8(titleA.text());
+    const dateRaw = $(tds[0]).text();
+    const titleRaw = titleA.text();
     const postedAt = parseKoreanDateTime(dateRaw);
     if (!postedAt) return;
     items.push({
@@ -97,23 +96,13 @@ function parseListPage(html: string): ListItem[] {
   return items;
 }
 
-/** latin1로 디코딩한 byte 문자열을 EUC-KR(CP949)로 재해석 → UTF-8 문자열.
- *  Node 기본 ICU(small)는 'euc-kr' 미지원이라 TextDecoder가 throw하고 fallback에서
- *  원본 byte를 그대로 반환 → 한글 깨짐(U+FFFD). iconv-lite는 ICU와 무관하게 작동.
- *  CP949는 EUC-KR 상위호환이라 네이버 응답도 안전하게 디코딩 가능. */
-function decodeLatinToUtf8(s: string): string {
-  const bytes = Buffer.alloc(s.length);
-  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
-  return iconv.decode(bytes, 'cp949');
-}
-
 function parseBodyPage(html: string): string | null {
   const $ = cheerio.load(html);
   const body = $('#body, .view_se, table.view_box td.view_se').first();
   if (body.length === 0) {
-    return decodeLatinToUtf8($('body').text()).trim().slice(0, 2000) || null;
+    return $('body').text().trim().slice(0, 2000) || null;
   }
-  return decodeLatinToUtf8(body.text()).trim().slice(0, 2000) || null;
+  return body.text().trim().slice(0, 2000) || null;
 }
 
 /**
