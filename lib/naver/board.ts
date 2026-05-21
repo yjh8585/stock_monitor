@@ -61,11 +61,17 @@ function parseInt0(s: string | undefined): number {
 async function fetchText(url: string): Promise<string> {
   const r = await fetch(url, { headers: HEADERS, cache: 'no-store' });
   if (!r.ok) throw new Error(`네이버 ${r.status} ${url}`);
-  // 네이버 응답은 CP949(EUC-KR 상위호환). iconv-lite로 직접 디코딩해 UTF-8 string으로
-  // 반환하면 이후 cheerio가 정상 처리. (이전: latin1 디코딩 후 parse 결과를 다시 cp949
-  // 재해석했으나 cheerio가 high-byte sequence를 entity 변환 등으로 손상시켜 한글 깨짐.)
   const buf = await r.arrayBuffer();
-  return iconv.decode(Buffer.from(buf), 'cp949');
+  // Content-Type charset 기반 동적 디코딩. 네이버 금융은 과거 EUC-KR이었지만 현재는
+  // UTF-8(2026-05 확인). 향후 다시 바뀔 수 있으니 응답 헤더를 우선 신뢰.
+  const ct = r.headers.get('content-type') ?? '';
+  const m = ct.match(/charset=([^;\s]+)/i);
+  const charset = (m ? m[1] : 'utf-8').toLowerCase();
+  if (charset === 'utf-8' || charset === 'utf8') {
+    return Buffer.from(buf).toString('utf-8');
+  }
+  // euc-kr/cp949 등 비-UTF-8은 iconv-lite로 디코딩 (Node small ICU 의존성 회피).
+  return iconv.decode(Buffer.from(buf), charset);
 }
 
 function parseListPage(html: string): ListItem[] {
