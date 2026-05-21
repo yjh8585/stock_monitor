@@ -9,6 +9,7 @@ import {
   getRecentBoardPosts,
   getRecentSupplyDemand,
   getSentimentSummary,
+  getTodayNews,
 } from '@/lib/hansae/data';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 
@@ -54,6 +55,7 @@ async function HansaeDataLoader() {
       sentiment: await getSentimentSummary(c.id, 7),
       supply: await getRecentSupplyDemand(c.id, 5),
       intradaySupply: await getIntradaySupply(c.id),
+      todayNews: await getTodayNews(c.id, 8),
     }))
   );
   return <HansaeDashboard initial={initial} />;

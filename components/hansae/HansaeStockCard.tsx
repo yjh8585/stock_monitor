@@ -133,6 +133,8 @@ export default function HansaeStockCard({ bundle }: Props) {
           <IntradayCombinedChart
             intraday={bundle.intraday}
             supply={bundle.intradaySupply}
+            news={bundle.todayNews}
+            posts={bundle.posts}
             height={360}
           />
         ) : (

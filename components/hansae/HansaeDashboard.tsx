@@ -20,6 +20,7 @@ import type {
   HansaeCompany,
   IntradayPoint,
   IntradaySupplyPoint,
+  NewsItem,
   SentimentSummary,
   SupplyDemandRow,
 } from '@/lib/hansae/data';
@@ -32,6 +33,8 @@ export interface HansaeBundle {
   sentiment: SentimentSummary;
   supply: SupplyDemandRow[];
   intradaySupply: IntradaySupplyPoint[];
+  /** 오늘 뉴스 (intraday 코멘트 컨텍스트) */
+  todayNews?: NewsItem[];
 }
 
 interface Props {

@@ -72,6 +72,44 @@ export interface SupplyDemandRow {
   changePct: number | null;
 }
 
+export interface NewsItem {
+  id: string;
+  title: string;
+  url: string | null;
+  source: string | null;
+  summary: string | null;
+  publishedAt: string;
+}
+
+/** 종목별 오늘(KST 00:00 이후) 발행 뉴스 — 코멘트 컨텍스트용 */
+export async function getTodayNews(companyId: string, limit = 10): Promise<NewsItem[]> {
+  const sb = createSupabaseAnonClient();
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  const { data, error } = await sb
+    .from('news')
+    .select('id,title,url,source,summary,published_at')
+    .eq('company_id', companyId)
+    .gte('published_at', start.toISOString())
+    .order('published_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    logger.error({ err: error, companyId }, '오늘 뉴스 조회 실패');
+    return [];
+  }
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    return {
+      id: row.id as string,
+      title: (row.title as string) ?? '',
+      url: row.url as string | null,
+      source: row.source as string | null,
+      summary: row.summary as string | null,
+      publishedAt: row.published_at as string,
+    };
+  });
+}
+
 export async function getHansaeCompanies(): Promise<HansaeCompany[]> {
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb

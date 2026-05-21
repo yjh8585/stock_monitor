@@ -5,12 +5,21 @@
  * - 둘째 줄: 최신 슬롯의 외국인/기관 누적값
  * - 셋째 줄(선택): 가장 영향 큰 변화 구간 코멘트
  */
-import type { IntradayPoint, IntradaySupplyPoint } from '@/lib/hansae/data';
+import type {
+  BoardPostSummary,
+  IntradayPoint,
+  IntradaySupplyPoint,
+  NewsItem,
+} from '@/lib/hansae/data';
 
 export interface Commentary {
   headline: string;
   detail: string;
   cause?: string;
+  /** 오늘 뉴스 헤드라인 1~3개 (간략) */
+  newsTopics?: string[];
+  /** 종목토론 핫토픽 1~3개 (감성 라벨 포함) */
+  boardTopics?: string[];
 }
 
 const KST = 'Asia/Seoul';
@@ -52,14 +61,57 @@ function fmtTimeKst(iso: string): string {
   });
 }
 
+/** 제목 끝 출처 괄호/날짜 정리 (보고서 표시와 동일) */
+function shortenTitle(title: string, maxLen = 50): string {
+  const cleaned = title.replace(/\s*\([^)]*\)\s*$/u, '').trim();
+  return cleaned.length > maxLen ? cleaned.slice(0, maxLen - 1) + '…' : cleaned;
+}
+
+const LABEL_KR: Record<string, string> = {
+  positive: '긍정',
+  negative: '부정',
+  neutral: '중립',
+};
+
+function buildNewsTopics(news: NewsItem[] | undefined): string[] {
+  if (!news || news.length === 0) return [];
+  // 가장 최근 published_at 순 상위 3개
+  const top = news.slice(0, 3);
+  return top.map((n) => {
+    const src = n.source ? `[${n.source}] ` : '';
+    return `${src}${shortenTitle(n.title)}`;
+  });
+}
+
+function buildBoardTopics(posts: BoardPostSummary[] | undefined): string[] {
+  if (!posts || posts.length === 0) return [];
+  // 오늘 게시글 우선 + 조회수·추천 합산이 큰 순으로 핫토픽 추출
+  const startToday = new Date();
+  startToday.setUTCHours(0, 0, 0, 0);
+  const todayMs = startToday.getTime();
+  const ranked = [...posts]
+    .filter((p) => new Date(p.postedAt).getTime() >= todayMs)
+    .sort((a, b) => (b.views + b.likes * 5 - (a.views + a.likes * 5)))
+    .slice(0, 3);
+  if (ranked.length === 0) return [];
+  return ranked.map((p) => {
+    const label = p.label ? `(${LABEL_KR[p.label] ?? p.label}) ` : '';
+    return `${label}${shortenTitle(p.title, 45)}`;
+  });
+}
+
 /**
- * 가격·수급으로부터 코멘트 생성.
+ * 가격·수급·뉴스·종목토론으로부터 코멘트 생성.
  * @param intraday  오늘 5분봉 (시간 오름차순)
  * @param supply    오늘 잠정 누적 수급 스냅샷 (시간 오름차순)
+ * @param news      오늘 발행 뉴스 (선택, 최신 순)
+ * @param posts     최근 종목토론 게시글 (선택, 감성 라벨 포함)
  */
 export function buildIntradayCommentary(
   intraday: IntradayPoint[],
   supply: IntradaySupplyPoint[],
+  news?: NewsItem[],
+  posts?: BoardPostSummary[],
 ): Commentary | null {
   if (intraday.length < 2) return null;
 
@@ -158,5 +210,14 @@ export function buildIntradayCommentary(
     }
   }
 
-  return { headline, detail, cause: strongCause };
+  const newsTopics = buildNewsTopics(news);
+  const boardTopics = buildBoardTopics(posts);
+
+  return {
+    headline,
+    detail,
+    cause: strongCause,
+    newsTopics: newsTopics.length > 0 ? newsTopics : undefined,
+    boardTopics: boardTopics.length > 0 ? boardTopics : undefined,
+  };
 }

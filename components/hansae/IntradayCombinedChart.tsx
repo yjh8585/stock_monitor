@@ -8,12 +8,19 @@
  */
 import { useEffect, useRef } from 'react';
 import { createChart, LineSeries, type IChartApi } from 'lightweight-charts';
-import type { IntradayPoint, IntradaySupplyPoint } from '@/lib/hansae/data';
+import type {
+  BoardPostSummary,
+  IntradayPoint,
+  IntradaySupplyPoint,
+  NewsItem,
+} from '@/lib/hansae/data';
 import { buildIntradayCommentary } from '@/lib/hansae/intradayCommentary';
 
 interface Props {
   intraday: IntradayPoint[];
   supply: IntradaySupplyPoint[];
+  news?: NewsItem[];
+  posts?: BoardPostSummary[];
   height?: number;
 }
 
@@ -23,7 +30,13 @@ const SUPPLY_SERIES = [
   { key: 'individualNet' as const, color: '#0ea5e9', label: '개인' },
 ];
 
-export default function IntradayCombinedChart({ intraday, supply, height = 360 }: Props) {
+export default function IntradayCombinedChart({
+  intraday,
+  supply,
+  news,
+  posts,
+  height = 360,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
@@ -122,7 +135,7 @@ export default function IntradayCombinedChart({ intraday, supply, height = 360 }
     };
   }, [intraday, supply, height]);
 
-  const commentary = buildIntradayCommentary(intraday, supply);
+  const commentary = buildIntradayCommentary(intraday, supply, news, posts);
 
   if (intraday.length === 0) {
     return (
@@ -143,6 +156,26 @@ export default function IntradayCombinedChart({ intraday, supply, height = 360 }
           <div className="text-muted-foreground mt-0.5">{commentary.detail}</div>
           {commentary.cause && (
             <div className="text-muted-foreground mt-0.5">↳ {commentary.cause}</div>
+          )}
+          {commentary.newsTopics && commentary.newsTopics.length > 0 && (
+            <div className="mt-1.5 border-t border-border/40 pt-1.5">
+              <div className="text-[11px] text-muted-foreground font-medium">📰 오늘 뉴스</div>
+              <ul className="mt-0.5 ml-3 list-disc text-xs text-muted-foreground space-y-0.5">
+                {commentary.newsTopics.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {commentary.boardTopics && commentary.boardTopics.length > 0 && (
+            <div className="mt-1.5 border-t border-border/40 pt-1.5">
+              <div className="text-[11px] text-muted-foreground font-medium">💬 종목토론 핫토픽</div>
+              <ul className="mt-0.5 ml-3 list-disc text-xs text-muted-foreground space-y-0.5">
+                {commentary.boardTopics.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
