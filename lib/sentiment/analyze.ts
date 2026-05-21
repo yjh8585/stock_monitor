@@ -1,14 +1,15 @@
 /**
- * 네이버 종목토론 글의 LLM 감성 분류 (Claude Sonnet 4.6).
+ * 네이버 종목토론 글의 LLM 감성 분류 (Claude Haiku 4.5).
  *
  * - 글 N개를 묶어 1회 호출. tool_use로 JSON 형식 강제.
  * - 시스템 프롬프트에 cache_control 적용해 후속 호출 재사용.
  * - 욕설/광고/스팸은 'neutral'로 분류해 노이즈 격리.
+ * - 비용 절감을 위해 Haiku 사용 (~1/3). 분류 정확도가 부족하면 'claude-sonnet-4-6'로 환원.
  */
 import { getAnthropicClient } from '@/lib/reports/anthropic';
 import logger from '@/lib/logger';
 
-export const SENTIMENT_MODEL = 'claude-sonnet-4-6';
+export const SENTIMENT_MODEL = 'claude-haiku-4-5';
 
 export interface PostForAnalysis {
   postId: string;
