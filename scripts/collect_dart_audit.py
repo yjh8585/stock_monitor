@@ -1012,4 +1012,8 @@ if __name__ == '__main__':
     collectDartAudit()
   except Exception as e:
     logger.error(f'DART 감사보고서 수집 실패: {e}')
-    sys.exit(1)
+    os._exit(1)
+  # _with_retry / 회사 단위 가드에서 leak된 ThreadPool worker thread가 daemon=False라
+  # SSL 핸드셰이크 hang 시 Python interpreter가 main exit 후에도 종료 안 함 → GHA job이
+  # 240분 timeout까지 cancelled로 표시. os._exit(0)로 강제 종료해 thread leak 해소.
+  os._exit(0)
