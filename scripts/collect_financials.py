@@ -619,12 +619,20 @@ def _process_yf_frames(
   period_type: str,
   fy_offset: int = 0,
 ) -> list[dict]:
-  """yfinance income/balance DataFrame 쌍을 DB 행 목록으로 변환한다."""
+  """yfinance income/balance DataFrame 쌍을 DB 행 목록으로 변환한다.
+
+  미래 period_end (결산일이 오늘 이후 = 미발표) 행은 적재하지 않는다 — yfinance가
+  간헐적으로 estimate/forecast 컬럼을 끼워주면 실제 발표 전 데이터가 DB에 들어가
+  parts-top100/related-stocks 페이지의 매출/영업이익 컬럼에 미래 연도가 보이는 사고가
+  발생(2026-05-21 머더슨/인테바 케이스)."""
   if income_df is None or income_df.empty:
     return []
+  today = date.today()
   rows: list[dict] = []
   for col_ts in income_df.columns:
     period_end: date = col_ts.date() if hasattr(col_ts, 'date') else col_ts
+    if period_end > today:
+      continue
     income_col = income_df[col_ts]
     balance_col = (
       balance_df[col_ts]
