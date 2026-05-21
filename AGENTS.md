@@ -13,6 +13,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 현재 단계는 `ROADMAP.md`(Phase 0~3 완료, 3.5/5 진행 중)와 `MEMORY.md`(누적 진행 상황) 우선 확인.
 - 7개 페이지 구성: 관련주식 / 비교 / 국내자동차 / OEM / 부품사 TOP100 / 한세그룹 / 기타. `/reports`, `/management`, `/login`, `/stock-popup/[id]` 별도.
 
+## 문서 역할 분리
+
+- **`AGENTS.md` (이 문서)** — *작업 지침·컨벤션·약속*. 에이전트가 코드 작성·DB 변경·커밋 시 따라야 할 규칙. 누락 시 `.githooks/pre-commit`이 차단.
+- **[`Architecture.md`](./Architecture.md)** — *시스템 구조의 단일 진실 공급원*. 28개 테이블·3개 뷰의 컬럼·인덱스·트리거 상세, 페이지 라우트 맵, 캐싱 전략, 배포 파이프라인, 자동화 흐름.
+
+> DB 스키마 세부는 모두 Architecture.md §7로 이전됨. AGENTS.md는 "이 약속을 지켜라"만 다룬다.
+
 ## 핵심 스택 (실제 설치값 기준)
 
 - **Next.js 16.2.4** + React 19.2.4 + TypeScript 5
@@ -182,15 +189,19 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ## 데이터 / DB 규칙
 
-- **Supabase 마이그레이션**: `supabase/migrations/YYYYMMDD000NNN_*.sql` 시간 정렬 컨벤션 유지. 새 파일을 만들지 말고 기존 컨벤션을 따른다.
-- **상태 컬럼**: `companies.status` = `active` | `hidden` | `merged_into`. 과거 `delisted`는 `hidden`으로 개명됨 (2026-05-20 마이그레이션). 화면 노출은 `active`만.
-- **회사명 정규화**: `companies.name` / `name_kr`은 BEFORE INSERT/UPDATE 트리거(`companies_clean_legal_form_before_iu`)가 한글 법인격 표기((주)·㈜·(株)·주식회사·유한회사·유한책임회사)를 자동 제거(20260520000009 마이그레이션). seed/enrich/dart/수동 어떤 경로든 자동 정리.
-- **재무(`financials`)**: 연결(consolidated) 우선, 종속회사 없을 때만 별도. period CHECK 제약 강화됨 — `annual`은 12월만 허용.
-- **비-12월 결산법인 fiscal_year 한국식 보정**: country!=KR AND annual.period_end_date의 월 ≠ 12 글로벌 회사는 `fiscal_year`를 한국식으로 -1 보정 저장(20260521000002 일본 / 20260521000003 일본 외). 9월 결산 등 비-12월 결산법인의 회계연도를 다수파 12월 결산법인과 같은 시간축에 정렬해 UI 컬럼 일관성 확보. 예: 덴소 FY 2025/4~2026/3 → fiscal_year=2025, 인피니온 FY 2024/10~2025/9 → fiscal_year=2024. yfinance 수집 스크립트(`collect_financials.py`)에서 결산월 != 12면 자동 적용.
-- **부품사 TOP100 뷰 미래 가드**: `parts_top100_stocks_view`의 `financials_by_year`/`latest_revenue_krw`는 `period_end_date <= now()` 가드로 미래 회계연도 데이터 노출 차단(20260521000001).
-- **append-only 보강**: `customers`, `description` 등 기존 보강 필드는 **덮어쓰지 말고 append-only**. 자동 enrich 시 diff 로그(`scripts/_*_diff_*.json`) 생성.
-- **회사 description**: 추측 금지, DART 출처 제외, 홈페이지+인터넷 검색 결과만, Claude Code가 직접 작성하는 워크플로 유지(`enrich_description_*.py` 참고).
-- **dart_collection_status**: companies에 별도 추가됨(2026-05-20). DART 수집 결과는 financials와 분리해 관리.
+> **DB 스키마 상세 (28개 테이블 + 3개 뷰의 컬럼·인덱스·트리거)는 [`Architecture.md §7`](./Architecture.md#7-데이터-모델-db-스키마-상세) 참고.** 본 섹션은 *작업 시 지켜야 하는 약속·정책* 만 다룬다.
+
+**마이그레이션 컨벤션**
+- `supabase/migrations/YYYYMMDD000NNN_*.sql` 시간 정렬. 기존 파일 수정 금지, 신규 파일은 가장 큰 번호 다음으로.
+
+**데이터 정책**
+- **상태값**: `companies.status = active` 만 화면 노출. `hidden`(과거 `delisted`)·`merged_into`는 자동 필터링.
+- **회사명**: 트리거가 (주)·㈜·주식회사 등을 자동 제거 — 수동·자동 어느 경로든 보강 가능.
+- **재무 우선순위**: **연결(consolidated) 우선**, 종속회사 없을 때만 별도(separate).
+- **비-12월 결산 글로벌사 fiscal_year**: 한국식 -1 보정 (예: 덴소 4월 결산 FY2025/4~2026/3 → `fiscal_year=2025`). yfinance 수집 자동 적용.
+- **append-only**: `customers`, `description`(=`business_summary`) 등 보강 필드는 **덮어쓰지 말고** 추가만. 자동 enrich 시 diff 로그(`scripts/_*_diff_*.json`).
+- **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만 (`enrich_description_*.py` 참고).
+- **dart_collection_status**: companies에 별도 컬럼. DART 수집 실패/재시도 추적은 financials와 분리.
 
 ## Python 스크립트 규칙
 

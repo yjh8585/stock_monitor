@@ -9,7 +9,8 @@ import { CHAT_TOOLS, runTool } from './tools';
 import { buildSystemPrompt } from './system-prompt';
 import type { ChatMessage, ChatResponse, ChatToolCallTrace, UserRole } from './types';
 
-const MODEL = 'claude-sonnet-4-6';
+// 비용 절감을 위해 Haiku 사용 (~1/3 가격). 답변 품질이 부족하면 'claude-sonnet-4-6'로 환원.
+const MODEL = 'claude-haiku-4-5';
 const MAX_TOKENS = 2048;
 const MAX_ITERATIONS = 5;
 

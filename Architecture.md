@@ -123,61 +123,194 @@ next.config.ts            # cacheComponents + staleTimes + serverExternalPackage
 vercel.json               # 배포 설정 (Vercel cron 미사용)
 ```
 
-## 7. 데이터 모델 (DB 스키마 요약)
+## 7. 데이터 모델 (DB 스키마 상세)
 
-### 핵심 테이블
+> **이 섹션은 28개 테이블 + 3개 뷰의 단일 진실 공급원이다.** 컬럼 추가/제거 시 본 섹션을 동기화하고, 도메인 규칙(append-only · 연결 우선 등)은 AGENTS.md "데이터/DB 규칙"을 함께 갱신.
 
-| 테이블 | 행 수 | 용도 |
+### 7-A. 회사 · 매핑
+
+#### `companies` (574행) — 회사 마스터
+| 컬럼 | 타입 | 설명 |
 |---|---|---|
-| **companies** | 574 | 회사 마스터 (id, ticker, name, name_kr, country, market, **group_name**, **homepage_url**, business_summary, products, customers, data_source, status, dart_corp_code) |
-| **company_pages** | 592 | (company_id, page) 다대다 매핑 |
-| **financials** | 4,109 | period_type(annual/quarterly) × fiscal_year × company_id |
-| **stock_prices** | 316,694 | 일봉 OHLCV |
-| **stock_quotes_5min** | 8,183 | 5분봉 (KIS 분봉) |
-| **stock_daily_prices** | 4,916 | (legacy, stale — `stock_prices`로 통합 중) |
-| **news** | 4,547 | (company_id, source, title, link, published_at, body, summary) |
-| **naver_board_posts** | 495 | 한세그룹 종목토론 (회사별) |
-| **board_sentiment** | 495 | 종목토론 감성 분석 결과 |
-| **exchange_rates** / `_live` | 7,854 | ER-API + live FX |
-| **posts** | 68 | 보고서 본문 |
-| **pnl_entries** + `pnl_cost_structure` | 4,643 | 손익 입력 + 원가구조 |
+| `id` | uuid PK | 내부 식별자 |
+| `ticker` | text UNIQUE | 6자리(KR) / 글로벌 ticker / 비상장은 회사명 |
+| `name`, `name_kr` | text | 영문·한글명 (트리거가 (주)·㈜·주식회사 자동 제거) |
+| `country`, `market`, `currency` | text | KR/US/JP… / kospi/kosdaq/nasdaq/NULL=비상장 / KRW/USD… |
+| `status` | text | `active` / `hidden` / `merged_into` (구 `delisted` → `hidden`, 2026-05-20) |
+| `data_source` | text | yfinance / fnguide / dart / marklines / other |
+| `group_name` | text | 그룹 분류 (50개 그룹, 사람인 NICE 기반) |
+| `company_type`, `region` | text | OEM/부품사, 국내/해외 (related_stocks_view용) |
+| `homepage_url` | text | 비상장사 회사명 클릭 시 새 창 (enrich_company가 수집) |
+| `business_summary` | text | fnguide / yfinance / LLM 요약 |
+| `products`, `customers` | jsonb | LLM enrich로 채움, append-only |
+| `last_price`, `last_change_pct`, `last_volume`, `last_updated_at` | — | 최신 가격 캐시 |
+| `market_cap` | numeric | 시총 |
+| `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after` | — | DART 수집 상태 추적 |
+| `merged_into_company_id` | uuid | 사명변경·합병 시 새 회사로 마이그레이션 후 이 컬럼에 연결 |
+| `is_seed`, `summary_updated_at`, `customers_updated_at`, `created_at`, `updated_at` | — | 메타 |
 
-### OEM 판매 (대용량)
+**인덱스**: ticker UNIQUE / status / country / company_type / group_name / dart_corp_code (partial) / dart_collection_status+retry_after (partial) / merged_into_company_id (partial)  
+**트리거**: `companies_clean_legal_form_before_iu` — name/name_kr 한글 법인격 자동 정리
 
-| 테이블 | 행 수 | 크기 |
-|---|---|---|
-| oem_sales_model_country_month | 923,582 | 205 MB |
-| oem_sales_group_country_month | 118,653 | 28 MB |
-| oem_sales_group_pt_month | 14,878 | 3.6 MB |
-| oem_sales_type_seg_month | 13,394 | 2.9 MB |
-| oem_sales_group_month | 5,518 | 1.2 MB |
-
-### 매크로·시계열
-
-| 테이블 | 용도 |
+#### `company_pages` (592행) — 페이지 매핑
+| 컬럼 | 타입 |
 |---|---|
-| market_series_daily / market_series | 해운·철강·원자재 시계열 |
-| macro_outlook_notes | 매크로 outlook 텍스트 |
-| oem_model_outlook | OEM 모델 outlook |
-| stock_supply_demand[_intraday] | pykrx 수급 (외국인/기관/개인) |
+| company_id | uuid FK |
+| page | text (`domestic` / `related-stocks` / `parts-top100` 등) |
+| created_at | timestamptz |
 
-### 메타·인증
+회사 1개가 여러 페이지에 노출 가능. 인덱스: page.
 
-- **kis_tokens** / kiwoom_tokens — API 토큰 (자체 갱신)
-- **product_category_map** — 제품 카테고리 정규화
+---
 
-### 주요 뷰 (`supabase/migrations/`)
+### 7-B. 재무
 
-- `related_stocks_view` — 21개사 메인 (company_type, region)
-- `domestic_stocks_view` — `/domestic` 페이지 (sales_rank ROW_NUMBER)
-- `parts_top100_stocks_view` — TOP100 + 매출 가드 (미래 period_end 제외)
-- `companies_with_latest` — companies + 최신 가격
+#### `financials` (4,109행)
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `id` | uuid PK |
+| `company_id` | uuid FK |
+| `period_type` | text | `annual` / `quarterly`. annual은 12월 결산만 (CHECK) |
+| `fiscal_year`, `fiscal_quarter` | int | 비-12월 결산 글로벌사는 한국식 -1 보정 (20260521000002~3) |
+| `period_end_date` | date | 결산일 |
+| `currency` | text | KRW/USD/JPY… |
+| `revenue`, `operating_income`, `operating_margin` | numeric | 매출·영익·영익률 |
+| `cogs`, `gross_profit`, `gross_margin`, `sga` | numeric | 원가·매출총익·판관비 |
+| `net_income`, `net_margin`, `ebitda` | numeric | 순익·EBITDA |
+| `total_assets`, `total_liabilities`, `total_equity`, `inventory` | numeric | 재무상태표 |
+| `debt_ratio`, `current_ratio`, `roe`, `roa` | numeric | 비율 |
+| `eps`, `bps`, `dps`, `cfps`, `per`, `pbr`, `psr`, `ev_ebitda`, `ev_ebit`, `dividend_yield` | numeric | 주당 지표 + 밸류에이션 |
+| `labor_cost` | bigint | 인건비 |
+| `source` | text | yfinance / fnguide / dart |
+| `consolidation` | text | `consolidated` 우선, 종속회사 없을 때만 `separate` |
 
-### 트리거·제약
+**UNIQUE**: (company_id, period_type, fiscal_year, fiscal_quarter) NULLS NOT DISTINCT  
+**인덱스**: (company_id, period_type, fiscal_year DESC, fiscal_quarter DESC), source
 
-- `companies_clean_legal_form_before_iu` — name/name_kr에서 (주)·㈜·주식회사 자동 제거
+---
+
+### 7-C. 주가 · 수급
+
+#### `stock_prices` (316,694행) — 일봉 OHLCV
+| company_id | trade_date | open | high | low | close | adj_close | volume |
+
+#### `stock_daily_prices` (4,916행, legacy)
+deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
+
+#### `stock_quotes_5min` (8,183행) — 분봉 (KIS)
+| company_id | ts(timestamptz) | price | change_pct | volume |
+
+#### `stock_supply_demand` (124행) — 일간 수급 (pykrx)
+| company_id | trade_date | foreign_net | institution_net | individual_net | program_net | close_price | change_pct |
+
+#### `stock_supply_demand_intraday` (183행) — KIS 잠정 누적 수급
+| company_id | snapshot_ts | trade_date | foreign_net | institution_net | individual_net |
+
+**인덱스 패턴**: (company_id, trade_date DESC) / (company_id, ts DESC)
+
+---
+
+### 7-D. 뉴스 · 종목토론
+
+#### `news` (4,547행)
+| id | company_id | title | url(UNIQUE) | source | summary | published_at | created_at |
+
+**인덱스**: (company_id, published_at DESC), url UNIQUE
+
+#### `naver_board_posts` (495행) — 한세 3종 종목토론
+| company_id | post_id | posted_at | title | body | views | likes | dislikes | fetched_at |
+
+#### `board_sentiment` (495행) — 종목토론 감성 분석
+| company_id | post_id | label (positive/negative/neutral) | score | reason | model | analyzed_at |
+
+---
+
+### 7-E. OEM 판매 (Marklines 출처, 대용량)
+
+`year_month`는 YYYYMM 정수 (예: 202504 = 2025년 4월).
+
+| 테이블 | 키 | 행 수 | 인덱스 |
+|---|---|---|---|
+| `oem_sales_group_month` | (oem_group, year_month) | 5,518 | year_month |
+| `oem_sales_group_country_month` | (oem_group, country, year_month) | 118,653 | (country, year_month), year_month |
+| `oem_sales_model_country_month` | (oem_group, country, model, year_month) | 923,582 | (model, year_month), (country, year_month) |
+| `oem_sales_group_pt_month` | (oem_group, powertrain, year_month) | 14,878 | (powertrain, year_month), year_month |
+| `oem_sales_type_seg_month` | (vehicle_type, segment, year_month) | 13,394 | year_month |
+
+#### `oem_model_outlook` (10행) — 모델 outlook 노트
+| model_key | model_name | oem_group | region | note_date | label | consumer_view | outlook | rationale | sources_used |
+
+---
+
+### 7-F. 매크로 · 환율 · 시계열
+
+#### `exchange_rates` (7,839행) — 일별 환율 (ER-API)
+| base | quote | rate_date | rate |  
+인덱스: (base, rate_date DESC)
+
+#### `exchange_rates_live` (15행) — 실시간 환율
+| base | quote | rate | updated_at |
+
+#### `market_series` (23행) — 시계열 메타
+| series_code | label | unit | source | yf_symbol | fred_symbol | category | sort_order |
+
+#### `market_series_daily` (26,635행)
+| series_code | trade_date | close |  
+인덱스: (series_code, trade_date DESC)
+
+#### `macro_outlook_notes` (20행)
+| id | note_date | source | summary | sentiment | created_at |  
+UNIQUE: (source, note_date)
+
+---
+
+### 7-G. 손익(PnL) · 보고서
+
+#### `pnl_entries` (4,589행) — 손익 입력
+| basis | year_label | period_year | period_month | is_plan | is_estimate | sil | division | factory | product | customer | revenue | material_cost | labor_cost | expense | sga | rnd | op_income |
+
+**인덱스**: (basis, period_year, period_month), customer, division, product, sil
+
+#### `pnl_cost_structure` (54행) — 원가구조
+| period_year | period_kind | period_month | kind | category | account | value_mwon |
+
+#### `posts` (68행) — 보고서 본문
+| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at |
+
+**인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
+
+---
+
+### 7-H. 토큰 · 매핑
+
+| 테이블 | 컬럼 | 용도 |
+|---|---|---|
+| `kis_tokens` | env_key, token, expires_at, updated_at | 한국투자증권 API 토큰 (자체 갱신) |
+| `kiwoom_tokens` | id, access_token, expires_at, updated_at | 키움증권 토큰 (현재 미사용, 0행) |
+| `product_category_map` | raw_category, normalized | 제품 카테고리 정규화 매핑 (63행) |
+
+---
+
+### 7-I. 주요 뷰
+
+#### `related_stocks_view`
+`/related-stocks` 페이지용. `company_pages.page='related-stocks'` JOIN + `financials` 최근 5년 jsonb 집계 + `latest_quarter` 전년 동기 비교 + `exchange_rates_live`로 KRW 환산. company_type/region 포함.
+
+#### `domestic_stocks_view`
+`/domestic` 페이지용 (421개사). related와 동일 구조 + `sales_rank` = `ROW_NUMBER() OVER (ORDER BY latest_revenue_krw DESC NULLS LAST, name_kr)`.
+
+#### `parts_top100_stocks_view`
+`/parts-top100` 페이지용. country 코드를 한글 국가명(`group_name`)으로 치환. **미래 가드**: `period_end_date <= now()` 필터로 미래 회계연도 데이터 노출 차단 (20260521000001).
+
+---
+
+### 7-J. 핵심 트리거 · 제약 · 정책
+
+- `companies_clean_legal_form_before_iu` — name/name_kr 자동 정리: `(주)`, `㈜`, `(株)`, `주식회사`, `유한회사`, `유한책임회사` 제거 (20260520000009)
 - `financials.period` CHECK — annual은 12월만 허용
-- 비-12월 결산 글로벌 회사 fiscal_year 한국식 -1 보정 (20260521000002, 20260521000003)
+- 비-12월 결산 글로벌사 fiscal_year 한국식 -1 보정 (20260521000002 일본 / 20260521000003 일본 외)
+- `parts_top100_stocks_view` 미래 period_end_date 가드 (20260521000001)
+- `companies.status` — `active` / `hidden` / `merged_into` (구 `delisted` 명칭 변경, 20260520)
 
 ## 8. 데이터 흐름 (수집 → 적재 → 캐시 무효화)
 
