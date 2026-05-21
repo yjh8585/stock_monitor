@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import Sidebar, { MobileNav } from './Sidebar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import ChatWidget from '@/components/chat/ChatWidget';
 import type { CurrentUser } from '@/lib/auth/get-current-user';
 
 /** 팝업/로그인 경로에서는 사이드바를 숨기는 레이아웃 래퍼 */
@@ -62,6 +63,8 @@ export default function AppLayout({
         <Sidebar user={user} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      {/* 모든 페이지 우하단 floating AI 어시스턴트 (로그인·팝업 페이지는 위 가드에서 이미 제외됨) */}
+      {user && <ChatWidget />}
     </div>
   );
 }

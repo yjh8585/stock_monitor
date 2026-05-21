@@ -89,9 +89,16 @@
 
 **API 라우트 분류**:
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
+
+**AI 챗봇 (`/api/chat`)**:
+- `lib/chat/` — types, tools(화이트리스트 6개), system-prompt, loop(tool_use 최대 5회)
+- `components/chat/` — ChatWidget(floating 버튼+Sheet), ChatMessages, ChatInput
+- AppLayout에 마운트되어 모든 페이지에 노출 (로그인·팝업 제외)
+- Claude `claude-sonnet-4-6` + prompt caching, 세션 메모리만(DB 저장 X), per-user 분당 20회
+- 도구: query_companies / query_financials / query_stock_prices / query_news / query_oem_sales / query_macro_series — 모두 anon Supabase로 LIMIT 50 강제
 
 ## 6. 디렉토리 구조 (요약)
 
