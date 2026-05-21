@@ -206,7 +206,9 @@ export async function getSentimentSummary(
   return summary;
 }
 
-/** 종목별 최근 N년치 일별 OHLCV */
+/** 종목별 최근 N년치 일별 OHLCV.
+ *  stock_prices 테이블(메인 collect-prices.yml이 매일 적재)을 사용.
+ *  change_pct 컬럼이 없으므로 정렬 후 prev close로 클라이언트에서 계산. */
 export async function getDailyPrices(companyId: string, years = 5): Promise<DailyPrice[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createSupabaseAnonClient() as any;
@@ -219,8 +221,8 @@ export async function getDailyPrices(companyId: string, years = 5): Promise<Dail
   const all: unknown[] = [];
   for (let from = 0; from < years * 260 + 100; from += PAGE) {
     const { data, error } = await sb
-      .from('stock_daily_prices')
-      .select('trade_date,open_price,high_price,low_price,close_price,volume,change_pct')
+      .from('stock_prices')
+      .select('trade_date,open,high,low,close,volume')
       .eq('company_id', companyId)
       .gte('trade_date', sinceStr)
       .order('trade_date', { ascending: true })
@@ -233,16 +235,23 @@ export async function getDailyPrices(companyId: string, years = 5): Promise<Dail
     all.push(...data);
     if (data.length < PAGE) break;
   }
+  let prevClose: number | null = null;
   return all.map((r) => {
     const row = r as unknown as Record<string, unknown>;
+    const close = row.close == null ? null : Number(row.close);
+    const changePct =
+      close == null || prevClose == null || prevClose === 0
+        ? null
+        : ((close - prevClose) / prevClose) * 100;
+    prevClose = close;
     return {
       tradeDate: row.trade_date as string,
-      open: row.open_price == null ? null : Number(row.open_price),
-      high: row.high_price == null ? null : Number(row.high_price),
-      low: row.low_price == null ? null : Number(row.low_price),
-      close: row.close_price == null ? null : Number(row.close_price),
+      open: row.open == null ? null : Number(row.open),
+      high: row.high == null ? null : Number(row.high),
+      low: row.low == null ? null : Number(row.low),
+      close,
       volume: row.volume == null ? null : Number(row.volume),
-      changePct: row.change_pct == null ? null : Number(row.change_pct),
+      changePct,
     };
   });
 }

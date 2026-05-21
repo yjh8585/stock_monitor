@@ -29,7 +29,7 @@ export default async function LoginPage({
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Stock Monitor 로그인</CardTitle>
+          <CardTitle className="text-xl">한세모빌리티 BI</CardTitle>
           <CardDescription>한세모빌리티 / 홀딩스 계정으로 로그인하세요.</CardDescription>
         </CardHeader>
         <CardContent>

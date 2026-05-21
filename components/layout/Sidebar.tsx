@@ -32,16 +32,7 @@ type NavItem = {
 };
 
 const NAV_ITEMS_ALL: readonly NavItem[] = [
-  {
-    label: '경영관리',
-    href: '/management',
-    Icon: Briefcase,
-    children: [
-      { label: '손익', href: '/management/pnl' },
-      { label: '재고', href: '/management/inventory' },
-      { label: '생산', href: '/management/production' },
-    ],
-  },
+  { label: '경영관리', href: '/management', Icon: Briefcase },
   { label: '비교', href: '/compare', Icon: ArrowLeftRight },
   { label: '관련회사', href: '/related-stocks', Icon: BarChart2 },
   { label: '국내자동차', href: '/domestic', Icon: Car },
