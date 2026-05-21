@@ -38,6 +38,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
           VALLEY_EMAIL: ${{ secrets.VALLEY_EMAIL }}
           VALLEY_PASSWORD: ${{ secrets.VALLEY_PASSWORD }}
 
@@ -72,6 +74,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_COUNT: '8'
@@ -103,6 +107,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
 
   # 국내 상장사 기업개요 — fnguide Snapshot
@@ -135,3 +141,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
