@@ -68,7 +68,7 @@ FINANCIAL_TOOL = {
 
 META_TOOL = {
   'name': 'submit_company_meta',
-  'description': 'Submit company description, products, customers (Korean preferred).',
+  'description': 'Submit company description, products, customers, homepage URL (Korean preferred).',
   'input_schema': {
     'type': 'object',
     'properties': {
@@ -80,6 +80,10 @@ META_TOOL = {
       'customers': {
         'type': 'array',
         'items': {'type': 'object', 'properties': {'name': {'type': 'string'}}, 'required': ['name']},
+      },
+      'homepage_url': {
+        'type': ['string', 'null'],
+        'description': '회사 공식 홈페이지 URL (https:// 포함). 추정 금지 — 검색 결과에서 확인된 URL만. 없으면 null.',
       },
       'confidence': {'type': 'string', 'enum': ['high', 'medium', 'low']},
     },
@@ -237,7 +241,12 @@ def _has_financials(client, cid: str) -> bool:
 
 
 def _missing_meta(c: dict) -> bool:
-  return (not c.get('business_summary')) or (not c.get('products')) or (not c.get('customers'))
+  return (
+    (not c.get('business_summary'))
+    or (not c.get('products'))
+    or (not c.get('customers'))
+    or (not c.get('homepage_url'))
+  )
 
 
 # ── 재무 수집 라우팅 ─────────────────────────────────────────────────────
@@ -344,6 +353,7 @@ def _enrich_meta(llm, c: dict) -> dict | None:
     f"1) business_summary: 100-250자 한국어 1-2문장 (사업 영역/주력 시장/특징)\n"
     f"2) products: 4-6개 주력 제품 (한국어 명사구 우선)\n"
     f"3) customers: 3-5개 주요 OEM 고객사\n"
+    f"4) homepage_url: 회사 공식 홈페이지 URL (https:// 포함, 추정 금지 — 웹검색에서 확인된 URL만; 모르면 null)\n"
     f"Use web_search if needed. Then call submit_company_meta."
   )
   try:
@@ -474,6 +484,9 @@ def main() -> None:
           payload['products'] = res['products']
         if res.get('customers'):
           payload['customers'] = _normalize_customers(res['customers'])
+        hp = res.get('homepage_url')
+        if hp and isinstance(hp, str) and hp.startswith(('http://', 'https://')):
+          payload['homepage_url'] = hp.strip()
         if not payload:
           continue
         try:

@@ -1,6 +1,6 @@
 #!/bin/sh
-# AGENTS.md stale 방지 pre-commit hook.
-# 트리거 패턴은 AGENTS.md "이 파일(AGENTS.md) 갱신 트리거" 섹션과 동기화 유지.
+# AGENTS.md + Architecture.md stale 방지 pre-commit hook.
+# 트리거 패턴은 AGENTS.md "이 파일(AGENTS.md) 갱신 트리거" 섹션 + Architecture.md §13과 동기화 유지.
 
 if [ "$SKIP_AGENTS_CHECK" = "1" ]; then
   exit 0
@@ -9,8 +9,9 @@ fi
 ALL_CHANGED=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$ALL_CHANGED" ] && exit 0
 
-# AGENTS.md 자체가 같이 스테이지되었으면 통과
-if printf '%s\n' "$ALL_CHANGED" | grep -qx "AGENTS.md"; then
+# AGENTS.md 또는 Architecture.md 중 하나라도 스테이지되었으면 통과
+# (두 문서가 같은 트리거를 공유 — 한쪽이 갱신되면 다른 쪽도 같은 커밋에서 갱신했다고 가정)
+if printf '%s\n' "$ALL_CHANGED" | grep -qxE "AGENTS\.md|Architecture\.md"; then
   exit 0
 fi
 
@@ -27,9 +28,9 @@ fi
 
 cat >&2 <<EOF
 
-[AGENTS.md stale 경고]
+[AGENTS.md / Architecture.md stale 경고]
 
-구조 변경 트리거가 포함되어 있지만 AGENTS.md는 스테이지되지 않았습니다.
+구조 변경 트리거가 포함되어 있지만 AGENTS.md / Architecture.md는 스테이지되지 않았습니다.
 
 신규 트리거 파일:
 ${MATCHED_ADDED:-(없음)}
@@ -37,8 +38,9 @@ ${MATCHED_ADDED:-(없음)}
 설정 파일 변경:
 ${MATCHED_MODIFIED:-(없음)}
 
-AGENTS.md의 "이 파일(AGENTS.md) 갱신 트리거" 섹션을 확인하고,
-필요하면 AGENTS.md도 함께 수정한 뒤 다시 커밋해 주세요.
+다음 문서를 확인하고 영향 받은 섹션을 함께 수정해 주세요:
+  - AGENTS.md       "이 파일(AGENTS.md) 갱신 트리거" 섹션
+  - Architecture.md §13 "자동 갱신 트리거"
 
 이번 커밋만 우회하려면:
   SKIP_AGENTS_CHECK=1 git commit ...

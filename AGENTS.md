@@ -105,7 +105,8 @@ npm run format          # 자동 포맷
 prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 - `collect_*.py` — 외부 → DB 수집
-- `enrich_*.py` — 기존 행 보강 (외부 LLM·검색). **append-only 정책**
+- `enrich_*.py` — 기존 행 보강 (외부 LLM·검색). **append-only 정책**. `enrich_company.py`는 메타(business_summary·products·customers·**homepage_url**) + 재무 + 뉴스를 일괄 보강.
+- `onboard_company.py` — **신규 회사 추가 직후 1회 실행**. 단일 회사 식별(ticker/name/id) → enrich_company 트리거 → 캐시 무효화. 사용: `python scripts/onboard_company.py --ticker 005380`. 주가는 collect_prices_live cron이 자동 fetch.
 - `analyze_*.py` / `recheck_*.py` / `recollect_*.py` / `find_*.py` / `inspect_*.py` / `debug_*.py` — 진단·복원
 - `seed_*.py` / `import_*.py` / `sync_*.py` / `gen_*.py` / `normalize_*.py` / `migrate_*.ts` — 시드·일회성 마이그레이션
 - `_*.json` / `_*.log` / `_*.py` — 임시 산출물 (커밋 전 정리)
