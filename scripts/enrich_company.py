@@ -64,6 +64,8 @@ FINANCIAL_TOOL = {
     },
     'required': ['fiscal_year', 'revenue_amount', 'source_quote', 'confidence'],
   },
+  # prompt caching — 같은 도구 정의가 회사마다 재사용되므로 5분 캐시로 input 비용 ~90% 절감
+  'cache_control': {'type': 'ephemeral'},
 }
 
 META_TOOL = {
@@ -89,6 +91,8 @@ META_TOOL = {
     },
     'required': ['business_summary', 'products', 'customers', 'confidence'],
   },
+  # prompt caching — 같은 도구 정의가 회사마다 재사용되므로 5분 캐시로 input 비용 ~90% 절감
+  'cache_control': {'type': 'ephemeral'},
 }
 
 UNIT_TO_MILLION = {

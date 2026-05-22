@@ -161,6 +161,10 @@ export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
         limit: { type: 'integer', minimum: 1, maximum: 200, default: 100 },
       },
     },
+    // 마지막 도구에 cache_control을 두면 tools 배열 전체가 5분간 캐시됨.
+    // 시스템 프롬프트(system: cache_control)와 함께 ~2.5K 토큰이 캐시되어
+    // 5분 내 후속 질문은 input 비용 ~90% 절감 (Haiku 기준 $0.80 → $0.08 per 1M).
+    cache_control: { type: 'ephemeral' },
   },
 ];
 

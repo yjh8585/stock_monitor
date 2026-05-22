@@ -153,10 +153,17 @@ def _parse_response(text: str) -> list[dict]:
 
 def _analyze_batch(anthropic_client, batch: list[dict]) -> list[dict]:
   user_prompt = _build_user_prompt(batch)
+  # prompt caching: 배치마다 같은 SYSTEM_PROMPT 재사용 → 5분 캐시로 input 비용 ~90% 절감
   resp = anthropic_client.messages.create(
     model=MODEL,
     max_tokens=MAX_TOKENS,
-    system=SYSTEM_PROMPT,
+    system=[
+      {
+        'type': 'text',
+        'text': SYSTEM_PROMPT,
+        'cache_control': {'type': 'ephemeral'},
+      },
+    ],
     messages=[{'role': 'user', 'content': user_prompt}],
   )
   text = ''.join(b.text for b in resp.content if hasattr(b, 'text'))

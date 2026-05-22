@@ -119,7 +119,14 @@ ${manifest}
   const response = await client.messages.create({
     model: CLAUDE_SUMMARY_MODEL,
     max_tokens: 16000,
-    system: REPORT_SYSTEM_PROMPT,
+    // prompt caching: 동일한 시스템 프롬프트가 PDF마다 재사용되므로 5분 캐시 → 후속 호출 input 비용 ~90% 절감
+    system: [
+      {
+        type: 'text',
+        text: REPORT_SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
     messages: [
       {
         role: 'user',
