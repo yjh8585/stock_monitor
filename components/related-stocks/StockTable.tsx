@@ -114,7 +114,9 @@ export default function StockTable({ rows, rates }: StockTableProps) {
       result = result.filter((r) => (r.country === 'KR') === wantDomestic);
     }
     if (productCategoryFilter.length > 0) {
+      // 제품군 카테고리는 부품사에만 적용 (OEM은 차종이라 카테고리 무관 — 항상 통과).
       result = result.filter((r) =>
+        r.company_type !== '부품사' ||
         r.products.some((p) => productCategoryFilter.includes(p.category as ProductCategoryFilter))
       );
     }

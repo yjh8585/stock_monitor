@@ -204,6 +204,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **append-only**: `customers`, `description`(=`business_summary`) 등 보강 필드는 **덮어쓰지 말고** 추가만. 자동 enrich 시 diff 로그(`scripts/_*_diff_*.json`).
 - **고객사(customers) 정규화 v3** (마이그레이션 `20260522000001`, `20260522000002`, `20260522000004`): `companies.customers` 컬럼은 BEFORE INSERT/UPDATE 트리거(`companies_normalize_customers`)가 `expand_customer_name(text)→text[]` 함수로 자동 정규화하고, 값이 변경되면 `customers_updated_at`도 `now()`로 자동 SET한다. **자동차 OEM 화이트리스트(약 90개)**만 통과시키고 부품사·반도체·가전·placeholder는 폐기. "현대기아"는 `['현대차','기아']`로 분리, "GM대우/대우자동차/GM코리아"는 `한국지엠`으로, "재규어·랜드로버"는 `JLR`로 통합. 신규 OEM 별칭 추가 시 (1) `expand_customer_name` 함수의 매핑 행, (2) `lib/customerLogos.ts`의 `CUSTOMER_LOGOS`에 로고를 함께 갱신.
 - **회사 분류(company_type) 자동 분류** (마이그레이션 `20260522000003`): 컬럼 DEFAULT가 `'부품사'`. OEM은 명시적으로 입력해야 하고 그 외 신규 등록은 자동으로 부품사. `products[].category`도 BEFORE INSERT/UPDATE 트리거(`companies_normalize_products`)가 `normalize_product_category()`로 자동 정규화(매핑 없으면 `'기타'`).
+- **신규 회사 자동 page 매핑** (마이그레이션 `20260522000005`): AFTER INSERT 트리거(`companies_auto_page_mapping`)가 `data_source`에 따라 기본 page 자동 등록. dart→domestic / fnguide→domestic / yfinance→parts-top100 / marklines→parts-top100. `related-stocks`는 사용자 수동 등록(중요도 큐레이션). 회사가 등록만 되고 page 매핑 누락되는 케이스(예: HL클레무브) 방지.
+- **OEM 회사 products는 차종**, 부품사 products는 부품/제품. OEM에 부품을 채우지 말 것. 제품군 카테고리 필터(`StockTable`/`DomesticTable`의 productCategoryFilter)는 부품사에만 적용한다(OEM은 항상 통과).
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만 (`enrich_description_*.py` 참고).
 - **dart_collection_status**: companies에 별도 컬럼. DART 수집 실패/재시도 추적은 financials와 분리.
 

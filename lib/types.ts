@@ -104,6 +104,7 @@ export interface DomesticStockRow {
   currency: string;
   status: string;
   group_name: string | null;
+  company_type: string | null;
   products: ProductItem[];
   customers: CustomerItem[];
   last_price: number | null;
@@ -207,6 +208,7 @@ export function mapDomesticStockRow(
     currency: r.currency ?? '',
     status: r.status ?? '',
     group_name: r.group_name,
+    company_type: (r as { company_type?: string | null }).company_type ?? null,
     products: (r.products ?? []) as unknown as ProductItem[],
     customers: (r.customers ?? []) as unknown as CustomerItem[],
     last_price: r.last_price,
