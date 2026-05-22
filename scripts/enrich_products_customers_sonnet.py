@@ -175,7 +175,7 @@ def main():
 
     # OEM whitelist + 별칭 매핑 import
     sys.path.insert(0, str(Path(__file__).parent / '_tmp'))
-    from normalize_customers_oem_only import ALIAS_TO_STANDARD, _extract_name, _normalize_one  # noqa
+    from lib.normalize_customers_oem_only import ALIAS_TO_STANDARD, _extract_name, _normalize_one  # noqa
 
     client = get_client()
     rows = client.table('companies').select('id,name_kr,name,country,homepage_url,customers,products,business_summary,company_type').eq('status', 'active').execute().data
