@@ -63,10 +63,17 @@ def main() -> None:
   parser.add_argument('--company-id', dest='company_id', help='UUID')
   parser.add_argument('--skip-news', action='store_true', help='뉴스 수집 skip')
   parser.add_argument('--skip-revalidate', action='store_true', help='캐시 무효화 skip')
+  parser.add_argument(
+    '--fiscal-year-end-month', dest='fye_month', type=int,
+    help='회계 결산월 (1~12). 비-12월 결산 회사일 때만 지정 (예: 도요타=3). '
+         '미지정 시 companies 테이블의 기존값(또는 default 12) 유지.',
+  )
   args = parser.parse_args()
 
   if not (args.ticker or args.name or args.company_id):
     parser.error('--ticker, --name, --company-id 중 하나는 필수')
+  if args.fye_month is not None and not (1 <= args.fye_month <= 12):
+    parser.error('--fiscal-year-end-month는 1~12 사이여야 합니다.')
 
   client = get_client()
   company = _resolve_company(client, args.ticker, args.name, args.company_id)
@@ -77,6 +84,13 @@ def main() -> None:
 
   if company.get('status') != 'active':
     logger.warning(f"회사 상태가 active가 아님: {company.get('status')}. 그대로 진행.")
+
+  # 결산월 명시적 지정 시 companies에 SET (재무 수집 전에 반영되어야 한국식 -1 보정이 적용됨)
+  if args.fye_month is not None:
+    client.table('companies').update(
+      {'fiscal_year_end_month': args.fye_month}
+    ).eq('id', company['id']).execute()
+    logger.info(f"결산월 SET: {company['name_kr'] or company['name']} → {args.fye_month}월")
 
   logger.info(
     f"onboarding 시작: {company['name_kr']} ({company.get('ticker','?')}) "

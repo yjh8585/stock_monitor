@@ -311,29 +311,36 @@ def _build_kr_rows(
   period_type: str,
   period_data: dict[str, dict],
   invest_map: Optional[dict[str, dict]] = None,
+  fiscal_year_end_month: int = 12,
 ) -> list[dict]:
   """period_data를 financials DB 행 목록으로 변환한다.
 
   fnguide Snapshot의 연간 Financial Highlight 테이블은 가장 우측에 최근 분기 열을
   포함하는 경우가 있어, 그대로 적재하면 분기 데이터가 annual로 잘못 분류된다.
-  KR 회사는 12월 결산이 표준이므로 annual + period_end.month != 12 는 스킵한다.
-  (비12월 결산 한국 상장사는 거의 없음 — 발견 시 별도 정책 결정.)
+  회사별 결산월(`fiscal_year_end_month`, default 12)과 period_end.month를 비교해:
+    - 일치: 정상 annual로 인정. 비-12월 결산은 한국식 -1 보정(period_end.year - 1)
+            적용 (예: 도요타 결산월 3월, FY2024는 2025-03-31 → fiscal_year=2024).
+    - 불일치: 분기 데이터로 판정해 스킵 (fnguide 우측 분기 열 오적재 방지).
   """
   rows: list[dict] = []
   for vals in period_data.values():
     period_end: date = vals['_period_end']
-    if period_type == 'annual' and period_end.month != 12:
+    if period_type == 'annual' and period_end.month != fiscal_year_end_month:
       logger.warning(
-        f"KR {company_id}: annual period_end={period_end} (월 {period_end.month}!=12) "
-        f"→ fnguide 분기 열 오적재로 추정, 스킵"
+        f"KR {company_id}: annual period_end={period_end} (월 {period_end.month}!="
+        f"결산월 {fiscal_year_end_month}) → fnguide 분기 열 오적재로 추정, 스킵"
       )
       continue
+
+    # 한국식 -1 보정: 12월 결산이 아닌 경우 fiscal_year = period_end.year - 1
+    # (예: 결산월 3월 → FY2024는 2025-03-31에 끝남)
+    fy_offset = -1 if (period_type == 'annual' and fiscal_year_end_month != 12) else 0
     fiscal_quarter = _month_to_quarter(period_end.month) if period_type == 'quarterly' else None
 
     row: dict = {
       'company_id':      company_id,
       'period_type':     period_type,
-      'fiscal_year':     period_end.year,
+      'fiscal_year':     period_end.year + fy_offset,
       'fiscal_quarter':  fiscal_quarter,
       'period_end_date': period_end.isoformat(),
       'currency':        currency,
@@ -420,6 +427,7 @@ def _scrape_company_financials(
   ticker: str,
   company_id: str,
   currency: str,
+  fiscal_year_end_month: int = 12,
 ) -> list[dict]:
   """단일 회사의 연간·분기 재무제표를 fnguide에서 스크레이핑한다.
 
@@ -493,9 +501,15 @@ def _scrape_company_financials(
     except Exception as e:
       logger.warning(f"KR {ticker} 투자지표 수집 실패: {e}")
 
-    all_rows.extend(_build_kr_rows(company_id, currency, 'annual', annual_data, invest_map))
+    all_rows.extend(_build_kr_rows(
+      company_id, currency, 'annual', annual_data, invest_map,
+      fiscal_year_end_month=fiscal_year_end_month,
+    ))
     if qtr_data:
-      all_rows.extend(_build_kr_rows(company_id, currency, 'quarterly', qtr_data))
+      all_rows.extend(_build_kr_rows(
+        company_id, currency, 'quarterly', qtr_data,
+        fiscal_year_end_month=fiscal_year_end_month,
+      ))
 
   except Exception as e:
     logger.error(f"KR {ticker} 스크레이핑 실패: {e}")
@@ -535,10 +549,16 @@ def _collect_kr_financials(
           logger.warning(f"KR {ticker}: company_id 없음, 스킵")
           continue
 
-        currency = cur_map.get(ticker, 'KRW')
-        rows     = _scrape_company_financials(page, ticker, company_id, currency)
+        currency  = cur_map.get(ticker, 'KRW')
+        fye_month = int(company.get('fiscal_year_end_month') or 12)
+        rows = _scrape_company_financials(
+          page, ticker, company_id, currency, fiscal_year_end_month=fye_month
+        )
         all_rows.extend(rows)
-        logger.info(f"KR {ticker} ({company['name_kr']}): {len(rows)}개 기간 수집")
+        logger.info(
+          f"KR {ticker} ({company['name_kr']}, 결산월 {fye_month}): "
+          f"{len(rows)}개 기간 수집"
+        )
 
     finally:
       browser.close()

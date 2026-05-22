@@ -25,6 +25,7 @@ class CompanyInfo(TypedDict):
   data_source: str
   status: str
   is_seed: bool
+  fiscal_year_end_month: int  # 회계 결산월 (1~12, default 12)
   pages: NotRequired[list[str]]
   group_name: NotRequired[str | None]
   homepage_url: NotRequired[str | None]
@@ -41,7 +42,7 @@ def _fetch_companies_with_pages() -> list[CompanyInfo]:
     client.table('companies')
     .select(
       'id,ticker,name,name_kr,market,country,currency,data_source,status,'
-      'is_seed,group_name,homepage_url'
+      'is_seed,fiscal_year_end_month,group_name,homepage_url'
     )
     .execute()
   )
@@ -64,6 +65,7 @@ def _fetch_companies_with_pages() -> list[CompanyInfo]:
       'data_source': r.get('data_source') or '',
       'status': r.get('status') or '',
       'is_seed': bool(r.get('is_seed', False)),
+      'fiscal_year_end_month': int(r.get('fiscal_year_end_month') or 12),
       'pages': pages_by_id.get(r['id'], list(DEFAULT_PAGES)),
       'group_name': r.get('group_name'),
       'homepage_url': r.get('homepage_url'),
