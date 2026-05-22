@@ -209,6 +209,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - DB 접근은 **`postgrest-py` 직접 호출** (`scripts/lib/db.py`). `supabase` SDK 사용 금지 (인증 의존성·실패 모드 이슈로 제외). 메모리 `feedback_supabase_postgrest.md` 참고.
 - 공통 유틸: `scripts/lib/db.py`(클라이언트), `scripts/lib/accounts_map.py`(계정과목 매핑), `scripts/lib/fx.py`(환율 변환).
 - 신규 수집 스크립트는 위 공통 모듈 재사용. upsert 키와 멱등성 확보.
+- **캐시 무효화 컨벤션**: `db.upsert_rows()`는 자동으로 `revalidate_for_tables`를 호출하지만, `client.table('x').update()`·`.upsert()`·`.delete()`를 **직접** 호출하면 자동 hook이 발화하지 않아 페이지가 stale 상태로 남는다. 직접 호출 패턴을 쓰는 스크립트(`enrich_*`, `seed_*`, `normalize_*`, `recollect_*`, `collect_groups`, `_fix_*`, `_resolve_*` 등)는 종료 직전에 `from lib.revalidate import revalidate_for_tables; revalidate_for_tables(['<영향 테이블>'])` (또는 일괄 무효화가 필요하면 `revalidate_all()`) 한 줄을 `try/except`로 감싸 추가한다. 자주 도는 13개는 이미 적용 완료.
 - Playwright는 시스템 캐시(`PLAYWRIGHT_BROWSERS_PATH`) 사용. 프로젝트에 브라우저 다운로드 금지.
 - 진단/백업 산출물(`_*.json`, `_*_backup_*.json`)은 임시 파일. 커밋 전 정리 필요.
 
