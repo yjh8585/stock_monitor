@@ -123,6 +123,45 @@ export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
       required: ['series_code'],
     },
   },
+  {
+    name: 'query_pnl',
+    description:
+      '**한세모빌리티 손익(PnL) 조회 — /management 페이지의 데이터 소스**. ' +
+      '고객사·제품·사업부·공장·기간별 매출(revenue), 영업이익(op_income), ' +
+      '재료비(material_cost), 노무비(labor_cost), 경비(expense), 판관비(sga), ' +
+      'R&D 비용을 단위 mwon(백만원)으로 반환. ' +
+      'basis=consolidated가 그룹 연결 기준 (default), standalone은 별도 기준. ' +
+      '고객사 예: VW NA, VW EU, Stellantis NA, Stellantis EU, GMK, GM 직수출, ' +
+      'UZ Auto, RIVIAN, Vinfast, POLARIS, HKMC, KG모빌리티, Porsche, 군수사업. ' +
+      'include_plan=true면 계획(plan) 값까지 포함, default false는 실적만.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        basis: {
+          type: 'string',
+          enum: ['standalone', 'consolidated'],
+          description: '별도(standalone) 또는 연결(consolidated). default consolidated',
+        },
+        customers: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '고객사 정확 일치 필터 (예: ["VW NA", "VW EU"])',
+        },
+        products: { type: 'array', items: { type: 'string' } },
+        divisions: { type: 'array', items: { type: 'string' } },
+        factories: { type: 'array', items: { type: 'string' } },
+        from_year: { type: 'integer', minimum: 2020, maximum: 2100 },
+        from_month: { type: 'integer', minimum: 1, maximum: 12 },
+        to_year: { type: 'integer', minimum: 2020, maximum: 2100 },
+        to_month: { type: 'integer', minimum: 1, maximum: 12 },
+        include_plan: {
+          type: 'boolean',
+          description: 'false(default)=실적만, true=계획·예상까지 포함',
+        },
+        limit: { type: 'integer', minimum: 1, maximum: 200, default: 100 },
+      },
+    },
+  },
 ];
 
 // ── Zod 입력 스키마 (런타임 재검증) ────────────────────────────────────────
@@ -183,6 +222,20 @@ const QueryMacroSeriesInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   limit: z.number().int().min(1).max(MAX_LIMIT).default(30),
+});
+
+const QueryPnlInput = z.object({
+  basis: z.enum(['standalone', 'consolidated']).default('consolidated'),
+  customers: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+  products: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  divisions: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+  factories: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+  from_year: z.number().int().min(2020).max(2100).optional(),
+  from_month: z.number().int().min(1).max(12).optional(),
+  to_year: z.number().int().min(2020).max(2100).optional(),
+  to_month: z.number().int().min(1).max(12).optional(),
+  include_plan: z.boolean().default(false),
+  limit: z.number().int().min(1).max(200).default(100),
 });
 
 // ── 실행기 ────────────────────────────────────────────────────────────────
@@ -324,6 +377,66 @@ async function runQueryOemSales(input: unknown): Promise<unknown> {
   return { scope: args.scope, table, rows: data ?? [] };
 }
 
+async function runQueryPnl(input: unknown): Promise<unknown> {
+  const args = QueryPnlInput.parse(input);
+  const sb = createSupabaseAnonClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q: any = sb
+    .from('pnl_entries')
+    .select(
+      'basis,period_year,period_month,sil,division,factory,product,customer,revenue,material_cost,labor_cost,expense,sga,rnd,op_income,is_plan,is_estimate',
+    )
+    .eq('basis', args.basis)
+    .order('period_year', { ascending: false })
+    .order('period_month', { ascending: false })
+    .limit(args.limit);
+
+  if (!args.include_plan) {
+    q = q.eq('is_plan', false);
+  }
+  if (args.customers && args.customers.length > 0) q = q.in('customer', args.customers);
+  if (args.products && args.products.length > 0) q = q.in('product', args.products);
+  if (args.divisions && args.divisions.length > 0) q = q.in('division', args.divisions);
+  if (args.factories && args.factories.length > 0) q = q.in('factory', args.factories);
+
+  // 기간 필터: (period_year, period_month) ≥ (from_y, from_m) AND ≤ (to_y, to_m)
+  // PostgREST는 복합 조건 어려워서 단순화: year 범위 + month는 LLM이 결과로 필터링
+  if (args.from_year) q = q.gte('period_year', args.from_year);
+  if (args.to_year) q = q.lte('period_year', args.to_year);
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+
+  // 클라이언트에서 month 정확히 컷
+  let rows = (data ?? []) as Array<{
+    period_year: number;
+    period_month: number;
+    [k: string]: unknown;
+  }>;
+  if (args.from_year && args.from_month) {
+    rows = rows.filter(
+      (r) =>
+        r.period_year > args.from_year! ||
+        (r.period_year === args.from_year && r.period_month >= args.from_month!),
+    );
+  }
+  if (args.to_year && args.to_month) {
+    rows = rows.filter(
+      (r) =>
+        r.period_year < args.to_year! ||
+        (r.period_year === args.to_year && r.period_month <= args.to_month!),
+    );
+  }
+
+  return {
+    basis: args.basis,
+    unit: 'mwon (백만원)',
+    note: '한세모빌리티 손익 (pnl_entries 테이블, /management 페이지). revenue·op_income·material_cost 등 모두 백만원 단위.',
+    rows,
+    count: rows.length,
+  };
+}
+
 async function runQueryMacroSeries(input: unknown): Promise<unknown> {
   const args = QueryMacroSeriesInput.parse(input);
   const sb = createSupabaseAnonClient();
@@ -356,6 +469,8 @@ export async function runTool(name: string, input: unknown, role: UserRole): Pro
       return runQueryOemSales(input);
     case 'query_macro_series':
       return runQueryMacroSeries(input);
+    case 'query_pnl':
+      return runQueryPnl(input);
     default:
       return { error: `unknown tool: ${name}` };
   }
