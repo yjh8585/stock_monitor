@@ -1,0 +1,157 @@
+{
+  "deleted_at": "2026-05-22",
+  "reason": "화승소재 — 화학 회사(induty=20119)이지 자동차 부품사 아님. 화승티엔드씨로 대체.",
+  "companies": [
+    {
+      "id": "1c8ac831-6bb4-4c27-a150-9942531dcb76",
+      "ticker": "화승소재",
+      "name": "화승소재",
+      "name_kr": "화승소재",
+      "market": null,
+      "country": "KR",
+      "currency": "KRW",
+      "data_source": "dart",
+      "status": "active",
+      "is_seed": true,
+      "last_price": null,
+      "last_change_pct": null,
+      "last_volume": null,
+      "last_updated_at": null,
+      "created_at": "2026-05-07T09:01:52.628584+00:00",
+      "updated_at": "2026-05-22T05:53:11.962277+00:00",
+      "market_cap": null,
+      "business_summary": "화승소재는 1978년 설립 이후 국내 최대 규모의 자동차용 고무소재 전문기업으로, CMB, TPE, 실리콘 등 1,500여종의 고기능성 컴파운드를 개발·공급하는 글로벌 소재 솔루션 회사입니다.",
+      "summary_updated_at": "2026-05-11T23:38:45.870908+00:00",
+      "company_type": "부품사",
+      "region": null,
+      "products": [
+        {
+          "name": "CMB(카본 미니럴 필드 컴파운드)",
+          "category": "기타"
+        },
+        {
+          "name": "TPE(열가소성 엘라스토머)",
+          "category": "기타"
+        },
+        {
+          "name": "실리콘 컴파운드",
+          "category": "기타"
+        },
+        {
+          "name": "방산사업 제품",
+          "category": "기타"
+        },
+        {
+          "name": "조선기자재",
+          "category": "기타"
+        }
+      ],
+      "customers": [
+        {
+          "name": "기아"
+        },
+        {
+          "name": "현대차"
+        }
+      ],
+      "homepage_url": "https://www.hscmb.com",
+      "group_name": "화승",
+      "customers_updated_at": null,
+      "dart_corp_code": "00255363",
+      "dart_collection_status": "no_audit_report",
+      "last_collect_error": "NO_AUDIT_REPORT",
+      "retry_after": "2026-05-29T10:55:25.13923+00:00",
+      "merged_into_company_id": null
+    }
+  ],
+  "financials": [
+    {
+      "id": "0037a02c-45d2-45c2-8598-24601f51709c",
+      "company_id": "1c8ac831-6bb4-4c27-a150-9942531dcb76",
+      "period_type": "annual",
+      "fiscal_year": 2021,
+      "fiscal_quarter": null,
+      "period_end_date": "2021-12-31",
+      "currency": "KRW",
+      "revenue": 257032.1756,
+      "operating_income": 5442.9816,
+      "operating_margin": 2.12,
+      "cogs": 231294.4848,
+      "gross_profit": null,
+      "gross_margin": null,
+      "sga": 20294.7092,
+      "net_income": -8746.1975,
+      "net_margin": -3.4,
+      "ebitda": null,
+      "total_assets": 247084.8543,
+      "total_liabilities": 134998.4653,
+      "total_equity": 112086.389,
+      "debt_ratio": 120.44,
+      "current_ratio": null,
+      "roe": null,
+      "roa": null,
+      "eps": null,
+      "bps": null,
+      "dps": null,
+      "cfps": null,
+      "per": null,
+      "pbr": null,
+      "psr": null,
+      "ev_ebitda": null,
+      "ev_ebit": null,
+      "dividend_yield": null,
+      "inventory": 15516.4849,
+      "source": "dart",
+      "labor_cost": null,
+      "consolidation": "separate"
+    },
+    {
+      "id": "881b006a-293f-4ab5-9466-95411023fba2",
+      "company_id": "1c8ac831-6bb4-4c27-a150-9942531dcb76",
+      "period_type": "annual",
+      "fiscal_year": 2022,
+      "fiscal_quarter": null,
+      "period_end_date": "2022-12-31",
+      "currency": "KRW",
+      "revenue": 297393.8872,
+      "operating_income": 12739.3259,
+      "operating_margin": 4.28,
+      "cogs": 262743.5715,
+      "gross_profit": null,
+      "gross_margin": null,
+      "sga": 21910.9898,
+      "net_income": 21157.4308,
+      "net_margin": 7.11,
+      "ebitda": null,
+      "total_assets": 281034.1144,
+      "total_liabilities": 148753.9794,
+      "total_equity": 132280.1351,
+      "debt_ratio": 112.45,
+      "current_ratio": null,
+      "roe": null,
+      "roa": null,
+      "eps": null,
+      "bps": null,
+      "dps": null,
+      "cfps": null,
+      "per": null,
+      "pbr": null,
+      "psr": null,
+      "ev_ebitda": null,
+      "ev_ebit": null,
+      "dividend_yield": null,
+      "inventory": 16510.0701,
+      "source": "dart",
+      "labor_cost": null,
+      "consolidation": "separate"
+    }
+  ],
+  "news": [],
+  "company_pages": [
+    {
+      "company_id": "1c8ac831-6bb4-4c27-a150-9942531dcb76",
+      "page": "domestic",
+      "created_at": "2026-05-07T09:01:53.249875+00:00"
+    }
+  ]
+}

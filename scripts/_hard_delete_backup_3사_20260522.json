@@ -1,0 +1,13 @@
+{
+  "_meta": {
+    "deleted_at": "2026-05-22",
+    "reason": "사명변경/통합 정리 — 대유에이텍은 디와이에이로 사명변경(디와이에이 이미 DB 존재), 대유플러스/동우특장차는 사용자 정책으로 삭제",
+    "note": "JSON 본문은 supabase MCP execute_sql 결과 (jsonb_build_object). 복원 필요 시 sql/copy 가능."
+  },
+  "targets": [
+    {"name_kr": "대유에이텍", "id": "94b32d6e-9ca6-484a-b312-536cd5053dea", "dart_corp_code": "00367862", "homepage_url": "https://www.daeyu-atech.co.kr", "group_name": "대유", "financials_rows": 0, "news_rows": 4, "pages_rows": 1},
+    {"name_kr": "대유플러스", "id": "9946dc88-8562-43ac-ae0f-5b0758769005", "dart_corp_code": "00814096", "homepage_url": "https://www.daeyuplus.com", "group_name": "대유", "financials_rows": 0, "news_rows": 0, "pages_rows": 1},
+    {"name_kr": "동우특장차", "id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc", "dart_corp_code": "01137550", "homepage_url": "http://www.dongwoomotor.com", "group_name": null, "financials_rows": 4, "news_rows": 0, "pages_rows": 1}
+  ],
+  "note": "전체 row 본문은 Supabase 로그에 남아 있으며, 필요 시 SQL `SELECT to_jsonb(c.*) FROM ... `로 재추출 가능. backup_full.json 별도 저장 안 함."
+}

@@ -1,0 +1,406 @@
+{
+  "deleted_at": "2026-05-22",
+  "companies": [
+    {
+      "id": "94b32d6e-9ca6-484a-b312-536cd5053dea",
+      "ticker": "대유에이텍",
+      "name": "대유에이텍",
+      "name_kr": "대유에이텍",
+      "market": null,
+      "country": "KR",
+      "currency": "KRW",
+      "data_source": "dart",
+      "status": "active",
+      "is_seed": true,
+      "last_price": null,
+      "last_change_pct": null,
+      "last_volume": null,
+      "last_updated_at": null,
+      "created_at": "2026-05-07T09:01:52.628584+00:00",
+      "updated_at": "2026-05-07T09:01:52.628584+00:00",
+      "market_cap": null,
+      "business_summary": "대유에이텍은 광주와 화성에 사업부를 운영하는 자동차 부품 제조기업으로, 자동차 시트 완제품을 주력으로 생산하며 현대기아차 품질5스타를 달성한 국내 단일공장 최대생산능력 보유업체이다. 포지셔닝과 포밍 부품, 헤드레스트, 알루미늄 휠 소재 등을 다양하게 제조하고 있다.",
+      "summary_updated_at": null,
+      "company_type": null,
+      "region": null,
+      "products": [
+        {
+          "name": "자동차 시트"
+        },
+        {
+          "name": "차량용 포밍 부품"
+        },
+        {
+          "name": "헤드레스트"
+        },
+        {
+          "name": "포지셔닝 부품"
+        },
+        {
+          "name": "알루미늄 휠 소재"
+        }
+      ],
+      "customers": [
+        {
+          "name": "KG모빌리티"
+        },
+        {
+          "name": "기아"
+        },
+        {
+          "name": "현대차"
+        }
+      ],
+      "homepage_url": "https://www.daeyu-atech.co.kr",
+      "group_name": "대유",
+      "customers_updated_at": null,
+      "dart_corp_code": "00367862",
+      "dart_collection_status": "no_audit_report",
+      "last_collect_error": "NO_AUDIT_REPORT",
+      "retry_after": "2026-05-28T07:49:59.429149+00:00",
+      "merged_into_company_id": null
+    },
+    {
+      "id": "9946dc88-8562-43ac-ae0f-5b0758769005",
+      "ticker": "대유플러스",
+      "name": "대유플러스",
+      "name_kr": "대유플러스",
+      "market": null,
+      "country": "KR",
+      "currency": "KRW",
+      "data_source": "dart",
+      "status": "active",
+      "is_seed": true,
+      "last_price": null,
+      "last_change_pct": null,
+      "last_volume": null,
+      "last_updated_at": null,
+      "created_at": "2026-05-07T09:01:52.628584+00:00",
+      "updated_at": "2026-05-07T09:01:52.628584+00:00",
+      "market_cap": null,
+      "business_summary": "대유플러스는 LPG 차량용 연료탱크, 수소 연료전지 차량용 버스 및 상용차 프레임, 전기차 충전기 등을 개발·제조하는 자동차 부품 및 신에너지 전문 기업입니다. 정보통신장비와 가전부품 OEM 제조 사업도 병행하고 있습니다.",
+      "summary_updated_at": null,
+      "company_type": null,
+      "region": null,
+      "products": [
+        {
+          "name": "LPG 연료탱크"
+        },
+        {
+          "name": "수소 연료전지 차량용 프레임"
+        },
+        {
+          "name": "전기차 충전기"
+        },
+        {
+          "name": "네트워크 및 전송 장비"
+        },
+        {
+          "name": "가전제품 OEM(김치냉장고, 에어컨)"
+        },
+        {
+          "name": "DC 카본 온열매트"
+        }
+      ],
+      "customers": [
+        {
+          "name": "기아"
+        },
+        {
+          "name": "한국지엠"
+        },
+        {
+          "name": "현대차"
+        }
+      ],
+      "homepage_url": "https://www.daeyuplus.com",
+      "group_name": "대유",
+      "customers_updated_at": null,
+      "dart_corp_code": "00814096",
+      "dart_collection_status": "no_audit_report",
+      "last_collect_error": "NO_AUDIT_REPORT",
+      "retry_after": "2026-05-28T07:44:16.252902+00:00",
+      "merged_into_company_id": null
+    },
+    {
+      "id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc",
+      "ticker": "동우특장차",
+      "name": "동우특장차",
+      "name_kr": "동우특장차",
+      "market": null,
+      "country": "KR",
+      "currency": "KRW",
+      "data_source": "dart",
+      "status": "active",
+      "is_seed": false,
+      "last_price": null,
+      "last_change_pct": null,
+      "last_volume": null,
+      "last_updated_at": null,
+      "created_at": "2026-05-20T06:44:29.437592+00:00",
+      "updated_at": "2026-05-20T06:44:29.437592+00:00",
+      "market_cap": null,
+      "business_summary": "동우특장차는 2009년 설립된 중소기업으로, 벌크트레일러, 평판트레일러, 컨테이너트레일러 등 특수 목적의 트레일러 및 세미 트레일러 제조 전문업체이다. 글로벌 물류운송 리더를 추구하며 중동, 일본, 동남아 시장 등으로 대규모 수출을 진행하고 있다.",
+      "summary_updated_at": null,
+      "company_type": "부품사",
+      "region": "한국",
+      "products": [
+        {
+          "name": "벌크트레일러"
+        },
+        {
+          "name": "평판트레일러"
+        },
+        {
+          "name": "컨테이너트레일러"
+        },
+        {
+          "name": "저상트레일러"
+        },
+        {
+          "name": "콘크리트펌프트럭"
+        },
+        {
+          "name": "탱크트레일러"
+        }
+      ],
+      "customers": [
+        {
+          "name": "기아"
+        },
+        {
+          "name": "현대차"
+        }
+      ],
+      "homepage_url": "http://www.dongwoomotor.com",
+      "group_name": null,
+      "customers_updated_at": null,
+      "dart_corp_code": "01137550",
+      "dart_collection_status": "no_audit_report",
+      "last_collect_error": "NO_AUDIT_REPORT",
+      "retry_after": "2026-05-28T03:21:16.604524+00:00",
+      "merged_into_company_id": null
+    }
+  ],
+  "financials": [
+    {
+      "id": "c12ba2d6-66dd-495e-9e64-35957c201e69",
+      "company_id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc",
+      "period_type": "annual",
+      "fiscal_year": 2023,
+      "fiscal_quarter": null,
+      "period_end_date": "2023-12-31",
+      "currency": "KRW",
+      "revenue": 12513.7583,
+      "operating_income": 500.4424,
+      "operating_margin": 4.0,
+      "cogs": 10523.1453,
+      "gross_profit": null,
+      "gross_margin": null,
+      "sga": 1490.1706,
+      "net_income": 272.5626,
+      "net_margin": 2.18,
+      "ebitda": null,
+      "total_assets": 9603.5495,
+      "total_liabilities": 8080.237,
+      "total_equity": 1523.3125,
+      "debt_ratio": 530.44,
+      "current_ratio": null,
+      "roe": null,
+      "roa": null,
+      "eps": null,
+      "bps": null,
+      "dps": null,
+      "cfps": null,
+      "per": null,
+      "pbr": null,
+      "psr": null,
+      "ev_ebitda": null,
+      "ev_ebit": null,
+      "dividend_yield": null,
+      "inventory": 1716.6326,
+      "source": null,
+      "labor_cost": null,
+      "consolidation": "separate"
+    },
+    {
+      "id": "b66df0af-283b-4a09-9837-6ad9d410a913",
+      "company_id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc",
+      "period_type": "annual",
+      "fiscal_year": 2024,
+      "fiscal_quarter": null,
+      "period_end_date": "2024-12-31",
+      "currency": "KRW",
+      "revenue": 9812.6096,
+      "operating_income": 249.9768,
+      "operating_margin": 2.55,
+      "cogs": 8217.71,
+      "gross_profit": null,
+      "gross_margin": null,
+      "sga": 1344.9228,
+      "net_income": 25.4927,
+      "net_margin": 0.26,
+      "ebitda": null,
+      "total_assets": 8781.7548,
+      "total_liabilities": 7232.9496,
+      "total_equity": 1548.8052,
+      "debt_ratio": 467.0,
+      "current_ratio": null,
+      "roe": null,
+      "roa": null,
+      "eps": null,
+      "bps": null,
+      "dps": null,
+      "cfps": null,
+      "per": null,
+      "pbr": null,
+      "psr": null,
+      "ev_ebitda": null,
+      "ev_ebit": null,
+      "dividend_yield": null,
+      "inventory": 1434.9352,
+      "source": null,
+      "labor_cost": null,
+      "consolidation": "separate"
+    },
+    {
+      "id": "ccc984c3-00f3-429d-ac84-cad6056f17bd",
+      "company_id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc",
+      "period_type": "annual",
+      "fiscal_year": 2022,
+      "fiscal_quarter": null,
+      "period_end_date": "2022-12-31",
+      "currency": "KRW",
+      "revenue": 13863.2905,
+      "operating_income": 521.1221,
+      "operating_margin": 3.76,
+      "cogs": 12151.4475,
+      "gross_profit": null,
+      "gross_margin": null,
+      "sga": 1190.7209,
+      "net_income": 271.3407,
+      "net_margin": 1.96,
+      "ebitda": null,
+      "total_assets": 10216.2694,
+      "total_liabilities": 8965.5194,
+      "total_equity": 1250.7499,
+      "debt_ratio": 716.81,
+      "current_ratio": null,
+      "roe": null,
+      "roa": null,
+      "eps": null,
+      "bps": null,
+      "dps": null,
+      "cfps": null,
+      "per": null,
+      "pbr": null,
+      "psr": null,
+      "ev_ebitda": null,
+      "ev_ebit": null,
+      "dividend_yield": null,
+      "inventory": 1640.0654,
+      "source": null,
+      "labor_cost": null,
+      "consolidation": "separate"
+    },
+    {
+      "id": "6990fd5f-d279-4eb5-aa1c-91215525acc5",
+      "company_id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc",
+      "period_type": "annual",
+      "fiscal_year": 2021,
+      "fiscal_quarter": null,
+      "period_end_date": "2021-12-31",
+      "currency": "KRW",
+      "revenue": 13793.5565,
+      "operating_income": 162.7421,
+      "operating_margin": 1.18,
+      "cogs": 12296.1997,
+      "gross_profit": null,
+      "gross_margin": null,
+      "sga": 1334.6146,
+      "net_income": -72.0271,
+      "net_margin": -0.52,
+      "ebitda": null,
+      "total_assets": 10418.2843,
+      "total_liabilities": 9438.8751,
+      "total_equity": 979.4092,
+      "debt_ratio": 963.73,
+      "current_ratio": null,
+      "roe": null,
+      "roa": null,
+      "eps": null,
+      "bps": null,
+      "dps": null,
+      "cfps": null,
+      "per": null,
+      "pbr": null,
+      "psr": null,
+      "ev_ebitda": null,
+      "ev_ebit": null,
+      "dividend_yield": null,
+      "inventory": 2172.1071,
+      "source": null,
+      "labor_cost": null,
+      "consolidation": "separate"
+    }
+  ],
+  "news": [
+    {
+      "id": "b706419d-a029-46c2-aa8c-3b9550a0847a",
+      "company_id": "94b32d6e-9ca6-484a-b312-536cd5053dea",
+      "title": "[특징주]대유에이텍 나흘째 '강세'..위니아만도 인수 시너지 기대 - 이데일리",
+      "url": "https://news.google.com/rss/articles/CBMiggFBVV95cUxOS0NxZzlMWE9zeVJmb2QzTXBzb0R2UVhocHh3S01JSC00RzZLdnpRUjNJV0dzZXc4ekpOUGQzQVo3cjUtRk9DV1ExWnBGa3B2b1JHMnMtWXdWSTBwSGlESDREdFJoNXJUeVBuWUZRZzhZbHpqTTJRY09sM0RZMXZ1eGxR?oc=5",
+      "source": "이데일리",
+      "summary": "",
+      "published_at": "2026-05-17T22:18:40+00:00",
+      "created_at": "2026-05-20T07:04:53.262203+00:00"
+    },
+    {
+      "id": "bc3d05d8-963f-430c-96c0-af8686d31703",
+      "company_id": "94b32d6e-9ca6-484a-b312-536cd5053dea",
+      "title": "대유에이텍, 디와이에이로 상호변경→변경상장 추진 - 톱스타뉴스",
+      "url": "https://news.google.com/rss/articles/CBMickFVX3lxTE5PYUFoQnNYbUNmMUoyUHVnZDJ5TFV4TDZxUFJtV0xpNVptUDBVbTlJcjVJdXU4QXo5WkFJRDZBakdFTnFibkNGZmxCQ016V3YyOHBWdWdvbEpJR3lJbjFLOFBoRjdDaVV5NS1UM3U2alZ0dw?oc=5",
+      "source": "톱스타뉴스",
+      "summary": "",
+      "published_at": "2026-04-10T07:00:00+00:00",
+      "created_at": "2026-05-20T07:04:53.262203+00:00"
+    },
+    {
+      "id": "c8cf56a7-e803-46a2-b426-8c71c5c8a4f4",
+      "company_id": "94b32d6e-9ca6-484a-b312-536cd5053dea",
+      "title": "디와이에이 투자분석 2026. 04. 02 - 주달",
+      "url": "https://news.google.com/rss/articles/CBMic0FVX3lxTE81V0VVLS01RjYwQVhDZWhWSnFqN0VFREpNek9KZFhXMjJZMDcwZG1iOXhtNG1acncwNmV3NV8zcG1Qa18wRG5wcVhUQnNOdHR1elQ0UHJoWDg3VkxJUk9DcnQxcFdRV1FyenV0ZWgzUkdWR3M?oc=5",
+      "source": "주달",
+      "summary": "",
+      "published_at": "2026-04-02T07:00:00+00:00",
+      "created_at": "2026-05-20T20:32:47.895232+00:00"
+    },
+    {
+      "id": "22b7ab83-12f6-4b69-91ef-c29507d9f24d",
+      "company_id": "94b32d6e-9ca6-484a-b312-536cd5053dea",
+      "title": "대유에이텍, 사외이사 3명 선임·재선임 - 디지털투데이",
+      "url": "https://news.google.com/rss/articles/CBMic0FVX3lxTE1TRVVPWVJKVDA5b21zUHc2WXZzd1dlTk1kRXBKb2M0UU5RNHFfajlMUHk5d2tUSzBxbUxEUDRyWUZpWmR6bl9neTFkaWdEZEo0SUtUNFYtUzkzWEo1Um1sbTgwMm9ZajBJMjlJRkR3SmRteWc?oc=5",
+      "source": "디지털투데이",
+      "summary": "",
+      "published_at": "2026-03-27T07:00:00+00:00",
+      "created_at": "2026-05-20T07:04:53.262203+00:00"
+    }
+  ],
+  "company_pages": [
+    {
+      "company_id": "94b32d6e-9ca6-484a-b312-536cd5053dea",
+      "page": "domestic",
+      "created_at": "2026-05-07T09:01:53.249875+00:00"
+    },
+    {
+      "company_id": "9946dc88-8562-43ac-ae0f-5b0758769005",
+      "page": "domestic",
+      "created_at": "2026-05-07T09:01:53.249875+00:00"
+    },
+    {
+      "company_id": "c1e29fa1-cc95-4446-b3f1-a7edc66a31fc",
+      "page": "domestic",
+      "created_at": "2026-05-20T06:44:29.437592+00:00"
+    }
+  ]
+}
