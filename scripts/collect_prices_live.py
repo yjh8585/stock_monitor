@@ -128,6 +128,13 @@ def collectPricesLive() -> None:
   global_count = _collect_global_live()
   logger.info(f"현재가 갱신 완료 — KR {kr_count}개 + 글로벌 {global_count}개")
 
+  # Next.js 캐시 무효화 — client.table().update()로 우회 호출이라 db.upsert_rows 자동 hook이 발화하지 않음
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['companies'])
+  except Exception as e:
+    logger.debug(f"  revalidate skip: {e}")
+
 
 if __name__ == '__main__':
   try:

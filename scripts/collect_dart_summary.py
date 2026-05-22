@@ -367,6 +367,13 @@ def collectDartSummary() -> None:
       logger.error(f'[{idx}/{len(pending)}] [{ticker}] {name}: 예외 {type(e).__name__}: {e}')
       continue
 
+  # Next.js 캐시 무효화 — client.table().update()로 companies 우회 호출
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['companies'])
+  except Exception as e:
+    logger.debug(f'  revalidate skip: {e}')
+
 
 if __name__ == '__main__':
   try:

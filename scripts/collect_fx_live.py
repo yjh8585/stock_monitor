@@ -65,6 +65,13 @@ def collectFxLive() -> None:
   client.table('exchange_rates_live').upsert(rows, on_conflict='base,quote').execute()
   logger.info(f"환율 현재값 갱신 완료 — {len(rows)}개 통화쌍")
 
+  # Next.js 캐시 무효화 — client.table().upsert()는 db.upsert_rows 자동 hook이 발화하지 않음
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['exchange_rates_live'])
+  except Exception as e:
+    logger.debug(f"  revalidate skip: {e}")
+
 
 if __name__ == '__main__':
   try:

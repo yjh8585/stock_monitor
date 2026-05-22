@@ -517,6 +517,13 @@ def main() -> None:
       except Exception as e:
         logger.error(f'뉴스 수집 실패: {e}')
 
+  # Next.js 캐시 무효화 — companies 메타 갱신이 client.table().update()로 우회 호출
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['companies'])
+  except Exception as e:
+    logger.debug(f'  revalidate skip: {e}')
+
   logger.info('완료. 주가는 별도 실행: python scripts/collect_prices_live.py')
 
 

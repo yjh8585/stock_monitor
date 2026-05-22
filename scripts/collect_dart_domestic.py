@@ -337,6 +337,13 @@ def collectDartDomestic() -> None:
     f'요약: 처리 {len(pending)} / 갱신 {total_renames} / failed {total_failed} / financials {total_rows}'
   )
 
+  # Next.js 캐시 무효화 — companies/financials 모두 client.table().update()로 우회 호출
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['companies', 'financials'])
+  except Exception as e:
+    logger.debug(f'  revalidate skip: {e}')
+
 
 if __name__ == '__main__':
   try:

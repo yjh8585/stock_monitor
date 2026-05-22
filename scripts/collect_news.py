@@ -309,6 +309,13 @@ def collectNews() -> None:
     except Exception as e:
       logger.warning(f'오래된 뉴스 삭제 실패: {e}')
 
+  # Next.js 캐시 무효화 — client.table().upsert/delete는 db.upsert_rows 자동 hook이 발화하지 않음
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['news'])
+  except Exception as e:
+    logger.debug(f'  revalidate skip: {e}')
+
 
 if __name__ == '__main__':
   try:

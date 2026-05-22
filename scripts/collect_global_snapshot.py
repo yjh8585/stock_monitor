@@ -252,6 +252,13 @@ def collectGlobalSnapshot() -> None:
         except Exception as e:
             logger.error(f"글로벌 {ticker} 수집 실패: {e}")
 
+    # Next.js 캐시 무효화 — companies/financials 모두 client.table().update()로 우회 호출
+    try:
+        from lib.revalidate import revalidate_for_tables
+        revalidate_for_tables(['companies', 'financials'])
+    except Exception as e:
+        logger.debug(f"  revalidate skip: {e}")
+
 
 if __name__ == '__main__':
     try:
