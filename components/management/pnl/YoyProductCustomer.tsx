@@ -4,12 +4,7 @@ import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  aggregateBy,
-  entriesForYearOrYtd,
-  getDisplayYearLabels,
-  ytdMonthsOfYear,
-} from '@/lib/pnl/aggregate';
+import { aggregateBy, prepareYoYView } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -149,52 +144,17 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
   /** 현재 basis의 작은 reference 배열들 */
   const basisAnnual = annualByBasis[basis];
   const basisMonthly = monthlyByBasis[basis];
-  // YoY는 직전 연도와 비교 — 2023을 base로 두면 2022 데이터가 없어 yoy=0이 된다.
-  const yearLabels = useMemo(
-    () => getDisplayYearLabels(basisAnnual, basis).filter((y) => !y.startsWith('2023')),
-    [basisAnnual, basis]
-  );
-
-  const defaultBase = yearLabels[yearLabels.length - 1] ?? '';
+  // YoY 비교 준비 (1~5단계 통합) — MarginScatter와 동일 패턴.
   const [baseYear, setBaseYear] = useState<string>('');
-  const effBase = useMemo(
-    () => (baseYear && yearLabels.includes(baseYear) ? baseYear : defaultBase),
-    [baseYear, yearLabels, defaultBase]
+  const view = useMemo(
+    () => prepareYoYView(basisAnnual, basisMonthly, basis, baseYear),
+    [basisAnnual, basisMonthly, basis, baseYear]
   );
-
-  /**
-   * 비교 = 기준 직전 연도. yearLabels에 '2025(E)' 등 suffix가 있을 수 있어 4자리 prefix로 매칭.
-   */
-  const effCompare = useMemo(() => {
-    if (!effBase) return '';
-    const m = effBase.match(/(\d{4})/);
-    if (!m) return effBase;
-    const prev = String(parseInt(m[1], 10) - 1);
-    return yearLabels.find((y) => y.startsWith(prev)) ?? effBase;
-  }, [effBase, yearLabels]);
-
-  /** 기준 연도가 진행 중이면 비교도 동일 월수까지 잘라 비교 (2026 1~N월 vs 2025 1~N월). */
-  const baseYearNum = useMemo(() => {
-    const m = effBase.match(/(\d{4})/);
-    return m ? parseInt(m[1], 10) : 0;
-  }, [effBase]);
-  const ytdMonths = useMemo(
-    () => (baseYearNum ? ytdMonthsOfYear(basisMonthly, basis, baseYearNum) : 0),
-    [basisMonthly, basis, baseYearNum]
-  );
+  const { yearLabels, effBase, effCompare, ytdMonths, baseEntries, compareEntries } = view;
 
   // 매출 상위 N개 (제품, 고객) 쌍 추출 + YoY 계산
   const { rows, products, customers, maxAbsYoy } = useMemo(() => {
     if (!effBase) return { rows: [], products: [], customers: [], maxAbsYoy: 0 };
-    const baseEntries = entriesForYearOrYtd(basisAnnual, basisMonthly, basis, effBase, ytdMonths);
-    const compareEntries = entriesForYearOrYtd(
-      basisAnnual,
-      basisMonthly,
-      basis,
-      effCompare,
-      ytdMonths
-    );
-
     const baseAgg = aggregateBy(baseEntries, ['product', 'customer']);
     const compareAgg = aggregateBy(compareEntries, ['product', 'customer']);
     // key 정규화: 빈 dim → '(미분류)' (표시값과 매핑 일치)
@@ -227,8 +187,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
         const baseRev = baseRow?.revenue ?? 0;
         const compRev = compRow?.revenue ?? 0;
         if (baseRev === 0 && compRev === 0) continue;
-        const yoy =
-          compRev !== 0 ? ((baseRev - compRev) / Math.abs(compRev)) * 100 : null;
+        const yoy = compRev !== 0 ? ((baseRev - compRev) / Math.abs(compRev)) * 100 : null;
         cells.push({ product, customer, baseRevenue: baseRev, compareRevenue: compRev, yoy });
       }
     }
@@ -239,7 +198,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
     }
     if (maxAbsYoy === 0) maxAbsYoy = 1;
     return { rows: cells, products, customers, maxAbsYoy };
-  }, [basisAnnual, basisMonthly, basis, effBase, effCompare, ytdMonths]);
+  }, [baseEntries, compareEntries, effBase]);
 
   /** 빠른 lookup */
   const cellMap = useMemo(() => {

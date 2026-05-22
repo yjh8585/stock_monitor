@@ -5,13 +5,7 @@ import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
-import {
-  aggregateBy,
-  entriesForYearOrYtd,
-  getDisplayYearLabels,
-  opMarginOf,
-  ytdMonthsOfYear,
-} from '@/lib/pnl/aggregate';
+import { aggregateBy, opMarginOf, prepareYoYView } from '@/lib/pnl/aggregate';
 import type { Basis, DimensionKey, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 
@@ -285,59 +279,22 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
   const basisEntries = annualByBasis[basis];
   const basisMonthly = monthlyByBasis[basis];
 
-  // YoY는 직전 연도와 비교 — 2023을 base로 두면 2022 데이터가 없어 yoy=0이 된다.
-  // 따라서 base 드롭다운에서 2023(라벨 prefix '2023')은 제외.
-  const yearLabels = useMemo(
-    () => getDisplayYearLabels(basisEntries, basis).filter((y) => !y.startsWith('2023')),
-    [basisEntries, basis]
-  );
-
-  const defaultBase = yearLabels[yearLabels.length - 1] ?? '';
+  // YoY 비교 준비 (1~5단계 통합) — yearLabels '2023 제외', effBase/effCompare, ytdMonths,
+  // baseEntries/compareEntries를 한 번에 계산. YoyProductCustomer와 동일 패턴.
   const [baseYear, setBaseYear] = useState<string>('');
-  const effBase = useMemo(
-    () => (baseYear && yearLabels.includes(baseYear) ? baseYear : defaultBase),
-    [baseYear, yearLabels, defaultBase]
+  const view = useMemo(
+    () => prepareYoYView(basisEntries, basisMonthly, basis, baseYear),
+    [basisEntries, basisMonthly, basis, baseYear]
   );
-
-  /**
-   * 비교 연도 = 기준 연도의 직전 연도.
-   *
-   * yearLabels에는 '2025(E)' / '2026' 처럼 라벨 suffix가 붙어 있을 수 있어
-   * 4자리 prefix로 매칭한다. (예: 기준 '2026' → 비교 '2025(E)')
-   */
-  const effCompare = useMemo(() => {
-    if (!effBase) return '';
-    const m = effBase.match(/(\d{4})/);
-    if (!m) return effBase;
-    const prev = String(parseInt(m[1], 10) - 1);
-    return yearLabels.find((y) => y.startsWith(prev)) ?? effBase;
-  }, [effBase, yearLabels]);
+  const { yearLabels, effBase, effCompare, ytdMonths, baseEntries, compareEntries } = view;
 
   const dimConfig = useMemo(
     () => DIM_OPTIONS.find((d) => d.value === dim) ?? DIM_OPTIONS[0],
     [dim]
   );
 
-  /** 기준 연도가 진행 중(YTD)이면 비교도 동일 월수까지 잘라 비교. 0/12면 연간 비교. */
-  const baseYearNum = useMemo(() => {
-    const m = effBase.match(/(\d{4})/);
-    return m ? parseInt(m[1], 10) : 0;
-  }, [effBase]);
-  const ytdMonths = useMemo(
-    () => (baseYearNum ? ytdMonthsOfYear(basisMonthly, basis, baseYearNum) : 0),
-    [basisMonthly, basis, baseYearNum]
-  );
-
   const points: BubblePoint[] = useMemo(() => {
     if (!effBase) return [];
-    const baseEntries = entriesForYearOrYtd(basisEntries, basisMonthly, basis, effBase, ytdMonths);
-    const compareEntries = entriesForYearOrYtd(
-      basisEntries,
-      basisMonthly,
-      basis,
-      effCompare,
-      ytdMonths
-    );
     const baseAgg = aggregateBy(baseEntries, [dimConfig.key]);
     const compareAgg = aggregateBy(compareEntries, [dimConfig.key]);
     const compareMap = new Map<string, number>();
@@ -381,7 +338,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
         };
       })
       .sort((a, b) => b.revenue - a.revenue);
-  }, [basisEntries, basisMonthly, basis, effBase, effCompare, dimConfig.key, ytdMonths]);
+  }, [baseEntries, compareEntries, effBase, dimConfig.key]);
 
   /** 이상치 분리. showOutliers=false면 차트는 regular만, true면 outlier 포함. */
   const { regular: regularPoints, outliers } = useMemo(() => classifyOutliers(points), [points]);

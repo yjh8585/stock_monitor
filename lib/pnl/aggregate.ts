@@ -444,3 +444,66 @@ export function opMarginOf(row: AggregatedRow): number | null {
   if (!row.revenue) return null;
   return (row.op_income / row.revenue) * 100;
 }
+
+/**
+ * YoY 비교 차트(MarginScatter / YoyProductCustomer)의 1~5단계 공통 준비물.
+ *
+ * 두 차트의 useMemo 5개가 글자 단위로 동일했던 패턴을 한 함수에 집약한다.
+ * 6단계(차원별 aggregateBy) 이후는 차트마다 차원·매핑이 달라 호출자가 직접 수행.
+ *
+ * 정책 (기존 코드와 동일):
+ * - 2023(_)으로 시작하는 라벨은 yearLabels에서 제외 (2022가 없어 yoy=0)
+ * - baseYearLabel이 yearLabels에 없으면 최신 연도로 fallback
+ * - effCompare는 effBase의 4자리 prefix - 1로 매칭 ('2025(E)' → '2024')
+ * - 기준이 YTD(period_month=1..11만 적재된 진행 중 연도)이면 비교도 동일 월수까지 잘라 비교
+ */
+export interface YoYView {
+  yearLabels: string[];
+  effBase: string;
+  effCompare: string;
+  ytdMonths: number;
+  baseEntries: PnlEntry[];
+  compareEntries: PnlEntry[];
+}
+
+export function prepareYoYView(
+  annual: readonly PnlEntry[],
+  monthly: readonly PnlEntry[],
+  basis: Basis,
+  baseYearLabel: string
+): YoYView {
+  // 1) yearLabels — '2023(_)' prefix 제외 (2022 데이터 없어 yoy=0)
+  const yearLabels = getDisplayYearLabels(annual, basis).filter((y) => !y.startsWith('2023'));
+
+  // 2) effBase — baseYearLabel이 yearLabels에 있으면 그대로, 아니면 최신 연도 fallback
+  const defaultBase = yearLabels[yearLabels.length - 1] ?? '';
+  const effBase = baseYearLabel && yearLabels.includes(baseYearLabel) ? baseYearLabel : defaultBase;
+
+  // 3) effCompare — effBase의 4자리 prefix - 1로 직전 연도 매칭
+  //    annual 전체에서 찾아야 함 ('2023 제외' 정책은 yearLabels 표시용일 뿐 비교 데이터는 살아있음).
+  //    '2025(E)' 같은 suffix를 처리하기 위해 prefix 매칭.
+  let effCompare = effBase;
+  if (effBase) {
+    const m = effBase.match(/(\d{4})/);
+    if (m) {
+      const prev = String(parseInt(m[1], 10) - 1);
+      const allLabels = getDisplayYearLabels(annual, basis);
+      effCompare = allLabels.find((y) => y.startsWith(prev)) ?? effBase;
+    }
+  }
+
+  // 4) ytdMonths — 기준 연도의 monthly 최대 월 (1~11이면 진행 중)
+  const baseYearMatch = effBase.match(/(\d{4})/);
+  const baseYearNum = baseYearMatch ? parseInt(baseYearMatch[1], 10) : 0;
+  const ytdMonths = baseYearNum ? ytdMonthsOfYear(monthly, basis, baseYearNum) : 0;
+
+  // 5) base/compare entries — YTD면 monthly 1~ytdMonths월, 아니면 annual
+  const baseEntries = effBase
+    ? entriesForYearOrYtd(annual, monthly, basis, effBase, ytdMonths)
+    : [];
+  const compareEntries = effCompare
+    ? entriesForYearOrYtd(annual, monthly, basis, effCompare, ytdMonths)
+    : [];
+
+  return { yearLabels, effBase, effCompare, ytdMonths, baseEntries, compareEntries };
+}
