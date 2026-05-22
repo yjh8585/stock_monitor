@@ -43,14 +43,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 검증 명령 (작업 완료 후 반드시 실행)
 
 ```powershell
-npm run check-all       # lint + format:check + typecheck 일괄
+npm run check-all       # lint + format:check + typecheck + test 일괄
 # 개별
 npm run lint            # eslint .
 npm run format:check    # prettier --check .
 npm run typecheck       # tsc --noEmit
+npm test                # vitest run (lib/**/*.test.ts)
+npm run test:watch      # 개발 중 watch 모드
+npm run test:coverage   # v8 커버리지 리포트
 npm run lint:fix        # 자동 수정
 npm run format          # 자동 포맷
 ```
+
+테스트는 `lib/` 하위 순수 함수 대상 (Vitest, node 환경). `vitest.config.ts`에서 `@/*` alias가 tsconfig와 동일하게 매핑된다.
 
 - UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케이스 확인. 콘솔/네트워크 에러 모니터링.
 - Python 스크립트는 `scripts/venv` 활성화 후 실행. 환경변수는 `scripts/.env`에서 읽음.
