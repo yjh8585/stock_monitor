@@ -50,16 +50,17 @@ export const CUSTOMER_LOGOS: Record<string, CustomerLogoConfig> = {
   KG모빌리티: { iconUrl: '/logos/kg-mobility.svg', abbr: 'KGM', color: '#0a2240' },
   폴라리스: { iconUrl: null, abbr: 'POL', color: '#1a2d5a' },
   테슬라: { iconUrl: SI('tesla', 'CC0000'), abbr: 'Tesla', color: '#CC0000' },
-  한국지엠: { iconUrl: SI('chevrolet', 'D1AD57'), abbr: '한국GM', color: '#D1AD57' },
-  // 정규화 표준명 '한국GM' (정규화 스크립트 ALIAS_TO_STANDARD)
-  한국GM: { iconUrl: SI('chevrolet', 'D1AD57'), abbr: '한국GM', color: '#D1AD57' },
+  // 한국지엠은 GM 산하 법인 → GM 로고로 통일 (정규화 v3에서 GM대우·대우자동차·GM코리아 등이 한국지엠으로 통합됨)
+  한국지엠: { iconUrl: SI('generalmotors', '0170CE'), abbr: '한국GM', color: '#0170ce' },
+  한국GM: { iconUrl: SI('generalmotors', '0170CE'), abbr: '한국GM', color: '#0170ce' },
   르노코리아: { iconUrl: SI('renault', 'efb700'), abbr: 'RKM', color: '#c9a000' },
   // 제네시스는 현대차 브랜드라 정규화 단계에서 '현대차'로 통합 (별도 매핑 불필요)
   아우디: { iconUrl: SI('audi', '000000'), abbr: 'Audi', color: '#000000' },
   포르쉐: { iconUrl: SI('porsche', 'D5001C'), abbr: 'PSC', color: '#D5001C' },
   푸조: { iconUrl: SI('peugeot', '1B232A'), abbr: 'Peu', color: '#1B232A' },
   시트로엥: { iconUrl: SI('citroen', 'A6021A'), abbr: 'Cit', color: '#A6021A' },
-  '재규어 랜드로버': { iconUrl: SI('jaguar', '00529b'), abbr: 'JLR', color: '#00529b' },
+  // JLR (재규어·랜드로버 합작사) — 두 브랜드 모두 정규화 v3에서 'JLR'로 통합
+  JLR: { iconUrl: SI('jaguar', '00529b'), abbr: 'JLR', color: '#00529b' },
   BYD: { iconUrl: WC('BYD_Auto_2022_logo.svg'), abbr: 'BYD', color: '#E2231A' },
   스즈키: { iconUrl: SI('suzuki', '12459C'), abbr: 'Suzuki', color: '#12459C' },
   페라리: { iconUrl: SI('ferrari', 'DC0000'), abbr: 'Ferrari', color: '#DC0000' },
