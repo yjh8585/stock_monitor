@@ -22,16 +22,55 @@ except ImportError:  # 옵션 의존
     requests = None
 
 
-# 컬럼별 캐시 태그 매핑 (companies/financials 변경 시 어느 페이지가 영향받는지)
-# 데이터 update 후 정확한 페이지 캐시만 무효화하도록 사용
+# 테이블 → cacheTag 매핑. db.upsert_rows()가 이 매핑을 통해 자동으로 /api/revalidate를 호출한다.
+#
+# 매핑 기준: app/**/page.tsx, lib/**/*.ts 의 cacheTag('...') 사용처를 git grep으로 도출.
+#   - 동일 테이블이 여러 페이지/뷰에 영향이면 모두 등재 (예: companies → 메인·도메스틱·TOP100 뷰)
+#   - 한 테이블이 직접 태그로도 쓰이고 view 태그로도 쓰이면 모두 포함 (예: companies, financials)
+#   - 페이지가 'use cache'를 쓰지 않아도(예: hansae) 향후 적용 대비 매핑은 유지
+# ALL_TAGS(=app/api/revalidate/route.ts)와 정합성 유지. 신규 cacheTag 추가 시 양쪽 동시 갱신.
 COLUMN_TO_TAGS = {
-    'companies': ['related_stocks_view', 'domestic_stocks_view', 'parts_top100_stocks_view'],
-    'financials': ['related_stocks_view', 'domestic_stocks_view', 'parts_top100_stocks_view'],
-    'exchange_rates_live': ['exchange_rates_live'],
+    # 회사 메타·재무 → 3개 view + 직접 태그 + compare 페이지
+    'companies': [
+        'related_stocks_view',
+        'domestic_stocks_view',
+        'parts_top100_stocks_view',
+        'companies',
+    ],
+    'financials': [
+        'related_stocks_view',
+        'domestic_stocks_view',
+        'parts_top100_stocks_view',
+        'financials',
+    ],
+    # 주가
+    'stock_prices': ['stock_prices', 'related_stocks_view'],
+    'stock_quotes_5min': ['stock_quotes_5min', 'related_stocks_view'],
+    # 환율
+    'exchange_rates_live': [
+        'exchange_rates_live',
+        'related_stocks_view',
+        'domestic_stocks_view',
+        'parts_top100_stocks_view',
+    ],
+    'exchange_rates': ['exchange_rates'],
+    # 매크로·시계열
+    'market_series': ['market_series'],
+    'market_series_daily': ['market_series_daily'],
+    'macro_outlook_notes': ['macro_outlook_notes'],
+    # OEM
     'oem_sales_group_month': ['oem_sales_group_month'],
     'oem_sales_group_pt_month': ['oem_sales_group_pt_month'],
     'oem_sales_group_country_month': ['oem_sales_group_country_month'],
     'oem_sales_type_seg_month': ['oem_sales_type_seg_month'],
+    'oem_sales_model_country_month': ['oem_sales_model_country_month'],
+    'oem_model_outlook': ['oem_model_outlook'],
+    # 보고서·뉴스
+    'posts': ['posts'],
+    'news': ['posts'],
+    # 경영관리(PnL)
+    'pnl_entries': ['pnl_entries'],
+    'pnl_cost_structure': ['pnl_cost_structure'],
 }
 
 
