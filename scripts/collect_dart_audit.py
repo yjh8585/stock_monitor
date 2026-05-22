@@ -968,6 +968,14 @@ def collectDartAudit() -> None:
       continue
 
     logger.info(f'{name}: corp_code={corp_code}')
+    # DB에 corp_code 미저장이면 자동 매핑 결과를 SET — 다음 run에서 resolve 과정 skip.
+    # 신규 회사가 onboard 없이 등록돼도 첫 GHA run 이후 DB에 corp_code 채워짐.
+    if not db_corp_code:
+      try:
+        get_client().table('companies').update({'dart_corp_code': corp_code}).eq('id', company_id).execute()
+        logger.debug(f'  → DB dart_corp_code SET: {corp_code}')
+      except Exception as e:
+        logger.warning(f'  → DB SET 실패: {e}')
     # `with ThreadPoolExecutor`는 __exit__에서 wait=True라 백그라운드 thread가
     # SSL 핸드셰이크에서 hang하면 무한 대기 → 다음 회사로 못 넘어감. 명시적
     # shutdown(wait=False)로 thread leak 허용하되 메인 흐름은 즉시 진행.
