@@ -1,0 +1,53 @@
+name: 제품·고객사 보강
+
+# enrich_products_customers_sonnet.py로 회사들의 products / customers를 일괄 갱신
+# - 수동 트리거 전용 (정기 실행 X — 메타 보강은 enrich-company가 매월 1일 처리)
+# - 부품사 customers 비어있는 경우 등 대규모 보강 시 사용
+on:
+  workflow_dispatch:
+    inputs:
+      only_empty_customers:
+        description: '1=customers 비어있는 회사만, 비우면 전체 active 부품사'
+        required: false
+        type: string
+        default: ''
+      target_names:
+        description: '특정 회사명만 (콤마 구분). 비우면 전체.'
+        required: false
+        type: string
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # 549개 1~2시간 예상
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: Playwright Chromium 설치
+        run: python -m playwright install --with-deps chromium
+
+      - name: 제품·고객사 보강 (Sonnet)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ONLY_EMPTY_CUSTOMERS: ${{ inputs.only_empty_customers }}
+          TARGET_NAMES: ${{ inputs.target_names }}
+        run: python enrich_products_customers_sonnet.py
