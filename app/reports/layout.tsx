@@ -3,5 +3,5 @@
  * 최대 폭(읽기 편한 5xl)을 보장한다.
  */
 export default function ReportsLayout({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-7xl px-2 py-2">{children}</div>;
+  return <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">{children}</div>;
 }
