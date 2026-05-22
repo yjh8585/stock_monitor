@@ -177,6 +177,13 @@ def main() -> None:
   LOG_PATH.write_text(json.dumps(log_entries, ensure_ascii=False, indent=2), encoding='utf-8')
   logger.info(f'완료: 보강 {updated}/{len(targets)}개')
 
+  # Next.js 캐시 무효화 — client.table().update()로 companies 우회 갱신
+  try:
+    from lib.revalidate import revalidate_for_tables
+    revalidate_for_tables(['companies'])
+  except Exception as e:
+    logger.debug(f'  revalidate skip: {e}')
+
 
 if __name__ == '__main__':
   main()

@@ -262,6 +262,13 @@ def main():
 
         browser.close()
 
+    # Next.js 캐시 무효화 — client.table().update()로 companies.products/customers 우회 갱신
+    try:
+        from lib.revalidate import revalidate_for_tables
+        revalidate_for_tables(['companies'])
+    except Exception as e:
+        logger.debug(f'  revalidate skip: {e}')
+
 
 if __name__ == '__main__':
     main()
