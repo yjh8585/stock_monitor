@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { grossProfitOf, prepareYoYView, ratioOfRevenue } from '@/lib/pnl/aggregate';
+import { grossProfitOf, preparePnlData, prepareYoYView, ratioOfRevenue } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, PnlEntry } from '@/lib/pnl/types';
 
 describe('vitest sanity — aggregate.ts', () => {
@@ -185,5 +185,77 @@ describe('prepareYoYView — YoY 비교 1~5단계 통합 함수', () => {
     expect(view.effCompare).toBe('2025(E)');
     expect(view.baseEntries[0].year_label).toBe('2026');
     expect(view.compareEntries[0].year_label).toBe('2025(E)');
+  });
+});
+
+describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', () => {
+  it('연결 연간 + 2026 YTD derive + 별도 연간 derive가 하나로 합쳐진다', () => {
+    const data: PnlEntry[] = [
+      // 연결 연간: 2024, 2025
+      annualRow(2024, '2024', 200, 20),
+      annualRow(2025, '2025', 300, 30),
+      // 연결 2026 monthly 1~3월 (annual 행 없음 → derive 대상)
+      monthlyRow(2026, 1, 30, 3),
+      monthlyRow(2026, 2, 30, 3),
+      monthlyRow(2026, 3, 30, 3),
+      // 별도 월별 (DB에 별도 연간 행 없음 → derive 대상)
+      monthlyRow(2025, 1, 10, 1, { basis: 'standalone' }),
+      monthlyRow(2025, 2, 10, 1, { basis: 'standalone' }),
+    ];
+    const prepared = preparePnlData(data);
+
+    // annualEntries에 3종류 모두 포함 — 연결 2024/2025 + 연결 2026 YTD derive + 별도 2025 derive
+    const consol = prepared.annualEntries.filter((e) => e.basis === 'consolidated');
+    expect(consol.map((e) => e.year_label).sort()).toEqual(['2024', '2025', '2026']);
+    // 2026 YTD derive 결과 매출 = 30 * 3 = 90
+    const ytd2026 = consol.find((e) => e.year_label === '2026');
+    expect(ytd2026?.revenue).toBe(90);
+
+    const stand = prepared.annualEntries.filter((e) => e.basis === 'standalone');
+    expect(stand).toHaveLength(1);
+    expect(stand[0].period_year).toBe(2025);
+    // 별도 derive 결과 매출 = 10 + 10 = 20
+    expect(stand[0].revenue).toBe(20);
+  });
+
+  it("'2026(P)' 계획값 행은 annualEntries에서 제외된다", () => {
+    const data: PnlEntry[] = [
+      annualRow(2024, '2024', 200, 20),
+      annualRow(2025, '2025', 300, 30),
+      annualRow(2026, '2026(P)', 500, 50, { is_plan: true }), // 계획값 — 제외 대상
+    ];
+    const prepared = preparePnlData(data);
+    const labels = prepared.annualEntries
+      .filter((e) => e.basis === 'consolidated')
+      .map((e) => e.year_label);
+    expect(labels).not.toContain('2026(P)');
+    expect(labels).toEqual(['2024', '2025']);
+  });
+
+  it('annualByBasis / monthlyByBasis가 basis별로 정확히 분리된다', () => {
+    const data: PnlEntry[] = [
+      annualRow(2024, '2024', 200, 20),
+      annualRow(2025, '2025', 300, 30),
+      monthlyRow(2024, 1, 20, 2),
+      monthlyRow(2024, 1, 8, 1, { basis: 'standalone' }),
+      monthlyRow(2025, 6, 30, 3, { basis: 'standalone' }),
+    ];
+    const prepared = preparePnlData(data);
+
+    // monthlyByBasis: 원본 data를 basis별로 분리 — derive 없음
+    expect(prepared.monthlyByBasis.consolidated.every((e) => e.basis === 'consolidated')).toBe(
+      true
+    );
+    expect(prepared.monthlyByBasis.standalone.every((e) => e.basis === 'standalone')).toBe(true);
+    expect(prepared.monthlyByBasis.consolidated).toHaveLength(3); // annual 2개 + monthly 1개
+    expect(prepared.monthlyByBasis.standalone).toHaveLength(2); // monthly 2개
+
+    // annualByBasis: annualEntries를 basis별로 분리
+    expect(prepared.annualByBasis.consolidated.every((e) => e.basis === 'consolidated')).toBe(true);
+    expect(prepared.annualByBasis.standalone.every((e) => e.basis === 'standalone')).toBe(true);
+    // 별도 2024 + 2025 각 1행씩 derive
+    expect(prepared.annualByBasis.standalone).toHaveLength(2);
+    const standYears = prepared.annualByBasis.standalone.map((e) => e.period_year).sort();
+    expect(standYears).toEqual([2024, 2025]);
   });
 });

@@ -15,7 +15,7 @@ import Forecast2026 from './Forecast2026';
 import YoyProductCustomer from './YoyProductCustomer';
 import Insights from './Insights';
 import LazyMount from '@/components/common/LazyMount';
-import { deriveAnnualFromMonthly, deriveStandaloneAnnual } from '@/lib/pnl/aggregate';
+import { preparePnlData } from '@/lib/pnl/aggregate';
 import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 
 interface Props {
@@ -41,43 +41,12 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  *   1회 마운트. 초기 렌더에서 Recharts ResizeObserver/parse 비용을 절약.
  */
 export default function PnlDashboard({ data, costStructure }: Props) {
-  const annualEntries = useMemo<PnlEntry[]>(() => {
-    // 연결 연간: period_month=0 행. 단 '2026(P)'(계획값)는 표시에서 제외 — 사용자 요구로
-    // 2026 실적은 월별 1~N 누적(YTD)으로 별도 derive.
-    const consolidatedAnnual = data.filter(
-      (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== '2026(P)'
-    );
-    // 연결 2026 YTD: 월별 데이터를 합산해 derive (year_label='2026')
-    const consolidated2026Ytd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === 2026);
-    // 별도 연간: 월별 → 연간 derive
-    const standaloneMonthly = data.filter(
-      (e) => e.basis === 'standalone' && e.period_month >= 1 && e.period_month <= 12
-    );
-    const standaloneAnnual = deriveStandaloneAnnual(standaloneMonthly);
-    return [...consolidatedAnnual, ...consolidated2026Ytd, ...standaloneAnnual];
-  }, [data]);
-
-  /** basis별 연간 엔트리 분리 — basis 토글 시 자식이 O(n) 필터링을 절반 크기로 줄인다. */
-  const annualByBasis = useMemo<EntriesByBasis>(() => {
-    const consolidated: PnlEntry[] = [];
-    const standalone: PnlEntry[] = [];
-    for (const e of annualEntries) {
-      if (e.basis === 'consolidated') consolidated.push(e);
-      else standalone.push(e);
-    }
-    return { consolidated, standalone };
-  }, [annualEntries]);
-
-  /** basis별 월별 원본 분리 — YoyMonthlyCompare 등 월별 차트용 */
-  const monthlyByBasis = useMemo<EntriesByBasis>(() => {
-    const consolidated: PnlEntry[] = [];
-    const standalone: PnlEntry[] = [];
-    for (const e of data) {
-      if (e.basis === 'consolidated') consolidated.push(e);
-      else standalone.push(e);
-    }
-    return { consolidated, standalone };
-  }, [data]);
+  // 원본 data → derived 변환 (연결 연간 + 2026 YTD derive + 별도 연간 derive + basis별 분리)을
+  // 한 번에 수행. 정책 상세는 preparePnlData의 JSDoc 참고.
+  const { annualEntries, annualByBasis, monthlyByBasis } = useMemo(
+    () => preparePnlData(data),
+    [data]
+  );
 
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">

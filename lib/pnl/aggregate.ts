@@ -281,11 +281,7 @@ export function getUniqueValuesByRevenue(
  *
  * 7·9번 차트에서 기준 연도가 YTD면 비교 연도도 동일 월수까지 잘라 비교한다.
  */
-export function ytdMonthsOfYear(
-  monthly: readonly PnlEntry[],
-  basis: Basis,
-  year: number
-): number {
+export function ytdMonthsOfYear(monthly: readonly PnlEntry[], basis: Basis, year: number): number {
   let maxM = 0;
   for (const e of monthly) {
     if (e.basis !== basis) continue;
@@ -506,4 +502,57 @@ export function prepareYoYView(
     : [];
 
   return { yearLabels, effBase, effCompare, ytdMonths, baseEntries, compareEntries };
+}
+
+/**
+ * 손익 페이지(PnlDashboard) 진입 시 1회 수행하는 raw → derived 변환 묶음.
+ *
+ * 기존 컴포넌트의 useMemo 3개(annualEntries / annualByBasis / monthlyByBasis)가
+ * 한 함수 호출로 정리된다. 클라이언트 상태(basis 토글 등)에 무관한 순수 변환만 담당.
+ *
+ * 정책 (기존 PnlDashboard 로직과 동일):
+ * - 연결 연간: DB의 period_month=0 행을 그대로 사용. 단 '2026(P)' 계획값은 표시에서 제외 (사용자 요구).
+ * - 연결 2026 YTD: monthly 1~N월을 합산해 period_month=0 행으로 derive (year_label='2026').
+ * - 별도 연간: 전체 연도 월별 → 연간 derive (DB에 별도 연간 행이 없음).
+ * - annualByBasis / monthlyByBasis: basis별 분리한 reference (차트가 작은 배열만 처리하도록).
+ */
+export interface PreparedPnlData {
+  annualEntries: PnlEntry[];
+  annualByBasis: Record<Basis, PnlEntry[]>;
+  monthlyByBasis: Record<Basis, PnlEntry[]>;
+}
+
+export function preparePnlData(data: readonly PnlEntry[]): PreparedPnlData {
+  // 연결 연간: DB의 period_month=0 행을 그대로 사용. '2026(P)' 계획값은 표시에서 제외.
+  const consolidatedAnnual = data.filter(
+    (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== '2026(P)'
+  );
+  // 연결 2026 YTD: monthly 1~N월 합산 → period_month=0 derive (year_label='2026').
+  const consolidated2026Ytd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === 2026);
+  // 별도 연간: 월별만 적재되므로 전체 연도 derive.
+  const standaloneMonthly = data.filter(
+    (e) => e.basis === 'standalone' && e.period_month >= 1 && e.period_month <= 12
+  );
+  const standaloneAnnual = deriveStandaloneAnnual(standaloneMonthly);
+
+  const annualEntries: PnlEntry[] = [
+    ...consolidatedAnnual,
+    ...consolidated2026Ytd,
+    ...standaloneAnnual,
+  ];
+
+  // basis별로 분리한 reference 배열 — 차트가 작은 배열만 처리하도록.
+  const annualByBasis: Record<Basis, PnlEntry[]> = { consolidated: [], standalone: [] };
+  for (const e of annualEntries) {
+    if (e.basis === 'consolidated') annualByBasis.consolidated.push(e);
+    else annualByBasis.standalone.push(e);
+  }
+
+  const monthlyByBasis: Record<Basis, PnlEntry[]> = { consolidated: [], standalone: [] };
+  for (const e of data) {
+    if (e.basis === 'consolidated') monthlyByBasis.consolidated.push(e);
+    else monthlyByBasis.standalone.push(e);
+  }
+
+  return { annualEntries, annualByBasis, monthlyByBasis };
 }
