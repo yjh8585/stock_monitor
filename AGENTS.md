@@ -139,7 +139,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ### `.github/workflows/`
 
-23개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-* 3종은 Vercel cron 대체용으로 curl 호출.
+24개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-* 3종은 Vercel cron 대체용으로 curl 호출.
 
 - 가격·환율: 매일/매시간
 - 재무: 분기별 (1/4/7/10월 15일)
@@ -172,7 +172,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 │ Marklines      │   │ collect_marklines*   │   │ (TOP100 매핑)   │   │ /management       │
 └────────────────┘   └──────────────────────┘   └─────────────────┘   └───────────────────┘
                               │                                              ▲
-                  GitHub Actions 23개 워크플로                                │
+                  GitHub Actions 24개 워크플로                                │
                   (cron · 수동 dispatch)                                      │
                               │                                              │
                               ▼                                              │

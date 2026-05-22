@@ -1,0 +1,64 @@
+name: DB 백업 (일간)
+
+# Supabase Free 플랜은 PITR 미지원 → 자체 일간 백업으로 보완.
+# 매일 02:00 KST (17:00 UTC) 핵심 JSONB 테이블을 dump → data/backups/YYYY-MM-DD/ commit.
+# 30일 이전 백업은 자동 rotate.
+on:
+  schedule:
+    - cron: '0 17 * * *' # 17:00 UTC = 02:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write # commit backup files
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: JSONB 백업 실행
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python backup_jsonb_daily.py
+
+      - name: 30일 이전 백업 정리 (rotate)
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ -d data/backups ]; then
+            find data/backups -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm -rf {} + || true
+          fi
+
+      - name: 변경사항 commit
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ -z "$(git status --porcelain data/backups)" ]; then
+            echo "변경사항 없음 (skip commit)"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          DATE_KST=$(TZ='Asia/Seoul' date +%Y-%m-%d)
+          git add data/backups
+          git commit -m "chore(backup): daily JSONB snapshot $DATE_KST"
+          git push
