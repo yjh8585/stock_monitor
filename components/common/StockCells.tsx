@@ -156,24 +156,31 @@ export function CompanyNameCell({
   tdClassName,
 }: CompanyNameCellProps) {
   const isUnlisted = !row.market;
-  const linkClass =
-    row.status === 'delisted'
-      ? 'line-through text-muted-foreground cursor-default'
-      : !isUnlisted
-        ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer'
-        : row.homepage_url
-          ? 'text-foreground hover:underline cursor-pointer'
-          : 'text-muted-foreground cursor-default';
+  const isDelisted = row.status === 'delisted';
+  // 클릭 가능 조건: 상장사(market 있음)이거나, 비상장이라도 homepage_url이 있을 때.
+  // delisted/비상장+홈페이지 없음은 span으로 렌더해 클릭 자체를 차단.
+  const clickable = !isDelisted && (!isUnlisted || !!row.homepage_url);
+  const linkClass = isDelisted
+    ? 'line-through text-muted-foreground cursor-default'
+    : !isUnlisted
+      ? 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer'
+      : row.homepage_url
+        ? 'text-foreground hover:underline cursor-pointer'
+        : 'text-muted-foreground cursor-default';
 
   return (
     <td className={tdClassName ? `${TD} ${tdClassName}` : TD} style={stickyLeftStyle}>
       <div className="flex items-center gap-0.5">
-        <button
-          onClick={() => openCompanyLink(row)}
-          className={`font-medium text-left truncate ${linkClass}`}
-        >
-          {row.name_kr}
-        </button>
+        {clickable ? (
+          <button
+            onClick={() => openCompanyLink(row)}
+            className={`font-medium text-left truncate ${linkClass}`}
+          >
+            {row.name_kr}
+          </button>
+        ) : (
+          <span className={`font-medium text-left truncate ${linkClass}`}>{row.name_kr}</span>
+        )}
         {rightAction}
       </div>
     </td>

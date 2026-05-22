@@ -29,6 +29,7 @@ import yfinance as yf  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 from lib.db import get_client  # noqa: E402
+from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 # 사용자 정책: Haiku 4.5 (비용 절감)
 DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
@@ -241,6 +242,7 @@ def main():
             try:
                 desc = None
                 used_source = None
+                yf_en = None  # yfinance 영문 원본 — 번역·2차 모두 실패 시 fallback
 
                 # === 1차: data_source별 표준 출처 ===
                 if src == 'fnguide' and c.get('ticker'):
@@ -248,9 +250,12 @@ def main():
                     if desc:
                         used_source = 'fnguide'
                 elif src == 'yfinance' and c.get('ticker'):
-                    en = fetch_yfinance_summary(c['ticker'])
-                    if en:
-                        desc = translate_summary(llm, en, name)
+                    yf_en = fetch_yfinance_summary(c['ticker'])
+                    if yf_en:
+                        desc = translate_summary(llm, yf_en, name)
+                        if desc and is_rejection_response(desc):
+                            logger.warning(f'  {name}: 번역 결과가 거부 응답 — 폐기')
+                            desc = None
                         if desc:
                             used_source = 'yfinance+Haiku'
 
@@ -258,13 +263,27 @@ def main():
                 if not desc or len(desc) < MIN_LEN_THRESHOLD:
                     web_text = fetch_web_text(page, c, llm=llm)
                     if len(web_text) >= 200:
-                        desc = haiku_extract(llm, web_text, name)
-                        used_source = '홈페이지+검색+Haiku'
+                        candidate = haiku_extract(llm, web_text, name)
+                        if candidate and is_rejection_response(candidate):
+                            logger.warning(f'  {name}: 2차 Haiku 결과가 거부 응답 — 폐기')
+                        elif candidate:
+                            desc = candidate
+                            used_source = '홈페이지+검색+Haiku'
+
+                # === 3차 fallback: yfinance 영문 원본을 그대로 보존 ===
+                # 한국어 번역·홈페이지 검색 모두 실패해도 영문 원본이 있으면 빈 값보다 낫다.
+                if (not desc or len(desc) < 30) and yf_en and len(yf_en) >= 50:
+                    desc = yf_en.strip()
+                    used_source = 'yfinance_en_raw'
 
                 if not desc or len(desc) < 30:
                     logger.warning(f'  {name}: description 추출 실패')
                     continue
 
+                desc = strip_citation_tags(desc) or desc
+                if is_rejection_response(desc):
+                    logger.warning(f'  {name}: 최종 description이 거부 응답 — 저장 skip')
+                    continue
                 client.table('companies').update({
                     'business_summary': desc,
                     'summary_updated_at': now_iso,

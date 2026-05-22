@@ -126,6 +126,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - `companies.py` + `companies.json` — 회사 시드 + 헬퍼
 - `kis_client.py` — 한국투자증권 API
 - `revalidate.py` — 수집 완료 시 `/api/revalidate` 호출 (필수 — 안 호출하면 캐시 stale)
+- `text.py` — LLM 응답 sanitize (`<cite>` 태그 제거, "죄송"·"확인할 수 없" 등 거부 응답 패턴 감지). enrich 스크립트에서 저장 직전 quality gate 용도.
 - `series_sources.py`, `shipping_sources.py`, `market_series.py`, `labor_targets.py`, `macro_targets.py` — 시계열·매크로 소스 매핑
 - `manual_dart_mapping.json`, `marklines_slugs.json`, `groups_seed.json` — 정적 매핑
 

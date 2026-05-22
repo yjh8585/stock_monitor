@@ -42,6 +42,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from collect_financials import _process_yf_frames, _scrape_company_financials  # noqa: E402
 from lib.db import get_client, upsert_rows  # noqa: E402
+from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
 
@@ -483,7 +484,11 @@ def main() -> None:
           continue
         payload = {}
         if res.get('business_summary'):
-          payload['business_summary'] = res['business_summary']
+          bs_clean = strip_citation_tags(res['business_summary'])
+          if bs_clean and is_rejection_response(bs_clean):
+            logger.warning(f'  {c["name_kr"]}: business_summary가 거부 응답 — skip')
+          elif bs_clean:
+            payload['business_summary'] = bs_clean
         if res.get('products'):
           payload['products'] = res['products']
         if res.get('customers'):

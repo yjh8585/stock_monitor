@@ -18,6 +18,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import get_client  # noqa: E402
+from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 LOG_PATH = Path(__file__).parent / '_top100_meta_log.json'
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -148,8 +149,12 @@ def main() -> None:
       logger.warning(f'  → 결과 없음 또는 low confidence')
       continue
 
+    bs_clean = strip_citation_tags(res.get('business_summary'))
+    if bs_clean and is_rejection_response(bs_clean):
+      logger.warning(f'  {name_kr}: business_summary가 거부 응답 — 기존 값 유지')
+      bs_clean = None
     update_payload = {
-      'business_summary': res.get('business_summary') or c.get('business_summary'),
+      'business_summary': bs_clean or c.get('business_summary'),
       'products': res.get('products') or c.get('products') or [],
       'customers': res.get('customers') or c.get('customers') or [],
       'summary_updated_at': 'now()',

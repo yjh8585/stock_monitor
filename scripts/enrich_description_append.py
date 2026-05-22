@@ -25,6 +25,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 import anthropic  # noqa: E402
 
 from lib.db import get_client  # noqa: E402
+from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
 
@@ -174,6 +175,10 @@ def main():
                 logger.warning(f'  생성 실패')
                 continue
 
+            new_desc = strip_citation_tags(new_desc) or new_desc
+            if is_rejection_response(new_desc):
+                logger.warning(f'  거부 응답 — 저장 skip')
+                continue
             client.table('companies').update({
                 'business_summary': new_desc,
                 'summary_updated_at': now_iso,
