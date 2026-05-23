@@ -111,6 +111,7 @@ npm run format          # 자동 포맷
   - `lib/reports/` — 보고서. **레이어드 구조 채택**: `dto/`, `repositories/`, `services/{post,report-pdf,report-web,url-guard,youtube}` + `anthropic.ts`, `gemini.ts`, `pdf-page-renderer.ts`, `search.service.ts`. 다른 도메인보다 복잡도 높음.
   - `lib/pnl/` — 손익 집계 + `source.ts`(페이지 fetch+cache+mapping 격리, 사외비)
   - `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/` — 각 페이지 fetch+cache+mapping 격리 (`source.ts`). 페이지(`app/<route>/page.tsx`)는 호출만 한다.
+  - `lib/oem/` — `source.ts`(fetch+cache+오케스트레이션) + `aggregate.ts`(pure 사전 가공 4종, NA_MODEL_TARGETS 상수 포함). pure 함수는 `aggregate.test.ts`로 단위 테스트.
   - `lib/hansae/`, `lib/kiwoom/`, `lib/naver/`, `lib/sentiment/` — 페이지/기능별
 
 ### `scripts/` — Python 데이터 수집
