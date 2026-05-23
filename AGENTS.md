@@ -109,7 +109,8 @@ npm run format          # 자동 포맷
 - `lib/auth/` — 세션·권한·사용자 (`proxy.ts`가 사용). 새 라우트 권한은 `permissions.ts`에 등록.
 - 도메인 폴더 (페이지·기능 단위):
   - `lib/reports/` — 보고서. **레이어드 구조 채택**: `dto/`, `repositories/`, `services/{post,report-pdf,report-web,url-guard,youtube}` + `anthropic.ts`, `gemini.ts`, `pdf-page-renderer.ts`, `search.service.ts`. 다른 도메인보다 복잡도 높음.
-  - `lib/pnl/` — 손익 집계
+  - `lib/pnl/` — 손익 집계 + `source.ts`(페이지 fetch+cache+mapping 격리, 사외비)
+  - `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/` — 각 페이지 fetch+cache+mapping 격리 (`source.ts`). 페이지(`app/<route>/page.tsx`)는 호출만 한다.
   - `lib/hansae/`, `lib/kiwoom/`, `lib/naver/`, `lib/sentiment/` — 페이지/기능별
 
 ### `scripts/` — Python 데이터 수집

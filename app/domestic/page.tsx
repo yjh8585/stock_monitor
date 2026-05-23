@@ -1,39 +1,7 @@
-import { cacheLife, cacheTag } from 'next/cache';
-import { createSupabaseAnonClient } from '@/lib/supabase/anon';
-import { ExchangeRates, mapDomesticStockRow } from '@/lib/types';
 import DomesticTable from '@/components/domestic/DomesticTable';
-import logger from '@/lib/logger';
+import { getDomesticData } from '@/lib/domestic/source';
 
-async function getDomesticData() {
-  'use cache';
-  cacheLife('hours');
-  cacheTag('domestic_stocks_view');
-  cacheTag('exchange_rates_live');
-
-  const supabase = createSupabaseAnonClient();
-  const [{ data: viewData, error: viewErr }, { data: fxData, error: fxErr }] = await Promise.all([
-    supabase
-      .from('domestic_stocks_view')
-      .select('*')
-      .order('sales_rank', { ascending: true, nullsFirst: false }),
-    supabase.from('exchange_rates_live').select('base,rate').in('base', ['USD', 'EUR', 'CNY']),
-  ]);
-
-  if (viewErr) {
-    logger.error({ err: viewErr }, 'domestic_stocks_view 조회 실패');
-    throw new Error(`Supabase domestic_stocks_view 조회 실패: ${viewErr.message}`);
-  }
-  if (fxErr) logger.error({ err: fxErr }, 'exchange_rates_live 조회 실패');
-
-  const rows = (viewData ?? []).map(mapDomesticStockRow);
-  const rates: ExchangeRates = { USD: null, EUR: null, CNY: null };
-  for (const r of fxData ?? []) {
-    const base = r.base as keyof ExchangeRates;
-    if (base in rates) rates[base] = Number(r.rate);
-  }
-  return { rows, rates };
-}
-
+/** 국내자동차 페이지 (server) — fetch + cache + mapping은 lib/domestic/source.ts에 격리. */
 export default async function DomesticPage() {
   const { rows, rates } = await getDomesticData();
 
