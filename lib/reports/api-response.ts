@@ -1,5 +1,6 @@
 /**
  * 보고서 API 공통 응답 형식.
+ * (dto 아님 — Zod 스키마는 dto/post.dto.ts에 둠.)
  */
 export type ApiResponse<T> =
   | { success: true; data: T }

@@ -1,7 +1,7 @@
 import { revalidateTag } from 'next/cache';
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { fail, ok } from '@/lib/reports/dto/api.dto';
+import { fail, ok } from '@/lib/reports/api-response';
 
 interface RouteContext {
   params: Promise<{ id: string }>;

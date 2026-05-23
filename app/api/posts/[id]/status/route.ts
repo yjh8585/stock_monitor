@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import logger from '@/lib/logger';
-import { fail, ok } from '@/lib/reports/dto/api.dto';
-import { PostService } from '@/lib/reports/services/post.service';
+import { fail, ok } from '@/lib/reports/api-response';
+import { PostRepository } from '@/lib/reports/repositories/post.repository';
 
-const postService = new PostService();
+const postRepo = new PostRepository();
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: RouteContext) {
   }
 
   try {
-    const row = await postService.findById(numericId);
+    const row = await postRepo.findById(numericId);
     if (!row) {
       return NextResponse.json(fail('NOT_FOUND', '게시글을 찾을 수 없습니다.'), { status: 404 });
     }

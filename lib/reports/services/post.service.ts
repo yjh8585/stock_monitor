@@ -38,21 +38,13 @@ async function classifyCategory(title: string): Promise<string | null> {
 }
 
 /**
- * 게시글 라이프사이클을 관리하는 서비스.
+ * 게시글 라이프사이클을 관리하는 서비스. 단순 CRUD는 caller가 PostRepository를 직접 호출한다.
  *  1) processing 상태로 즉시 INSERT
  *  2) 백그라운드 분석 후 UPDATE
  *  3) 실패 시 status=failed
  */
 export class PostService {
   constructor(private readonly repo: PostRepository = new PostRepository()) {}
-
-  async list(page: number, pageSize: number) {
-    return this.repo.list(page, pageSize);
-  }
-
-  async findById(id: number) {
-    return this.repo.findById(id);
-  }
 
   /**
    * 메타정보만 INSERT 하고 즉시 반환. 본문은 백그라운드에서 채운다.
@@ -132,9 +124,6 @@ export class PostService {
     logger.info({ id }, '보고서 PDF 게시글 처리 완료');
   }
 
-  async delete(id: number) {
-    return this.repo.delete(id);
-  }
 }
 
 function buildInitialInsert(input: CreatePostInput): PostInsert {

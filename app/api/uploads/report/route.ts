@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 import logger from '@/lib/logger';
-import { fail, ok } from '@/lib/reports/dto/api.dto';
+import { fail, ok } from '@/lib/reports/api-response';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 const REPORTS_BUCKET = 'reports';

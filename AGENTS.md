@@ -108,7 +108,7 @@ npm run format          # 자동 포맷
   - `confidential.ts` — **사외비 테이블 전용 facade**. `confidentialDb.from('pnl_entries')...` 처럼 사용. TypeScript union으로 사외비 명단 외 접근 컴파일 차단 + service_role 자동 라우팅
 - `lib/auth/` — 세션·권한·사용자 (`proxy.ts`가 사용). 새 라우트 권한은 `permissions.ts`에 등록.
 - 도메인 폴더 (페이지·기능 단위):
-  - `lib/reports/` — 보고서. **레이어드 구조 채택**: `dto/`, `repositories/`, `services/{post,report-pdf,report-web,url-guard,youtube}` + `anthropic.ts`, `gemini.ts`, `pdf-page-renderer.ts`, `search.service.ts`. 다른 도메인보다 복잡도 높음.
+  - `lib/reports/` — 보고서. **레이어드 구조**: `dto/post.dto.ts`(Zod 스키마), `repositories/post.repository.ts`(query·필터·CRUD), `services/{post,report-pdf,report-web,url-guard,youtube}` + `anthropic.ts`, `gemini.ts`, `pdf-page-renderer.ts`, `search.service.ts`, `api-response.ts`(API ok/fail helper). **post 영역**: 단순 CRUD는 caller가 `PostRepository` 직접 호출(`new PostRepository()` lazy), 라이프사이클(`createInitial`/`runBackground`)만 `PostService`. 다른 도메인보다 복잡도 높음.
   - `lib/pnl/` — 손익 집계 + `source.ts`(페이지 fetch+cache+mapping 격리, 사외비)
   - `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/` — 각 페이지 fetch+cache+mapping 격리 (`source.ts`). 페이지(`app/<route>/page.tsx`)는 호출만 한다.
   - `lib/oem/` — `source.ts`(fetch+cache+오케스트레이션) + `aggregate.ts`(pure 사전 가공 4종, NA_MODEL_TARGETS 상수 포함). pure 함수는 `aggregate.test.ts`로 단위 테스트.
