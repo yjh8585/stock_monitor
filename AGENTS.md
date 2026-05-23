@@ -127,6 +127,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트에서 재사용):
 
+- `bootstrap.py` — 신규 스크립트 boilerplate 축약 (`init_script(__file__)`). dotenv 2종(`scripts/.env`, `.env.local`) + `sys.path` 표준 설정을 한 줄로. 기존 90개 스크립트는 그대로 두되, 신규 작성·대규모 수정 시 본 함수 사용 권장. 테스트: `scripts/lib/test_bootstrap.py`.
 - `db.py` — `postgrest-py` 클라이언트 (싱글톤). **모든 DB 접근은 여기를 통한다.**
 - `accounts_map.py` — 재무 계정과목 매핑
 - `fx.py` — 환율 변환
