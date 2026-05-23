@@ -29,7 +29,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client
+from lib.db import WriteSession
 
 MAX_NEWS = 20  # 회사당 최대 수집 건수
 _HTTP_HEADERS = {'User-Agent': 'Mozilla/5.0'}
@@ -190,12 +190,17 @@ def _to_news_row(item: dict, company_id: str) -> dict | None:
 
 
 def collectNews() -> None:
-  client = get_client()
+  # WriteSession이 __exit__에서 자동으로 revalidate_for_tables(['news', ...])를 호출한다.
+  # select는 추적 안 되고 upsert/delete만 누적되므로 함수 전체를 한 세션으로 감싸도 무방.
+  with WriteSession() as w:
+    _collect_news_in_session(w)
 
+
+def _collect_news_in_session(w: WriteSession) -> None:
   # active 회사만 (delisted 제외) + 선택적 TARGET_TICKERS 필터
   raw = os.environ.get('TARGET_TICKERS', '').strip()
   target_filter = {t.strip() for t in raw.split(',') if t.strip()}
-  q = client.table('companies').select(
+  q = w.table('companies').select(
     'id,ticker,name_kr,country,market,data_source,status'
   ).eq('status', 'active')
   if target_filter:
@@ -210,7 +215,7 @@ def collectNews() -> None:
   offset = 0
   while True:
     batch = (
-      client.table('news')
+      w.table('news')
       .select('url')
       .range(offset, offset + page_size - 1)
       .execute()
@@ -279,7 +284,7 @@ def collectNews() -> None:
 
     if rows:
       try:
-        client.table('news').upsert(rows, on_conflict='url').execute()
+        w.table('news').upsert(rows, on_conflict='url').execute()
         total += len(rows)
         logger.info(f'{name}({ticker}): {len(rows)}건 저장')
       except Exception as e:
@@ -302,19 +307,12 @@ def collectNews() -> None:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)).isoformat()
     try:
       deleted = (
-        client.table('news').delete().lt('published_at', cutoff).execute().data
+        w.table('news').delete().lt('published_at', cutoff).execute().data
       )
       n = len(deleted) if isinstance(deleted, list) else 0
       logger.info(f'{RETENTION_DAYS}일 이전 뉴스 {n}건 삭제 (cutoff={cutoff[:10]})')
     except Exception as e:
       logger.warning(f'오래된 뉴스 삭제 실패: {e}')
-
-  # Next.js 캐시 무효화 — client.table().upsert/delete는 db.upsert_rows 자동 hook이 발화하지 않음
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['news'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
 
 
 if __name__ == '__main__':

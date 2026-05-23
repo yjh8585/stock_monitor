@@ -14,13 +14,12 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client
+from lib.db import WriteSession
 from lib.fx import FX_TICKERS, FX_CROSS_VIA_USD
 
 
 def collectFxLive() -> None:
   """직접 환율 + USD cross-rate 통화의 현재 환율을 exchange_rates_live에 upsert한다."""
-  client = get_client()
   now_iso = datetime.now(timezone.utc).isoformat()
   rows: list[dict] = []
   usd_krw: float | None = None
@@ -62,15 +61,10 @@ def collectFxLive() -> None:
     logger.warning("수집된 환율 데이터 없음")
     return
 
-  client.table('exchange_rates_live').upsert(rows, on_conflict='base,quote').execute()
+  # WriteSession이 __exit__에서 자동으로 revalidate_for_tables(['exchange_rates_live'])를 호출한다.
+  with WriteSession() as w:
+    w.table('exchange_rates_live').upsert(rows, on_conflict='base,quote').execute()
   logger.info(f"환율 현재값 갱신 완료 — {len(rows)}개 통화쌍")
-
-  # Next.js 캐시 무효화 — client.table().upsert()는 db.upsert_rows 자동 hook이 발화하지 않음
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['exchange_rates_live'])
-  except Exception as e:
-    logger.debug(f"  revalidate skip: {e}")
 
 
 if __name__ == '__main__':
