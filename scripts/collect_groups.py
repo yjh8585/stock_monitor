@@ -23,7 +23,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client
+from lib.db import WriteSession
 from collect_dart_audit import _get_dart
 
 DART_KEY = (
@@ -79,9 +79,13 @@ def _major_holder_legal(odr, corp_code: str) -> str | None:
 
 
 def main() -> None:
-  client = get_client()
   seed = _load_seed()
   manual = _load_manual_mapping()
+  with WriteSession() as w:
+    _main_in_session(w, seed, manual)
+
+
+def _main_in_session(w, seed: dict[str, list[str]], manual: dict[str, str]) -> None:
 
   # name_kr / ticker → group_name 룩업 테이블 빌드
   seed_lookup: dict[str, str] = {}
@@ -92,7 +96,7 @@ def main() -> None:
 
   # 대상 회사 조회
   resp = (
-    client.table('companies')
+    w.table('companies')
     .select('id,ticker,name_kr,group_name,company_pages!inner(page)')
     .eq('status', 'active')
     .eq('company_pages.page', 'domestic')
@@ -115,7 +119,7 @@ def main() -> None:
       or seed_lookup.get(_normalize(name))
     )
     if grp:
-      client.table('companies').update({'group_name': grp}).eq('id', cid).execute()
+      w.table('companies').update({'group_name': grp}).eq('id', cid).execute()
       applied.append((ticker, grp, 'seed'))
       continue
     pending.append({'id': cid, 'ticker': ticker, 'name_kr': name})
@@ -146,7 +150,7 @@ def main() -> None:
         )
         if grp:
           for m in members:
-            client.table('companies').update({'group_name': grp}).eq('id', m['id']).execute()
+            w.table('companies').update({'group_name': grp}).eq('id', m['id']).execute()
             applied.append((m['ticker'], grp, f'major_holder:{holder}'))
             pending = [p for p in pending if p['id'] != m['id']]
         elif len(members) >= 2:
@@ -156,7 +160,7 @@ def main() -> None:
           if not base:
             continue
           for m in members:
-            client.table('companies').update({'group_name': base}).eq('id', m['id']).execute()
+            w.table('companies').update({'group_name': base}).eq('id', m['id']).execute()
             applied.append((m['ticker'], base, f'major_holder_inferred:{holder}'))
             pending = [p for p in pending if p['id'] != m['id']]
 
@@ -176,12 +180,7 @@ def main() -> None:
     logger.info(f'  {s}: {n}건')
   logger.info(f'  미매핑(review): {len(pending)}건')
 
-  # Next.js 캐시 무효화 — client.table().update()로 companies.group_name 우회 갱신
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

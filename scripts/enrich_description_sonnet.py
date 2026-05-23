@@ -25,7 +25,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 import anthropic  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from lib.db import get_client  # noqa: E402
+from lib.db import WriteSession  # noqa: E402
 
 # 사용자 정책 (2026-05-12): Sonnet 비용 우려로 Haiku 4.5 사용. 환경변수 무시 강제.
 DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
@@ -137,8 +137,12 @@ def main():
     target_names_raw = os.environ.get('TARGET_NAMES', '').strip()
     target_names = {t.strip() for t in target_names_raw.split(',') if t.strip()}
 
-    client = get_client()
-    q = client.table('companies').select('id,name_kr,name,country,homepage_url,business_summary').eq('status', 'active')
+    with WriteSession() as w:
+        _main_in_session(w, target_names, api_key)
+
+
+def _main_in_session(w, target_names: set[str], api_key: str) -> None:
+    q = w.table('companies').select('id,name_kr,name,country,homepage_url,business_summary').eq('status', 'active')
     rows = q.execute().data
     if target_names:
         rows = [r for r in rows if r['name_kr'] in target_names]
@@ -175,7 +179,7 @@ def main():
                     logger.warning('  Sonnet 응답 없음')
                     continue
                 desc = result['description']
-                client.table('companies').update({
+                w.table('companies').update({
                     'business_summary': desc,
                     'summary_updated_at': now_iso,
                 }).eq('id', c['id']).execute()
@@ -186,12 +190,7 @@ def main():
 
         browser.close()
 
-    # Next.js 캐시 무효화 — client.table().update()로 companies.business_summary 우회 갱신
-    try:
-        from lib.revalidate import revalidate_for_tables
-        revalidate_for_tables(['companies'])
-    except Exception as e:
-        logger.debug(f'  revalidate skip: {e}')
+    # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

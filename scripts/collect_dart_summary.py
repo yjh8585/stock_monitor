@@ -28,7 +28,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client
+from lib.db import WriteSession
 from collect_dart_audit import (
   _fetch_tables,
   _get_audit_rcpt,
@@ -297,7 +297,7 @@ def _process_unlisted(odr, corp_code: str, name_kr: str) -> tuple[str, list[dict
 
 
 # ── 메인 ────────────────────────────────────────────────────────────────
-def _flush_company(client, cid: str, summary: str, customers: list[dict], also_summary: bool, also_customers: bool) -> None:
+def _flush_company(w, cid: str, summary: str, customers: list[dict], also_summary: bool, also_customers: bool) -> None:
   """단일 회사 결과 즉시 UPDATE."""
   patch: dict = {}
   if also_summary and summary:
@@ -305,7 +305,7 @@ def _flush_company(client, cid: str, summary: str, customers: list[dict], also_s
   if also_customers and customers:
     patch['customers'] = customers
   if patch:
-    client.table('companies').update(patch).eq('id', cid).execute()
+    w.table('companies').update(patch).eq('id', cid).execute()
 
 
 def collectDartSummary() -> None:
@@ -313,12 +313,15 @@ def collectDartSummary() -> None:
   odr = _get_dart()
   if not odr:
     sys.exit(1)
-  client = get_client()
   manual = _load_manual_mapping()
+  with WriteSession() as w:
+    _collect_dart_summary_in_session(w, odr, manual)
 
+
+def _collect_dart_summary_in_session(w, odr, manual: dict[str, str]) -> None:
   # 대상: domestic 페이지 active 회사 중 보강 필요
   resp = (
-    client.table('companies')
+    w.table('companies')
     .select('id,ticker,name_kr,data_source,business_summary,customers,company_pages!inner(page)')
     .eq('status', 'active')
     .eq('company_pages.page', 'domestic')
@@ -358,7 +361,7 @@ def collectDartSummary() -> None:
       else:
         summary, customers, source = _process_unlisted(odr, corp_code, name)
 
-      _flush_company(client, cid, summary, customers, need_s, need_c)
+      _flush_company(w, cid, summary, customers, need_s, need_c)
       logger.info(
         f'[{idx}/{len(pending)}] [{ticker}] {name}({data_source}): '
         f'summary {len(summary)}자 [{source}] / customers {len(customers)}개'
@@ -367,12 +370,7 @@ def collectDartSummary() -> None:
       logger.error(f'[{idx}/{len(pending)}] [{ticker}] {name}: 예외 {type(e).__name__}: {e}')
       continue
 
-  # Next.js 캐시 무효화 — client.table().update()로 companies 우회 호출
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

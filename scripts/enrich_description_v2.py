@@ -28,7 +28,7 @@ import anthropic  # noqa: E402
 import yfinance as yf  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from lib.db import get_client  # noqa: E402
+from lib.db import WriteSession  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 # 사용자 정책: Haiku 4.5 (비용 절감)
@@ -217,8 +217,12 @@ def main():
     target_raw = os.environ.get('TARGET_NAMES', '').strip()
     target = {t.strip() for t in target_raw.split(',') if t.strip()}
 
-    client = get_client()
-    rows = client.table('companies').select('id,name_kr,name,ticker,country,data_source,homepage_url,business_summary').eq('status', 'active').execute().data
+    with WriteSession() as w:
+        _main_in_session(w, target, api_key)
+
+
+def _main_in_session(w, target: set[str], api_key: str) -> None:
+    rows = w.table('companies').select('id,name_kr,name,ticker,country,data_source,homepage_url,business_summary').eq('status', 'active').execute().data
     if target:
         rows = [r for r in rows if r['name_kr'] in target]
 
@@ -284,7 +288,7 @@ def main():
                 if is_rejection_response(desc):
                     logger.warning(f'  {name}: 최종 description이 거부 응답 — 저장 skip')
                     continue
-                client.table('companies').update({
+                w.table('companies').update({
                     'business_summary': desc,
                     'summary_updated_at': now_iso,
                 }).eq('id', c['id']).execute()
@@ -295,12 +299,7 @@ def main():
 
         browser.close()
 
-    # Next.js 캐시 무효화 — client.table().update()로 companies.business_summary 우회 갱신
-    try:
-        from lib.revalidate import revalidate_for_tables
-        revalidate_for_tables(['companies'])
-    except Exception as e:
-        logger.debug(f'  revalidate skip: {e}')
+    # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

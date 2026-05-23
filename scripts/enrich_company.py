@@ -41,7 +41,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from collect_financials import _process_yf_frames, _scrape_company_financials  # noqa: E402
-from lib.db import get_client, upsert_rows  # noqa: E402
+from lib.db import WriteSession, upsert_rows  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -237,7 +237,7 @@ def _load_targets(client, page: str | None, target_tickers: set[str]) -> list[di
   return [c for c in (q.in_('id', cids).execute().data or []) if c.get('status') == 'active']
 
 
-def _has_financials(client, cid: str) -> bool:
+def _has_financials(w, cid: str) -> bool:
   rows = (
     client.table('financials').select('company_id').eq('company_id', cid)
     .eq('period_type', 'annual').limit(1).execute().data or []
@@ -393,11 +393,15 @@ def main() -> None:
   parser.add_argument('--skip-news', action='store_true', help='뉴스 수집 skip')
   args = parser.parse_args()
 
-  client = get_client()
   raw = os.environ.get('TARGET_TICKERS', '').strip()
   target_tickers = {t.strip() for t in raw.split(',') if t.strip()}
 
-  targets = _load_targets(client, args.page, target_tickers)
+  with WriteSession() as w:
+    _main_in_session(w, args, target_tickers)
+
+
+def _main_in_session(w, args, target_tickers: set[str]) -> None:
+  targets = _load_targets(w, args.page, target_tickers)
   if not targets:
     logger.warning('대상 회사 없음')
     return
@@ -407,7 +411,7 @@ def main() -> None:
   missing_fin: list[dict] = []
   missing_meta: list[dict] = []
   for c in targets:
-    if not args.skip_financials and not _has_financials(client, c['id']):
+    if not args.skip_financials and not _has_financials(w, c['id']):
       missing_fin.append(c)
     if not args.skip_meta and _missing_meta(c):
       missing_meta.append(c)
@@ -499,7 +503,7 @@ def main() -> None:
         if not payload:
           continue
         try:
-          client.table('companies').update(payload).eq('id', c['id']).execute()
+          w.table('companies').update(payload).eq('id', c['id']).execute()
           meta_updated += 1
         except Exception as e:
           logger.error(f'  UPDATE 실패: {e}')
@@ -522,13 +526,7 @@ def main() -> None:
       except Exception as e:
         logger.error(f'뉴스 수집 실패: {e}')
 
-  # Next.js 캐시 무효화 — companies 메타 갱신이 client.table().update()로 우회 호출
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
-
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies', ...])를 호출한다.
   logger.info('완료. 주가는 별도 실행: python scripts/collect_prices_live.py')
 
 

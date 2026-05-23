@@ -17,7 +17,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client  # noqa: E402
+from lib.db import WriteSession  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 LOG_PATH = Path(__file__).parent / '_top100_meta_log.json'
@@ -108,16 +108,19 @@ def main() -> None:
     logger.error('ANTHROPIC_API_KEY 미설정')
     sys.exit(1)
 
-  client = get_client()
+  with WriteSession() as w:
+    _main_in_session(w, api_key)
 
-  pages = client.table('company_pages').select('company_id').eq('page', 'parts-top100').execute().data
+
+def _main_in_session(w, api_key: str) -> None:
+  pages = w.table('company_pages').select('company_id').eq('page', 'parts-top100').execute().data
   cids = [p['company_id'] for p in (pages or [])]
   if not cids:
     logger.warning('parts-top100 매핑 회사 없음')
     return
 
   companies = (
-    client.table('companies')
+    w.table('companies')
     .select('id,ticker,name,name_kr,country,products,business_summary,customers')
     .in_('id', cids)
     .eq('status', 'active')
@@ -169,7 +172,7 @@ def main() -> None:
     update_payload.pop('summary_updated_at', None)
 
     try:
-      client.table('companies').update(update_payload).eq('id', cid).execute()
+      w.table('companies').update(update_payload).eq('id', cid).execute()
       updated += 1
       log_entries.append({'name_kr': name_kr, 'company_id': cid, 'data': res})
       logger.info(f'  ✓ products={len(res.get("products") or [])} customers={len(res.get("customers") or [])}')
@@ -182,12 +185,7 @@ def main() -> None:
   LOG_PATH.write_text(json.dumps(log_entries, ensure_ascii=False, indent=2), encoding='utf-8')
   logger.info(f'완료: 보강 {updated}/{len(targets)}개')
 
-  # Next.js 캐시 무효화 — client.table().update()로 companies 우회 갱신
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

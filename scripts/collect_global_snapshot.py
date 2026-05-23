@@ -25,7 +25,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.companies import get_global_companies
-from lib.db import get_client
+from lib.db import WriteSession, get_client
 
 EOK = 100_000_000  # 1 억원 = 1e8 KRW
 TRANSLATE_MODEL = 'claude-haiku-4-5'
@@ -125,7 +125,7 @@ def _market_cap_eok(raw: float | None, currency: str, fx: dict[str, float]) -> f
     return round(raw * rate / EOK, 2)
 
 
-def _resolve_target_year(client, company_id: str) -> int:
+def _resolve_target_year(w, company_id: str) -> int:
     """PER/PBR/EV_EBITDA를 기록할 fiscal_year를 결정한다.
 
     우선순위:
@@ -134,7 +134,7 @@ def _resolve_target_year(client, company_id: str) -> int:
     3) 현재 연도 - 1 (회계연도 종료 직전 해)
     """
     rows = (
-        client.table('financials')
+        w.table('financials')
         .select('fiscal_year,revenue')
         .eq('company_id', company_id)
         .eq('period_type', 'annual')
@@ -153,7 +153,11 @@ def _resolve_target_year(client, company_id: str) -> int:
 def collectGlobalSnapshot() -> None:
     fx = _get_fx_rates()
     meta_map = _get_company_meta()
-    client = get_client()
+    with WriteSession() as w:
+        _collect_global_snapshot_in_session(w, fx, meta_map)
+
+
+def _collect_global_snapshot_in_session(w, fx: dict[str, float], meta_map: dict[str, dict]) -> None:
     now_iso = datetime.now(timezone.utc).isoformat()
 
     for company in get_global_companies():
@@ -190,11 +194,11 @@ def collectGlobalSnapshot() -> None:
                 company_update['summary_updated_at'] = now_iso
 
             if company_update:
-                client.table('companies').update(company_update).eq('id', company_id).execute()
+                w.table('companies').update(company_update).eq('id', company_id).execute()
 
             # ── financials per/pbr/ev_ebitda (TTM/현재 valuation) ──
             # 회사별 가장 최근 annual fiscal_year에 기록 — 새 회계연도 행이 생기면 자동 이전
-            target_year = _resolve_target_year(client, company_id)
+            target_year = _resolve_target_year(w, company_id)
 
             # financials 행에 들어갈 통화는 yfinance financialCurrency 우선
             fin_currency = info.get('financialCurrency') or currency
@@ -213,7 +217,7 @@ def collectGlobalSnapshot() -> None:
                     fin_vals['ev_ebitda'] = round(ev_ebitda, 2)
 
                 exists = (
-                    client.table('financials')
+                    w.table('financials')
                     .select('id')
                     .eq('company_id', company_id)
                     .eq('period_type', 'annual')
@@ -223,7 +227,7 @@ def collectGlobalSnapshot() -> None:
                 )
                 if exists:
                     (
-                        client.table('financials')
+                        w.table('financials')
                         .update(fin_vals)
                         .eq('company_id', company_id)
                         .eq('period_type', 'annual')
@@ -232,7 +236,7 @@ def collectGlobalSnapshot() -> None:
                     )
                 else:
                     (
-                        client.table('financials')
+                        w.table('financials')
                         .insert({
                             'company_id': company_id,
                             'period_type': 'annual',
@@ -252,12 +256,7 @@ def collectGlobalSnapshot() -> None:
         except Exception as e:
             logger.error(f"글로벌 {ticker} 수집 실패: {e}")
 
-    # Next.js 캐시 무효화 — companies/financials 모두 client.table().update()로 우회 호출
-    try:
-        from lib.revalidate import revalidate_for_tables
-        revalidate_for_tables(['companies', 'financials'])
-    except Exception as e:
-        logger.debug(f"  revalidate skip: {e}")
+    # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies', 'financials'])를 호출한다.
 
 
 if __name__ == '__main__':

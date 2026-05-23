@@ -33,8 +33,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.db import get_client  # noqa: E402
-from lib.revalidate import revalidate_tags  # noqa: E402
+from lib.db import WriteSession, get_client  # noqa: E402
 
 
 def _resolve_company(client, ticker: str | None, name: str | None, company_id: str | None) -> dict | None:
@@ -75,35 +74,35 @@ def main() -> None:
   if args.fye_month is not None and not (1 <= args.fye_month <= 12):
     parser.error('--fiscal-year-end-month는 1~12 사이여야 합니다.')
 
-  client = get_client()
-  company = _resolve_company(client, args.ticker, args.name, args.company_id)
-  if not company:
-    logger.error(f'회사 찾을 수 없음: ticker={args.ticker}, name={args.name}, id={args.company_id}')
-    logger.error('먼저 companies 테이블에 회사를 INSERT 한 뒤 본 스크립트를 실행하세요.')
-    sys.exit(1)
+  with WriteSession() as w:
+    company = _resolve_company(w, args.ticker, args.name, args.company_id)
+    if not company:
+      logger.error(f'회사 찾을 수 없음: ticker={args.ticker}, name={args.name}, id={args.company_id}')
+      logger.error('먼저 companies 테이블에 회사를 INSERT 한 뒤 본 스크립트를 실행하세요.')
+      sys.exit(1)
 
-  if company.get('status') != 'active':
-    logger.warning(f"회사 상태가 active가 아님: {company.get('status')}. 그대로 진행.")
+    if company.get('status') != 'active':
+      logger.warning(f"회사 상태가 active가 아님: {company.get('status')}. 그대로 진행.")
 
-  # 결산월 명시적 지정 시 companies에 SET (재무 수집 전에 반영되어야 한국식 -1 보정이 적용됨)
-  if args.fye_month is not None:
-    client.table('companies').update(
-      {'fiscal_year_end_month': args.fye_month}
-    ).eq('id', company['id']).execute()
-    logger.info(f"결산월 SET: {company['name_kr'] or company['name']} → {args.fye_month}월")
+    # 결산월 명시적 지정 시 companies에 SET (재무 수집 전에 반영되어야 한국식 -1 보정이 적용됨)
+    if args.fye_month is not None:
+      w.table('companies').update(
+        {'fiscal_year_end_month': args.fye_month}
+      ).eq('id', company['id']).execute()
+      logger.info(f"결산월 SET: {company['name_kr'] or company['name']} → {args.fye_month}월")
 
-  logger.info(
-    f"onboarding 시작: {company['name_kr']} ({company.get('ticker','?')}) "
-    f"country={company.get('country','?')}, market={company.get('market') or '비상장'}, "
-    f"data_source={company.get('data_source') or '미지정'}"
-  )
+    logger.info(
+      f"onboarding 시작: {company['name_kr']} ({company.get('ticker','?')}) "
+      f"country={company.get('country','?')}, market={company.get('market') or '비상장'}, "
+      f"data_source={company.get('data_source') or '미지정'}"
+    )
 
-  # enrich_company가 TARGET_TICKERS 환경변수로 단일 회사 필터링
+  # enrich_company가 TARGET_TICKERS 환경변수로 단일 회사 필터링.
+  # enrich_company 자체가 WriteSession을 사용하므로 onboard의 with 블록 밖에서 호출한다
+  # (한 세션을 너무 오래 점유하지 않도록 + enrich가 자체 revalidate 처리).
   ticker_for_filter = company.get('ticker') or company['name_kr']
   os.environ['TARGET_TICKERS'] = ticker_for_filter
 
-  # enrich_company.main()을 직접 호출하지 않고 import-based 실행
-  # main()은 sys.argv를 읽으므로 argv를 임시로 교체
   original_argv = sys.argv[:]
   try:
     enrich_argv = ['enrich_company.py']
@@ -121,19 +120,10 @@ def main() -> None:
   finally:
     sys.argv = original_argv
 
-  # 캐시 무효화
-  if not args.skip_revalidate:
-    logger.info('=== 캐시 무효화 ===')
-    revalidate_tags([
-      'related_stocks_view',
-      'domestic_stocks_view',
-      'parts_top100_stocks_view',
-    ])
-
-  # 결과 안내
+  # 결과 안내 (read-only) — 캐시 무효화는 enrich_company의 WriteSession이 이미 처리.
   logger.info('=== 결과 검증 ===')
   fresh = (
-    client.table('companies').select(
+    get_client().table('companies').select(
       'business_summary,homepage_url,products,customers'
     ).eq('id', company['id']).execute().data or [{}]
   )[0]

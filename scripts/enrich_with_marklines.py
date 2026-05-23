@@ -37,7 +37,7 @@ import requests  # noqa: E402
 from bs4 import BeautifulSoup  # noqa: E402
 import anthropic  # noqa: E402
 
-from lib.db import get_client  # noqa: E402
+from lib.db import WriteSession  # noqa: E402
 
 SLUG_MAP_PATH = Path(__file__).parent / 'lib' / 'marklines_slugs.json'
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -180,15 +180,17 @@ def main() -> None:
     sys.exit('ANTHROPIC_API_KEY 미설정')
 
   slug_map = _load_slug_map()
-  client = get_client()
-
   raw = os.environ.get('TARGET_TICKERS', '').strip()
   target_filter = {t.strip() for t in raw.split(',') if t.strip()}
+  with WriteSession() as w:
+    _main_in_session(w, args, slug_map, target_filter, api_key)
 
-  pages = client.table('company_pages').select('company_id').eq('page', args.page).execute().data
+
+def _main_in_session(w, args, slug_map: dict[str, str], target_filter: set[str], api_key: str) -> None:
+  pages = w.table('company_pages').select('company_id').eq('page', args.page).execute().data
   cids = [p['company_id'] for p in pages]
   rows = (
-    client.table('companies').select('id,ticker,name,name_kr,country,business_summary,customers,products,homepage_url')
+    w.table('companies').select('id,ticker,name,name_kr,country,business_summary,customers,products,homepage_url')
     .in_('id', cids).eq('status', 'active').execute().data or []
   )
 
@@ -243,7 +245,7 @@ def main() -> None:
         update['homepage_url'] = ext['homepage_url'][:500]
 
       if update:
-        client.table('companies').update(update).eq('id', c['id']).execute()
+        w.table('companies').update(update).eq('id', c['id']).execute()
         ok += 1
         logger.info(f'  OK customers={len(ext.get("customers", []))} products={len(ext.get("products", []))}')
       else:
@@ -254,13 +256,7 @@ def main() -> None:
     time.sleep(1)
 
   logger.info(f'\n완료: {ok}성공 / {fail}실패')
-
-  # Next.js 캐시 무효화 — client.table().update()로 companies 우회 갱신
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

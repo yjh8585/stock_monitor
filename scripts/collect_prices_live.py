@@ -18,13 +18,14 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.companies import get_global_companies, get_kr_companies
-from lib.db import get_client
+from lib.db import WriteSession
 
 # pykrx 시총은 KRW 원 단위 — DB 표준은 KRW 억원
 EOK = 100_000_000
 
 
 def _update_company(
+  w,
   ticker: str,
   price: float,
   change_pct: float | None,
@@ -32,7 +33,6 @@ def _update_company(
   market_cap_eok: float | None = None,
 ) -> None:
   """companies 테이블의 현재가·시총 관련 필드를 갱신한다."""
-  client = get_client()
   payload: dict = {
     'last_price': price,
     'last_updated_at': datetime.now(timezone.utc).isoformat(),
@@ -44,10 +44,10 @@ def _update_company(
   if market_cap_eok is not None:
     payload['market_cap'] = market_cap_eok
 
-  client.table('companies').update(payload).eq('ticker', ticker).execute()
+  w.table('companies').update(payload).eq('ticker', ticker).execute()
 
 
-def _collect_kr_live() -> int:
+def _collect_kr_live(w) -> int:
   """pykrx로 KR 8개사 현재가·시총을 수집해 갱신한다. 처리 성공 건수를 반환한다."""
   today_str = datetime.now().strftime('%Y%m%d')
   count = 0
@@ -79,7 +79,7 @@ def _collect_kr_live() -> int:
       except Exception as e:
         logger.warning(f"KR {ticker} 시가총액 수집 실패(가격은 갱신 진행): {e}")
 
-      _update_company(ticker, price, change_pct, volume, market_cap_eok)
+      _update_company(w, ticker, price, change_pct, volume, market_cap_eok)
       logger.debug(
         f"KR {ticker}: {price:,.0f}원 ({change_pct:+.2f}%) "
         f"market_cap={market_cap_eok}억원"
@@ -91,7 +91,7 @@ def _collect_kr_live() -> int:
   return count
 
 
-def _collect_global_live() -> int:
+def _collect_global_live(w) -> int:
   """yfinance로 글로벌 active 종목 현재가를 수집해 갱신한다. 처리 성공 건수를 반환한다."""
   count = 0
 
@@ -113,7 +113,7 @@ def _collect_global_live() -> int:
         change_pct = round((price - prev_close) / prev_close * 100, 4)
 
       volume = getattr(info, 'three_month_average_volume', None)
-      _update_company(ticker, float(price), change_pct, int(volume) if volume else None)
+      _update_company(w, ticker, float(price), change_pct, int(volume) if volume else None)
       logger.debug(f"글로벌 {ticker}: {price:.4f} ({f'{change_pct:+.2f}%' if change_pct is not None else 'N/A'})")
       count += 1
     except Exception as e:
@@ -124,16 +124,11 @@ def _collect_global_live() -> int:
 
 def collectPricesLive() -> None:
   """21개사 현재가를 수집해 companies 테이블을 갱신한다."""
-  kr_count = _collect_kr_live()
-  global_count = _collect_global_live()
+  with WriteSession() as w:
+    kr_count = _collect_kr_live(w)
+    global_count = _collect_global_live(w)
   logger.info(f"현재가 갱신 완료 — KR {kr_count}개 + 글로벌 {global_count}개")
-
-  # Next.js 캐시 무효화 — client.table().update()로 우회 호출이라 db.upsert_rows 자동 hook이 발화하지 않음
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies'])
-  except Exception as e:
-    logger.debug(f"  revalidate skip: {e}")
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

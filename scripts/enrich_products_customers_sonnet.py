@@ -25,7 +25,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 import anthropic  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from lib.db import get_client  # noqa: E402
+from lib.db import WriteSession  # noqa: E402
 
 # 사용자 정책 (2026-05-12): Sonnet 비용 우려로 Haiku 4.5 사용.
 DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
@@ -177,8 +177,13 @@ def main():
     sys.path.insert(0, str(Path(__file__).parent / '_tmp'))
     from lib.normalize_customers_oem_only import ALIAS_TO_STANDARD, _extract_name, _normalize_one  # noqa
 
-    client = get_client()
-    rows = client.table('companies').select('id,name_kr,name,country,homepage_url,customers,products,business_summary,company_type').eq('status', 'active').execute().data
+    with WriteSession() as w:
+        _main_in_session(w, target, api_key)
+
+
+def _main_in_session(w, target: set[str], api_key: str) -> None:
+    from lib.normalize_customers_oem_only import _extract_name, _normalize_one  # noqa
+    rows = w.table('companies').select('id,name_kr,name,country,homepage_url,customers,products,business_summary,company_type').eq('status', 'active').execute().data
     only_empty_customers = os.environ.get('ONLY_EMPTY_CUSTOMERS', '').strip() == '1'
     only_empty_products = os.environ.get('ONLY_EMPTY_PRODUCTS', '').strip() == '1'
     if target:
@@ -254,7 +259,7 @@ def main():
 
                 # products는 LLM 결과로 교체 (기존 데이터 보강 의도)
                 update = {'products': new_products, 'customers': final_customers}
-                client.table('companies').update(update).eq('id', c['id']).execute()
+                w.table('companies').update(update).eq('id', c['id']).execute()
                 logger.info(f'  ✓ products={len(new_products)} customers={len(final_customers)} (OEM only) sources={result.get("sources", [])[:2]}')
             except Exception as e:
                 logger.error(f'  예외: {e}')
@@ -262,12 +267,7 @@ def main():
 
         browser.close()
 
-    # Next.js 캐시 무효화 — client.table().update()로 companies.products/customers 우회 갱신
-    try:
-        from lib.revalidate import revalidate_for_tables
-        revalidate_for_tables(['companies'])
-    except Exception as e:
-        logger.debug(f'  revalidate skip: {e}')
+    # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies'])를 호출한다.
 
 
 if __name__ == '__main__':

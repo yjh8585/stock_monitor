@@ -29,7 +29,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client, upsert_rows
+from lib.db import WriteSession, upsert_rows
 from collect_dart_audit import (
   ACCT_TO_DB,
   MILLION,
@@ -185,7 +185,7 @@ def _build_rows(company_id: str, year: int, parsed: dict[str, dict[str, float | 
 
 
 def _flush_company(
-  client,
+  w,
   cid: str,
   rows: list[dict],
   rename: tuple[str, str] | None,
@@ -208,7 +208,7 @@ def _flush_company(
     )
   if rename:
     _old, new_name = rename
-    client.table('companies').update({'name_kr': new_name, 'name': new_name}).eq('id', cid).execute()
+    w.table('companies').update({'name_kr': new_name, 'name': new_name}).eq('id', cid).execute()
   if collect_result:
     dcs, err = collect_result
     updates: dict = {
@@ -220,7 +220,7 @@ def _flush_company(
       updates['retry_after'] = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
     else:
       updates['retry_after'] = None
-    client.table('companies').update(updates).eq('id', cid).execute()
+    w.table('companies').update(updates).eq('id', cid).execute()
 
 
 def collectDartDomestic() -> None:
@@ -234,11 +234,15 @@ def collectDartDomestic() -> None:
   if not odr:
     sys.exit(1)
 
-  client = get_client()
   manual = _load_manual_mapping()
 
+  with WriteSession() as w:
+    _collect_dart_domestic_in_session(w, odr, manual)
+
+
+def _collect_dart_domestic_in_session(w, odr, manual: dict[str, str]) -> None:
   resp = (
-    client.table('companies')
+    w.table('companies')
     .select(
       'id,ticker,name_kr,status,dart_collection_status,retry_after,'
       'company_pages!inner(page)'
@@ -251,7 +255,7 @@ def collectDartDomestic() -> None:
 
   # 이미 annual financials 있는 회사 ID 조회 (재실행 시 skip)
   fin_resp = (
-    client.table('financials')
+    w.table('financials')
     .select('company_id')
     .eq('period_type', 'annual')
     .execute()
@@ -296,7 +300,7 @@ def collectDartDomestic() -> None:
       corp_code = _resolve_corp_code(odr, name, ticker, manual)
       if not corp_code:
         logger.warning(f'[{idx}/{len(pending)}] [{ticker}] {name}: DART_NO_MATCH')
-        _flush_company(client, cid, [], None, ('no_match', 'DART_NO_MATCH'))
+        _flush_company(w, cid, [], None, ('no_match', 'DART_NO_MATCH'))
         total_failed += 1
         continue
 
@@ -318,13 +322,13 @@ def collectDartDomestic() -> None:
         logger.warning(
           f'[{idx}/{len(pending)}] [{ticker}] {name}({corp_code}): NO_AUDIT_REPORT'
         )
-        _flush_company(client, cid, [], rename, ('no_audit_report', 'NO_AUDIT_REPORT'))
+        _flush_company(w, cid, [], rename, ('no_audit_report', 'NO_AUDIT_REPORT'))
         total_failed += 1
         if rename:
           total_renames += 1
         continue
 
-      _flush_company(client, cid, company_rows, rename, ('success', None))
+      _flush_company(w, cid, company_rows, rename, ('success', None))
       total_rows += len(company_rows)
       if rename:
         total_renames += 1
@@ -336,13 +340,7 @@ def collectDartDomestic() -> None:
   logger.info(
     f'요약: 처리 {len(pending)} / 갱신 {total_renames} / failed {total_failed} / financials {total_rows}'
   )
-
-  # Next.js 캐시 무효화 — companies/financials 모두 client.table().update()로 우회 호출
-  try:
-    from lib.revalidate import revalidate_for_tables
-    revalidate_for_tables(['companies', 'financials'])
-  except Exception as e:
-    logger.debug(f'  revalidate skip: {e}')
+  # WriteSession.__exit__이 자동으로 revalidate_for_tables(['companies', 'financials'])를 호출한다.
 
 
 if __name__ == '__main__':
