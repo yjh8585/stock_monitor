@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
         for await (const event of streamChatLoop(
           parsed.data.messages as ChatMessage[],
           user.role,
+          user.id
         )) {
           controller.enqueue(encoder.encode(sseLine(event)));
         }

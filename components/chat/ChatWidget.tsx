@@ -26,7 +26,6 @@ const TOOL_LABEL_KR: Record<string, string> = {
   query_news: '뉴스 검색',
   query_oem_sales: 'OEM 판매 조회',
   query_macro_series: '매크로 시계열 조회',
-  query_pnl: '한세모빌리티 손익 조회',
 };
 
 export default function ChatWidget() {

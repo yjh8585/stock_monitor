@@ -1,15 +1,18 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
-import { createSupabaseAnonClient } from '@/lib/supabase/anon';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import PnlDashboard from '@/components/management/pnl/PnlDashboard';
 import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 
 // PostgREST 기본 max-rows=1000. 페이지네이션으로 전체 fetch.
 const SUPABASE_PAGE_SIZE = 1000;
 
+// pnl_entries / pnl_cost_structure 는 RLS로 anon 접근 차단됨 (migration 20260523000002).
+// service_role(admin client)만 SELECT 가능 — 사외비 데이터 외부 추출 방지.
+
 /** Supabase pnl_entries 전체 fetch (한 번 select 최대 1000행 → range 페이지네이션) */
 async function fetchAllPnlEntries(): Promise<PnlEntry[]> {
-  const supabase = createSupabaseAnonClient();
+  const supabase = createSupabaseAdminClient();
   const all: PnlEntry[] = [];
   let from = 0;
   while (true) {
@@ -65,7 +68,7 @@ async function getPnlData() {
 
 /** Supabase pnl_cost_structure 전체 fetch (≤ 수백 행이라 페이지네이션 불필요) */
 async function fetchAllCostStructure(): Promise<CostStructureRow[]> {
-  const supabase = createSupabaseAnonClient();
+  const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('pnl_cost_structure')
     .select('*')

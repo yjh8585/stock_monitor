@@ -76,7 +76,7 @@ npm run format          # 자동 포맷
 | `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                               |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                          |
 | `/reports`          | 보고서. youtube-summary 통합. cacheComponents 호환 패턴: `'use cache'` + `generateStaticParams` + `updateTag`. 메모리 `project_reports_migration.md` 참고. |
-| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries` 테이블                                                                                                    |
+| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`createSupabaseAdminClient()` (service_role) 로만 조회** (anon 차단, 마이그레이션 `20260523000002`)                                                                                                    |
 | `/login`            | 세션 로그인                                                                                                                                                |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                            |
 
@@ -215,6 +215,14 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **OEM 회사 products는 차종**, 부품사 products는 부품/제품. OEM에 부품을 채우지 말 것. 제품군 카테고리 필터(`StockTable`/`DomesticTable`의 productCategoryFilter)는 부품사에만 적용한다(OEM은 항상 통과).
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만 (`enrich_description_*.py` 참고).
 - **dart_collection_status**: companies에 별도 컬럼. DART 수집 실패/재시도 추적은 financials와 분리.
+- **사외비 테이블 격리 (마이그레이션 `20260523000002`)**: `pnl_entries`·`pnl_cost_structure`는 한세모빌리티 손익/원가구조로 사외비. RLS는 enable 상태에 정책 없음(default deny) → anon key로 PostgREST 직접 접근 불가. **서버 컴포넌트는 반드시 `createSupabaseAdminClient()` (service_role)로 조회**. 새 컬럼·뷰 추가 시 동일하게 admin client만 쓰도록 유지.
+- **챗봇 외부 LLM 전송 정책 (2026-05-23)**: 챗봇(`/api/chat`)이 호출하는 도구의 결과는 모두 Anthropic API로 전송된다. (1) `lib/chat/tools.ts`의 도구 화이트리스트에 **사외비 테이블을 추가하지 말 것** — PnL은 의도적으로 제외됨. (2) `lib/chat/system-prompt.ts`의 DATA_CATALOG에는 회사 내부 고객사·공장·제품 명단을 **평문으로 박지 말 것** — 매 호출마다 전송됨. (3) 모든 도구 호출은 `chat_audit_log`에 자동 기록(`lib/chat/audit.ts` fire-and-forget). 새 도구 추가 시 별도 작업 없이 그대로 기록됨.
+
+**챗봇 감사 로그 (`chat_audit_log`, 마이그레이션 `20260523000003`)**
+- 컬럼: id(bigserial), user_id, user_role, tool_name, input_json(jsonb), row_count, is_error, error_msg, created_at
+- RLS 정책 없음 → service_role(admin) 전용 INSERT/SELECT
+- 보존 1년 (수동 운영 또는 별도 cron — 현재 미구현)
+- `lib/chat/loop.ts`가 도구 실행 직후 `logToolCall()` 호출 (await 안 함). 실패해도 챗봇 응답은 정상 진행.
 
 ## Python 스크립트 규칙
 
@@ -236,6 +244,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - 키·토큰은 `.env.local` / `scripts/.env` / GitHub Actions Secrets에만. 코드/커밋 금지.
 - `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`) 외 라우트는 세션 필수. 새 공개 라우트 추가 시 신중히 검토.
 - `/api/revalidate*`은 토큰 검증 후 `updateTag()` 실행. SSRF·쿠키 가드 강화 이력 있음(commit `ea090be`). 보안 패치 회귀 주의.
+- **사외비 데이터 (PnL 등)** 는 `service_role` (admin client) 전용. NEXT_PUBLIC anon key는 클라이언트 번들에 노출되므로 RLS `USING(true)` 정책으로 노출시키지 말 것. 새 사외비 테이블 생성 시 RLS enable + 정책 없음(default deny) 패턴 유지.
+- **AI 챗봇 외부 전송**: `/api/chat`은 도구 결과를 Anthropic API에 전송 (기본 30일 로그 보관, ZDR 미적용). 사외비 데이터는 챗봇 도구·system-prompt 어디에도 노출 금지. 외부 LLM 경로를 새로 추가할 때(GenAI, OpenAI 등) 같은 정책 적용.
 
 ## 작업 시작 시 체크리스트
 

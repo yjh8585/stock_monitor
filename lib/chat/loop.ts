@@ -10,12 +10,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient } from '@/lib/reports/anthropic';
 import { CHAT_TOOLS, runTool } from './tools';
 import { buildSystemPrompt } from './system-prompt';
-import type {
-  ChatMessage,
-  ChatStreamEvent,
-  ChatToolCallTrace,
-  UserRole,
-} from './types';
+import { logToolCall, extractRowCount } from './audit';
+import type { ChatMessage, ChatStreamEvent, ChatToolCallTrace, UserRole } from './types';
 
 // 비용 절감을 위해 Haiku 사용 (~1/3 가격). 답변 품질이 부족하면 'claude-sonnet-4-6'로 환원.
 const MODEL = 'claude-haiku-4-5';
@@ -43,6 +39,7 @@ function previewResult(result: unknown): string {
 export async function* streamChatLoop(
   history: ChatMessage[],
   role: UserRole,
+  userId: string
 ): AsyncGenerator<ChatStreamEvent, void, void> {
   const client = getAnthropicClient();
   const msgs: Anthropic.Messages.MessageParam[] = history.map((m) => ({
@@ -68,10 +65,7 @@ export async function* streamChatLoop(
 
     // 스트림 이벤트 순회 — text_delta만 즉시 yield, 도구 정보는 finalMessage에서 정리
     for await (const event of stream) {
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
         yield { type: 'text_delta', delta: event.delta.text };
       }
     }
@@ -85,7 +79,7 @@ export async function* streamChatLoop(
     }
 
     const toolUses = finalMessage.content.filter(
-      (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
+      (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use'
     );
 
     // 도구 호출 시작 알림
@@ -103,6 +97,15 @@ export async function* streamChatLoop(
             input: tu.input,
             resultPreview: previewResult(result),
           });
+          // 감사 로그 (fire-and-forget)
+          logToolCall({
+            userId,
+            userRole: role,
+            toolName: tu.name,
+            input: tu.input,
+            rowCount: extractRowCount(result),
+            isError: false,
+          });
           return {
             type: 'tool_result' as const,
             tool_use_id: tu.id,
@@ -115,6 +118,15 @@ export async function* streamChatLoop(
             input: tu.input,
             resultPreview: `ERROR: ${msg}`,
           });
+          logToolCall({
+            userId,
+            userRole: role,
+            toolName: tu.name,
+            input: tu.input,
+            rowCount: null,
+            isError: true,
+            errorMsg: msg,
+          });
           return {
             type: 'tool_result' as const,
             tool_use_id: tu.id,
@@ -122,7 +134,7 @@ export async function* streamChatLoop(
             is_error: true,
           };
         }
-      }),
+      })
     );
 
     // 도구 완료 알림

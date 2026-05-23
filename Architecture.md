@@ -94,11 +94,13 @@
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
 
 **AI 챗봇 (`/api/chat`)**:
-- `lib/chat/` — types, tools(화이트리스트 6개), system-prompt, loop(tool_use 최대 5회)
-- `components/chat/` — ChatWidget(floating 버튼+Sheet), ChatMessages, ChatInput
+- `lib/chat/` — types, tools(화이트리스트 6개), system-prompt, loop(tool_use 최대 5회), audit
+- `components/chat/` — ChatWidget(floating 버튼+Sheet), ChatMessages, ChatInput(외부 전송 경고 배너 포함)
 - AppLayout에 마운트되어 모든 페이지에 노출 (로그인·팝업 제외)
-- Claude `claude-sonnet-4-6` + prompt caching, 세션 메모리만(DB 저장 X), per-user 분당 20회
-- 도구: query_companies / query_financials / query_stock_prices / query_news / query_oem_sales / query_macro_series — 모두 anon Supabase로 LIMIT 50 강제
+- Claude `claude-haiku-4-5` + prompt caching, 세션 메모리만(DB 저장 X), per-user 분당 20회
+- 도구 6개: query_companies / query_financials / query_stock_prices / query_news / query_oem_sales / query_macro_series — 모두 anon Supabase로 LIMIT 50 강제
+- **PnL 데이터 외부 전송 차단** (20260523): 한세모빌리티 손익은 사외비라 챗봇 도구·system-prompt에서 완전 제외. 시스템 프롬프트의 고객사·공장·제품 명단도 평문 박혀있던 것 제거. 손익 관련 질문은 "/management 페이지 직접 확인" 안내로 정중 거절
+- **감사 로그**: 모든 도구 호출은 `chat_audit_log`에 기록 (user_id, tool_name, input, row_count). service_role 전용, 보존 1년. fire-and-forget이라 실패해도 응답은 정상
 
 ## 6. 디렉토리 구조 (요약)
 
@@ -264,15 +266,23 @@ UNIQUE: (source, note_date)
 
 ---
 
-### 7-G. 손익(PnL) · 보고서
+### 7-G. 손익(PnL) · 감사 · 보고서
 
-#### `pnl_entries` (4,589행) — 손익 입력
+#### `pnl_entries` (4,589행) — 손익 입력 (사외비)
 | basis | year_label | period_year | period_month | is_plan | is_estimate | sil | division | factory | product | customer | revenue | material_cost | labor_cost | expense | sga | rnd | op_income |
 
 **인덱스**: (basis, period_year, period_month), customer, division, product, sil
+**RLS**: 정책 없음 (20260523000002 `USING(true)` 삭제) → anon 차단. `service_role` (admin client)만 접근. `/management/pnl` 페이지가 `createSupabaseAdminClient()`로 직접 조회.
 
-#### `pnl_cost_structure` (54행) — 원가구조
+#### `pnl_cost_structure` (54행) — 원가구조 (사외비)
 | period_year | period_kind | period_month | kind | category | account | value_mwon |
+**RLS**: 정책 없음 (20260523000002) → service_role 전용.
+
+#### `chat_audit_log` (신규, 20260523000003) — 챗봇 도구 호출 감사
+| id(bigserial) | user_id | user_role | tool_name | input_json(jsonb) | row_count | is_error | error_msg | created_at |
+
+**인덱스**: created_at DESC, (user_id, created_at DESC), (tool_name, created_at DESC)
+**RLS**: 정책 없음 → service_role 전용. 보존 1년 (수동 운영 또는 별도 cron).
 
 #### `posts` (68행) — 보고서 본문
 | id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at |
@@ -393,6 +403,8 @@ python scripts/onboard_company.py --ticker 005380
 | **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
 | **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
 | **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `chat_audit_log` 은 RLS 정책 없음 → anon 차단. server 컴포넌트에서 admin client만 접근 (20260523) |
+| **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |
 | **외부 입력** | Zod 검증 (`lib/reports/dto/`) |
 | **SQL** | postgrest 파라미터 바인딩만 (문자열 결합 금지) |
@@ -437,7 +449,7 @@ runner Python venv → postgrest-py → Supabase
 
 ---
 
-## 부록 A. 최근 주요 변경 (2026-05-20 ~ 2026-05-21)
+## 부록 A. 최근 주요 변경 (2026-05-20 ~ 2026-05-23)
 
 - **status='hidden'** 도입 (`delisted` → `hidden`)
 - 일본 회계연도 한국식 -1 보정 (20260521000002, 20260521000003)
@@ -446,3 +458,4 @@ runner Python venv → postgrest-py → Supabase
 - 6차 워크플로 stable (`os._exit(0)` + yfinance 미래 period_end 가드)
 - 그룹 분류 50개 정리 (사람인 NICE 기반)
 - **homepage_url** enrich_company에 수집 추가 + onboard_company.py 도입
+- **챗봇 PnL 외부 전송 차단** (2026-05-23): `query_pnl` 도구 + system-prompt PnL 카탈로그(고객사·공장·제품 명단) 완전 제거. `pnl_entries`·`pnl_cost_structure` RLS 정책 삭제(anon 차단) + admin client 전용 전환 (20260523000002). `chat_audit_log` 신규 — 모든 챗봇 도구 호출 1년 보존 (20260523000003). 챗봇 입력창에 외부 전송 경고 배너 추가.
