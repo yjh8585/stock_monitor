@@ -7,8 +7,9 @@
  * 저장 위치: chat_audit_log (migration 20260523000003). service_role 전용 RLS.
  */
 import 'server-only';
-import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { confidentialDb } from '@/lib/supabase/confidential';
 import logger from '@/lib/logger';
+import type { Json } from '@/lib/database.types';
 import type { UserRole } from './types';
 
 export interface ToolAuditEntry {
@@ -40,14 +41,11 @@ export function logToolCall(entry: ToolAuditEntry): void {
   // Promise 만 띄우고 await 하지 않음.
   void (async () => {
     try {
-      const supabase = createSupabaseAdminClient();
-      // chat_audit_log는 database.types.ts에 아직 미반영(Auto-gen 대기) → 런타임 cast.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from('chat_audit_log').insert({
+      const { error } = await confidentialDb.from('chat_audit_log').insert({
         user_id: entry.userId,
         user_role: entry.userRole,
         tool_name: entry.toolName,
-        input_json: entry.input,
+        input_json: entry.input as Json,
         row_count: entry.rowCount,
         is_error: entry.isError,
         error_msg: entry.errorMsg ?? null,

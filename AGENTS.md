@@ -76,7 +76,7 @@ npm run format          # 자동 포맷
 | `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                               |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                          |
 | `/reports`          | 보고서. youtube-summary 통합. cacheComponents 호환 패턴: `'use cache'` + `generateStaticParams` + `updateTag`. 메모리 `project_reports_migration.md` 참고. |
-| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`createSupabaseAdminClient()` (service_role) 로만 조회** (anon 차단, 마이그레이션 `20260523000002`)                                                                                                    |
+| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`)                                                                                                    |
 | `/login`            | 세션 로그인                                                                                                                                                |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                            |
 
@@ -102,10 +102,10 @@ npm run format          # 자동 포맷
 - 데이터 가공/정규화: `series`, `seriesRange`, `stockPrices`, `stockSort`, `compareData`, `compareMetrics`, `companyLink`, `customerLogos`, `financialFormatter`
 - React 훅: `useChartHeight`, `useIsMobile`
 - `lib/supabase/` — 클라이언트 4종 (역할별로 분리, **혼용 금지**):
-  - `server.ts` — 서버 컴포넌트·서버 액션 (쿠키 기반 SSR)
   - `client.ts` — 클라이언트 컴포넌트
-  - `admin.ts` — `service_role` (서버 전용, RLS 우회 — 신중히)
-  - `anon.ts` — anon (인증 없이, 공개 API용)
+  - `admin.ts` — `service_role` (서버 전용, RLS 우회 — 신중히). 사외비 테이블은 직접 부르지 말고 `confidential.ts` 경유
+  - `anon.ts` — anon (인증 없이, 공개 SELECT용. `'use cache'` 안에서 권장 — cookies 의존 없음)
+  - `confidential.ts` — **사외비 테이블 전용 facade**. `confidentialDb.from('pnl_entries')...` 처럼 사용. TypeScript union으로 사외비 명단 외 접근 컴파일 차단 + service_role 자동 라우팅
 - `lib/auth/` — 세션·권한·사용자 (`proxy.ts`가 사용). 새 라우트 권한은 `permissions.ts`에 등록.
 - 도메인 폴더 (페이지·기능 단위):
   - `lib/reports/` — 보고서. **레이어드 구조 채택**: `dto/`, `repositories/`, `services/{post,report-pdf,report-web,url-guard,youtube}` + `anthropic.ts`, `gemini.ts`, `pdf-page-renderer.ts`, `search.service.ts`. 다른 도메인보다 복잡도 높음.
@@ -215,7 +215,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **OEM 회사 products는 차종**, 부품사 products는 부품/제품. OEM에 부품을 채우지 말 것. 제품군 카테고리 필터(`StockTable`/`DomesticTable`의 productCategoryFilter)는 부품사에만 적용한다(OEM은 항상 통과).
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만 (`enrich_description_*.py` 참고).
 - **dart_collection_status**: companies에 별도 컬럼. DART 수집 실패/재시도 추적은 financials와 분리.
-- **사외비 테이블 격리 (마이그레이션 `20260523000002`)**: `pnl_entries`·`pnl_cost_structure`는 한세모빌리티 손익/원가구조로 사외비. RLS는 enable 상태에 정책 없음(default deny) → anon key로 PostgREST 직접 접근 불가. **서버 컴포넌트는 반드시 `createSupabaseAdminClient()` (service_role)로 조회**. 새 컬럼·뷰 추가 시 동일하게 admin client만 쓰도록 유지.
+- **사외비 테이블 격리 (마이그레이션 `20260523000002`, `20260523000003`)**: `pnl_entries`·`pnl_cost_structure`·`chat_audit_log`는 사외비. RLS enable + 정책 없음(default deny) → anon key로 PostgREST 직접 접근 불가. **서버 코드는 반드시 `confidentialDb.from(...)` (`lib/supabase/confidential.ts`)로 조회** — 자동으로 service_role 클라이언트 사용 + TypeScript union으로 사외비 명단 외 접근 컴파일 차단. **새 사외비 테이블 추가 5-step 절차**: (1) 마이그레이션에 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` (정책 생성하지 않음) (2) `mcp__supabase__generate_typescript_types`로 `lib/database.types.ts` 갱신 (3) `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES` 배열에 한 줄 추가 (4) 업로드 API는 `confidentialDb.from('테이블').upsert(...) + revalidateTag(...)` (5) 페이지는 `'use cache' + cacheTag(...) + confidentialDb.from('테이블').select(...)`. 향후 경영관리 하부 페이지(계획·재고·생산 등) 모두 동일 패턴.
 - **챗봇 외부 LLM 전송 정책 (2026-05-23)**: 챗봇(`/api/chat`)이 호출하는 도구의 결과는 모두 Anthropic API로 전송된다. (1) `lib/chat/tools.ts`의 도구 화이트리스트에 **사외비 테이블을 추가하지 말 것** — PnL은 의도적으로 제외됨. (2) `lib/chat/system-prompt.ts`의 DATA_CATALOG에는 회사 내부 고객사·공장·제품 명단을 **평문으로 박지 말 것** — 매 호출마다 전송됨. (3) 모든 도구 호출은 `chat_audit_log`에 자동 기록(`lib/chat/audit.ts` fire-and-forget). 새 도구 추가 시 별도 작업 없이 그대로 기록됨.
 
 **챗봇 감사 로그 (`chat_audit_log`, 마이그레이션 `20260523000003`)**

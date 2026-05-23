@@ -48,6 +48,42 @@ export type Database = {
           },
         ];
       };
+      chat_audit_log: {
+        Row: {
+          created_at: string;
+          error_msg: string | null;
+          id: number;
+          input_json: Json;
+          is_error: boolean;
+          row_count: number | null;
+          tool_name: string;
+          user_id: string;
+          user_role: string;
+        };
+        Insert: {
+          created_at?: string;
+          error_msg?: string | null;
+          id?: number;
+          input_json: Json;
+          is_error?: boolean;
+          row_count?: number | null;
+          tool_name: string;
+          user_id: string;
+          user_role: string;
+        };
+        Update: {
+          created_at?: string;
+          error_msg?: string | null;
+          id?: number;
+          input_json?: Json;
+          is_error?: boolean;
+          row_count?: number | null;
+          tool_name?: string;
+          user_id?: string;
+          user_role?: string;
+        };
+        Relationships: [];
+      };
       companies: {
         Row: {
           business_summary: string | null;

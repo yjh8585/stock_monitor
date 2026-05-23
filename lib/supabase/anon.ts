@@ -4,7 +4,8 @@
  * 용도: `'use cache'` 함수 안에서 anon RLS 정책으로 충분한 view/테이블 조회.
  * cookies 의존이 없어 Cache Components의 PPR 경계와 충돌하지 않는다.
  *
- * 인증/RLS가 필요한 경우는 `createSupabaseServerClient`를 사용한다.
+ * RLS 우회가 필요한 경우는 `createSupabaseAdminClient` (`./admin`)를 사용한다.
+ * 사외비 테이블(`pnl_*`, `chat_audit_log`)은 `confidentialDb` (`./confidential`)를 통해 접근.
  */
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
