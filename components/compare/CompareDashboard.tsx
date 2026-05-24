@@ -1,14 +1,18 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import CompareCompanySelector from './CompareCompanySelector';
-import MetricCard, { type CompanyLine } from './MetricCard';
+import type { CompanyLine } from './MetricCard';
 import {
   COMPARE_METRICS,
   FIXED_PRIMARY_NAME,
   type CompareCompany,
   type FinancialRow,
 } from '@/lib/compareMetrics';
+
+// MetricCard는 recharts 의존 — 차트 단위로 청크 분리. 10개 카드가 같은 청크를 공유.
+const MetricCard = dynamic(() => import('./MetricCard'), { ssr: false });
 
 interface Props {
   companies: readonly CompareCompany[];
