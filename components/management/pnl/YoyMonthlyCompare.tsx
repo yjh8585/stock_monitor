@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import GroupMultiSelect from '@/components/common/GroupMultiSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -120,10 +120,9 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   // 지표 선택 — 기본: 매출만
   const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(['revenue']);
   const onToggleMetric = (m: string) => {
+    const key = m as MetricKey;
     setSelectedMetrics((prev) =>
-      (prev as string[]).includes(m)
-        ? (prev as string[]).filter((x) => x !== m).map((x) => x as MetricKey)
-        : [...prev, m as MetricKey]
+      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
     );
   };
   const onResetMetrics = () => setSelectedMetrics(['revenue']);
@@ -154,6 +153,24 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   }, [basisMonthly, basis, effBase, effCompare, selectedMetrics]);
 
   const h = useChartHeight(300, 400, 480);
+
+  const renderLegend = useCallback(
+    ({ payload }: { payload?: ReadonlyArray<{ value: unknown; color?: string }> }) => (
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm">
+        {(payload ?? []).map((entry) => (
+          <span
+            key={String(entry.value)}
+            className="inline-flex items-center gap-1.5 font-medium"
+            style={{ color: entry.color }}
+          >
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: entry.color }} />
+            {String(entry.value)}
+          </span>
+        ))}
+      </div>
+    ),
+    []
+  );
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -213,23 +230,7 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
               wrapperStyle={{
                 paddingBottom: 4,
               }}
-              content={({ payload }) => (
-                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm">
-                  {(payload ?? []).map((entry) => (
-                    <span
-                      key={String(entry.value)}
-                      className="inline-flex items-center gap-1.5 font-medium"
-                      style={{ color: entry.color }}
-                    >
-                      <span
-                        className="inline-block w-3 h-3 rounded-sm"
-                        style={{ background: entry.color }}
-                      />
-                      {entry.value}
-                    </span>
-                  ))}
-                </div>
-              )}
+              content={renderLegend}
             />
             {selectedMetrics.map((m, i) => {
               const baseColor = OEM_COLORS[i % OEM_COLORS.length];

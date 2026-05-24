@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -288,10 +288,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
   );
   const { yearLabels, effBase, effCompare, ytdMonths, baseEntries, compareEntries } = view;
 
-  const dimConfig = useMemo(
-    () => DIM_OPTIONS.find((d) => d.value === dim) ?? DIM_OPTIONS[0],
-    [dim]
-  );
+  const dimConfig = DIM_OPTIONS.find((d) => d.value === dim) ?? DIM_OPTIONS[0];
 
   const points: BubblePoint[] = useMemo(() => {
     if (!effBase) return [];
@@ -410,6 +407,20 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
   );
 
   const h = useChartHeight(280, 380, 460);
+
+  const renderBubbleLabel = useCallback(
+    (p: unknown) => {
+      const props = p as {
+        x?: number;
+        y?: number;
+        index?: number;
+        value?: string | number;
+      };
+      const pos = labelPositions[props.index ?? 0] ?? LABEL_POSITIONS[0];
+      return <BubbleLabel {...props} pos={pos} />;
+    },
+    [labelPositions]
+  );
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -546,19 +557,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               content={<BubbleTooltip baseYear={effBase} compareYear={effCompare} />}
             />
             <Scatter name={dimConfig.label} data={chartPoints} fill="#000000" shape="circle">
-              <LabelList
-                dataKey="name"
-                content={(p: unknown) => {
-                  const props = p as {
-                    x?: number;
-                    y?: number;
-                    index?: number;
-                    value?: string | number;
-                  };
-                  const pos = labelPositions[props.index ?? 0] ?? LABEL_POSITIONS[0];
-                  return <BubbleLabel {...props} pos={pos} />;
-                }}
-              />
+              <LabelList dataKey="name" content={renderBubbleLabel} />
             </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
