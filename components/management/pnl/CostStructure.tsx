@@ -41,18 +41,15 @@ const ROW_DEFS: readonly RowDef[] = [
 const COLUMN_DEFS: readonly ColumnDef[] = [
   {
     label: '2023',
-    match: (r) =>
-      r.period_year === 2023 && r.period_kind === 'annual' && r.kind === 'actual',
+    match: (r) => r.period_year === 2023 && r.period_kind === 'annual' && r.kind === 'actual',
   },
   {
     label: '2024',
-    match: (r) =>
-      r.period_year === 2024 && r.period_kind === 'annual' && r.kind === 'actual',
+    match: (r) => r.period_year === 2024 && r.period_kind === 'annual' && r.kind === 'actual',
   },
   {
     label: '2025',
-    match: (r) =>
-      r.period_year === 2025 && r.period_kind === 'annual' && r.kind === 'actual',
+    match: (r) => r.period_year === 2025 && r.period_kind === 'annual' && r.kind === 'actual',
   },
   {
     label: '2026 YTD',
@@ -117,9 +114,9 @@ export default function CostStructure({ costStructure }: Props) {
       </header>
       <div className="overflow-x-auto">
         <table className="w-full text-base">
-          <thead className="bg-muted/40 text-muted-foreground">
+          <thead className="bg-muted text-muted-foreground">
             <tr>
-              <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left font-medium">
+              <th className="sticky left-0 z-10 bg-muted border-r border-border px-3 py-2 text-left font-medium">
                 구분
               </th>
               {columns.map((c) => (
@@ -160,7 +157,7 @@ export default function CostStructure({ costStructure }: Props) {
               return (
                 <tr key={row.label} className={rowClass}>
                   <td
-                    className={`sticky left-0 z-10 ${labelBg} py-2 pr-3 align-middle`}
+                    className={`sticky left-0 z-10 ${labelBg} border-r border-border py-2 pr-3 align-middle`}
                     style={indentStyle}
                   >
                     {row.label}
@@ -170,15 +167,11 @@ export default function CostStructure({ costStructure }: Props) {
                     const isNegative = value !== null && value < 0;
                     return (
                       <td key={c.label} className="px-3 py-2 text-right align-middle tabular-nums">
-                        <div className={isNegative ? 'text-red-500' : ''}>
-                          {fmtMillion(value)}
-                        </div>
+                        <div className={isNegative ? 'text-red-500' : ''}>{fmtMillion(value)}</div>
                         {!isRevenue ? (
                           <div
                             className={
-                              isNegative
-                                ? 'text-sm text-red-500'
-                                : 'text-sm text-muted-foreground'
+                              isNegative ? 'text-sm text-red-500' : 'text-sm text-muted-foreground'
                             }
                           >
                             {fmtRatio(value, c.revenue)}

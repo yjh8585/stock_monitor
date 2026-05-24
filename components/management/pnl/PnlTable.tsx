@@ -138,21 +138,28 @@ export default function PnlTable({
     <div className="overflow-x-auto">
       <table className="w-full text-base border-collapse">
         <thead>
-          <tr className="border-b border-border bg-muted/40">
-            {leftHeaders.map((h, i) => (
-              <th
-                key={`L-${i}`}
-                scope="col"
-                className="sticky left-0 z-10 bg-muted/40 px-2 py-2 text-left font-medium text-muted-foreground whitespace-nowrap"
-                style={{
-                  left: `${i * STICKY_LEFT_PX}px`,
-                  minWidth: STICKY_LEFT_PX,
-                  maxWidth: STICKY_LEFT_PX,
-                }}
-              >
-                {h}
-              </th>
-            ))}
+          <tr className="border-b border-border bg-muted">
+            {leftHeaders.map((h, i) => {
+              const isLastSticky = i === leftHeaders.length - 1;
+              return (
+                <th
+                  key={`L-${i}`}
+                  scope="col"
+                  // bg-muted는 solid — alpha 사용 시 가로 스크롤된 데이터 헤더가
+                  // sticky 컬럼 뒤로 비쳐 보이는 겹침 버그가 생긴다(모바일에서 두드러짐).
+                  className={`sticky left-0 z-10 bg-muted px-2 py-2 text-left font-medium text-muted-foreground whitespace-nowrap ${
+                    isLastSticky ? 'border-r border-border' : ''
+                  }`}
+                  style={{
+                    left: `${i * STICKY_LEFT_PX}px`,
+                    minWidth: STICKY_LEFT_PX,
+                    maxWidth: STICKY_LEFT_PX,
+                  }}
+                >
+                  {h}
+                </th>
+              );
+            })}
             {METRIC_ORDER.map((m) => {
               const emphasized = m === 'revenue' || m === 'op_income';
               return (
@@ -262,6 +269,9 @@ function PnlRow({ row, meta, leftCount, dimCount, highlighted, onToggle }: PnlRo
           minWidth: STICKY_LEFT_PX,
           maxWidth: STICKY_LEFT_PX,
         };
+        // 마지막 sticky 컬럼은 우측에 1px 구분선 — 가로 스크롤 시 데이터 영역과 시각적 분리.
+        const isLastSticky = i === leftCount - 1;
+        const separator = isLastSticky ? 'border-r border-border' : '';
         // 차원 컬럼이면 rowspan 적용. spans[i]===0이면 상위 셀에 흡수돼 렌더 안 함
         if (i < dimCount) {
           const span = meta.spans[i];
@@ -271,7 +281,7 @@ function PnlRow({ row, meta, leftCount, dimCount, highlighted, onToggle }: PnlRo
               key={`l-${i}`}
               rowSpan={span}
               scope="row"
-              className={`sticky left-0 z-[5] ${stickyBg} px-2 py-1.5 font-medium align-middle truncate`}
+              className={`sticky left-0 z-[5] ${stickyBg} px-2 py-1.5 font-medium align-middle truncate ${separator}`}
               style={stickyStyle}
               title={lbl}
             >
@@ -283,7 +293,7 @@ function PnlRow({ row, meta, leftCount, dimCount, highlighted, onToggle }: PnlRo
         return (
           <td
             key={`l-${i}`}
-            className={`sticky left-0 z-[5] ${stickyBg} px-2 py-1.5 font-medium truncate`}
+            className={`sticky left-0 z-[5] ${stickyBg} px-2 py-1.5 font-medium truncate ${separator}`}
             style={stickyStyle}
             title={lbl}
           >
