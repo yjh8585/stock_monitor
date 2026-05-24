@@ -114,7 +114,7 @@ def _load_targets(client, page: str | None, target_tickers: set[str]) -> list[di
   """대상 회사 목록 로드. target_tickers 우선, 없으면 page 매핑된 active 회사."""
   q = client.table('companies').select(
     'id,ticker,name,name_kr,country,currency,data_source,status,'
-    'products,customers,business_summary,homepage_url'
+    'products,customers,business_summary,homepage_url,dart_corp_code'
   )
   if target_tickers:
     q = q.in_('ticker', list(target_tickers))
@@ -179,16 +179,31 @@ def _collect_fnguide(c: dict, page) -> list[dict]:
     return []
 
 
-def _collect_dart_audit_single(c: dict) -> list[dict]:
-  """DART 감사보고서 단건 (collect_dart_audit 모듈 함수 재사용)."""
+def _collect_dart_audit_single(w, c: dict) -> list[dict]:
+  """DART 감사보고서 단건. companies.dart_corp_code 우선 사용, 미설정 시 resolve 후 캐싱."""
   try:
-    from collect_dart_audit import _collect_company, _get_dart, _target_years
+    from collect_dart_audit import (
+      _collect_company,
+      _get_dart,
+      _resolve_corp_code,
+      _target_years,
+    )
     odr = _get_dart()
     if not odr:
       return []
-    corp_code = odr.find_corp_code(c['name_kr'])
+    cached_code = c.get('dart_corp_code')
+    corp_code = _resolve_corp_code(odr, c['name_kr'], cached_code)
     if not corp_code:
       return []
+    # 새로 resolve된 경우 companies에 캐싱 — 다음 호출은 lookup skip.
+    if not cached_code:
+      try:
+        w.table('companies').update(
+          {'dart_corp_code': str(corp_code)}
+        ).eq('id', c['id']).execute()
+        logger.info(f"  dart_corp_code 캐싱: {c['name_kr']} → {corp_code}")
+      except Exception as e:
+        logger.warning(f"  dart_corp_code 캐싱 실패 ({c['name_kr']}): {e}")
     return _collect_company(odr, c['id'], str(corp_code), years=_target_years())
   except Exception as e:
     logger.error(f'  DART 실패: {e}')
@@ -346,7 +361,7 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
     # DART 감사보고서 (KR 비상장사)
     for c in by_source.get('dart', []):
       logger.info(f'[dart] {c["name_kr"]}')
-      fin_rows.extend(_collect_dart_audit_single(c))
+      fin_rows.extend(_collect_dart_audit_single(w, c))
 
     # marklines/other → Claude web_search 폴백
     fallback_targets = by_source.get('marklines', []) + by_source.get('other', [])
