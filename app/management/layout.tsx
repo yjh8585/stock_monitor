@@ -10,6 +10,7 @@ const MANAGEMENT_TABS = [
   { label: '계획', href: '/management/plan' },
   { label: '재고', href: '/management/inventory' },
   { label: '생산', href: '/management/production' },
+  { label: '회사', href: '/management/companies' },
 ] as const;
 
 /**

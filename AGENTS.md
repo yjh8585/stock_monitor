@@ -76,14 +76,14 @@ npm run format          # 자동 포맷
 | `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                               |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                          |
 | `/reports`          | 보고서. youtube-summary 통합. cacheComponents 호환 패턴: `'use cache'` + `generateStaticParams` + `updateTag`. 메모리 `project_reports_migration.md` 참고. |
-| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`)                                                                                                    |
+| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`). 탭: pnl/plan/inventory/production/**companies**. `/management/companies`는 신규 회사 INSERT 폼(Zod + admin client), 트리거가 page 매핑·정규화 자동 처리.                                                                                                    |
 | `/login`            | 세션 로그인                                                                                                                                                |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                            |
 
 `app/api/`:
 
 - **공개 라우트**: `api/cron/*` (workflow가 호출), `api/revalidate*` (토큰 검증 후 `updateTag()`). `proxy.ts`의 `PUBLIC_PATH_PREFIXES`와 반드시 일치.
-- **보호 라우트**: `api/news/search`, `api/stock-prices`, `api/posts/*`, `api/uploads/report` → 세션 필수.
+- **보호 라우트**: `api/news/search`, `api/stock-prices`, `api/posts/*`, `api/uploads/report`, `api/companies` → 세션 필수.
 - `api/revalidate*`은 SSRF·쿠키 가드 패치 이력 있음 (commit `ea090be`). 회귀 주의.
 
 ### `components/`
