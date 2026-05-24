@@ -19,8 +19,6 @@ import type { EntriesByBasis } from './PnlDashboard';
 import { useChartHeight } from '@/lib/useChartHeight';
 
 interface Props {
-  /** 원본 데이터 (월별 + 연간) */
-  data: PnlEntry[];
   /** 연간 derive 후 (집계용) */
   annualEntries: PnlEntry[];
   /** basis별 연간 분리 — 토글 반응성 개선 */

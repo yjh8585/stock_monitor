@@ -21,14 +21,11 @@ import {
   METRICS_WITH_RATIO,
   type Basis,
   type MetricKey,
-  type PnlEntry,
 } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { OEM_COLORS } from '@/components/oem/helpers';
 
 interface Props {
-  /** 원본 데이터 (월별 행 포함) */
-  data: PnlEntry[];
   /** basis별 월별 원본 분리 — 토글 반응성 개선 */
   monthlyByBasis: EntriesByBasis;
 }
