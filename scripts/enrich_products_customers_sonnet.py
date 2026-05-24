@@ -173,16 +173,14 @@ def main():
     target_raw = os.environ.get('TARGET_NAMES', '').strip()
     target = {t.strip() for t in target_raw.split(',') if t.strip()}
 
-    # OEM whitelist + 별칭 매핑 import
-    sys.path.insert(0, str(Path(__file__).parent / '_tmp'))
-    from lib.normalize_customers_oem_only import ALIAS_TO_STANDARD, _extract_name, _normalize_one  # noqa
+    # customers 정규화·OEM 화이트리스트·dedup은 DB 트리거(companies_normalize_customers,
+    # 마이그레이션 20260522000001)가 BEFORE INSERT/UPDATE 자동 처리.
 
     with WriteSession() as w:
         _main_in_session(w, target, api_key)
 
 
 def _main_in_session(w, target: set[str], api_key: str) -> None:
-    from lib.normalize_customers_oem_only import _extract_name, _normalize_one  # noqa
     rows = w.table('companies').select('id,name_kr,name,country,homepage_url,customers,products,business_summary,company_type').eq('status', 'active').execute().data
     only_empty_customers = os.environ.get('ONLY_EMPTY_CUSTOMERS', '').strip() == '1'
     only_empty_products = os.environ.get('ONLY_EMPTY_PRODUCTS', '').strip() == '1'
@@ -240,27 +238,25 @@ def _main_in_session(w, target: set[str], api_key: str) -> None:
                 new_products = result.get('products') or []
                 new_customers_raw = result.get('customers') or []
 
-                # === 사용자 정책: customers는 기존 보존 + 보완, OEM만 ===
-                # 1) 기존 customers를 OEM 표준명으로 정규화
-                existing_oems: list[str] = []
-                for item in (c.get('customers') or []):
-                    nm = _extract_name(item)
-                    std = _normalize_one(nm) if nm else None
-                    if std and std not in existing_oems:
-                        existing_oems.append(std)
-                # 2) Sonnet/Haiku 결과에서 추출한 customers를 OEM 표준명으로 정규화 + 기존에 추가
-                for item in new_customers_raw:
-                    nm = _extract_name(item)
-                    std = _normalize_one(nm) if nm else None
-                    if std and std not in existing_oems:
-                        existing_oems.append(std)
-                # 3) string array로 저장 (CustomerBadges는 둘 다 지원하지만 표준화)
-                final_customers = existing_oems
+                # 사용자 정책: customers는 기존 보존 + 보완, OEM만.
+                # 기존 + 신규를 객체 array로 합쳐 DB로 보내면 트리거가
+                # OEM 화이트리스트 정규화 + dedup + 비-OEM 자동 폐기를 BEFORE UPDATE에 처리.
+                def _as_obj(item):
+                    if isinstance(item, dict) and item.get('name'):
+                        return {'name': str(item['name']).strip()}
+                    if isinstance(item, str) and item.strip():
+                        return {'name': item.strip()}
+                    return None
+                merged_customers = []
+                for item in (c.get('customers') or []) + list(new_customers_raw):
+                    obj = _as_obj(item)
+                    if obj:
+                        merged_customers.append(obj)
 
                 # products는 LLM 결과로 교체 (기존 데이터 보강 의도)
-                update = {'products': new_products, 'customers': final_customers}
+                update = {'products': new_products, 'customers': merged_customers}
                 w.table('companies').update(update).eq('id', c['id']).execute()
-                logger.info(f'  ✓ products={len(new_products)} customers={len(final_customers)} (OEM only) sources={result.get("sources", [])[:2]}')
+                logger.info(f'  ✓ products={len(new_products)} customers→{len(merged_customers)} 후보 (DB 트리거가 OEM 정규화) sources={result.get("sources", [])[:2]}')
             except Exception as e:
                 logger.error(f'  예외: {e}')
             time.sleep(1.0)
