@@ -1,30 +1,13 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
 import type { Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
-
-const ChartFallback = () => <div className="h-[260px] bg-muted/20 animate-pulse rounded" />;
-
-const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), {
-  ssr: false,
-  loading: ChartFallback,
-});
-const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
-  ssr: false,
-});
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
-  ssr: false,
-});
 
 interface Props {
   annualEntries: PnlEntry[];
@@ -198,7 +181,6 @@ export default function WaterfallProfitability({ annualByBasis }: Props) {
             <Bar dataKey="base" stackId="wf" fill="transparent" />
             {/* visible delta — 데이터의 fill 필드를 막대별로 적용 */}
             <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]} />
-
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import CostStructure from './CostStructure';
 import CompanyOverview from './CompanyOverview';
@@ -8,15 +9,18 @@ import CustomerPerformance from './CustomerPerformance';
 import ProductPerformance from './ProductPerformance';
 import ProductCustomerCross from './ProductCustomerCross';
 import SilPerformance from './SilPerformance';
-import MarginScatter from './MarginScatter';
-import YoyMonthlyCompare from './YoyMonthlyCompare';
-import YoyMonthlyFiltered from './YoyMonthlyFiltered';
 import Forecast2026 from './Forecast2026';
-import YoyProductCustomer from './YoyProductCustomer';
-import Insights from './Insights';
 import LazyMount from '@/components/common/LazyMount';
 import { preparePnlData } from '@/lib/pnl/aggregate';
 import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
+
+// 무거운 차트 컴포넌트 — recharts 청크를 차트 단위로 lazy 분리.
+// 각 차트는 LazyMount 안에 들어가 viewport 진입 시 청크 download + mount.
+const MarginScatter = dynamic(() => import('./MarginScatter'), { ssr: false });
+const YoyMonthlyCompare = dynamic(() => import('./YoyMonthlyCompare'), { ssr: false });
+const YoyMonthlyFiltered = dynamic(() => import('./YoyMonthlyFiltered'), { ssr: false });
+const YoyProductCustomer = dynamic(() => import('./YoyProductCustomer'), { ssr: false });
+const Insights = dynamic(() => import('./Insights'), { ssr: false });
 
 interface Props {
   data: PnlEntry[];

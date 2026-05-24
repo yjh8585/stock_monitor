@@ -1,32 +1,22 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import BasisToggle from './BasisToggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { aggregateBy, prepareYoYView } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { useChartHeight } from '@/lib/useChartHeight';
-
-const ChartFallback = () => <div className="h-[260px] bg-muted/20 animate-pulse rounded" />;
-
-// 모달 내부 라인 차트용 동적 import
-const LineChart = dynamic(() => import('recharts').then((m) => m.LineChart), {
-  ssr: false,
-  loading: ChartFallback,
-});
-const Line = dynamic(() => import('recharts').then((m) => m.Line), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
-  ssr: false,
-});
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
-  ssr: false,
-});
-const Legend = dynamic(() => import('recharts').then((m) => m.Legend), { ssr: false });
 
 interface Props {
   /** 원본 데이터 (월별 + 연간) */

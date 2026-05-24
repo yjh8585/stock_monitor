@@ -1,35 +1,24 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
 import type { Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
-
-const ChartFallback = () => <div className="h-[260px] bg-muted/20 animate-pulse rounded" />;
-
-const ComposedChart = dynamic(() => import('recharts').then((m) => m.ComposedChart), {
-  ssr: false,
-  loading: ChartFallback,
-});
-const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false });
-const Line = dynamic(() => import('recharts').then((m) => m.Line), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
-  ssr: false,
-});
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
-  ssr: false,
-});
-const ReferenceLine = dynamic(() => import('recharts').then((m) => m.ReferenceLine), {
-  ssr: false,
-});
-const Legend = dynamic(() => import('recharts').then((m) => m.Legend), { ssr: false });
 
 interface Props {
   annualEntries: PnlEntry[];

@@ -1,38 +1,24 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useState } from 'react';
+import {
+  LabelList,
+  ReferenceArea,
+  ReferenceLine,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+  ZAxis,
+} from 'recharts';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { aggregateBy, opMarginOf, prepareYoYView } from '@/lib/pnl/aggregate';
 import type { Basis, DimensionKey, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
-
-const ChartFallback = () => (
-  <div className="h-[280px] md:h-[380px] bg-muted/20 animate-pulse rounded" />
-);
-
-// 동적 import (recharts 클라이언트 번들 분리)
-const ScatterChart = dynamic(() => import('recharts').then((m) => m.ScatterChart), {
-  ssr: false,
-  loading: ChartFallback,
-});
-const Scatter = dynamic(() => import('recharts').then((m) => m.Scatter), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
-const ZAxis = dynamic(() => import('recharts').then((m) => m.ZAxis), { ssr: false });
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
-  ssr: false,
-});
-const LabelList = dynamic(() => import('recharts').then((m) => m.LabelList), { ssr: false });
-const ReferenceLine = dynamic(() => import('recharts').then((m) => m.ReferenceLine), {
-  ssr: false,
-});
-const ReferenceArea = dynamic(() => import('recharts').then((m) => m.ReferenceArea), {
-  ssr: false,
-});
 
 interface Props {
   annualEntries: PnlEntry[];

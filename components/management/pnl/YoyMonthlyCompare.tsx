@@ -1,7 +1,16 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { Fragment, useCallback, useMemo, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import BasisToggle from './BasisToggle';
 import GroupMultiSelect from '@/components/common/GroupMultiSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -16,27 +25,6 @@ import {
 } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { OEM_COLORS } from '@/components/oem/helpers';
-
-const ChartFallback = () => (
-  <div className="h-[280px] md:h-[380px] bg-muted/20 animate-pulse rounded" />
-);
-
-// 동적 import
-const BarChart = dynamic(() => import('recharts').then((m) => m.BarChart), {
-  ssr: false,
-  loading: ChartFallback,
-});
-const Bar = dynamic(() => import('recharts').then((m) => m.Bar), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), {
-  ssr: false,
-});
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then((m) => m.ResponsiveContainer), {
-  ssr: false,
-});
-const Legend = dynamic(() => import('recharts').then((m) => m.Legend), { ssr: false });
 
 interface Props {
   /** 원본 데이터 (월별 행 포함) */
