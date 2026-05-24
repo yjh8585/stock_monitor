@@ -121,6 +121,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - `collect_*.py` — 외부 → DB 수집
 - `enrich_*.py` — 기존 행 보강 (외부 LLM·검색). **append-only 정책**. `enrich_company.py`는 메타(business_summary·products·customers·**homepage_url**) + 재무 + 뉴스를 일괄 보강.
 - `onboard_company.py` — **신규 회사 추가 직후 1회 실행**. 단일 회사 식별(ticker/name/id) → enrich_company 트리거 → 캐시 무효화. 사용: `python scripts/onboard_company.py --ticker 005380`. 주가는 collect_prices_live cron이 자동 fetch. **재실행 안전(멱등)** — (1) `enrich_company`는 append-only 정책, (2) 페이지 매핑은 DB 트리거(`companies_auto_page_mapping`, 마이그레이션 `20260522000005`)가 자동, (3) 캐시 무효화는 `WriteSession`이 자동. 부분 실패 시 같은 명령 재실행하면 됨. 일회성 옵션(`--fiscal-year-end-month`)은 첫 실행에 지정.
+- `e2e_smoke.py` — 9개 보호 라우트(`/related-stocks`, `/compare`, `/domestic`, `/oem`, `/parts-top100`, `/hansae`, `/etc`, `/reports`, `/management/pnl`) 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷 캡처. 회귀 검증용. 사용: `python scripts/e2e_smoke.py` (env: `E2E_BASE_URL`, `MOBILITY_ID/PW`). 결과: `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - `analyze_*.py` / `recheck_*.py` / `recollect_*.py` / `find_*.py` / `inspect_*.py` / `debug_*.py` — 진단·복원. 작업 종료 후 **`scripts/_archive/`**로 이동.
 - `seed_*.py` / `import_*.py` / `sync_*.py` / `gen_*.py` / `normalize_*.py` / `migrate_*.ts` — 시드·일회성 마이그레이션. 작업 종료 후 **`scripts/_archive/`**로 이동(단 `sync_oem_excel.py`와 `import_oem_sales.py`는 workflow 활성이라 `scripts/`에 유지).
 - `_*.json` / `_*.log` / `_*.py` — 임시 산출물. 활성 스크립트가 사용하지 않으면 **`scripts/_archive/`**로 이동(폴더 내 `.gitignore`가 새 json/log/html 자동 무시).
