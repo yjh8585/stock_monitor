@@ -76,7 +76,7 @@ npm run format          # 자동 포맷
 | `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                               |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                          |
 | `/reports`          | 보고서. youtube-summary 통합. cacheComponents 호환 패턴: `'use cache'` + `generateStaticParams` + `updateTag`. 메모리 `project_reports_migration.md` 참고. |
-| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`). 탭: pnl/plan/inventory/production/**companies**. `/management/companies`는 신규 회사 INSERT 폼(Zod + admin client), 트리거가 page 매핑·정규화 자동 처리.                                                                                                    |
+| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`). 탭: pnl/plan/inventory/production/**companies**. `/management/companies`는 신규 회사 INSERT 폼(Zod + admin client) + 회사 목록(검색·필터). INSERT 성공 시 `onboard-company.yml` workflow_dispatch 자동 트리거(fire-and-forget) → onboard_company.py 실행 → 재무·메타·뉴스 자동 보강. dispatch 실패해도 INSERT는 graceful 유지(폼에 안내).                                                                                                    |
 | `/login`            | 세션 로그인                                                                                                                                                |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                            |
 
@@ -146,7 +146,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ### `.github/workflows/`
 
-24개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-* 3종은 Vercel cron 대체용으로 curl 호출.
+25개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-* 3종은 Vercel cron 대체용으로 curl 호출.
 
 - 가격·환율: 매일/매시간
 - 재무: 분기별 (1/4/7/10월 15일)
@@ -154,6 +154,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - DART·매크로·해운·철강·원자재: 일간/주간
 - Vercel cron 대체(curl 트리거): `cron-quotes-5min`, `cron-sentiment` — Hobby 플랜 일 1회 제약 회피. secret 필요: `APP_BASE_URL`, `CRON_SECRET`
 - 한세 종목토론은 Vercel 60s timeout 우회 위해 GHA runner에서 Node 직접 실행: `collect-naver-board.yml` → `scripts/collect_naver_board.ts`(`@supabase/supabase-js`+`lib/naver/board.ts` 재사용). secret 필요: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- 신규 회사 onboarding: `onboard-company.yml` — `workflow_dispatch` 전용. `/api/companies` POST가 INSERT 성공 후 GitHub API로 자동 트리거(fire-and-forget). 입력: ticker, fiscal_year_end_month(옵션). Vercel env 필요: `GITHUB_PAT`(workflow 트리거용). secret 필요: 기존 cron과 동일.
 
 ### 루트 설정
 
@@ -179,7 +180,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 │ Marklines      │   │ collect_marklines*   │   │ (TOP100 매핑)   │   │ /management       │
 └────────────────┘   └──────────────────────┘   └─────────────────┘   └───────────────────┘
                               │                                              ▲
-                  GitHub Actions 24개 워크플로                                │
+                  GitHub Actions 25개 워크플로                                │
                   (cron · 수동 dispatch)                                      │
                               │                                              │
                               ▼                                              │

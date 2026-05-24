@@ -1,0 +1,53 @@
+name: 신규 회사 onboarding (재무·메타·뉴스 보강)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: '회사 ticker (예: 005380 또는 비상장 회사명)'
+        required: true
+        type: string
+      fiscal_year_end_month:
+        description: '결산월 1~12 (비-12월 결산 회사일 때만, 옵션)'
+        required: false
+        type: string
+
+jobs:
+  onboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: Playwright Chromium 설치 (fnguide 스크래핑 대비)
+        run: playwright install chromium --with-deps
+
+      - name: 회사 onboarding 실행
+        run: |
+          if [ -n "${{ github.event.inputs.fiscal_year_end_month }}" ]; then
+            python onboard_company.py --ticker "${{ github.event.inputs.ticker }}" --fiscal-year-end-month "${{ github.event.inputs.fiscal_year_end_month }}"
+          else
+            python onboard_company.py --ticker "${{ github.event.inputs.ticker }}"
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}

@@ -6,18 +6,60 @@ import { createCompanyInputSchema } from '@/lib/companies/schemas';
 import { fail, ok } from '@/lib/reports/api-response';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
+const GITHUB_OWNER = 'yjh8585';
+const GITHUB_REPO = 'stock_monitor';
+const ONBOARD_WORKFLOW = 'onboard-company.yml';
+
 /**
- * 신규 회사 INSERT — `/management/companies` 폼 백엔드.
+ * GitHub workflow_dispatch 호출 — INSERT 후 onboard_company.py 자동 실행.
+ *
+ * fire-and-forget: API는 dispatch 시작만 트리거하고 결과는 모름. 사용자가
+ * Actions UI에서 확인. dispatch 자체 실패는 응답에 명시 — INSERT는 유지(graceful).
+ */
+async function triggerOnboardWorkflow(
+  ticker: string
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const pat = process.env.GITHUB_PAT;
+  if (!pat) {
+    return { ok: false, error: 'GITHUB_PAT 환경변수 미설정' };
+  }
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${ONBOARD_WORKFLOW}/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${pat}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({ ref: 'master', inputs: { ticker } }),
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return { ok: false, error: `GitHub API ${res.status}: ${text.slice(0, 200)}` };
+    }
+    // 204 No Content. workflow run URL은 별도 폴링이 필요해 일단 workflow page URL 반환.
+    return {
+      ok: true,
+      url: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${ONBOARD_WORKFLOW}`,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * 신규 회사 INSERT + onboarding 자동 트리거.
  *
  * 흐름:
- *   1) Zod 검증 (필수 컬럼 enum + length).
- *   2) ticker 중복 사전 조회 — UNIQUE constraint 의존하지 않고 사용자에 명확한 메시지.
- *   3) admin client로 INSERT — 트리거(`companies_auto_page_mapping`, `companies_normalize_*`,
- *      `company_type` DEFAULT)가 후처리.
- *   4) 캐시 무효화 — companies + 3개 stocks view (data_source별로 매핑됨).
- *
- * 후속: 메타·재무·뉴스 보강은 `scripts/onboard_company.py --ticker <T>` 실행. API는
- * INSERT까지만 책임.
+ *   1) Zod 검증.
+ *   2) ticker 중복 사전 조회.
+ *   3) admin client INSERT — 트리거(auto_page_mapping/normalize_customers/products) 후처리.
+ *   4) 캐시 무효화 (companies + 3 stocks views).
+ *   5) GitHub workflow_dispatch로 `scripts/onboard_company.py --ticker XXX` 자동 실행 트리거.
+ *      dispatch 실패해도 INSERT는 유지 — graceful fallback.
  */
 export async function POST(req: Request) {
   let body: unknown;
@@ -37,7 +79,6 @@ export async function POST(req: Request) {
 
   const supabase = createSupabaseAdminClient();
 
-  // 중복 ticker 사전 조회 — UNIQUE constraint도 잡지만 메시지 명확성을 위해.
   const { data: existing, error: dupErr } = await supabase
     .from('companies')
     .select('id, ticker, name_kr')
@@ -76,13 +117,33 @@ export async function POST(req: Request) {
     return NextResponse.json(fail('INSERT_FAILED', error.message), { status: 500 });
   }
 
-  // 트리거가 company_pages 자동 매핑 + customers/products 자동 정규화.
-  // 목록·뷰 캐시 무효화 (3개 페이지뷰 모두).
   revalidateTag('companies', 'max');
   revalidateTag('related_stocks_view', 'max');
   revalidateTag('domestic_stocks_view', 'max');
   revalidateTag('parts_top100_stocks_view', 'max');
 
-  logger.info({ id: data.id, ticker: data.ticker, name_kr: data.name_kr }, '회사 INSERT 성공');
-  return NextResponse.json(ok(data), { status: 201 });
+  // workflow_dispatch — fire-and-forget. INSERT는 이미 성공이라 graceful.
+  // ticker는 NOT NULL이지만 Supabase select 추론이 nullable로 잡혀 narrow.
+  const insertedTicker = data.ticker ?? input.ticker;
+  const dispatch = await triggerOnboardWorkflow(insertedTicker);
+  if (!dispatch.ok) {
+    logger.warn(
+      { err: dispatch.error, ticker: data.ticker },
+      'onboard workflow_dispatch 실패 — INSERT는 유지'
+    );
+  } else {
+    logger.info(
+      { ticker: data.ticker, url: dispatch.url },
+      'onboard workflow_dispatch 트리거됨'
+    );
+  }
+
+  return NextResponse.json(
+    ok({
+      ...data,
+      actionsRunUrl: dispatch.ok ? dispatch.url : null,
+      dispatchError: dispatch.ok ? null : dispatch.error,
+    }),
+    { status: 201 }
+  );
 }

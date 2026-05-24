@@ -80,10 +80,23 @@ export function NewCompanyForm() {
         toast.error(json?.error?.message ?? '회사 등록 실패');
         return;
       }
-      toast.success(
-        `${json.data.name_kr} 추가됨. 이제 터미널에서: python scripts/onboard_company.py --ticker ${json.data.ticker}`,
-        { duration: 12000 }
-      );
+      // 응답 형식: { id, ticker, name_kr, actionsRunUrl, dispatchError }
+      const actionsUrl = json.data.actionsRunUrl as string | null;
+      const dispatchErr = json.data.dispatchError as string | null;
+      if (actionsUrl) {
+        toast.success(`${json.data.name_kr} 추가됨. 보강 워크플로 자동 실행됨.`, {
+          duration: 15000,
+          action: {
+            label: 'Actions 보기',
+            onClick: () => window.open(actionsUrl, '_blank'),
+          },
+        });
+      } else {
+        toast.success(
+          `${json.data.name_kr} 추가됨. 워크플로 자동 실행 실패 (${dispatchErr ?? '?'}). 터미널: python scripts/onboard_company.py --ticker ${json.data.ticker}`,
+          { duration: 18000 }
+        );
+      }
       // 폼 리셋 — 연속 추가 편의
       setTicker('');
       setName('');
