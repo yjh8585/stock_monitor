@@ -103,116 +103,10 @@ UNIT_TO_MILLION = {
   'billion': 1000.0,
 }
 
-import re
-
-# DB 마이그레이션(20260509000002_normalize_customers_v2.sql) 의 normalize_customer_name 함수와 동기화 유지.
-# - 한글-영문 괄호 패턴 자동 정리
-# - 법인격 접미사 제거
-# - 명시적 표준명 매핑
-CUSTOMER_NORMALIZE: dict[str, str] = {}
-for std, variants in [
-  ('폭스바겐', ['Volkswagen', 'Volkswagen Group', 'FAW Volkswagen']),
-  ('GM', ['General Motors', '제너럴모터스', '지엠']),
-  ('한국지엠', ['한국GM', '한국 GM']),
-  ('포드', ['Ford', 'Ford Motor', 'Ford Motor Company']),
-  ('BMW', ['BMW Group', 'BMW 그룹', 'BMW Brilliance']),
-  ('메르세데스-벤츠', ['Mercedes-Benz', 'Daimler', '다임러', 'DaimlerChrysler', '메르세데스벤츠', '벤츠', 'Mercedes']),
-  ('다임러트럭', ['Daimler Trucks', 'Daimler Trucks North America', 'Daimler Truck', 'Freightliner', 'Western Star']),
-  ('도요타', ['Toyota', '토요타', 'Toyota Motor', 'Toyota Group', '도요타 그룹']),
-  ('혼다', ['Honda', 'Honda Motor', 'Honda Motor Co', 'Honda Motor Co., Ltd', 'Honda Motor Co., Ltd.', 'Honda Motor Company']),
-  ('닛산', ['Nissan', 'Nissan Motor', 'Nissan Motor Co', 'Nissan Motor Co., Ltd', 'Nissan Motor Co., Ltd.']),
-  ('마쓰다', ['Mazda', 'Mazda Motor', 'Mazda Motor Corporation']),
-  ('미쓰비시', ['Mitsubishi', 'Mitsubishi Motors', '미쓰비시자동차']),
-  ('스바루', ['Subaru', 'Subaru Corporation']),
-  ('스즈키', ['Suzuki', 'Suzuki Motor', 'Suzuki Motor Corporation']),
-  ('테슬라', ['Tesla', 'Tesla Shanghai', 'Tesla Inc']),
-  ('스텔란티스', ['Stellantis', 'Dodge Ram', 'Dodge', 'Ram', 'Chrysler', 'Jeep', 'Fiat', 'FCA',
-              'Stellantis N.V.', 'PSA', 'PSA 그룹', 'PSA Group']),
-  ('볼보', ['Volvo', 'Volvo Cars']),
-  ('볼보트럭', ['Volvo Group', 'Volvo Trucks']),
-  ('아우디', ['Audi']),
-  ('포르쉐', ['Porsche']),
-  ('람보르기니', ['Lamborghini']),
-  ('벤틀리', ['Bentley']),
-  ('푸조', ['Peugeot']),
-  ('시트로엥', ['Citroen', 'Citroën']),
-  ('르노', ['Renault']),
-  ('르노코리아', ['Renault Korea', '르노삼성']),
-  ('르노-닛산', ['Renault-Nissan', 'Renault-Nissan-Mitsubishi Alliance', 'Renault Nissan Mitsubishi']),
-  ('BYD', ['비야디']),
-  ('지리', ['Geely']),
-  ('체리', ['Chery']),
-  ('창안', ['Changan', 'Changan Auto', '창안자동차']),
-  ('그레이트월모터스', ['Great Wall Motor', 'Great Wall Motors', 'GWM', '그레이트월모터']),
-  ('SAIC', ['SAIC Motor', '상하이자동차']),
-  ('베이징현대', ['Beijing Hyundai', '베이징 현대']),
-  ('리샹', ['Li Auto', 'Li Xiang']),
-  ('NIO', ['Nio', '니오']),
-  ('XPeng', ['Xpeng', '샤오펑']),
-  ('JAC', ['JAC Group']),
-  ('재규어 랜드로버', ['Jaguar Land Rover', 'JLR', '재규어랜드로버']),
-  ('페라리', ['Ferrari']),
-  ('리비안', ['Rivian']),
-  ('빈패스트', ['VinFast']),
-  ('루시드', ['Lucid', 'Lucid Motors']),
-  ('현대차', ['Hyundai', '현대자동차', '현대', 'Hyundai Motor']),
-  ('기아', ['Kia', '기아차', '기아자동차', 'Kia Motor']),
-  ('현대차/기아', ['현대기아', 'Hyundai-Kia', '현대-기아', 'Hyundai-Kia Motors', 'Hyundai Kia']),
-  ('KG모빌리티', ['KG Mobility', '쌍용', '쌍용자동차']),
-  ('PACCAR', ['Paccar', 'PACCAR Inc', 'PACCAR Inc.', 'Kenworth', 'Peterbilt']),
-  ('Navistar', ['International']),
-  ('MAN', ['만']),
-  ('스카니아', ['Scania']),
-  ('DAF', ['DAF Trucks']),
-  ('에스케이온', ['SK온', 'SK On', 'SK on']),
-]:
-  CUSTOMER_NORMALIZE[std] = std
-  for v in variants:
-    CUSTOMER_NORMALIZE[v] = std
-
-_LEGAL_SUFFIX_RE = re.compile(
-  r'\s*(AG|GmbH|Inc\.?|Corp\.?|Corporation|Co\.,?\s*Ltd\.?|Co\s+Ltd\.?|Motor\s+Company|'
-  r'Motor\s+Corporation|Motors|N\.?V\.?|Group|S\.A\.|SE|plc|PLC)$',
-  re.IGNORECASE,
-)
-_PAREN_RE = re.compile(r'\(([^)]+)\)')
-_HANGUL_RE = re.compile(r'[가-힣]')
-
-
-def _clean_raw_customer(raw: str) -> str:
-  """괄호 패턴 + 법인격 정리 — DB 함수와 동일 로직 (Python 사이드)."""
-  cleaned = raw.strip()
-  m = _PAREN_RE.search(cleaned)
-  if m:
-    inner = m.group(1).strip()
-    outer = _PAREN_RE.sub(' ', cleaned).strip()
-    if _HANGUL_RE.search(inner) and not _HANGUL_RE.search(outer):
-      cleaned = inner
-    elif _HANGUL_RE.search(outer):
-      cleaned = outer
-    else:
-      cleaned = outer
-  cleaned = _LEGAL_SUFFIX_RE.sub('', cleaned).strip()
-  return cleaned
-
-
-def _normalize_customers(items: list[dict] | None) -> list[dict]:
-  """LLM이 반환한 customers 배열을 표준 OEM명으로 정규화 + 중복 제거."""
-  if not items:
-    return []
-  seen: set[str] = set()
-  result: list[dict] = []
-  for it in items:
-    raw = (it.get('name') or '').strip()
-    if not raw:
-      continue
-    cleaned = _clean_raw_customer(raw)
-    std = CUSTOMER_NORMALIZE.get(cleaned, cleaned)
-    if std in seen:
-      continue
-    seen.add(std)
-    result.append({'name': std})
-  return result
+# customers 정규화는 DB 트리거(`companies_normalize_customers`, 마이그레이션
+# 20260522000001)가 BEFORE INSERT/UPDATE 시 자동 처리한다. raw LLM 결과를 그대로
+# UPDATE 페이로드에 넣으면 트리거가 `expand_customer_name`으로 OEM 화이트리스트 + 정책
+# 매핑 + dedup을 수행. Python에서 별도 normalize 안 함 — SSOT는 DB.
 
 
 # ── 회사 분류·조회 ───────────────────────────────────────────────────────
@@ -496,7 +390,8 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
         if res.get('products'):
           payload['products'] = res['products']
         if res.get('customers'):
-          payload['customers'] = _normalize_customers(res['customers'])
+          # DB 트리거(companies_normalize_customers)가 정규화·dedup 자동 처리.
+          payload['customers'] = res['customers']
         hp = res.get('homepage_url')
         if hp and isinstance(hp, str) and hp.startswith(('http://', 'https://')):
           payload['homepage_url'] = hp.strip()
