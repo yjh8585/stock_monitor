@@ -46,17 +46,22 @@ export default async function HansaePage() {
  */
 async function HansaeDataLoader() {
   const companies = await getHansaeCompanies();
+  // 회사 안 7개 query를 Promise.all로 병렬화 — 회사당 7 RTT → 1 RTT.
+  // critical path는 getDailyPrices(~1250행 pagination)이고 나머지는 그 동안 동시 완료.
   const initial = await Promise.all(
-    companies.map(async (c) => ({
-      company: c,
-      daily: await getDailyPrices(c.id, 5),
-      intraday: await getIntradayQuotes(c.id),
-      posts: await getRecentBoardPosts(c.id, 5),
-      sentiment: await getSentimentSummary(c.id, 7),
-      supply: await getRecentSupplyDemand(c.id, 5),
-      intradaySupply: await getIntradaySupply(c.id),
-      todayNews: await getTodayNews(c.id, 8),
-    }))
+    companies.map(async (c) => {
+      const [daily, intraday, posts, sentiment, supply, intradaySupply, todayNews] =
+        await Promise.all([
+          getDailyPrices(c.id, 5),
+          getIntradayQuotes(c.id),
+          getRecentBoardPosts(c.id, 5),
+          getSentimentSummary(c.id, 7),
+          getRecentSupplyDemand(c.id, 5),
+          getIntradaySupply(c.id),
+          getTodayNews(c.id, 8),
+        ]);
+      return { company: c, daily, intraday, posts, sentiment, supply, intradaySupply, todayNews };
+    })
   );
   return <HansaeDashboard initial={initial} />;
 }
