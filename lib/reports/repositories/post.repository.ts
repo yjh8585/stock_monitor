@@ -2,9 +2,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
-import type { PostInsert, PostRow, PostSourceType, PostUpdate } from '@/lib/reports/types';
+import type {
+  PostInsert,
+  PostListRow,
+  PostRow,
+  PostSourceType,
+  PostUpdate,
+} from '@/lib/reports/types';
 
 const POSTS_TABLE = 'posts';
+
+/**
+ * 목록 페이지 전용 select 컬럼 — `content`(본문)와 `key_scenes`를 제외해 payload 축소.
+ * 상세 fetch(`findById`)는 select('*') 그대로 사용.
+ */
+const POST_LIST_COLUMNS =
+  'id,source_type,title,source_name,source_url,file_path,file_name,thumbnail_url,status,error_message,source_published_at,category,created_at,updated_at';
 
 /**
  * posts 테이블 접근 레이어. 쓰기는 service role, 읽기는 anon 키로 분리한다.
@@ -39,14 +52,14 @@ export class PostRepository {
       category?: string;
       sourceName?: string;
     }
-  ): Promise<{ rows: PostRow[]; total: number }> {
+  ): Promise<{ rows: PostListRow[]; total: number }> {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
     const sort = options?.sort ?? 'source_published_at';
     const order = options?.order ?? 'desc';
     const ascending = order === 'asc';
 
-    let query = this.read.from(POSTS_TABLE).select('*', { count: 'exact' });
+    let query = this.read.from(POSTS_TABLE).select(POST_LIST_COLUMNS, { count: 'exact' });
 
     if (options?.sourceType) query = query.eq('source_type', options.sourceType);
     if (options?.category) query = query.eq('category', options.category);
@@ -63,7 +76,7 @@ export class PostRepository {
 
     const { data, error, count } = await query.range(from, to);
     if (error) throw error;
-    return { rows: (data ?? []) as PostRow[], total: count ?? 0 };
+    return { rows: (data ?? []) as PostListRow[], total: count ?? 0 };
   }
 
   /** 필터 드롭다운용 카테고리 목록 (NULL 제외, 가나다 정렬) */

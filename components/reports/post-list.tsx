@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { PostRow } from '@/lib/reports/types';
+import type { PostListRow } from '@/lib/reports/types';
 
 type SortKey = 'created_at' | 'source_published_at';
 type SortOrder = 'asc' | 'desc';
@@ -23,7 +23,7 @@ interface FilterParams {
 }
 
 interface Props {
-  rows: PostRow[];
+  rows: PostListRow[];
   /** 전체 게시글 수. 표시 번호 계산에 사용. */
   total: number;
   /** 현재 페이지의 시작 인덱스(0-based). */
@@ -151,7 +151,10 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               <TableCell>
                 <PostSourceBadge sourceType={row.source_type} />
               </TableCell>
-              <TableCell className="text-muted-foreground truncate text-sm" title={row.category ?? undefined}>
+              <TableCell
+                className="text-muted-foreground truncate text-sm"
+                title={row.category ?? undefined}
+              >
                 {row.category ?? '—'}
               </TableCell>
               <TableCell className="whitespace-normal">

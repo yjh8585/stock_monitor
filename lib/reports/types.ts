@@ -31,6 +31,13 @@ export interface PostRow {
   updated_at: string;
 }
 
+/**
+ * 보고서 목록 페이지 전용 행 — `content`(본문 markdown/html)와 `key_scenes`를 제외해
+ * RSC payload + Supabase 응답 크기를 축소한다. 상세 페이지(`PostRow`)와 다르게
+ * 본문이 필요 없는 list/카드 컴포넌트에서만 사용.
+ */
+export type PostListRow = Omit<PostRow, 'content' | 'key_scenes'>;
+
 export interface PostInsert {
   id?: number;
   source_type: PostSourceType;
