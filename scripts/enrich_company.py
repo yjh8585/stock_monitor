@@ -239,7 +239,7 @@ def _load_targets(client, page: str | None, target_tickers: set[str]) -> list[di
 
 def _has_financials(w, cid: str) -> bool:
   rows = (
-    client.table('financials').select('company_id').eq('company_id', cid)
+    w.table('financials').select('company_id').eq('company_id', cid)
     .eq('period_type', 'annual').limit(1).execute().data or []
   )
   return len(rows) > 0
