@@ -9,12 +9,39 @@ import { z } from 'zod';
 
 /** 지원 국가 — companies.country (NOT NULL). 추가 시 enum 확장. */
 export const COUNTRIES = [
-  'KR', 'US', 'JP', 'CN', 'DE', 'GB', 'HK', 'FR', 'IT', 'SE', 'IN', 'MX', 'TW', 'TH', 'VN',
+  'KR',
+  'US',
+  'JP',
+  'CN',
+  'DE',
+  'GB',
+  'HK',
+  'FR',
+  'IT',
+  'SE',
+  'IN',
+  'MX',
+  'TW',
+  'TH',
+  'VN',
+  'UZ',
 ] as const;
 
 /** 지원 통화 — companies.currency (NOT NULL). */
 export const CURRENCIES = [
-  'KRW', 'USD', 'EUR', 'JPY', 'HKD', 'GBP', 'CNY', 'SEK', 'INR', 'MXN', 'TWD', 'THB', 'VND',
+  'KRW',
+  'USD',
+  'EUR',
+  'JPY',
+  'HKD',
+  'GBP',
+  'CNY',
+  'SEK',
+  'INR',
+  'MXN',
+  'TWD',
+  'THB',
+  'VND',
 ] as const;
 
 /**
@@ -22,9 +49,17 @@ export const CURRENCIES = [
  * 트리거가 이걸로 page 자동 매핑:
  *   yfinance/marklines → parts-top100
  *   fnguide/dart/pykrx+dart → domestic
+ *   uzauto-pdf (PDF-only OEM, e.g. UzAuto Motors) → related-stocks
  *   ELSE → 매핑 없음 (사용자 수동)
  */
-export const DATA_SOURCES = ['yfinance', 'fnguide', 'dart', 'marklines', 'pykrx+dart'] as const;
+export const DATA_SOURCES = [
+  'yfinance',
+  'fnguide',
+  'dart',
+  'marklines',
+  'pykrx+dart',
+  'uzauto-pdf',
+] as const;
 
 /** companies.company_type — OEM/부품사. DB default '부품사'. */
 export const COMPANY_TYPES = ['OEM', '부품사'] as const;

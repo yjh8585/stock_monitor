@@ -5,6 +5,8 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: '14.5';
   };
@@ -93,21 +95,27 @@ export type Database = {
           currency: string;
           customers: Json;
           customers_updated_at: string | null;
+          dart_collection_status: string | null;
+          dart_corp_code: string | null;
           data_source: string;
+          fiscal_year_end_month: number;
           group_name: string | null;
           homepage_url: string | null;
           id: string;
           is_seed: boolean;
           last_change_pct: number | null;
+          last_collect_error: string | null;
           last_price: number | null;
           last_updated_at: string | null;
           last_volume: number | null;
           market: string | null;
           market_cap: number | null;
+          merged_into_company_id: string | null;
           name: string;
           name_kr: string;
           products: Json;
           region: string | null;
+          retry_after: string | null;
           status: string;
           summary_updated_at: string | null;
           ticker: string | null;
@@ -121,21 +129,27 @@ export type Database = {
           currency: string;
           customers?: Json;
           customers_updated_at?: string | null;
+          dart_collection_status?: string | null;
+          dart_corp_code?: string | null;
           data_source: string;
+          fiscal_year_end_month?: number;
           group_name?: string | null;
           homepage_url?: string | null;
           id?: string;
           is_seed?: boolean;
           last_change_pct?: number | null;
+          last_collect_error?: string | null;
           last_price?: number | null;
           last_updated_at?: string | null;
           last_volume?: number | null;
           market?: string | null;
           market_cap?: number | null;
+          merged_into_company_id?: string | null;
           name: string;
           name_kr: string;
           products?: Json;
           region?: string | null;
+          retry_after?: string | null;
           status?: string;
           summary_updated_at?: string | null;
           ticker?: string | null;
@@ -149,27 +163,62 @@ export type Database = {
           currency?: string;
           customers?: Json;
           customers_updated_at?: string | null;
+          dart_collection_status?: string | null;
+          dart_corp_code?: string | null;
           data_source?: string;
+          fiscal_year_end_month?: number;
           group_name?: string | null;
           homepage_url?: string | null;
           id?: string;
           is_seed?: boolean;
           last_change_pct?: number | null;
+          last_collect_error?: string | null;
           last_price?: number | null;
           last_updated_at?: string | null;
           last_volume?: number | null;
           market?: string | null;
           market_cap?: number | null;
+          merged_into_company_id?: string | null;
           name?: string;
           name_kr?: string;
           products?: Json;
           region?: string | null;
+          retry_after?: string | null;
           status?: string;
           summary_updated_at?: string | null;
           ticker?: string | null;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'companies_merged_into_company_id_fkey';
+            columns: ['merged_into_company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'companies_merged_into_company_id_fkey';
+            columns: ['merged_into_company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'companies_merged_into_company_id_fkey';
+            columns: ['merged_into_company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'companies_merged_into_company_id_fkey';
+            columns: ['merged_into_company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       company_pages: {
         Row: {
@@ -236,6 +285,7 @@ export type Database = {
           cfps: number | null;
           cogs: number | null;
           company_id: string;
+          consolidation: string | null;
           currency: string;
           current_ratio: number | null;
           debt_ratio: number | null;
@@ -275,6 +325,7 @@ export type Database = {
           cfps?: number | null;
           cogs?: number | null;
           company_id: string;
+          consolidation?: string | null;
           currency: string;
           current_ratio?: number | null;
           debt_ratio?: number | null;
@@ -314,6 +365,7 @@ export type Database = {
           cfps?: number | null;
           cogs?: number | null;
           company_id?: string;
+          consolidation?: string | null;
           currency?: string;
           current_ratio?: number | null;
           debt_ratio?: number | null;
@@ -348,27 +400,47 @@ export type Database = {
           total_equity?: number | null;
           total_liabilities?: number | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financials_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      kis_tokens: {
+        Row: { env_key: string; expires_at: string; token: string; updated_at: string };
+        Insert: { env_key: string; expires_at: string; token: string; updated_at?: string };
+        Update: { env_key?: string; expires_at?: string; token?: string; updated_at?: string };
         Relationships: [];
       };
       kiwoom_tokens: {
-        Row: {
-          access_token: string;
-          expires_at: string;
-          id: number;
-          updated_at: string;
-        };
-        Insert: {
-          access_token: string;
-          expires_at: string;
-          id?: number;
-          updated_at?: string;
-        };
-        Update: {
-          access_token?: string;
-          expires_at?: string;
-          id?: number;
-          updated_at?: string;
-        };
+        Row: { access_token: string; expires_at: string; id: number; updated_at: string };
+        Insert: { access_token: string; expires_at: string; id?: number; updated_at?: string };
+        Update: { access_token?: string; expires_at?: string; id?: number; updated_at?: string };
         Relationships: [];
       };
       macro_outlook_notes: {
@@ -479,6 +551,27 @@ export type Database = {
             referencedRelation: 'companies';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'naver_board_posts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'naver_board_posts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'naver_board_posts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
         ];
       };
       news: {
@@ -512,7 +605,36 @@ export type Database = {
           title?: string;
           url?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'news_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       oem_model_outlook: {
         Row: {
@@ -568,7 +690,12 @@ export type Database = {
       oem_sales_group_pt_month: {
         Row: { oem_group: string; powertrain: string; sales: number; year_month: number };
         Insert: { oem_group: string; powertrain: string; sales: number; year_month: number };
-        Update: { oem_group?: string; powertrain?: string; sales?: number; year_month?: number };
+        Update: {
+          oem_group?: string;
+          powertrain?: string;
+          sales?: number;
+          year_month?: number;
+        };
         Relationships: [];
       };
       oem_sales_model_country_month: {
@@ -598,7 +725,12 @@ export type Database = {
       oem_sales_type_seg_month: {
         Row: { sales: number; segment: string; vehicle_type: string; year_month: number };
         Insert: { sales: number; segment: string; vehicle_type: string; year_month: number };
-        Update: { sales?: number; segment?: string; vehicle_type?: string; year_month?: number };
+        Update: {
+          sales?: number;
+          segment?: string;
+          vehicle_type?: string;
+          year_month?: number;
+        };
         Relationships: [];
       };
       pnl_cost_structure: {
@@ -757,6 +889,68 @@ export type Database = {
         Update: { normalized?: string; raw_category?: string };
         Relationships: [];
       };
+      stock_daily_prices: {
+        Row: {
+          change_pct: number | null;
+          close_price: number | null;
+          company_id: string;
+          high_price: number | null;
+          low_price: number | null;
+          open_price: number | null;
+          trade_date: string;
+          volume: number | null;
+        };
+        Insert: {
+          change_pct?: number | null;
+          close_price?: number | null;
+          company_id: string;
+          high_price?: number | null;
+          low_price?: number | null;
+          open_price?: number | null;
+          trade_date: string;
+          volume?: number | null;
+        };
+        Update: {
+          change_pct?: number | null;
+          close_price?: number | null;
+          company_id?: string;
+          high_price?: number | null;
+          low_price?: number | null;
+          open_price?: number | null;
+          trade_date?: string;
+          volume?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'stock_daily_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_daily_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_daily_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_daily_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       stock_prices: {
         Row: {
           adj_close: number | null;
@@ -788,7 +982,36 @@ export type Database = {
           trade_date?: string;
           volume?: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_prices_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       stock_quotes_5min: {
         Row: {
@@ -820,10 +1043,33 @@ export type Database = {
             referencedRelation: 'companies';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'stock_quotes_5min_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_quotes_5min_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_quotes_5min_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
         ];
       };
       stock_supply_demand: {
         Row: {
+          change_pct: number | null;
+          close_price: number | null;
           company_id: string;
           foreign_net: number | null;
           individual_net: number | null;
@@ -832,6 +1078,8 @@ export type Database = {
           trade_date: string;
         };
         Insert: {
+          change_pct?: number | null;
+          close_price?: number | null;
           company_id: string;
           foreign_net?: number | null;
           individual_net?: number | null;
@@ -840,6 +1088,8 @@ export type Database = {
           trade_date: string;
         };
         Update: {
+          change_pct?: number | null;
+          close_price?: number | null;
           company_id?: string;
           foreign_net?: number | null;
           individual_net?: number | null;
@@ -855,13 +1105,118 @@ export type Database = {
             referencedRelation: 'companies';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'stock_supply_demand_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_supply_demand_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_supply_demand_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
         ];
+      };
+      stock_supply_demand_intraday: {
+        Row: {
+          company_id: string;
+          foreign_net: number | null;
+          individual_net: number | null;
+          institution_net: number | null;
+          snapshot_ts: string;
+          trade_date: string;
+        };
+        Insert: {
+          company_id: string;
+          foreign_net?: number | null;
+          individual_net?: number | null;
+          institution_net?: number | null;
+          snapshot_ts: string;
+          trade_date: string;
+        };
+        Update: {
+          company_id?: string;
+          foreign_net?: number | null;
+          individual_net?: number | null;
+          institution_net?: number | null;
+          snapshot_ts?: string;
+          trade_date?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'stock_supply_demand_intraday_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_supply_demand_intraday_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_supply_demand_intraday_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'stock_supply_demand_intraday_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      uzauto_pdf_cache: {
+        Row: {
+          etag: string | null;
+          fiscal_year: number;
+          last_processed_at: string;
+          report_type: string;
+          sha256: string | null;
+          url: string;
+        };
+        Insert: {
+          etag?: string | null;
+          fiscal_year: number;
+          last_processed_at?: string;
+          report_type: string;
+          sha256?: string | null;
+          url: string;
+        };
+        Update: {
+          etag?: string | null;
+          fiscal_year?: number;
+          last_processed_at?: string;
+          report_type?: string;
+          sha256?: string | null;
+          url?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {
       domestic_stocks_view: {
         Row: {
           business_summary: string | null;
+          company_type: string | null;
           country: string | null;
           currency: string | null;
           customers: Json | null;
@@ -947,6 +1302,9 @@ export type Database = {
       };
     };
     Functions: {
+      clean_company_legal_form: { Args: { raw: string }; Returns: string };
+      expand_customer_name: { Args: { raw: string }; Returns: string[] };
+      merge_company: { Args: { p_new_id: string; p_old_id: string }; Returns: undefined };
       normalize_customer_name: { Args: { raw: string }; Returns: string };
       normalize_product_category: { Args: { raw: string }; Returns: string };
     };
@@ -970,8 +1328,8 @@ export type Tables<
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;

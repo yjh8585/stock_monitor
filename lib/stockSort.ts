@@ -104,7 +104,26 @@ export function getFinancialSortValue<R extends FinancialRowBase>(
     return r != null ? r * fxFin : null;
   };
 
-  if (key.startsWith('rev_')) return revKrw(key.slice(4));
+  if (key.startsWith('rev_')) {
+    const year = key.slice(4);
+    const direct = revKrw(year);
+    if (direct != null) return direct;
+    // 최신 연도(rev_${latestYear})만 fallback: 회사별 가장 최근 가용 annual revenue.
+    // 예: UzAuto Motors는 매년 5월 IFRS PDF 발행 → 2025 annual은 2026년에 나옴 → rev_2025=null.
+    // domestic/parts_top100_view의 latest_revenue_krw 패턴과 동일한 정렬 정책.
+    if (year === latestYear && fy) {
+      let bestYear: string | null = null;
+      for (const y of Object.keys(fy)) {
+        if (fy[y]?.revenue == null) continue;
+        if (bestYear == null || y > bestYear) bestYear = y;
+      }
+      if (bestYear != null) {
+        const r = fy[bestYear].revenue;
+        return r != null ? r * fxFin : null;
+      }
+    }
+    return null;
+  }
   if (key.startsWith('op_')) return fy?.[key.slice(3)]?.operating_margin ?? null;
 
   switch (key) {

@@ -15,8 +15,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 문서 역할 분리
 
-- **`AGENTS.md` (이 문서)** — *작업 지침·컨벤션·약속*. 에이전트가 코드 작성·DB 변경·커밋 시 따라야 할 규칙. 누락 시 `.githooks/pre-commit`이 차단.
-- **[`Architecture.md`](./Architecture.md)** — *시스템 구조의 단일 진실 공급원*. 28개 테이블·3개 뷰의 컬럼·인덱스·트리거 상세, 페이지 라우트 맵, 캐싱 전략, 배포 파이프라인, 자동화 흐름.
+- **`AGENTS.md` (이 문서)** — _작업 지침·컨벤션·약속_. 에이전트가 코드 작성·DB 변경·커밋 시 따라야 할 규칙. 누락 시 `.githooks/pre-commit`이 차단.
+- **[`Architecture.md`](./Architecture.md)** — _시스템 구조의 단일 진실 공급원_. 28개 테이블·3개 뷰의 컬럼·인덱스·트리거 상세, 페이지 라우트 맵, 캐싱 전략, 배포 파이프라인, 자동화 흐름.
 
 > DB 스키마 세부는 모두 Architecture.md §7로 이전됨. AGENTS.md는 "이 약속을 지켜라"만 다룬다.
 
@@ -66,19 +66,19 @@ npm run format          # 자동 포맷
 
 ### `app/` — Next App Router (라우트 = 페이지 단위 책임)
 
-| 라우트              | 책임 / 데이터 출처                                                                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/related-stocks`   | 21개사 메인 표. `related_stocks_view` 뷰를 `'use cache'`로 캐싱. 컬럼 추가는 **뷰부터 수정**.                                                              |
-| `/compare`          | 다중 회사 비교                                                                                                                                             |
-| `/domestic`         | 국내자동차 페이지 (5사 + 매크로)                                                                                                                           |
-| `/oem`              | OEM 페이지 + OEM 모델 outlook                                                                                                                              |
-| `/parts-top100`     | 부품사 TOP100 (Marklines 매핑 기반)                                                                                                                        |
-| `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                               |
-| `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                          |
-| `/reports`          | 보고서. youtube-summary 통합. cacheComponents 호환 패턴: `'use cache'` + `generateStaticParams` + `updateTag`. 메모리 `project_reports_migration.md` 참고. |
-| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`). 탭: pnl/plan/inventory/production/**companies**. `/management/companies`는 신규 회사 INSERT 폼(Zod + admin client) + 회사 목록(검색·필터). INSERT 성공 시 `onboard-company.yml` workflow_dispatch 자동 트리거(fire-and-forget) → onboard_company.py 실행 → 재무·메타·뉴스 자동 보강. dispatch 실패해도 INSERT는 graceful 유지(폼에 안내).                                                                                                    |
-| `/login`            | 세션 로그인                                                                                                                                                |
-| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                            |
+| 라우트              | 책임 / 데이터 출처                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/related-stocks`   | 21개사 메인 표. `related_stocks_view` 뷰를 `'use cache'`로 캐싱. 컬럼 추가는 **뷰부터 수정**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `/compare`          | 다중 회사 비교                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `/domestic`         | 국내자동차 페이지 (5사 + 매크로)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `/oem`              | OEM 페이지 + OEM 모델 outlook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `/parts-top100`     | 부품사 TOP100 (Marklines 매핑 기반)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `/reports`          | 보고서. youtube-summary 통합. cacheComponents 호환 패턴: `'use cache'` + `generateStaticParams` + `updateTag`. 메모리 `project_reports_migration.md` 참고.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `/management`       | 경영관리/손익(PnL) 입력·5표·5차트. `pnl_entries`·`pnl_cost_structure` 사외비 테이블 — **`confidentialDb.from(...)`로 조회** (TypeScript로 사외비 명단 강제 + service_role 자동 라우팅, 마이그레이션 `20260523000002`). 탭: pnl/plan/inventory/production/**companies**. `/management/companies`는 신규 회사 INSERT 폼(Zod + admin client) + 회사 목록(검색·필터). INSERT 성공 시 `onboard-company.yml` workflow_dispatch 자동 트리거(fire-and-forget) → onboard_company.py 실행 → 재무·메타·뉴스 자동 보강. dispatch 실패해도 INSERT는 graceful 유지(폼에 안내). |
+| `/login`            | 세션 로그인                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 `app/api/`:
 
@@ -118,7 +118,7 @@ npm run format          # 자동 포맷
 
 prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
-- `collect_*.py` — 외부 → DB 수집
+- `collect_*.py` — 외부 → DB 수집. **PDF-only 회사**(UzAuto Motors)는 `collect_uzauto_financials.py`: `/investors` HTML 파싱(우즈벡어/영문 양쪽 정규식) → PDF sha256 캐시(`uzauto_pdf_cache`, 마이그레이션 `20260526000001`) → 변경분만 Anthropic API(`claude-opus-4-7`)에 PDF document + tool_use(submit_financials)로 구조화 추출 → financials upsert. 연도 오름차순 처리로 재진술(restatement) 정책 자연 보장. 플래그: `--reprocess-all`(캐시 무시), `--dry-run`(링크 추출만). 매주 월요일 03:00 UTC GHA cron.
 - `enrich_*.py` — 기존 행 보강 (외부 LLM·검색). **append-only 정책**. `enrich_company.py`는 메타(business_summary·products·customers·**homepage_url**) + 재무 + 뉴스를 일괄 보강.
 - `onboard_company.py` — **신규 회사 추가 직후 1회 실행**. 단일 회사 식별(ticker/name/id) → enrich_company 트리거 → 캐시 무효화. 사용: `python scripts/onboard_company.py --ticker 005380`. 주가는 collect_prices_live cron이 자동 fetch. **재실행 안전(멱등)** — (1) `enrich_company`는 append-only 정책, (2) 페이지 매핑은 DB 트리거(`companies_auto_page_mapping`, 마이그레이션 `20260522000005`)가 자동, (3) 캐시 무효화는 `WriteSession`이 자동. 부분 실패 시 같은 명령 재실행하면 됨. 일회성 옵션(`--fiscal-year-end-month`)은 첫 실행에 지정.
 - `e2e_smoke.py` — 9개 보호 라우트(`/related-stocks`, `/compare`, `/domestic`, `/oem`, `/parts-top100`, `/hansae`, `/etc`, `/reports`, `/management/pnl`) 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷 캡처. 회귀 검증용. 사용: `python scripts/e2e_smoke.py` (env: `E2E_BASE_URL`, `MOBILITY_ID/PW`). 결과: `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
@@ -148,7 +148,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ### `.github/workflows/`
 
-25개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-* 3종은 Vercel cron 대체용으로 curl 호출.
+26개 워크플로. 대부분 GitHub Actions가 Python 직접 호출(로컬 `scripts/venv` 없이). cron-\* 3종은 Vercel cron 대체용으로 curl 호출.
 
 - 가격·환율: 매일/매시간
 - 재무: 분기별 (1/4/7/10월 15일)
@@ -157,6 +157,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - Vercel cron 대체(curl 트리거): `cron-quotes-5min`, `cron-sentiment` — Hobby 플랜 일 1회 제약 회피. secret 필요: `APP_BASE_URL`, `CRON_SECRET`
 - 한세 종목토론은 Vercel 60s timeout 우회 위해 GHA runner에서 Node 직접 실행: `collect-naver-board.yml` → `scripts/collect_naver_board.ts`(`@supabase/supabase-js`+`lib/naver/board.ts` 재사용). secret 필요: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - 신규 회사 onboarding: `onboard-company.yml` — `workflow_dispatch` 전용. `/api/companies` POST가 INSERT 성공 후 GitHub API로 자동 트리거(fire-and-forget). 입력: ticker, fiscal_year_end_month(옵션). Vercel env 필요: `GITHUB_PAT`(workflow 트리거용). secret 필요: 기존 cron과 동일.
+- UzAuto IFRS PDF 재무: `collect-uzauto-financials.yml` — 매주 월요일 03:00 UTC. PDF sha256 캐시 hit이면 LLM 호출 0. `workflow_dispatch`의 `reprocess_all=true`로 강제 재처리. secret 필요: 기존 cron과 동일 + `ANTHROPIC_API_KEY`.
 
 ### 루트 설정
 
@@ -180,9 +181,11 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 │ ER-API / FX    │   │ collect_fx*          │   │ exchange_rates* │   │ /hansae /etc      │
 │ Naver / Yahoo  │   │ collect_news         │   │ news            │   │ /reports          │
 │ Marklines      │   │ collect_marklines*   │   │ (TOP100 매핑)   │   │ /management       │
+│ UzAuto PDF     │   │ collect_uzauto_*     │   │ uzauto_pdf_cache│   │                   │
+│ (Anthropic API)│   │ (claude-opus-4-7)    │   │                 │   │                   │
 └────────────────┘   └──────────────────────┘   └─────────────────┘   └───────────────────┘
                               │                                              ▲
-                  GitHub Actions 25개 워크플로                                │
+                  GitHub Actions 26개 워크플로                                │
                   (cron · 수동 dispatch)                                      │
                               │                                              │
                               ▼                                              │
@@ -201,12 +204,14 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ## 데이터 / DB 규칙
 
-> **DB 스키마 상세 (28개 테이블 + 3개 뷰의 컬럼·인덱스·트리거)는 [`Architecture.md §7`](./Architecture.md#7-데이터-모델-db-스키마-상세) 참고.** 본 섹션은 *작업 시 지켜야 하는 약속·정책* 만 다룬다.
+> **DB 스키마 상세 (28개 테이블 + 3개 뷰의 컬럼·인덱스·트리거)는 [`Architecture.md §7`](./Architecture.md#7-데이터-모델-db-스키마-상세) 참고.** 본 섹션은 _작업 시 지켜야 하는 약속·정책_ 만 다룬다.
 
 **마이그레이션 컨벤션**
+
 - `supabase/migrations/YYYYMMDD000NNN_*.sql` 시간 정렬. 기존 파일 수정 금지, 신규 파일은 가장 큰 번호 다음으로.
 
 **데이터 정책**
+
 - **상태값**: `companies.status = active` 만 화면 노출. `hidden`(과거 `delisted`)·`merged_into`는 자동 필터링.
 - **회사명**: 트리거가 (주)·㈜·주식회사 등을 자동 제거 — 수동·자동 어느 경로든 보강 가능.
 - **재무 우선순위**: **연결(consolidated) 우선**, 종속회사 없을 때만 별도(separate).
@@ -215,7 +220,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **append-only**: `customers`, `description`(=`business_summary`) 등 보강 필드는 **덮어쓰지 말고** 추가만. 자동 enrich 시 diff 로그(`scripts/_*_diff_*.json`).
 - **고객사(customers) 정규화 v3** (마이그레이션 `20260522000001`, `20260522000002`, `20260522000004`): `companies.customers` 컬럼은 BEFORE INSERT/UPDATE 트리거(`companies_normalize_customers`)가 `expand_customer_name(text)→text[]` 함수로 자동 정규화하고, 값이 변경되면 `customers_updated_at`도 `now()`로 자동 SET한다. **자동차 OEM 화이트리스트(약 90개)**만 통과시키고 부품사·반도체·가전·placeholder는 폐기. "현대기아"는 `['현대차','기아']`로 분리, "GM대우/대우자동차/GM코리아"는 `한국지엠`으로, "재규어·랜드로버"는 `JLR`로 통합. 신규 OEM 별칭 추가 시 (1) `expand_customer_name` 함수의 매핑 행, (2) `lib/customerLogos.ts`의 `CUSTOMER_LOGOS`에 로고를 함께 갱신.
 - **회사 분류(company_type) 자동 분류** (마이그레이션 `20260522000003`): 컬럼 DEFAULT가 `'부품사'`. OEM은 명시적으로 입력해야 하고 그 외 신규 등록은 자동으로 부품사. `products[].category`도 BEFORE INSERT/UPDATE 트리거(`companies_normalize_products`)가 `normalize_product_category()`로 자동 정규화(매핑 없으면 `'기타'`).
-- **신규 회사 자동 page 매핑** (마이그레이션 `20260522000005`): AFTER INSERT 트리거(`companies_auto_page_mapping`)가 `data_source`에 따라 기본 page 자동 등록. dart→domestic / fnguide→domestic / yfinance→parts-top100 / marklines→parts-top100. `related-stocks`는 사용자 수동 등록(중요도 큐레이션). 회사가 등록만 되고 page 매핑 누락되는 케이스(예: HL클레무브) 방지.
+- **신규 회사 자동 page 매핑** (마이그레이션 `20260522000005`, `20260526000001`): AFTER INSERT 트리거(`companies_auto_page_mapping`)가 `data_source`에 따라 기본 page 자동 등록. dart→domestic / fnguide→domestic / yfinance→parts-top100 / marklines→parts-top100 / **uzauto-pdf→related-stocks** (PDF-only OEM 케이스, 향후 `xxx-pdf` 패턴으로 확장). `related-stocks`는 그 외엔 사용자 수동 등록(중요도 큐레이션). 회사가 등록만 되고 page 매핑 누락되는 케이스(예: HL클레무브) 방지.
+- **PDF-only 회사 재진술 정책** (`data_source='uzauto-pdf'`, 마이그레이션 `20260526000001`): UzAuto Motors 같은 PDF 보고서 회사는 신규 보고서가 과거 연도를 재진술하는 경향이 있어, `collect_uzauto_financials.py`가 **연도 오름차순으로 처리** → 같은 `(period_type, fiscal_year)`에 대해 가장 최신 보고서가 마지막 upsert로 자연 우선. PDF의 sha256/etag을 `uzauto_pdf_cache`(RLS deny + service_role 전용)에 저장하고 변경분만 LLM 재호출(비용 절감).
 - **DART 수집 상태 자동 SET** (마이그레이션 `20260522000007`): financials INSERT/UPDATE 트리거(`financials_auto_set_dart_status`)가 `period_type='annual' AND fiscal_year>=올해-2`일 때 해당 회사의 `dart_collection_status`를 자동으로 `'success'`로 SET. `collect_dart_audit.py`가 status를 SET 안 하는 구조 보완 — 모든 수집 경로에서 자동 갱신.
 - **OEM 회사 products는 차종**, 부품사 products는 부품/제품. OEM에 부품을 채우지 말 것. 제품군 카테고리 필터(`StockTable`/`DomesticTable`의 productCategoryFilter)는 부품사에만 적용한다(OEM은 항상 통과).
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만 (`enrich_description_*.py` 참고).
@@ -224,6 +230,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **챗봇 외부 LLM 전송 정책 (2026-05-23, 2026-05-24 SSOT 정리)**: 챗봇(`/api/chat`)이 호출하는 도구의 결과는 모두 Anthropic API로 전송된다. (1) `lib/chat/tools.ts`의 도구 화이트리스트에 **사외비 테이블을 추가하지 말 것** — PnL은 의도적으로 제외됨. (2) `lib/chat/system-prompt.ts`의 DATA_CATALOG에는 회사 내부 고객사·공장·제품 명단을 **평문으로 박지 말 것** — 매 호출마다 전송됨. (3) 모든 도구 호출은 `chat_audit_log`에 자동 기록(`lib/chat/audit.ts` fire-and-forget). 새 도구 추가 시 별도 작업 없이 그대로 기록됨. (4) **사용자가 사외비 토픽을 물었을 때 거절 안내**는 `lib/chat/sensitive-policy.ts`의 `BLOCKED_TOPICS` 배열에서 SSOT 관리 — system-prompt가 자동 inject. 새 사외비 도메인(계획·재고·생산 등) 추가 시 배열에 한 줄(`{ key, label, examples, redirect }`) 추가하면 끝.
 
 **챗봇 감사 로그 (`chat_audit_log`, 마이그레이션 `20260523000003`)**
+
 - 컬럼: id(bigserial), user_id, user_role, tool_name, input_json(jsonb), row_count, is_error, error_msg, created_at
 - RLS 정책 없음 → service_role(admin) 전용 INSERT/SELECT
 - 보존 1년 (수동 운영 또는 별도 cron — 현재 미구현)
