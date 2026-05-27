@@ -14,7 +14,6 @@ export const SENTIMENT_MODEL = 'claude-haiku-4-5';
 export interface PostForAnalysis {
   postId: string;
   title: string;
-  body?: string | null;
 }
 
 export interface SentimentResult {
@@ -61,11 +60,11 @@ const TOOL = {
 };
 
 function buildUserContent(posts: PostForAnalysis[]): string {
+  // 제목만으로 분류한다. 네이버 본문은 스크래핑 시 페이지의 인라인 JS가 섞여 들어와
+  // (parseBodyPage 선택자가 현 구조와 불일치) LLM이 "본문이 코드뿐 → 판단 불가"로
+  // 오분류하던 문제가 있었다. 토론 글은 제목에 감성이 충분히 담겨 제목만으로 분류한다.
   return posts
-    .map(
-      (p, i) =>
-        `[${i + 1}] post_id=${p.postId}\n제목: ${p.title}\n본문: ${(p.body ?? '').slice(0, 800)}`
-    )
+    .map((p, i) => `[${i + 1}] post_id=${p.postId}\n제목: ${p.title}`)
     .join('\n\n---\n\n');
 }
 

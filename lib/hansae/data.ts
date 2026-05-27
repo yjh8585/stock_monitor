@@ -18,6 +18,8 @@ export interface HansaeCompany {
   lastChangePct: number | null;
   lastVolume: number | null;
   lastUpdatedAt: string | null;
+  /** 시가총액 (억원, KRW). companies.market_cap — collect_kis_intraday가 KIS hts_avls로 갱신. */
+  marketCap: number | null;
 }
 
 export interface IntradayPoint {
@@ -114,7 +116,9 @@ export async function getHansaeCompanies(): Promise<HansaeCompany[]> {
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb
     .from('companies')
-    .select('id,ticker,name_kr,market,last_price,last_change_pct,last_volume,last_updated_at')
+    .select(
+      'id,ticker,name_kr,market,last_price,last_change_pct,last_volume,last_updated_at,market_cap'
+    )
     .in('ticker', HANSAE_TICKERS as unknown as string[]);
   if (error) {
     logger.error({ err: error }, '한세 companies 조회 실패');
@@ -132,6 +136,7 @@ export async function getHansaeCompanies(): Promise<HansaeCompany[]> {
       lastChangePct: row.last_change_pct as number | null,
       lastVolume: row.last_volume as number | null,
       lastUpdatedAt: row.last_updated_at as string | null,
+      marketCap: row.market_cap as number | null,
     });
   }
   // HANSAE_TICKERS 배열 순서를 그대로 유지(한세예스24홀딩스→한세실업→한세엠케이→예스24)

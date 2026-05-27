@@ -116,13 +116,16 @@ function parseBodyPage(html: string): string | null {
  * @param code 6자리 종목코드
  * @param sinceDays 최근 N일치만 수집 (기본 7)
  * @param maxPages 페이지 cap (기본 10)
- * @param fetchBody true면 본문도 가져옴 (false면 제목·메타만 — cron 빈도 줄일 때)
+ * @param fetchBody true면 본문도 가져옴 (false면 제목·메타만). 기본 false:
+ *   현 네이버 board_read 구조에서 parseBodyPage 선택자가 본문을 못 잡고 페이지
+ *   인라인 JS를 긁어와, 감성 분석은 제목만 사용한다(본문 불필요). 본문 fetch는
+ *   글당 추가 요청·sleep만 유발하므로 끈다.
  */
 export async function fetchNaverBoardPosts(
   code: string,
   sinceDays = 7,
   maxPages = 10,
-  fetchBody = true
+  fetchBody = false
 ): Promise<NaverBoardPost[]> {
   const cutoff = new Date(Date.now() - sinceDays * 24 * 60 * 60_000);
   const collected: NaverBoardPost[] = [];

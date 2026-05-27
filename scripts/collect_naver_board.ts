@@ -1,5 +1,5 @@
 /**
- * 네이버 종목토론 수집 — 한세 3종목.
+ * 네이버 종목토론 수집 — 한세 4종목.
  *
  * 배경:
  *   기존 /api/cron/naver-board가 Vercel Hobby plan 60s 한계에 걸려 504.
@@ -12,7 +12,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchNaverBoardPosts } from '../lib/naver/board';
 
-const HANSAE_TICKERS = ['016450', '105630', '069640'];
+const HANSAE_TICKERS = ['016450', '105630', '069640', '053280'];
 
 async function main(): Promise<void> {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -35,7 +35,9 @@ async function main(): Promise<void> {
   const summary: { ticker: string; inserted: number; total: number }[] = [];
   for (const c of companies as { id: string; ticker: string }[]) {
     try {
-      const posts = await fetchNaverBoardPosts(c.ticker, 7, 10, true);
+      // 본문 스크래핑은 끔(false): 네이버 board_read 본문 선택자가 깨져 JS를 긁어오고,
+      // 감성 분석은 제목만 사용하므로 본문은 불필요(글당 추가 요청만 유발).
+      const posts = await fetchNaverBoardPosts(c.ticker, 7, 10, false);
       if (posts.length === 0) {
         summary.push({ ticker: c.ticker, inserted: 0, total: 0 });
         continue;

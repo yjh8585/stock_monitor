@@ -35,7 +35,7 @@ export default function HansaeBoardPanel({ companyName, ticker, posts, summary }
   return (
     <div className="h-full rounded-md border border-border bg-card p-4 flex flex-col min-h-0">
       <div className="flex items-baseline justify-between mb-3 shrink-0">
-        <h2 className="text-lg font-semibold">개인투자자 반응</h2>
+        <h2 className="text-lg font-semibold">개인투자자</h2>
         <a
           href={`https://finance.naver.com/item/board.naver?code=${ticker}`}
           target="_blank"

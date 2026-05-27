@@ -6,7 +6,7 @@ stock_supply_demand 테이블에 upsert한다.
 - 외국인합계 → foreign_net
 - 기관합계   → institution_net
 - 개인       → individual_net
-- program_net은 pykrx에 종목 단위 함수가 없어 None (장중 키움 REST에서 보강)
+- program_net은 pykrx에 종목 단위 함수가 없어 None (현재 보강 경로 없음)
 
 수집 모드 (--mode):
 - full         : 30일 전 ~ 오늘

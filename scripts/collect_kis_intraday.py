@@ -24,7 +24,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client, upsert_rows
+from lib.db import WriteSession, get_client, upsert_rows
 from lib.kis_client import KisClient
 
 HANSAE_TICKERS = ['016450', '105630', '069640', '053280']
@@ -75,6 +75,37 @@ def _to_float(v: Any) -> float | None:
     return float(v)
   except (TypeError, ValueError):
     return None
+
+
+def _fetch_company_snapshot(kis: KisClient, ticker: str) -> dict[str, Any] | None:
+  """KIS 현재가 시세(FHKST01010100)로 현재가·등락률·거래량·시가총액 스냅샷을 만든다.
+
+  반환 dict은 companies 테이블 컬럼에 그대로 매핑된다. `hts_avls`는 억원 단위라
+  DB 표준(market_cap = 억원)과 일치한다. 가격 조회 실패 시 None.
+  """
+  try:
+    data = kis.get_price(ticker)
+  except Exception as e:
+    logger.warning(f'{ticker}: KIS 현재가(get_price) 실패 — 스냅샷 갱신 skip: {e}')
+    return None
+  out = data.get('output') or {}
+  price = _to_float(out.get('stck_prpr'))
+  if price is None or price <= 0:
+    return None
+  payload: dict[str, Any] = {
+    'last_price': price,
+    'last_updated_at': datetime.now(timezone.utc).isoformat(),
+  }
+  change_pct = _to_float(out.get('prdy_ctrt'))
+  if change_pct is not None:
+    payload['last_change_pct'] = change_pct
+  volume = _to_int(out.get('acml_vol'))
+  if volume is not None:
+    payload['last_volume'] = volume
+  market_cap_eok = _to_float(out.get('hts_avls'))  # HTS 시가총액(억원)
+  if market_cap_eok is not None and market_cap_eok > 0:
+    payload['market_cap'] = market_cap_eok
+  return payload
 
 
 def _fetch_intraday(kis: KisClient, ticker: str, target_date: date) -> list[dict[str, Any]]:
@@ -157,10 +188,17 @@ def collectKisIntraday(mode: str = 'today', target_date: date | None = None) -> 
     targets = [target_date]
 
   total_rows = 0
+  # mode=today일 때만 companies 현재가·시총 스냅샷을 갱신한다.
+  # (mode=date는 과거일 backfill이라 현재 스냅샷을 덮어쓰면 안 됨)
+  snapshots: list[tuple[str, dict[str, Any]]] = []
   for ci, company in enumerate(companies):
     ticker = company['ticker']
     if ci > 0:
       time.sleep(1.0)  # 종목 사이 여유 (KIS 분당 한도 보호)
+    if mode == 'today':
+      snap = _fetch_company_snapshot(kis, ticker)
+      if snap:
+        snapshots.append((company['id'], snap))
     for d in targets:
       try:
         rows = _fetch_intraday(kis, ticker, d)
@@ -188,6 +226,13 @@ def collectKisIntraday(mode: str = 'today', target_date: date | None = None) -> 
         upsert_rows('stock_quotes_5min', payload[i:i + 500], 'company_id,ts')
       total_rows += len(payload)
       logger.info(f"{ticker} ({company['name_kr']}) {d}: {len(payload)}건 upsert")
+
+  # companies 현재가·시총 스냅샷 일괄 갱신 (WriteSession이 companies 태그 자동 무효화)
+  if snapshots:
+    with WriteSession() as w:
+      for cid, payload in snapshots:
+        w.table('companies').update(payload).eq('id', cid).execute()
+    logger.info(f'companies 현재가·시총 스냅샷 갱신 — {len(snapshots)}개')
 
   logger.info(f'KIS 분봉 수집 완료 — 총 {total_rows}건')
 

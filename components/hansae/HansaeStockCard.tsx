@@ -76,6 +76,13 @@ const formatPct = (n: number | null) => {
   return `${sign}${n.toFixed(2)}%`;
 };
 
+/** 시가총액(억원) → 1조 이상은 조원, 미만은 억원 표기 */
+const formatMarketCap = (eok: number | null) => {
+  if (eok === null) return '—';
+  if (eok >= 10_000) return `${(eok / 10_000).toFixed(1)}조원`;
+  return `${new Intl.NumberFormat('ko-KR').format(Math.round(eok))}억원`;
+};
+
 export default function HansaeStockCard({ bundle }: Props) {
   const { company } = bundle;
   const pct = company.lastChangePct;
@@ -109,6 +116,9 @@ export default function HansaeStockCard({ bundle }: Props) {
         <div className={`text-right ${colorClass}`}>
           <div className="text-lg font-bold">{formatKRW(company.lastPrice)}</div>
           <div className="text-sm">{formatPct(pct)}</div>
+          <div className="text-[11px] text-muted-foreground">
+            시총 {formatMarketCap(company.marketCap)}
+          </div>
         </div>
       </div>
       <div className="mt-3 flex gap-1">

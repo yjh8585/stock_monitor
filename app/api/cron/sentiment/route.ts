@@ -7,7 +7,7 @@ import logger from '@/lib/logger';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { classifyPosts, SENTIMENT_MODEL } from '@/lib/sentiment/analyze';
 
-const HANSAE_TICKERS = ['016450', '105630', '069640'];
+const HANSAE_TICKERS = ['016450', '105630', '069640', '053280'];
 const BATCH_SIZE = 50;
 export const maxDuration = 290;
 
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     // 클라이언트에서 LEFT JOIN 시뮬레이션: 최근 글 → 이미 분석된 글 제외 → BATCH_SIZE만큼만 분석
     const { data: candidates } = await sb
       .from('naver_board_posts')
-      .select('post_id,title,body')
+      .select('post_id,title')
       .eq('company_id', c.id)
       .order('posted_at', { ascending: false })
       .limit(BATCH_SIZE * 2);
@@ -61,9 +61,7 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    const results = await classifyPosts(
-      posts.map((p) => ({ postId: p.post_id, title: p.title, body: p.body }))
-    );
+    const results = await classifyPosts(posts.map((p) => ({ postId: p.post_id, title: p.title })));
 
     if (results.length > 0) {
       const rows = results.map((r) => ({
