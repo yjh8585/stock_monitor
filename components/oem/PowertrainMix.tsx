@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupPtMonth, PowerTrain } from '@/lib/types';
+import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { ymLabel, PT_COLORS, PT_ORDER } from './helpers';
 
 interface Props {
@@ -61,7 +62,11 @@ export default function PowertrainMix({ groupPtMonth }: Props) {
           margin={{ top: 10, right: 20, bottom: 10, left: 10 }}
           stackOffset="expand"
         >
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            className="stroke-border"
+            strokeOpacity={GRID_STROKE_OPACITY}
+          />
           <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
           <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} className="text-sm" width={50} />
           <Tooltip

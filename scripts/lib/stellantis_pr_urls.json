@@ -1,0 +1,31 @@
+{
+  "_comment": "prnewswire FCA US LLC quarterly sales URL cache. Audit 2026-05-27 검증. Quarterly reporting started Q2 2020 (FCA switched from monthly to quarterly during COVID).",
+  "_url_template_hint": "https://www.prnewswire.com/news-releases/<slug>-<release_id>.html  ; slug pattern varies year by year (fca-us-reports-... | fca-reports-... | fca-us-...)",
+  "_publish_pattern": "Q1 -> early April; Q2 -> early July; Q3 -> early October; Q4+FY -> early January (next year)",
+  "_publisher_index_page": "https://www.prnewswire.com/news/fca-us-llc",
+  "_release_id_regex": "(\\d{9})\\.html$",
+  "quarters": {
+    "2020-Q4": "https://www.prnewswire.com/news-releases/fca-us-reports-fourth-quarter-and-full-year-2020-sales-results-301201374.html",
+    "2021-Q1": "https://www.prnewswire.com/news-releases/fca-us-reports-first-quarter-2021-us-sales-301260956.html",
+    "2021-Q2": "https://www.prnewswire.com/news-releases/fca-us-reports-q2-2021-us-sales-301324627.html",
+    "2021-Q3": "https://www.prnewswire.com/news-releases/fca-reports-third-quarter-2021-us-sales-301389948.html",
+    "2021-Q4": "https://www.prnewswire.com/news-releases/fca-us-reports-fourth-quarter-and-full-year-2021-sales-results-301454067.html",
+    "2022-Q1": "https://www.prnewswire.com/news-releases/fca-reports-first-quarter-2022-us-sales-301516065.html",
+    "2022-Q2": "https://www.prnewswire.com/news-releases/fca-reports-second-quarter-2022-us-sales-301579770.html",
+    "2022-Q3": "https://www.prnewswire.com/news-releases/fca-reports-third-quarter-2022-us-sales-301639011.html",
+    "2022-Q4": "https://www.prnewswire.com/news-releases/fca-reports-fourth-quarter-and-full-year-2022-sales-results-301713751.html",
+    "2023-Q1": "https://www.prnewswire.com/news-releases/fca-reports-first-quarter-2023-us-sales-301788690.html",
+    "2023-Q2": "https://www.prnewswire.com/news-releases/fca-second-quarter-2023-us-sales-up-6-301868981.html",
+    "2023-Q3": "https://www.prnewswire.com/news-releases/fca-third-quarter-2023-us-sales-down-1-301946204.html",
+    "2023-Q4": "https://www.prnewswire.com/news-releases/fca-reports-fourth-quarter-and-full-year-2023-sales-results-302025792.html",
+    "2024-Q1": "https://www.prnewswire.com/news-releases/fca-reports-first-quarter-2024-us-sales-results-302107281.html",
+    "2024-Q2": "https://www.prnewswire.com/news-releases/fca-reports-second-quarter-2024-us-sales-results-302188464.html",
+    "2024-Q3": "https://www.prnewswire.com/news-releases/fca-reports-q3-2024-total-us-sales-302265584.html",
+    "2024-Q4": "https://www.prnewswire.com/news-releases/fca-us-reports-fourth-quarter-and-full-year-2024-sales-results-302342164.html",
+    "2025-Q1": "https://www.prnewswire.com/news-releases/fca-us-reports-first-quarter-2025-us-sales-results-302417663.html",
+    "2025-Q2": "https://www.prnewswire.com/news-releases/fca-us-reports-second-quarter-2025-us-sales-results-302496258.html",
+    "2025-Q3": "https://www.prnewswire.com/news-releases/fca-us-total-sales-rise-6-year-over-year-in-us-third-quarter-report-302573083.html",
+    "2025-Q4": "https://www.prnewswire.com/news-releases/fca-us-fourth-quarter-total-sales-increase-4-year-over-year-reports-full-year-2025-us-sales-results-302652833.html",
+    "2026-Q1": "https://www.prnewswire.com/news-releases/fca-us-first-quarter-sales-increase-4-year-over-year-302731747.html"
+  }
+}

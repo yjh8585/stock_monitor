@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import type { ModelMonthlySeries } from '@/lib/types';
 import { useChartHeight } from '@/lib/useChartHeight';
+import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits } from './helpers';
 
 interface Props {
@@ -54,7 +55,12 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
       <div className="text-[10px] text-muted-foreground mb-2">{series.oemGroup}</div>
       <ResponsiveContainer width="100%" height={h}>
         <ComposedChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 5 }}>
-          <CartesianGrid horizontal={false} strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid
+            horizontal={false}
+            strokeDasharray="3 3"
+            className="stroke-border"
+            strokeOpacity={GRID_STROKE_OPACITY}
+          />
           <ReferenceLine
             yAxisId="right"
             y={0}

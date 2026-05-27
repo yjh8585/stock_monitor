@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useChartHeight } from '@/lib/useChartHeight';
+import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits, OEM_COLORS } from './helpers';
 
 export interface CountryTop15Row {
@@ -47,6 +48,12 @@ export default function CountryTop15({ rows }: Props) {
           {data.map((d) => (
             <Cell key={d.name} fill={d.color} />
           ))}
+          <LabelList
+            dataKey="sales"
+            position="right"
+            formatter={(v: unknown) => (v == null ? '' : fmtUnits(Number(v)))}
+            style={DATA_LABEL_STYLE}
+          />
         </Bar>
       </BarChart>
     </ResponsiveContainer>

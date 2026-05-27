@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import ClickableLegend from './ClickableLegend';
 import {
   annualByGroup,
@@ -82,7 +83,12 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
       </div>
       <ResponsiveContainer width="100%" height={h}>
         <BarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            className="stroke-border"
+            strokeOpacity={GRID_STROKE_OPACITY}
+            vertical={false}
+          />
           <XAxis dataKey="year" className="text-sm" />
           <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
           <Tooltip

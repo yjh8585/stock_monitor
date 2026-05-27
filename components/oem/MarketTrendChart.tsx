@@ -8,12 +8,17 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import {
+  DATA_LABEL_STYLE,
+  GRID_STROKE_OPACITY,
+} from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits, totalByMonth, ymLabel, ymYear } from './helpers';
 
 interface Props {
@@ -94,8 +99,13 @@ export default function MarketTrendChart({ groupMonth }: Props) {
 
       <ResponsiveContainer width="100%" height={h}>
         {mode === 'year' ? (
-          <BarChart data={yearData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <BarChart data={yearData} margin={{ top: 28, right: 20, bottom: 10, left: 10 }}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              className="stroke-border"
+              strokeOpacity={GRID_STROKE_OPACITY}
+              vertical={false}
+            />
             <XAxis dataKey="year" className="text-sm" />
             <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
             <Tooltip
@@ -107,7 +117,14 @@ export default function MarketTrendChart({ groupMonth }: Props) {
                 fontSize: '16px',
               }}
             />
-            <Bar dataKey="sales" fill="#2563eb" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="sales" fill="#2563eb" radius={[3, 3, 0, 0]}>
+              <LabelList
+                dataKey="sales"
+                position="top"
+                formatter={(v: unknown) => (v == null ? '' : fmtUnits(Number(v)))}
+                style={DATA_LABEL_STYLE}
+              />
+            </Bar>
           </BarChart>
         ) : (
           <AreaChart data={monthData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
@@ -117,7 +134,11 @@ export default function MarketTrendChart({ groupMonth }: Props) {
                 <stop offset="100%" stopColor="#2563eb" stopOpacity={0.05} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              className="stroke-border"
+              strokeOpacity={GRID_STROKE_OPACITY}
+            />
             <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
             <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
             <Tooltip

@@ -1,0 +1,46 @@
+name: collect-uzbekistan-production
+
+# 우즈베키스탄 자동차 생산 (stat.uz 산업 보도자료 PDF).
+# stat.uz는 매월 25~26일 1~N월 누계 발표 → cron 매월 28일 03:00 UTC.
+
+on:
+  schedule:
+    - cron: '0 3 28 * *'
+  workflow_dispatch:
+    inputs:
+      year_from:
+        description: '백필 시작 연도 (default 2024)'
+        type: string
+        default: '2024'
+      year_to:
+        description: '마지막 연도'
+        type: string
+        default: ''
+      max_pages:
+        description: 'News list 최대 페이지'
+        type: string
+        default: '15'
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -r scripts/requirements.txt
+      - name: Run collector
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          NEXT_REVALIDATE_URL: ${{ secrets.APP_BASE_URL }}/api/revalidate
+          NEXT_REVALIDATE_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          ARGS="--year-from ${{ inputs.year_from || '2024' }} --max-pages ${{ inputs.max_pages || '15' }}"
+          if [ -n "${{ inputs.year_to }}" ]; then
+            ARGS="$ARGS --year-to ${{ inputs.year_to }}"
+          fi
+          python scripts/collect_uzbekistan_production.py $ARGS

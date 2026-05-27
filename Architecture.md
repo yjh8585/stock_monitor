@@ -65,7 +65,7 @@
 | **Collection** | 외부 → DB 적재 + 보강 | `scripts/collect_*.py`, `scripts/enrich_*.py`, `scripts/onboard_company.py` |
 | **Orchestration** | Cron·트리거·CI | `.github/workflows/*.yml`, cron-job.org (5분 간격 워크플로) |
 | **Data** | PostgreSQL + 뷰 + 마이그레이션 | `supabase/migrations/`, Supabase 호스팅 |
-| **Domain Library** | 페이지·기능별 데이터 가공 | `lib/<도메인>/` (reports, pnl, hansae, naver, kiwoom, sentiment) |
+| **Domain Library** | 페이지·기능별 데이터 가공 | `lib/<도메인>/` (reports, pnl, hansae, naver, sentiment) |
 | **API Routes** | 공개/보호 API | `app/api/*/route.ts` (cron / revalidate / posts / uploads / news / stock-prices) |
 | **App Router** | 페이지 + 'use cache' RSC | `app/<route>/page.tsx` |
 | **Components** | 페이지별 / 공용 UI | `components/<page-or-shared>/` |
@@ -113,7 +113,7 @@ components/ui/            # shadcn 원자 컴포넌트 (수동 수정 금지)
 components/layout/        # Sidebar, AppLayout 등 공용
 lib/                      # 도메인 모듈 + 공용 유틸
   reports/                #   레이어드 (dto/repositories/services)
-  pnl/ hansae/ kiwoom/ naver/ sentiment/
+  pnl/ hansae/ naver/ sentiment/
   supabase/               #   클라이언트 4종 (server/client/admin/anon)
   auth/                   #   세션·권한·사용자
 scripts/                  # Python 수집 + onboarding
@@ -296,7 +296,6 @@ UNIQUE: (source, note_date)
 | 테이블 | 컬럼 | 용도 |
 |---|---|---|
 | `kis_tokens` | env_key, token, expires_at, updated_at | 한국투자증권 API 토큰 (자체 갱신) |
-| `kiwoom_tokens` | id, access_token, expires_at, updated_at | 키움증권 토큰 (현재 미사용, 0행) |
 | `product_category_map` | raw_category, normalized | 제품 카테고리 정규화 매핑 (63행) |
 
 ---
@@ -381,7 +380,7 @@ UNIQUE: (source, note_date)
 | 한세 분봉 | collect-hansae-intraday (KIS) | 5분 |
 | OEM | collect-oem-model-outlook | 일간 |
 | 보강 | enrich-company | 수동 |
-| Vercel cron 대체 (curl) | cron-quotes-5min, cron-sentiment | 5분 / 일 1회 |
+| Vercel cron 대체 (curl) | cron-sentiment | 일 1회 |
 
 ### cron-job.org 외부 트리거
 

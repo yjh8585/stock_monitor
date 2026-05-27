@@ -2,9 +2,10 @@
 
 import { useMemo } from 'react';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { growthPct } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, shortenOemName, sumByGroup } from './helpers';
 
 interface Props {
@@ -90,6 +91,12 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
               {winners.map((d) => (
                 <Cell key={d.name} fill="#2563eb" />
               ))}
+              <LabelList
+                dataKey="yoy"
+                position="right"
+                formatter={(v: unknown) => (v == null ? '' : `${Number(v).toFixed(1)}%`)}
+                style={DATA_LABEL_STYLE}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -129,6 +136,12 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
               {losers.map((d) => (
                 <Cell key={d.name} fill="#dc2626" />
               ))}
+              <LabelList
+                dataKey="yoy"
+                position="right"
+                formatter={(v: unknown) => (v == null ? '' : `${Number(v).toFixed(1)}%`)}
+                style={DATA_LABEL_STYLE}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

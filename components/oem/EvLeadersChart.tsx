@@ -7,12 +7,14 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupPtMonth } from '@/lib/types';
+import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits, ptSumByGroup, shortenOemName } from './helpers';
 
 interface Props {
@@ -70,8 +72,13 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
           EV+PHEV 판매량 TOP10 (2025)
         </div>
         <ResponsiveContainer width="100%" height={h}>
-          <BarChart data={sales} layout="vertical" margin={{ left: 40, right: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <BarChart data={sales} layout="vertical" margin={{ left: 40, right: 60 }}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              className="stroke-border"
+              strokeOpacity={GRID_STROKE_OPACITY}
+              horizontal={false}
+            />
             <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-sm" />
             <YAxis
               type="category"
@@ -93,6 +100,12 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
               {sales.map((d) => (
                 <Cell key={d.name} fill={d.color} />
               ))}
+              <LabelList
+                dataKey="sales"
+                position="right"
+                formatter={(v: unknown) => (v == null ? '' : fmtUnits(Number(v)))}
+                style={DATA_LABEL_STYLE}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -103,13 +116,19 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
           EV 비율 TOP10 — 전체 50만 대 이상 OEM (2025)
         </div>
         <ResponsiveContainer width="100%" height={h}>
-          <BarChart data={ratio} layout="vertical" margin={{ left: 40, right: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <BarChart data={ratio} layout="vertical" margin={{ left: 40, right: 60 }}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              className="stroke-border"
+              strokeOpacity={GRID_STROKE_OPACITY}
+              horizontal={false}
+            />
             <XAxis
               type="number"
               tickFormatter={(v) => `${v.toFixed(0)}%`}
               className="text-sm"
-              domain={[0, 100]}
+              domain={[0, 110]}
+              ticks={[0, 25, 50, 75, 100]}
             />
             <YAxis
               type="category"
@@ -131,6 +150,12 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
               {ratio.map((d) => (
                 <Cell key={d.name} fill={d.color} />
               ))}
+              <LabelList
+                dataKey="ratio"
+                position="right"
+                formatter={(v: unknown) => (v == null ? '' : `${Number(v).toFixed(1)}%`)}
+                style={DATA_LABEL_STYLE}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

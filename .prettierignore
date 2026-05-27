@@ -27,3 +27,14 @@ scripts/_*.json
 # 디버깅용 크롤링 원본 (HTML 덤프 등) + 임시 산출물
 scripts/_debug_*.html
 scripts/_tmp/
+
+# scripts/_archive — 일회성 보관 (모든 형식 무시)
+scripts/_archive/
+
+# 수집 캐시·audit 원본 (HTML/JSON dump 등 임시 산출물)
+data/_*/
+data/_*.html
+data/_*.json
+data/_*.md
+data/_*.sql
+data/_*.sql.txt

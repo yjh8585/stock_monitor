@@ -58,13 +58,24 @@ COLUMN_TO_TAGS = {
     'market_series': ['market_series'],
     'market_series_daily': ['market_series_daily'],
     'macro_outlook_notes': ['macro_outlook_notes'],
-    # OEM
+    # OEM (전체 탭 — MarkLines 글로벌)
     'oem_sales_group_month': ['oem_sales_group_month'],
     'oem_sales_group_pt_month': ['oem_sales_group_pt_month'],
     'oem_sales_group_country_month': ['oem_sales_group_country_month'],
     'oem_sales_type_seg_month': ['oem_sales_type_seg_month'],
     'oem_sales_model_country_month': ['oem_sales_model_country_month'],
     'oem_model_outlook': ['oem_model_outlook'],
+    # OEM 회사별 탭 (PR2~5) — 회사별 IR 차종 판매 + 4사 공통 PT 매핑
+    'kg_mobility_sales': ['oem-kg-mobility-sales'],
+    'hyundai_sales': ['oem-hyundai-sales'],
+    'hyundai_export_regions': ['oem-hyundai-export-regions'],
+    'hyundai_quarterly_earnings': ['oem-hyundai-quarterly'],
+    'kia_sales': ['oem-kia-sales'],
+    'kia_export_regions': ['oem-kia-export-regions'],
+    'stellantis_na_sales': ['oem-stellantis-na-sales'],
+    'kia_retail_sales': ['oem-kia-retail'],
+    'uzbekistan_auto_stats': ['uzbekistan-auto-stats'],
+    'vehicle_powertrain_map': ['vehicle-powertrain-map'],
     # 보고서·뉴스
     'posts': ['posts'],
     'news': ['posts'],

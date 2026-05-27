@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,6 +14,7 @@ import {
 } from 'recharts';
 import { fmtChange, arrowColor } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import {
   buildRanking,
   fmtFull,
@@ -59,7 +61,12 @@ export default function Top30YtdChart({ groupMonth }: Props) {
         </div>
         <ResponsiveContainer width="100%" height={Math.max(600, TOP_N * 22)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 60, right: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              className="stroke-border"
+              strokeOpacity={GRID_STROKE_OPACITY}
+              horizontal={false}
+            />
             <XAxis type="number" tickFormatter={(v) => fmtUnits(v)} className="text-sm" />
             <YAxis
               type="category"
@@ -81,6 +88,12 @@ export default function Top30YtdChart({ groupMonth }: Props) {
               {chartData.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
+              <LabelList
+                dataKey="sales"
+                position="right"
+                formatter={(v: unknown) => (v == null ? '' : fmtUnits(Number(v)))}
+                style={DATA_LABEL_STYLE}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

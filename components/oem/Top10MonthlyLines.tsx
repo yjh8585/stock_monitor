@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import ClickableLegend from './ClickableLegend';
 import { fmtFull, fmtUnits, shortenOemName, sumByGroup, ymLabel, OEM_COLORS } from './helpers';
 
@@ -73,7 +74,11 @@ export default function Top10MonthlyLines({ groupMonth }: Props) {
       </div>
       <ResponsiveContainer width="100%" height={h}>
         <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            className="stroke-border"
+            strokeOpacity={GRID_STROKE_OPACITY}
+          />
           <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
           <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
           <Tooltip

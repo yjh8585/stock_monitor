@@ -1,0 +1,48 @@
+name: collect-uzbekistan-sales
+
+# 우즈베키스탄 자동차 시장 회사별 sales — uzavtosanoat.uz 보도자료.
+# 매월 14~18일 발표 → cron은 매월 20일 03:00 UTC로 발표 1-2일 후 안전하게 잡음.
+
+on:
+  schedule:
+    - cron: '0 3 20 * *'
+  workflow_dispatch:
+    inputs:
+      year_from:
+        description: '백필 시작 연도 (default 2024)'
+        type: string
+        default: '2024'
+      year_to:
+        description: '백필 마지막 연도 (default 빈값 = 현재 연도)'
+        type: string
+        default: ''
+      max_pages:
+        description: 'News 페이지 최대 (default 30)'
+        type: string
+        default: '30'
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          pip install -r scripts/requirements.txt
+          python -m playwright install --with-deps chromium
+      - name: Run collector
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          NEXT_REVALIDATE_URL: ${{ secrets.APP_BASE_URL }}/api/revalidate
+          NEXT_REVALIDATE_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          ARGS="--year-from ${{ inputs.year_from || '2024' }} --max-pages ${{ inputs.max_pages || '30' }}"
+          if [ -n "${{ inputs.year_to }}" ]; then
+            ARGS="$ARGS --year-to ${{ inputs.year_to }}"
+          fi
+          python scripts/collect_uzbekistan_sales.py $ARGS

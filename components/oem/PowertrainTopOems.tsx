@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { OemSalesGroupPtMonth, PowerTrain } from '@/lib/types';
+import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits, shortenOemName, OEM_COLORS, PT_COLORS, PT_ORDER } from './helpers';
 
 interface Props {
@@ -110,6 +111,12 @@ export default function PowertrainTopOems({ groupPtMonth }: Props) {
               {data.map((d) => (
                 <Cell key={d.name} fill={d.color} />
               ))}
+              <LabelList
+                dataKey="sales"
+                position="right"
+                formatter={(v: unknown) => (v == null ? '' : fmtUnits(Number(v)))}
+                style={DATA_LABEL_STYLE}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

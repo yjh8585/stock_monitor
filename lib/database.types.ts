@@ -268,15 +268,45 @@ export type Database = {
         ];
       };
       exchange_rates: {
-        Row: { base: string; quote: string; rate: number; rate_date: string };
-        Insert: { base: string; quote?: string; rate: number; rate_date: string };
-        Update: { base?: string; quote?: string; rate?: number; rate_date?: string };
+        Row: {
+          base: string;
+          quote: string;
+          rate: number;
+          rate_date: string;
+        };
+        Insert: {
+          base: string;
+          quote?: string;
+          rate: number;
+          rate_date: string;
+        };
+        Update: {
+          base?: string;
+          quote?: string;
+          rate?: number;
+          rate_date?: string;
+        };
         Relationships: [];
       };
       exchange_rates_live: {
-        Row: { base: string; quote: string; rate: number; updated_at: string };
-        Insert: { base: string; quote?: string; rate: number; updated_at?: string };
-        Update: { base?: string; quote?: string; rate?: number; updated_at?: string };
+        Row: {
+          base: string;
+          quote: string;
+          rate: number;
+          updated_at: string;
+        };
+        Insert: {
+          base: string;
+          quote?: string;
+          rate: number;
+          updated_at?: string;
+        };
+        Update: {
+          base?: string;
+          quote?: string;
+          rate?: number;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       financials: {
@@ -431,16 +461,349 @@ export type Database = {
           },
         ];
       };
-      kis_tokens: {
-        Row: { env_key: string; expires_at: string; token: string; updated_at: string };
-        Insert: { env_key: string; expires_at: string; token: string; updated_at?: string };
-        Update: { env_key?: string; expires_at?: string; token?: string; updated_at?: string };
+      hyundai_export_regions: {
+        Row: {
+          collected_at: string;
+          period_type: string;
+          region_name: string;
+          sales_units: number;
+          source: string;
+          source_url: string | null;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          period_type?: string;
+          region_name?: string;
+          sales_units: number;
+          source: string;
+          source_url?: string | null;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          period_type?: string;
+          region_name?: string;
+          sales_units?: number;
+          source?: string;
+          source_url?: string | null;
+          year_period?: string;
+        };
         Relationships: [];
       };
-      kiwoom_tokens: {
-        Row: { access_token: string; expires_at: string; id: number; updated_at: string };
-        Insert: { access_token: string; expires_at: string; id?: number; updated_at?: string };
-        Update: { access_token?: string; expires_at?: string; id?: number; updated_at?: string };
+      hyundai_quarterly_earnings: {
+        Row: {
+          cogs_krw_bn: number | null;
+          collected_at: string;
+          domestic_retail_k_units: number | null;
+          domestic_wholesale_k_units: number | null;
+          ebitda_krw_bn: number | null;
+          eco_total_k_units: number | null;
+          ev_k_units: number | null;
+          fcev_k_units: number | null;
+          fiscal_quarter: number;
+          fiscal_year: number;
+          global_retail_k_units: number | null;
+          global_wholesale_k_units: number | null;
+          gross_margin_pct: number | null;
+          gross_profit_krw_bn: number | null;
+          hev_k_units: number | null;
+          last_processed_at: string | null;
+          net_income_controlling_krw_bn: number | null;
+          net_income_krw_bn: number | null;
+          operating_income_krw_bn: number | null;
+          operating_margin_pct: number | null;
+          overseas_wholesale_k_units: number | null;
+          pdf_etag: string | null;
+          pdf_sha256: string | null;
+          pdf_url: string;
+          period_end_date: string | null;
+          phev_k_units: number | null;
+          pretax_income_krw_bn: number | null;
+          revenue_auto_krw_bn: number | null;
+          revenue_finance_krw_bn: number | null;
+          revenue_krw_bn: number | null;
+          revenue_other_krw_bn: number | null;
+          sga_krw_bn: number | null;
+          source_url: string | null;
+        };
+        Insert: {
+          cogs_krw_bn?: number | null;
+          collected_at?: string;
+          domestic_retail_k_units?: number | null;
+          domestic_wholesale_k_units?: number | null;
+          ebitda_krw_bn?: number | null;
+          eco_total_k_units?: number | null;
+          ev_k_units?: number | null;
+          fcev_k_units?: number | null;
+          fiscal_quarter: number;
+          fiscal_year: number;
+          global_retail_k_units?: number | null;
+          global_wholesale_k_units?: number | null;
+          gross_margin_pct?: number | null;
+          gross_profit_krw_bn?: number | null;
+          hev_k_units?: number | null;
+          last_processed_at?: string | null;
+          net_income_controlling_krw_bn?: number | null;
+          net_income_krw_bn?: number | null;
+          operating_income_krw_bn?: number | null;
+          operating_margin_pct?: number | null;
+          overseas_wholesale_k_units?: number | null;
+          pdf_etag?: string | null;
+          pdf_sha256?: string | null;
+          pdf_url: string;
+          period_end_date?: string | null;
+          phev_k_units?: number | null;
+          pretax_income_krw_bn?: number | null;
+          revenue_auto_krw_bn?: number | null;
+          revenue_finance_krw_bn?: number | null;
+          revenue_krw_bn?: number | null;
+          revenue_other_krw_bn?: number | null;
+          sga_krw_bn?: number | null;
+          source_url?: string | null;
+        };
+        Update: {
+          cogs_krw_bn?: number | null;
+          collected_at?: string;
+          domestic_retail_k_units?: number | null;
+          domestic_wholesale_k_units?: number | null;
+          ebitda_krw_bn?: number | null;
+          eco_total_k_units?: number | null;
+          ev_k_units?: number | null;
+          fcev_k_units?: number | null;
+          fiscal_quarter?: number;
+          fiscal_year?: number;
+          global_retail_k_units?: number | null;
+          global_wholesale_k_units?: number | null;
+          gross_margin_pct?: number | null;
+          gross_profit_krw_bn?: number | null;
+          hev_k_units?: number | null;
+          last_processed_at?: string | null;
+          net_income_controlling_krw_bn?: number | null;
+          net_income_krw_bn?: number | null;
+          operating_income_krw_bn?: number | null;
+          operating_margin_pct?: number | null;
+          overseas_wholesale_k_units?: number | null;
+          pdf_etag?: string | null;
+          pdf_sha256?: string | null;
+          pdf_url?: string;
+          period_end_date?: string | null;
+          phev_k_units?: number | null;
+          pretax_income_krw_bn?: number | null;
+          revenue_auto_krw_bn?: number | null;
+          revenue_finance_krw_bn?: number | null;
+          revenue_krw_bn?: number | null;
+          revenue_other_krw_bn?: number | null;
+          sga_krw_bn?: number | null;
+          source_url?: string | null;
+        };
+        Relationships: [];
+      };
+      hyundai_retail_sales: {
+        Row: {
+          collected_at: string;
+          industry_total: number | null;
+          market_share: number | null;
+          period_type: string;
+          region: string;
+          retail_units: number | null;
+          source_type: string;
+          source_url: string | null;
+          vehicle_model: string;
+          vehicle_type: string;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          industry_total?: number | null;
+          market_share?: number | null;
+          period_type?: string;
+          region?: string;
+          retail_units?: number | null;
+          source_type?: string;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          industry_total?: number | null;
+          market_share?: number | null;
+          period_type?: string;
+          region?: string;
+          retail_units?: number | null;
+          source_type?: string;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Relationships: [];
+      };
+      hyundai_sales: {
+        Row: {
+          collected_at: string;
+          factory: string;
+          period_type: string;
+          powertrain: string | null;
+          region: string;
+          sales_units: number;
+          source_url: string | null;
+          vehicle_model: string;
+          vehicle_type: string;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          factory?: string;
+          period_type?: string;
+          powertrain?: string | null;
+          region?: string;
+          sales_units: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          factory?: string;
+          period_type?: string;
+          powertrain?: string | null;
+          region?: string;
+          sales_units?: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Relationships: [];
+      };
+      kg_mobility_sales: {
+        Row: {
+          collected_at: string;
+          period_type: string;
+          powertrain: string | null;
+          region: string;
+          sales_units: number;
+          source_url: string | null;
+          vehicle_model: string;
+          vehicle_type: string;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          period_type?: string;
+          powertrain?: string | null;
+          region?: string;
+          sales_units: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          period_type?: string;
+          powertrain?: string | null;
+          region?: string;
+          sales_units?: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Relationships: [];
+      };
+      kia_export_regions: {
+        Row: {
+          collected_at: string;
+          period_type: string;
+          region_name: string;
+          sales_units: number;
+          source: string;
+          source_url: string | null;
+          vehicle_type: string;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          period_type?: string;
+          region_name?: string;
+          sales_units?: number;
+          source?: string;
+          source_url?: string | null;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          period_type?: string;
+          region_name?: string;
+          sales_units?: number;
+          source?: string;
+          source_url?: string | null;
+          vehicle_type?: string;
+          year_period?: string;
+        };
+        Relationships: [];
+      };
+      kia_sales: {
+        Row: {
+          collected_at: string;
+          factory: string;
+          period_type: string;
+          region: string;
+          sales_units: number;
+          source_url: string | null;
+          vehicle_model: string;
+          vehicle_type: string | null;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          factory?: string;
+          period_type?: string;
+          region?: string;
+          sales_units?: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string | null;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          factory?: string;
+          period_type?: string;
+          region?: string;
+          sales_units?: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          vehicle_type?: string | null;
+          year_period?: string;
+        };
+        Relationships: [];
+      };
+      kis_tokens: {
+        Row: {
+          env_key: string;
+          expires_at: string;
+          token: string;
+          updated_at: string;
+        };
+        Insert: {
+          env_key: string;
+          expires_at: string;
+          token: string;
+          updated_at?: string;
+        };
+        Update: {
+          env_key?: string;
+          expires_at?: string;
+          token?: string;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       macro_outlook_notes: {
@@ -504,9 +867,21 @@ export type Database = {
         Relationships: [];
       };
       market_series_daily: {
-        Row: { close: number; series_code: string; trade_date: string };
-        Insert: { close: number; series_code: string; trade_date: string };
-        Update: { close?: number; series_code?: string; trade_date?: string };
+        Row: {
+          close: number;
+          series_code: string;
+          trade_date: string;
+        };
+        Insert: {
+          close: number;
+          series_code: string;
+          trade_date: string;
+        };
+        Update: {
+          close?: number;
+          series_code?: string;
+          trade_date?: string;
+        };
         Relationships: [];
       };
       naver_board_posts: {
@@ -676,20 +1051,57 @@ export type Database = {
         Relationships: [];
       };
       oem_sales_group_country_month: {
-        Row: { country: string; oem_group: string; sales: number; year_month: number };
-        Insert: { country: string; oem_group: string; sales: number; year_month: number };
-        Update: { country?: string; oem_group?: string; sales?: number; year_month?: number };
+        Row: {
+          country: string;
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
+        Insert: {
+          country: string;
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
+        Update: {
+          country?: string;
+          oem_group?: string;
+          sales?: number;
+          year_month?: number;
+        };
         Relationships: [];
       };
       oem_sales_group_month: {
-        Row: { oem_group: string; sales: number; year_month: number };
-        Insert: { oem_group: string; sales: number; year_month: number };
-        Update: { oem_group?: string; sales?: number; year_month?: number };
+        Row: {
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
+        Insert: {
+          oem_group: string;
+          sales: number;
+          year_month: number;
+        };
+        Update: {
+          oem_group?: string;
+          sales?: number;
+          year_month?: number;
+        };
         Relationships: [];
       };
       oem_sales_group_pt_month: {
-        Row: { oem_group: string; powertrain: string; sales: number; year_month: number };
-        Insert: { oem_group: string; powertrain: string; sales: number; year_month: number };
+        Row: {
+          oem_group: string;
+          powertrain: string;
+          sales: number;
+          year_month: number;
+        };
+        Insert: {
+          oem_group: string;
+          powertrain: string;
+          sales: number;
+          year_month: number;
+        };
         Update: {
           oem_group?: string;
           powertrain?: string;
@@ -723,8 +1135,18 @@ export type Database = {
         Relationships: [];
       };
       oem_sales_type_seg_month: {
-        Row: { sales: number; segment: string; vehicle_type: string; year_month: number };
-        Insert: { sales: number; segment: string; vehicle_type: string; year_month: number };
+        Row: {
+          sales: number;
+          segment: string;
+          vehicle_type: string;
+          year_month: number;
+        };
+        Insert: {
+          sales: number;
+          segment: string;
+          vehicle_type: string;
+          year_month: number;
+        };
         Update: {
           sales?: number;
           segment?: string;
@@ -884,9 +1306,63 @@ export type Database = {
         Relationships: [];
       };
       product_category_map: {
-        Row: { normalized: string; raw_category: string };
-        Insert: { normalized: string; raw_category: string };
-        Update: { normalized?: string; raw_category?: string };
+        Row: {
+          normalized: string;
+          raw_category: string;
+        };
+        Insert: {
+          normalized: string;
+          raw_category: string;
+        };
+        Update: {
+          normalized?: string;
+          raw_category?: string;
+        };
+        Relationships: [];
+      };
+      stellantis_na_sales: {
+        Row: {
+          brand: string;
+          collected_at: string;
+          period_type: string;
+          publish_date: string | null;
+          region: string;
+          release_id: string | null;
+          sales_units: number;
+          sales_units_prev: number | null;
+          source_url: string | null;
+          vehicle_model: string;
+          year_period: string;
+          yoy_pct: number | null;
+        };
+        Insert: {
+          brand?: string;
+          collected_at?: string;
+          period_type?: string;
+          publish_date?: string | null;
+          region?: string;
+          release_id?: string | null;
+          sales_units?: number;
+          sales_units_prev?: number | null;
+          source_url?: string | null;
+          vehicle_model?: string;
+          year_period?: string;
+          yoy_pct?: number | null;
+        };
+        Update: {
+          brand?: string;
+          collected_at?: string;
+          period_type?: string;
+          publish_date?: string | null;
+          region?: string;
+          release_id?: string | null;
+          sales_units?: number;
+          sales_units_prev?: number | null;
+          source_url?: string | null;
+          vehicle_model?: string;
+          year_period?: string;
+          yoy_pct?: number | null;
+        };
         Relationships: [];
       };
       stock_daily_prices: {
@@ -1211,6 +1687,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      vehicle_powertrain_map: {
+        Row: {
+          company_slug: string;
+          created_at: string;
+          powertrain: string;
+          source_note: string | null;
+          valid_from: string;
+          valid_to: string | null;
+          vehicle_model: string;
+        };
+        Insert: {
+          company_slug: string;
+          created_at?: string;
+          powertrain: string;
+          source_note?: string | null;
+          valid_from?: string;
+          valid_to?: string | null;
+          vehicle_model: string;
+        };
+        Update: {
+          company_slug?: string;
+          created_at?: string;
+          powertrain?: string;
+          source_note?: string | null;
+          valid_from?: string;
+          valid_to?: string | null;
+          vehicle_model?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       domestic_stocks_view: {
@@ -1304,7 +1810,10 @@ export type Database = {
     Functions: {
       clean_company_legal_form: { Args: { raw: string }; Returns: string };
       expand_customer_name: { Args: { raw: string }; Returns: string[] };
-      merge_company: { Args: { p_new_id: string; p_old_id: string }; Returns: undefined };
+      merge_company: {
+        Args: { p_new_id: string; p_old_id: string };
+        Returns: undefined;
+      };
       normalize_customer_name: { Args: { raw: string }; Returns: string };
       normalize_product_category: { Args: { raw: string }; Returns: string };
     };
