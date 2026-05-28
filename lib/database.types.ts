@@ -1223,6 +1223,30 @@ export type Database = {
         }
         Relationships: []
       }
+      personnel_entries: {
+        Row: {
+          detail: string
+          headcount: number | null
+          kind: string
+          period_date: string
+          region: string
+        }
+        Insert: {
+          detail?: string
+          headcount?: number | null
+          kind: string
+          period_date: string
+          region: string
+        }
+        Update: {
+          detail?: string
+          headcount?: number | null
+          kind?: string
+          period_date?: string
+          region?: string
+        }
+        Relationships: []
+      }
       pnl_cost_structure: {
         Row: {
           account: string
@@ -2095,7 +2119,6 @@ export const Constants = {
   },
 } as const
 
-
 /** 타입 헬퍼: View Row 빠른 추출 */
 export type ViewRow<T extends keyof Database['public']['Views']> =
   Database['public']['Views'][T]['Row'];
@@ -2103,4 +2126,3 @@ export type ViewRow<T extends keyof Database['public']['Views']> =
 /** 타입 헬퍼: Table Row 빠른 추출 */
 export type TableRow<T extends keyof Database['public']['Tables']> =
   Database['public']['Tables'][T]['Row'];
-
