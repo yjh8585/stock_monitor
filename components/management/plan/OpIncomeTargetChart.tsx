@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import PlanAchievementChart from './PlanAchievementChart';
 import { ChartSection, ToggleGroup } from './_selectors';
-import { buildCorpAchievement } from './RevenueTargetChart';
+import { buildCorpAchievement } from '@/lib/plan/aggregate';
 import type { PreparedPnlData } from '@/lib/pnl/aggregate';
 import type { Basis } from '@/lib/pnl/types';
 import type { PlanRow } from '@/lib/plan/types';
