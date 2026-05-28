@@ -53,9 +53,11 @@ export interface InventoryKpis {
   /** 2. 회전율 (회) + 회전기간(일) */
   turnover: number | null;
   turnoverDays: number | null;
-  /** 3. 최신 월 달성율 (실적/계획 × 100, %) — 전체 기준 */
-  achievementPct: number | null;
-  /** 4. 운송 비중 (운송/전체 × 100, %) */
+  /** 3. 관리 비중 (관리/전체 × 100, %) */
+  managementSharePct: number | null;
+  /** 4. 보상 비중 (보상/전체 × 100, %) */
+  compensationSharePct: number | null;
+  /** 5. 운송 비중 (운송/전체 × 100, %) */
   transportSharePct: number | null;
 }
 
