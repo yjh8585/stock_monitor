@@ -12,9 +12,10 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
-/** (고객, 제품) 두 차원이 모두 '기타'인 catchall 행은 TOP/WORST 랭킹에서 제외. */
+/** 고객이 '기타'(미상/잡거래처)인 행은 TOP/WORST 랭킹에서 제외 — 분석 의미 약함.
+ * (제품과 무관하게 customer='기타'면 모두 제외; 단 corp 합계·나머지 합계엔 그대로 포함.) */
 function isCatchall(r: AggregatedRow): boolean {
-  return r.dims.customer === '기타' && r.dims.product === '기타';
+  return r.dims.customer === '기타';
 }
 
 function fmt(n: number): string {
@@ -99,7 +100,7 @@ export default function ProfitContribution({ annualByBasis }: Props) {
         </div>
       </header>
       <p className="text-xs text-muted-foreground mb-2">
-        단위 백만원 · (고객·제품) cross 기준 · (기타·기타) catchall 제외 · 영업이익 순
+        단위 백만원 · (고객·제품) cross 기준 · 고객='기타' 제외 · 영업이익 순
       </p>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
