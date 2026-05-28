@@ -16,10 +16,12 @@ import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 // 무거운 차트 컴포넌트 — recharts 청크를 차트 단위로 lazy 분리.
 // 각 차트는 LazyMount 안에 들어가 viewport 진입 시 청크 download + mount.
 const MarginScatter = dynamic(() => import('./MarginScatter'), { ssr: false });
+const ProfitContribution = dynamic(() => import('./ProfitContribution'), { ssr: false });
 const YoyMonthlyCompare = dynamic(() => import('./YoyMonthlyCompare'), { ssr: false });
 const YoyMonthlyFiltered = dynamic(() => import('./YoyMonthlyFiltered'), { ssr: false });
 const YoyProductCustomer = dynamic(() => import('./YoyProductCustomer'), { ssr: false });
-const Insights = dynamic(() => import('./Insights'), { ssr: false });
+const WaterfallProfitability = dynamic(() => import('./WaterfallProfitability'), { ssr: false });
+const CustomerParetoChart = dynamic(() => import('./CustomerParetoChart'), { ssr: false });
 
 interface Props {
   /** 서버에서 preparePnlData 호출 후 derived만 전달 (raw 1k+ 행 직렬화 회피). */
@@ -41,9 +43,10 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  * - 서버에서 derived 변환 완료 → RSC payload는 raw 1k+ 행 대신 작은 prepared만.
  * - `annualByBasis` / `monthlyByBasis` 는 basis별 분리되어 토글 시 자식이
  *   전체 대신 절반 배열만 필터/그룹.
- * - 차트가 들어간 하단 섹션(MarginScatter / YoyMonthlyCompare /
- *   YoyProductCustomer / Insights)은 `LazyMount`로 감싸 viewport 진입 시
- *   1회 마운트 + recharts 청크 lazy fetch.
+ * - 차트가 들어간 하단 섹션(MarginScatter / ProfitContribution /
+ *   YoyMonthlyCompare / YoyMonthlyFiltered / YoyProductCustomer /
+ *   WaterfallProfitability / CustomerParetoChart)은 `LazyMount`로 감싸
+ *   viewport 진입 시 1회 마운트 + recharts 청크 lazy fetch.
  */
 export default function PnlDashboard({ prepared, costStructure }: Props) {
   const { annualEntries, annualByBasis, monthlyByBasis } = prepared;
@@ -69,6 +72,9 @@ export default function PnlDashboard({ prepared, costStructure }: Props) {
           monthlyByBasis={monthlyByBasis}
         />
       </LazyMount>
+      <LazyMount className="min-h-[320px] md:min-h-[400px]">
+        <ProfitContribution annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      </LazyMount>
       <LazyMount className="min-h-[420px] md:min-h-[540px]">
         <YoyMonthlyCompare monthlyByBasis={monthlyByBasis} />
       </LazyMount>
@@ -82,9 +88,11 @@ export default function PnlDashboard({ prepared, costStructure }: Props) {
           monthlyByBasis={monthlyByBasis}
         />
       </LazyMount>
-      {/* Insights: 2개 차트 (워터폴 + 파레토). 모바일은 세로 stack. */}
-      <LazyMount className="min-h-[820px] lg:min-h-[460px]">
-        <Insights annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      <LazyMount className="min-h-[420px] md:min-h-[520px]">
+        <WaterfallProfitability annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px] md:min-h-[520px]">
+        <CustomerParetoChart annualEntries={annualEntries} annualByBasis={annualByBasis} />
       </LazyMount>
     </div>
   );

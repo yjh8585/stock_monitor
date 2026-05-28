@@ -83,9 +83,9 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
   const h = useChartHeight(280, 360, 420);
 
   return (
-    <div className="rounded-md border border-border bg-card p-3">
+    <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-        <div className="text-lg font-semibold">고객 매출 집중도 (파레토)</div>
+        <h2 className="text-lg font-semibold">15. 고객 매출 집중도 (파레토)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect
@@ -169,7 +169,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
           </ComposedChart>
         </ResponsiveContainer>
       )}
-    </div>
+    </section>
   );
 }
 
