@@ -50,7 +50,7 @@ export default function PersonnelOverseasChart({ points }: Props) {
           contentStyle={{
             backgroundColor: 'var(--card)',
             border: '1px solid var(--border)',
-            fontSize: '14px',
+            fontSize: '16px',
           }}
           formatter={(value: unknown): [string, string] => [
             typeof value === 'number' ? `${fmt(value, 0)} 명` : '—',
@@ -62,7 +62,7 @@ export default function PersonnelOverseasChart({ points }: Props) {
             dataKey="headcount"
             position="top"
             formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
-            style={{ fontSize: 13, fill: 'var(--foreground)', fontWeight: 600 }}
+            style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
           />
         </Bar>
       </ComposedChart>

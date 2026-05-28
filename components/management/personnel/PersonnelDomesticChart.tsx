@@ -73,7 +73,7 @@ export default function PersonnelDomesticChart({ points }: Props) {
           contentStyle={{
             backgroundColor: 'var(--card)',
             border: '1px solid var(--border)',
-            fontSize: '14px',
+            fontSize: '16px',
           }}
           content={<DomesticTooltip />}
         />
@@ -117,7 +117,7 @@ export default function PersonnelDomesticChart({ points }: Props) {
             dataKey="total"
             position="top"
             formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
-            style={{ fontSize: 13, fill: 'var(--foreground)', fontWeight: 600 }}
+            style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
           />
         </Bar>
       </ComposedChart>
@@ -139,7 +139,7 @@ function DomesticTooltip({
   const p = payload[0].payload;
   return (
     <div
-      className="rounded-md p-2 text-sm"
+      className="rounded-md p-2 text-base"
       style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
     >
       <div className="font-semibold mb-1">{label}</div>

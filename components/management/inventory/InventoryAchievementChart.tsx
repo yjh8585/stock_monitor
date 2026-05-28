@@ -96,7 +96,7 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
           contentStyle={{
             backgroundColor: 'var(--card)',
             border: '1px solid var(--border)',
-            fontSize: '14px',
+            fontSize: '16px',
           }}
           content={<Tip unitLabel={unitLabel} />}
         />
@@ -149,7 +149,7 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
                 // 목표값과 동일한 값만 표시 (최근 연도 12월)
                 return Math.abs(value - targetInfo.value) < 0.001 ? fmt(value, 0) : '';
               }}
-              style={{ fontSize: 12, fill: TARGET_COLOR, fontWeight: 600 }}
+              style={{ fontSize: 16, fill: TARGET_COLOR, fontWeight: 600 }}
             />
           ) : null}
         </Bar>
@@ -180,7 +180,7 @@ function Tip({
   const p = payload[0].payload;
   return (
     <div
-      className="rounded-md p-2 text-sm"
+      className="rounded-md p-2 text-base"
       style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
     >
       <div className="font-semibold mb-1">{label}</div>

@@ -102,7 +102,7 @@ export default function InventoryStatusChart({ points }: Props) {
             contentStyle={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
-              fontSize: '14px',
+              fontSize: '16px',
             }}
             content={<StatusTooltip />}
           />
@@ -159,7 +159,7 @@ export default function InventoryStatusChart({ points }: Props) {
               dataKey="total"
               position="top"
               formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
-              style={{ fontSize: 12, fill: 'var(--foreground)', fontWeight: 600 }}
+              style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
             />
           </Bar>
           <Line
@@ -177,7 +177,7 @@ export default function InventoryStatusChart({ points }: Props) {
               dataKey="turnover"
               position="top"
               formatter={(v: unknown) => (typeof v === 'number' ? `${v.toFixed(1)}회` : '')}
-              style={{ fontSize: 12, fill: COLORS.turnover, fontWeight: 600 }}
+              style={{ fontSize: 16, fill: COLORS.turnover, fontWeight: 600 }}
               offset={12}
             />
           </Line>
@@ -200,7 +200,7 @@ function StatusTooltip({
   const p = payload[0].payload;
   return (
     <div
-      className="rounded-md p-2 text-sm"
+      className="rounded-md p-2 text-base"
       style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
     >
       <div className="font-semibold mb-1">{label}</div>
