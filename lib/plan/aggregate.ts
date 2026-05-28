@@ -2,11 +2,7 @@
 import type { AchievementPoint, PlanRow } from './types';
 
 /** 단위 환산. 지원: 억원↔백만원(1억원=100백만원). USD/동일단위는 그대로. */
-export function normalizeUnit(
-  value: number | null,
-  from: string,
-  to: string
-): number | null {
+export function normalizeUnit(value: number | null, from: string, to: string): number | null {
   if (value === null) return null;
   if (from === to) return value;
   if (from === '백만원' && to === '억원') return value / 100;

@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import {
-  normalizeUnit,
-  buildAchievement,
-  fillCancelExcluded,
-} from '../aggregate';
+import { normalizeUnit, buildAchievement, fillCancelExcluded } from '../aggregate';
 import type { PlanRow } from '../types';
 
 function row(p: Partial<PlanRow>): PlanRow {
   return {
-    category: '수주', item: '수주액', basis: 'consolidated', kind: 'plan',
-    period_year: 2025, period_type: 'annual', period_month: 0, unit: '억원', value: 0,
+    category: '수주',
+    item: '수주액',
+    basis: 'consolidated',
+    kind: 'plan',
+    period_year: 2025,
+    period_type: 'annual',
+    period_month: 0,
+    unit: '억원',
+    value: 0,
     ...p,
   };
 }
@@ -60,7 +63,14 @@ describe('buildAchievement', () => {
   it('백만원 실적을 억원으로 환산', () => {
     const rows: PlanRow[] = [
       row({ kind: 'plan', period_year: 2026, period_type: 'annual', unit: '억원', value: 5 }),
-      row({ kind: 'actual', period_year: 2026, period_type: 'month', period_month: 1, unit: '백만원', value: 200 }),
+      row({
+        kind: 'actual',
+        period_year: 2026,
+        period_type: 'month',
+        period_month: 1,
+        unit: '백만원',
+        value: 200,
+      }),
     ];
     const pts = buildAchievement(rows, { unit: '억원' });
     expect(pts[0].actual).toBe(2); // 200백만원 = 2억원
@@ -72,7 +82,14 @@ describe('fillCancelExcluded', () => {
   it('취소제외 결측 연도는 수주액 실적으로 채운다', () => {
     const base = [
       { yearLabel: '2024', year: 2024, ytd: false, plan: 100, actual: 90, rate: 90 },
-      { yearLabel: '2025', year: 2025, ytd: false, plan: 110, actual: 100, rate: 100 / 110 * 100 },
+      {
+        yearLabel: '2025',
+        year: 2025,
+        ytd: false,
+        plan: 110,
+        actual: 100,
+        rate: (100 / 110) * 100,
+      },
     ];
     const cancel = [
       { yearLabel: '2024', year: 2024, ytd: false, plan: 100, actual: 85, rate: 85 },

@@ -9,7 +9,13 @@ import type { AchievementPoint, PlanRow } from '@/lib/plan/types';
 type Item = '매출' | '영업이익';
 type Cur = 'usd' | 'krw';
 
-export default function UsTargetChart({ rows, usdKrw }: { rows: PlanRow[]; usdKrw: number | null }) {
+export default function UsTargetChart({
+  rows,
+  usdKrw,
+}: {
+  rows: PlanRow[];
+  usdKrw: number | null;
+}) {
   const [item, setItem] = useState<Item>('매출');
   const [cur, setCur] = useState<Cur>('usd');
   const points = useMemo<AchievementPoint[]>(() => {

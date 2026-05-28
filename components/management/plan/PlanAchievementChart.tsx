@@ -41,7 +41,9 @@ const RATE_COLOR = '#dc2626'; // 달성율 라인
 export default function PlanAchievementChart({ points, unitLabel }: Props) {
   const h = useChartHeight(300, 380, 460);
   if (points.length === 0) {
-    return <div className="py-12 text-center text-sm text-muted-foreground">데이터가 없습니다.</div>;
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">데이터가 없습니다.</div>
+    );
   }
   return (
     <ResponsiveContainer width="100%" height={h}>
@@ -53,7 +55,12 @@ export default function PlanAchievementChart({ points, unitLabel }: Props) {
           tickFormatter={(v: number) => fmt(v)}
           tick={{ fontSize: 14 }}
           width={80}
-          label={{ value: unitLabel, position: 'insideTopLeft', fontSize: 12, fill: 'var(--muted-foreground)' }}
+          label={{
+            value: unitLabel,
+            position: 'insideTopLeft',
+            fontSize: 12,
+            fill: 'var(--muted-foreground)',
+          }}
         />
         <YAxis
           yAxisId="rate"
@@ -64,7 +71,11 @@ export default function PlanAchievementChart({ points, unitLabel }: Props) {
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', fontSize: '15px' }}
+          contentStyle={{
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            fontSize: '15px',
+          }}
           content={<AchievementTooltip unitLabel={unitLabel} />}
         />
         <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 4, fontSize: 13 }} />
@@ -99,10 +110,17 @@ function AchievementTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-md p-2 text-sm" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+    <div
+      className="rounded-md p-2 text-sm"
+      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+    >
       <div className="font-semibold mb-1">{label}</div>
-      <div>계획: {fmt(p.plan)} {unitLabel}</div>
-      <div>실적: {fmt(p.actual)} {unitLabel}</div>
+      <div>
+        계획: {fmt(p.plan)} {unitLabel}
+      </div>
+      <div>
+        실적: {fmt(p.actual)} {unitLabel}
+      </div>
       <div className={p.rate != null && p.rate < 100 ? 'text-red-500' : 'text-emerald-600'}>
         달성율: {p.rate == null ? '—' : `${fmt(p.rate, 1)}%`}
       </div>

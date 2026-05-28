@@ -38,7 +38,8 @@ export function buildCorpAchievement(
     const a = actualByYear.get(year);
     const actual = a ? Math.round(a.value * 10000) / 10000 : null;
     const ytd = a?.ytd ?? false;
-    const rate = plan && plan !== 0 && actual !== null ? Math.round((actual / plan) * 1000000) / 10000 : null;
+    const rate =
+      plan && plan !== 0 && actual !== null ? Math.round((actual / plan) * 1000000) / 10000 : null;
     if (plan === null && actual === null) continue;
     out.push({ yearLabel: ytd ? `${year} YTD` : String(year), year, ytd, plan, actual, rate });
   }

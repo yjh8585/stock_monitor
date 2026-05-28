@@ -3,12 +3,7 @@
 import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
-import {
-  aggregateBy,
-  entriesForYear,
-  getDisplayYearLabels,
-  opMarginOf,
-} from '@/lib/pnl/aggregate';
+import { aggregateBy, entriesForYear, getDisplayYearLabels, opMarginOf } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 
@@ -147,7 +142,9 @@ function ContribTable({ title, rows }: { title: string; rows: AggregatedRow[] })
                   <td className={`text-right py-1.5 px-2 ${r.op_income < 0 ? 'text-red-500' : ''}`}>
                     {fmt(r.op_income)}
                   </td>
-                  <td className={`text-right py-1.5 px-2 ${marginCls(margin)}`}>{fmtPct(margin)}</td>
+                  <td className={`text-right py-1.5 px-2 ${marginCls(margin)}`}>
+                    {fmtPct(margin)}
+                  </td>
                 </tr>
               );
             })}

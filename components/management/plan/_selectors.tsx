@@ -21,7 +21,9 @@ export function ToggleGroup<T extends string>({
           type="button"
           onClick={() => onChange(o.value)}
           className={`px-2.5 py-1 text-sm transition-colors ${
-            value === o.value ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'
+            value === o.value
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-background hover:bg-muted'
           }`}
         >
           {o.label}
