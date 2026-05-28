@@ -16,7 +16,8 @@ export default function SangsukTargetChart({ rows }: { rows: PlanRow[] }) {
   );
   return (
     <ChartSection
-      title="6. 상숙법인 목표 달성 · 단위 억원"
+      title="6. 상숙법인 목표 달성"
+      unit="억원"
       controls={
         <ToggleGroup
           options={[

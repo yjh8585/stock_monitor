@@ -34,7 +34,8 @@ export default function UsTargetChart({
   const unitLabel = cur === 'usd' ? 'USD 백만' : '억원';
   return (
     <ChartSection
-      title={`5. 미국법인 목표 달성 · 단위 ${unitLabel}`}
+      title="5. 미국법인 목표 달성"
+      unit={unitLabel}
       controls={
         <>
           <ToggleGroup

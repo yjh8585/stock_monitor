@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
@@ -99,10 +99,20 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
     ...points.map((p) => (p.successRate == null ? 0 : Math.abs(p.successRate)))
   );
 
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggle = useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const h = useChartHeight(360, 440, 520);
 
   return (
-    <ChartSection title="2. 입찰 성공율 · 단위 억원">
+    <ChartSection title="2. 입찰 성공율" unit="억원">
       {points.length === 0 ? (
         <div className="py-12 text-center text-base text-muted-foreground">
           데이터가 없습니다.
@@ -111,7 +121,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
         <ResponsiveContainer width="100%" height={h}>
           <ComposedChart
             data={points}
-            margin={{ top: 40, right: 24, bottom: 10, left: 10 }}
+            margin={{ top: 48, right: 24, bottom: 10, left: 10 }}
             barCategoryGap="25%"
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
@@ -121,7 +131,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               tickFormatter={(v: number) => fmt(v)}
               tick={{ fontSize: 14 }}
               width={80}
-              domain={[0, (max: number) => Math.max(max * 2.0, 1)]}
+              domain={[0, (max: number) => Math.max(max * 2.5, 1)]}
             />
             <YAxis
               yAxisId="rate"
@@ -129,7 +139,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               tickFormatter={(v: number) => `${Math.round(v)}%`}
               tick={{ fontSize: 14 }}
               width={56}
-              domain={[-rateMax * 1.0, rateMax * 1.1]}
+              domain={[-rateMax * 1.5, rateMax * 1.1]}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
@@ -146,11 +156,13 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               content={() => (
                 <LegendRow
                   items={[
-                    { label: '수주성공', shape: 'rect', color: COLOR_SUCCESS },
-                    { label: '수주실패', shape: 'rect', color: COLOR_FAIL },
-                    { label: '연기∙중단∙취소', shape: 'rect', color: COLOR_CANCEL },
-                    { label: '입찰 성공율', shape: 'line', color: COLOR_RATE },
+                    { key: 'success', label: '수주성공', shape: 'rect', color: COLOR_SUCCESS },
+                    { key: 'fail', label: '수주실패', shape: 'rect', color: COLOR_FAIL },
+                    { key: 'cancel', label: '연기∙중단∙취소', shape: 'rect', color: COLOR_CANCEL },
+                    { key: 'rate', label: '입찰 성공율', shape: 'line', color: COLOR_RATE },
                   ]}
+                  hidden={hidden}
+                  onToggle={toggle}
                 />
               )}
             />
@@ -160,6 +172,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               name="수주성공"
               stackId="funnel"
               fill={COLOR_SUCCESS}
+              hide={hidden.has('success')}
             />
             <Bar
               yAxisId="amount"
@@ -167,6 +180,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               name="수주실패"
               stackId="funnel"
               fill={COLOR_FAIL}
+              hide={hidden.has('fail')}
             />
             <Bar
               yAxisId="amount"
@@ -175,8 +189,10 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               stackId="funnel"
               fill={COLOR_CANCEL}
               radius={[2, 2, 0, 0]}
+              hide={hidden.has('cancel')}
             >
-              {/* 스택 최상단 막대에만 총액 라벨 표시 */}
+              {/* 스택 최상단 막대에만 총액 라벨 표시 — 라벨은 입찰성공율 라인 위치보다 아래쪽에 위치하도록
+                 amount 축 도메인 압축으로 시각 분리. 라벨 자체는 막대 바깥쪽(top)에 노출. */}
               <LabelList
                 dataKey="total"
                 position="top"
@@ -193,6 +209,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               strokeWidth={2.5}
               dot={{ r: 5, fill: COLOR_RATE }}
               connectNulls
+              hide={hidden.has('rate')}
             >
               <LabelList
                 dataKey="successRate"
@@ -201,7 +218,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
                   typeof value === 'number' ? `${fmt(value, 1)}%` : ''
                 }
                 style={{ fontSize: 16, fill: COLOR_RATE, fontWeight: 600 }}
-                offset={10}
+                offset={16}
               />
             </Line>
           </ComposedChart>

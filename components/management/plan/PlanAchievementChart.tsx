@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
@@ -45,27 +46,36 @@ const RATE_COLOR = '#dc2626'; // 달성율 라인
  * 콤보 차트: 계획·실적 막대 + 달성율(%) 라인.
  *
  * 가독성 설계:
- * - 막대는 좌측 amount 축(domain [0, max×2.2]) → 막대가 plot 하단 ~45%에만 그려진다.
- * - 라인은 우측 rate 축(domain [−max×1.0, max×1.1]) → 라인이 plot 상단 ~55%에 그려진다.
- *   양쪽 축의 0이 같은 y 위치에 오지 않게 의도적으로 비대칭으로 잡아 막대·라인 영역을 분리.
- * - 데이터 라벨: 막대는 outside top, 라인은 marker 위쪽. 폰트 16(경영관리 페이지 호버와 동일).
- * - top margin을 넉넉히(40) 두어 outside 라벨이 잘리지 않게.
+ * - 막대 amount 축 domain [0, max×2.5] → 막대가 plot 하단 ~40%
+ * - 라인 rate 축 domain [-rateMax×1.5, rateMax×1.1] → 라인이 상단 ~60% 영역
+ *   양쪽 축의 0이 같은 y 위치에 오지 않게 비대칭으로 잡아 막대·라인 영역 분리.
+ * - 데이터 라벨: 막대 outside top, 라인 marker 위(offset 16). 폰트 16(경영관리 호버 동일).
+ * - 범례 클릭 시 시리즈 토글(hide). 토글된 항목은 chip이 흐려지고 line-through 표시.
  */
 export default function PlanAchievementChart({ points, unitLabel, amountDigits = 0 }: Props) {
   const h = useChartHeight(360, 440, 520);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggle = useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   if (points.length === 0) {
     return (
       <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
     );
   }
-  // 라인 우측 축은 양/음 범위로 잡아 0이 막대 영역(하단)보다 위에 위치하도록.
   const rateMax = Math.max(
     100,
     ...points.map((p) => (p.rate == null ? 0 : Math.abs(p.rate)))
   );
   return (
     <ResponsiveContainer width="100%" height={h}>
-      <ComposedChart data={points} margin={{ top: 40, right: 24, bottom: 10, left: 10 }} barGap={2}>
+      <ComposedChart data={points} margin={{ top: 48, right: 24, bottom: 10, left: 10 }} barGap={2}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
         <XAxis dataKey="yearLabel" tick={{ fontSize: 14 }} />
         <YAxis
@@ -73,8 +83,8 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
           tickFormatter={(v: number) => fmt(v, amountDigits)}
           tick={{ fontSize: 14 }}
           width={80}
-          // 막대 plot 하단 ~45%로 압축 — 라인과 시각 분리.
-          domain={[0, (max: number) => Math.max(max * 2.2, 1)]}
+          // 막대는 plot 하단 ~40%로 압축 — 라인과 시각 분리.
+          domain={[0, (max: number) => Math.max(max * 2.5, 1)]}
         />
         <YAxis
           yAxisId="rate"
@@ -82,8 +92,8 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
           tickFormatter={(v: number) => `${Math.round(v)}%`}
           tick={{ fontSize: 14 }}
           width={56}
-          // 0%가 plot 중앙보다 약간 아래로 가도록 음수 영역까지 확장 → 양수 라인은 상단에 그려진다.
-          domain={[-rateMax * 1.0, rateMax * 1.1]}
+          // 0%가 plot 하단(~58%)에 오도록 음수 영역까지 확장 → 양수 라인은 상단에 그려진다.
+          domain={[-rateMax * 1.5, rateMax * 1.1]}
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
@@ -97,18 +107,26 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
         <Legend
           verticalAlign="top"
           wrapperStyle={{ paddingBottom: 4 }}
-          // 사용자 요청 순서: 계획, 실적, 달성율 (render 순서 그대로 노출)
           content={() => (
             <LegendRow
               items={[
-                { label: '계획', shape: 'rect', color: PLAN_COLOR },
-                { label: '실적', shape: 'rect', color: BASE },
-                { label: '달성율', shape: 'line', color: RATE_COLOR },
+                { key: 'plan', label: '계획', shape: 'rect', color: PLAN_COLOR },
+                { key: 'actual', label: '실적', shape: 'rect', color: BASE },
+                { key: 'rate', label: '달성율', shape: 'line', color: RATE_COLOR },
               ]}
+              hidden={hidden}
+              onToggle={toggle}
             />
           )}
         />
-        <Bar yAxisId="amount" dataKey="plan" name="계획" fill={PLAN_COLOR} radius={[2, 2, 0, 0]}>
+        <Bar
+          yAxisId="amount"
+          dataKey="plan"
+          name="계획"
+          fill={PLAN_COLOR}
+          radius={[2, 2, 0, 0]}
+          hide={hidden.has('plan')}
+        >
           <LabelList
             dataKey="plan"
             position="top"
@@ -118,7 +136,14 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
             style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
           />
         </Bar>
-        <Bar yAxisId="amount" dataKey="actual" name="실적" fill={BASE} radius={[2, 2, 0, 0]}>
+        <Bar
+          yAxisId="amount"
+          dataKey="actual"
+          name="실적"
+          fill={BASE}
+          radius={[2, 2, 0, 0]}
+          hide={hidden.has('actual')}
+        >
           <LabelList
             dataKey="actual"
             position="top"
@@ -137,6 +162,7 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
           strokeWidth={2.5}
           dot={{ r: 5, fill: RATE_COLOR }}
           connectNulls
+          hide={hidden.has('rate')}
         >
           <LabelList
             dataKey="rate"
@@ -145,7 +171,7 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
               typeof value === 'number' ? `${fmt(value, 1)}%` : ''
             }
             style={{ fontSize: 16, fill: RATE_COLOR, fontWeight: 600 }}
-            offset={10}
+            offset={16}
           />
         </Line>
       </ComposedChart>
@@ -153,32 +179,50 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
   );
 }
 
-/** 공통 범례 표시 — 사용자 지정 순서대로 칩(사각형/라인 + 라벨). 폰트 16. */
+/** 공통 범례 — 사용자 지정 순서대로 칩(사각형/라인 + 라벨), 클릭으로 시리즈 토글. 폰트 16. */
 export function LegendRow({
   items,
+  hidden,
+  onToggle,
 }: {
-  items: Array<{ label: string; shape: 'rect' | 'line'; color: string }>;
+  items: Array<{ key: string; label: string; shape: 'rect' | 'line'; color: string }>;
+  hidden?: Set<string>;
+  onToggle?: (key: string) => void;
 }) {
   return (
     <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-base font-medium">
-      {items.map((it) => (
-        <span key={it.label} className="inline-flex items-center gap-1.5" style={{ color: it.color }}>
-          {it.shape === 'rect' ? (
-            <span className="inline-block w-4 h-4 rounded-sm" style={{ background: it.color }} />
-          ) : (
-            <span
-              className="inline-block w-5 h-0.5"
-              style={{ background: it.color, position: 'relative' }}
-            >
+      {items.map((it) => {
+        const isHidden = hidden?.has(it.key) ?? false;
+        const clickable = !!onToggle;
+        return (
+          <button
+            key={it.key}
+            type="button"
+            onClick={clickable ? () => onToggle?.(it.key) : undefined}
+            disabled={!clickable}
+            className={`inline-flex items-center gap-1.5 transition-opacity ${
+              isHidden ? 'opacity-40 line-through' : ''
+            } ${clickable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+            style={{ color: it.color }}
+            aria-pressed={!isHidden}
+          >
+            {it.shape === 'rect' ? (
+              <span className="inline-block w-4 h-4 rounded-sm" style={{ background: it.color }} />
+            ) : (
               <span
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-block w-2 h-2 rounded-full"
+                className="inline-block w-5 h-0.5 relative"
                 style={{ background: it.color }}
-              />
-            </span>
-          )}
-          {it.label}
-        </span>
-      ))}
+              >
+                <span
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-block w-2 h-2 rounded-full"
+                  style={{ background: it.color }}
+                />
+              </span>
+            )}
+            {it.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

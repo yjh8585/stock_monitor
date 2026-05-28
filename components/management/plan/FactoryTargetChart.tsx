@@ -16,7 +16,8 @@ export default function FactoryTargetChart({ rows }: { rows: PlanRow[] }) {
   );
   return (
     <ChartSection
-      title="9. 공장 매출 목표 달성 · 단위 억원"
+      title="9. 공장 매출 목표 달성"
+      unit="억원"
       controls={
         <ToggleGroup
           options={[
