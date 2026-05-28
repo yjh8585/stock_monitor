@@ -204,7 +204,7 @@ function SummaryRow({
       ? 'bg-blue-200/80 dark:bg-blue-900/60'
       : tone === 'group'
         ? 'bg-blue-100/70 dark:bg-blue-900/30'
-        : 'bg-muted/30';
+        : 'bg-slate-200 dark:bg-slate-700/60';
   const textCls =
     tone === 'rest' ? 'font-medium text-muted-foreground' : 'font-bold';
   return (

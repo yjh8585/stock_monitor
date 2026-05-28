@@ -101,7 +101,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
       ) : (
         <ResponsiveContainer width="100%" height={h}>
           <ComposedChart data={chartData} margin={{ top: 10, right: 30, bottom: 30, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis
               dataKey="name"
               tick={{ fontSize: 14 }}
