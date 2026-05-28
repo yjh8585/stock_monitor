@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
@@ -57,6 +57,19 @@ export default function PersonnelDomesticChart({ points }: Props) {
       return next;
     });
   }, []);
+  // 일부 시점에 partner/internal이 null이면 마지막 stack이 안 그려지면서 합계 LabelList도 사라진다.
+  // 0으로 채우면 recharts가 Bar를 skip해 동일한 문제 → 무한소(0.0001)로 채워 stack 최상단에 Bar가 존재하게 한다.
+  // 호버 툴팁은 payload(enriched)를 사용하므로 0.0001은 fmt에서 '0'으로 표시됨.
+  const enriched = useMemo(
+    () =>
+      points.map((p) => ({
+        ...p,
+        domestic: p.domestic ?? 0.0001,
+        internal: p.internal ?? 0.0001,
+        partner: p.partner ?? 0.0001,
+      })),
+    [points]
+  );
   if (points.length === 0) {
     return (
       <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
@@ -64,7 +77,7 @@ export default function PersonnelDomesticChart({ points }: Props) {
   }
   return (
     <ResponsiveContainer width="100%" height={h}>
-      <ComposedChart data={points} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
+      <ComposedChart data={enriched} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
         <XAxis dataKey="periodLabel" tick={{ fontSize: 13 }} />
         <YAxis tickFormatter={(v: number) => fmt(v, 0)} tick={{ fontSize: 13 }} width={70} />

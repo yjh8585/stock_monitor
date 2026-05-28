@@ -26,7 +26,7 @@ export default function PersonnelTable({ data }: Props) {
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-base">
         <thead className="bg-muted/40">
           <tr>
             <th
@@ -55,25 +55,25 @@ export default function PersonnelTable({ data }: Props) {
             {data.periods.flatMap((p) => [
               <th
                 key={`${p.date}-임원`}
-                className="px-2 py-1 text-right text-xs font-medium text-muted-foreground border-l border-border"
+                className="px-2 py-1 text-right text-sm font-medium text-muted-foreground border-l border-border"
               >
                 임원
               </th>,
               <th
                 key={`${p.date}-사무`}
-                className="px-2 py-1 text-right text-xs font-medium text-muted-foreground"
+                className="px-2 py-1 text-right text-sm font-medium text-muted-foreground"
               >
                 사무
               </th>,
               <th
                 key={`${p.date}-생산`}
-                className="px-2 py-1 text-right text-xs font-medium text-muted-foreground"
+                className="px-2 py-1 text-right text-sm font-medium text-muted-foreground"
               >
                 생산
               </th>,
               <th
                 key={`${p.date}-소계`}
-                className="px-2 py-1 text-right text-xs font-semibold border-r border-border"
+                className="px-2 py-1 text-right text-sm font-semibold border-r border-border"
               >
                 소계
               </th>,
@@ -84,13 +84,13 @@ export default function PersonnelTable({ data }: Props) {
           {data.rows.map((r, idx) => (
             <tr key={idx} className={cellClass(r.type)}>
               <td
-                className="sticky left-0 z-10 px-3 py-1.5 border-r border-t border-border text-xs whitespace-nowrap"
+                className="sticky left-0 z-10 px-3 py-1.5 border-r border-t border-border text-sm whitespace-nowrap"
                 style={{ background: 'inherit' }}
               >
                 {r.group}
               </td>
               <td
-                className="sticky left-[80px] z-10 px-3 py-1.5 border-r border-t border-border text-xs whitespace-nowrap"
+                className="sticky left-[80px] z-10 px-3 py-1.5 border-r border-t border-border text-sm whitespace-nowrap"
                 style={{ background: 'inherit' }}
               >
                 {r.label}
