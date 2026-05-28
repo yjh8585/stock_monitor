@@ -118,7 +118,9 @@ export default function PersonnelTable({ data }: Props) {
                   </td>,
                   <td
                     key={`${p.date}-소계`}
-                    className="px-2 py-1.5 text-right border-t border-r border-border font-medium tabular-nums"
+                    className={`px-2 py-1.5 text-right border-t border-r border-border tabular-nums ${
+                      r.type === 'detail' ? 'font-medium' : ''
+                    }`}
                   >
                     {fmt(c.total)}
                   </td>,
