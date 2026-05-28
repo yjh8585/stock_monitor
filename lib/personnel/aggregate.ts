@@ -9,10 +9,14 @@ import type {
   DomesticStackPoint,
   OverseasPoint,
   MixPoint,
+  FieldMixPoint,
   TableCell,
   TableRowItem,
   TableData,
 } from './types';
+
+/** 국내 detail 중 '현장'으로 분류되는 부문 */
+const FIELD_DETAILS = new Set(['생산', '품질', '연구소']);
 
 const OVERSEAS_REGION_MAP: Record<OverseasRegion, PersonnelRow['region']> = {
   us: '미국',
@@ -191,8 +195,36 @@ export function buildMixPoints(rows: readonly PersonnelRow[], option: MixOption)
   });
 }
 
+/**
+ * 차트 5 — 현장/관리 구분 (국내 인원 기준).
+ * - 현장 = 지역=국내 + detail∈{생산, 품질, 연구소}
+ * - 관리 = 지역=국내 + detail∉{생산, 품질, 연구소}
+ * - 임원·사무·생산 모두 합산 (kind 무관)
+ */
+export function buildFieldMixPoints(rows: readonly PersonnelRow[]): FieldMixPoint[] {
+  const filtered = rows.filter((r) => r.region === '국내');
+  const dates = uniqueDates(filtered);
+  return dates.map((date) => {
+    const at = filtered.filter((r) => r.period_date === date);
+    const field = sumHeadcount(at.filter((r) => FIELD_DETAILS.has(r.detail)));
+    const admin = sumHeadcount(at.filter((r) => !FIELD_DETAILS.has(r.detail)));
+    const total = field === null && admin === null ? null : (field ?? 0) + (admin ?? 0);
+    const fieldPct = total !== null && total !== 0 && field !== null ? (field / total) * 100 : null;
+    const adminPct = total !== null && total !== 0 && admin !== null ? (admin / total) * 100 : null;
+    return {
+      periodLabel: fmtPeriod(date),
+      periodDate: date,
+      field,
+      admin,
+      total,
+      fieldPct,
+      adminPct,
+    };
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────
-// 차트 5 — 인원 수 표
+// 차트 6 — 인원 수 표
 // ─────────────────────────────────────────────────────────────────────
 
 /** 특정 (region, detail) 그룹의 시점별 cell 계산 */

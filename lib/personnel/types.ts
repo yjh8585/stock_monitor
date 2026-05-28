@@ -55,7 +55,7 @@ export interface OverseasPoint {
   headcount: number | null;
 }
 
-/** 차트 4 — 사무/생산 비중 */
+/** 차트 4 — 사무/생산 구분 */
 export interface MixPoint {
   periodLabel: string;
   periodDate: string;
@@ -66,6 +66,19 @@ export interface MixPoint {
   /** office / total × 100 */
   officePct: number | null;
   productionPct: number | null;
+}
+
+/** 차트 5 — 현장/관리 구분 (국내 인원 기준). 현장 = 생산·품질·연구소 detail, 관리 = 그 외. */
+export interface FieldMixPoint {
+  periodLabel: string;
+  periodDate: string;
+  /** 현장 = 생산·품질·연구소 detail */
+  field: number | null;
+  /** 관리 = 국내 detail 중 현장이 아닌 모든 행 */
+  admin: number | null;
+  total: number | null;
+  fieldPct: number | null;
+  adminPct: number | null;
 }
 
 /** 차트 5 — 표의 한 cell (시점별 구분 카운트) */
