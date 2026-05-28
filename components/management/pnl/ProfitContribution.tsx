@@ -153,8 +153,8 @@ function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: Contr
             </tr>
           </thead>
           <tbody>
-            <SummaryRow label1="전사" label2="합계" agg={corp} bold />
-            <SummaryRow label1={summaryLabel} label2="합계" agg={groupSum} bold />
+            <SummaryRow label1="전사" label2="합계" agg={corp} tone="corp" />
+            <SummaryRow label1={summaryLabel} label2="합계" agg={groupSum} tone="group" />
             {rows.map((r) => {
               const margin = marginOf(r.revenue, r.op_income);
               return (
@@ -176,7 +176,7 @@ function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: Contr
                 </td>
               </tr>
             ) : (
-              <SummaryRow label1="나머지" label2="합계" agg={rest} muted />
+              <SummaryRow label1="나머지" label2="합계" agg={rest} tone="rest" />
             )}
           </tbody>
         </table>
@@ -189,26 +189,33 @@ function SummaryRow({
   label1,
   label2,
   agg,
-  bold,
-  muted,
+  tone,
 }: {
   label1: string;
   label2: string;
   agg: SummaryAgg;
-  bold?: boolean;
-  muted?: boolean;
+  /** 'corp' = 전사 진한 파랑, 'group' = TOP7/WORST7 연한 파랑, 'rest' = 나머지 회색 */
+  tone: 'corp' | 'group' | 'rest';
 }) {
   const margin = marginOf(agg.revenue, agg.op_income);
-  const baseCls = bold ? 'font-bold' : muted ? 'font-medium text-muted-foreground' : 'font-medium';
+  // 11번 차트(YoyMonthlyCompare)의 blue-600 solid / blue-600 0.45 톤을 표 행 음영에 매핑.
+  const bgCls =
+    tone === 'corp'
+      ? 'bg-blue-200/80 dark:bg-blue-900/60'
+      : tone === 'group'
+        ? 'bg-blue-100/70 dark:bg-blue-900/30'
+        : 'bg-muted/30';
+  const textCls =
+    tone === 'rest' ? 'font-medium text-muted-foreground' : 'font-bold';
   return (
-    <tr className={`border-b border-border/50 ${muted ? 'bg-muted/30' : 'bg-muted/20'}`}>
-      <td className={`py-1.5 px-2 ${baseCls}`}>{label1}</td>
-      <td className={`py-1.5 px-2 ${baseCls}`}>{label2}</td>
-      <td className={`text-right py-1.5 px-2 ${baseCls}`}>{fmt(agg.revenue)}</td>
-      <td className={`text-right py-1.5 px-2 ${baseCls} ${negCls(agg.op_income)}`}>
+    <tr className={`border-b border-border/50 ${bgCls}`}>
+      <td className={`py-1.5 px-2 ${textCls}`}>{label1}</td>
+      <td className={`py-1.5 px-2 ${textCls}`}>{label2}</td>
+      <td className={`text-right py-1.5 px-2 ${textCls}`}>{fmt(agg.revenue)}</td>
+      <td className={`text-right py-1.5 px-2 ${textCls} ${negCls(agg.op_income)}`}>
         {fmt(agg.op_income)}
       </td>
-      <td className={`text-right py-1.5 px-2 ${baseCls} ${negCls(margin)}`}>{fmtPct(margin)}</td>
+      <td className={`text-right py-1.5 px-2 ${textCls} ${negCls(margin)}`}>{fmtPct(margin)}</td>
     </tr>
   );
 }

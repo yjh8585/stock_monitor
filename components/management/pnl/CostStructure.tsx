@@ -66,7 +66,7 @@ function buildColumnDefs(rows: readonly CostStructureRow[]): ColumnDef[] {
   ];
   if (ytdMonth > 0) {
     defs.push({
-      label: ytdMonth === 12 ? '2026' : `2026 YTD (1~${ytdMonth}월)`,
+      label: ytdMonth === 12 ? '2026' : '2026 YTD',
       match: (r) =>
         r.period_year === 2026 &&
         r.period_kind === 'monthly' &&
@@ -128,7 +128,13 @@ export default function CostStructure({ costStructure }: Props) {
         </p>
       </header>
       <div className="overflow-x-auto">
-        <table className="w-full text-base">
+        <table className="w-full text-base table-fixed">
+          <colgroup>
+            <col style={{ width: '20%' }} />
+            {columns.map((c) => (
+              <col key={c.label} style={{ width: `${80 / columns.length}%` }} />
+            ))}
+          </colgroup>
           <thead className="bg-muted text-muted-foreground">
             <tr>
               <th className="sticky left-0 z-10 bg-muted border-r border-border px-3 py-2 text-left font-medium">

@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
+import { ytdMonthsOfYear } from '@/lib/pnl/aggregate';
 import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 
 interface Props {
-  /** basis별 월별 원본 — 1~3월 합산용 */
+  /** basis별 월별 원본 — YTD(현재 N월까지) 합산용 */
   monthlyByBasis: EntriesByBasis;
   /** basis별 연간 합계 — 2025 연간(period_month=0) 조회용 */
   annualByBasis: EntriesByBasis;
@@ -134,9 +135,9 @@ interface CostAdjustment {
 /**
  * 2. 2026 연간 추정 — 매출·영업이익.
  *
- * 추정 방법 3가지:
- *  ① YTD 연환산   : (1~3월 합) × 4
- *  ② YoY 추세 적용 : 2025 연간 × (2026 1~3월 매출 ÷ 2025 1~3월 매출)
+ * 추정 방법 3가지 (2026 monthly 최대 적재 월 N을 자동 검출 — 매월 데이터 갱신 시 추정값도 변화):
+ *  ① YTD 연환산   : (1~N월 합) × (12/N)
+ *  ② YoY 추세 적용 : 2025 연간 × (2026 1~N월 매출 ÷ 2025 1~N월 매출)
  *                    — 매출과 영업이익 모두 매출 YoY를 적용해 부호 폭증 회피
  *  ③ 원타임 보정   : 2023→2025 매출 CAGR(2년) + 5개 비용 카테고리를 2023·2024 평균 비율로 정상화
  *
@@ -161,34 +162,37 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
       );
       actual2025 = sumMetrics(monthly);
     }
-    // 2025 1~3월 합계
-    const q1_2025 = sumMetrics(
+    // 2026 monthly 적재된 최대 월 N (1~N월이 YTD 윈도우)
+    const ytdN = ytdMonthsOfYear(monthlyByBasis[basis], basis, 2026);
+    // 2025 1~N월 합계 — 동일 윈도우로 YoY 비교
+    const ytd_2025 = sumMetrics(
       monthlyByBasis[basis].filter(
-        (e) => e.period_year === 2025 && e.period_month >= 1 && e.period_month <= 3
+        (e) => e.period_year === 2025 && e.period_month >= 1 && e.period_month <= ytdN
       )
     );
-    // 2026 1~3월 합계
-    const q1_2026 = sumMetrics(
+    // 2026 1~N월 합계
+    const ytd_2026 = sumMetrics(
       monthlyByBasis[basis].filter(
-        (e) => e.period_year === 2026 && e.period_month >= 1 && e.period_month <= 3
+        (e) => e.period_year === 2026 && e.period_month >= 1 && e.period_month <= ytdN
       )
     );
-    // YoY% (1~3월)
+    // YoY% (1~N월)
     const yoyRev =
-      q1_2025.revenue !== 0
-        ? ((q1_2026.revenue - q1_2025.revenue) / Math.abs(q1_2025.revenue)) * 100
+      ytd_2025.revenue !== 0
+        ? ((ytd_2026.revenue - ytd_2025.revenue) / Math.abs(ytd_2025.revenue)) * 100
         : null;
     const yoyOp =
-      q1_2025.op_income !== 0
-        ? ((q1_2026.op_income - q1_2025.op_income) / Math.abs(q1_2025.op_income)) * 100
+      ytd_2025.op_income !== 0
+        ? ((ytd_2026.op_income - ytd_2025.op_income) / Math.abs(ytd_2025.op_income)) * 100
         : null;
-    // ① YTD 연환산
-    const annualizedRev = q1_2026.revenue * 4;
-    const annualizedOp = q1_2026.op_income * 4;
+    // ① YTD 연환산 — 1~N월 합계를 (12/N) 비율로 연환산. N=0이면 산출 불가(null).
+    const annualScale = ytdN > 0 ? 12 / ytdN : null;
+    const annualizedRev = annualScale != null ? ytd_2026.revenue * annualScale : null;
+    const annualizedOp = annualScale != null ? ytd_2026.op_income * annualScale : null;
     // ② YoY 추세 적용 — 매출 YoY 비율을 매출·영업이익 둘 다에 적용
     //   영업이익도 동일 비율로 곱해, "영업이익률은 2025와 같다"고 가정.
     //   기존 op_income / op_income 방식은 분모 부호가 흔들려 추정이 폭증함.
-    const revYoyRatio = q1_2025.revenue !== 0 ? q1_2026.revenue / q1_2025.revenue : null;
+    const revYoyRatio = ytd_2025.revenue !== 0 ? ytd_2026.revenue / ytd_2025.revenue : null;
     const yoyApplyRev = revYoyRatio != null ? actual2025.revenue * revYoyRatio : null;
     const yoyApplyOp = revYoyRatio != null ? actual2025.op_income * revYoyRatio : null;
 
@@ -250,32 +254,45 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
         cagr2y = Math.pow(rev25Cs / rev23, 1 / 2) - 1;
         cagrBaseRev = rev25Cs * (1 + cagr2y);
       }
-      // 보정 매출: ① + ② + CAGR베이스 평균 (②·CAGR 산출 불가면 빠진 항목 제외)
-      const revCandidates: number[] = [annualizedRev];
+      // 보정 매출: ① + ② + CAGR베이스 평균 (①·②·CAGR 산출 불가면 빠진 항목 제외)
+      const revCandidates: number[] = [];
+      if (annualizedRev != null) revCandidates.push(annualizedRev);
       if (yoyApplyRev != null) revCandidates.push(yoyApplyRev);
       if (cagrBaseRev != null) revCandidates.push(cagrBaseRev);
-      adjRev = revCandidates.reduce((a, b) => a + b, 0) / revCandidates.length;
+      adjRev =
+        revCandidates.length > 0
+          ? revCandidates.reduce((a, b) => a + b, 0) / revCandidates.length
+          : null;
       // 보정 영업이익: 정상화 영업이익률 × 보정 매출
       if (normalizedOpRatio != null && adjRev != null) {
         adjOp = normalizedOpRatio * adjRev;
       }
     }
 
-    // 평균 추정치 (③ 산출 가능 시 ①·②·③ 평균, 아니면 ①·② 평균)
-    const estRevCandidates: number[] = [annualizedRev];
+    // 평균 추정치 (① 산출 가능 + ② / ③ 가용한 항목 평균)
+    const estRevCandidates: number[] = [];
+    if (annualizedRev != null) estRevCandidates.push(annualizedRev);
     if (yoyApplyRev != null) estRevCandidates.push(yoyApplyRev);
     if (adjRev != null) estRevCandidates.push(adjRev);
-    const estRev = estRevCandidates.reduce((a, b) => a + b, 0) / estRevCandidates.length;
+    const estRev =
+      estRevCandidates.length > 0
+        ? estRevCandidates.reduce((a, b) => a + b, 0) / estRevCandidates.length
+        : null;
 
-    const estOpCandidates: number[] = [annualizedOp];
+    const estOpCandidates: number[] = [];
+    if (annualizedOp != null) estOpCandidates.push(annualizedOp);
     if (yoyApplyOp != null) estOpCandidates.push(yoyApplyOp);
     if (adjOp != null) estOpCandidates.push(adjOp);
-    const estOp = estOpCandidates.reduce((a, b) => a + b, 0) / estOpCandidates.length;
+    const estOp =
+      estOpCandidates.length > 0
+        ? estOpCandidates.reduce((a, b) => a + b, 0) / estOpCandidates.length
+        : null;
 
     return {
       actual2025,
-      q1_2025,
-      q1_2026,
+      ytdN,
+      ytd_2025,
+      ytd_2026,
       yoyRev,
       yoyOp,
       annualizedRev,
@@ -315,7 +332,7 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
           actualLabel="2025 실적"
           actualValue={calc.actual2025.revenue}
           changePct={
-            calc.actual2025.revenue !== 0
+            calc.estRev != null && calc.actual2025.revenue !== 0
               ? ((calc.estRev - calc.actual2025.revenue) / Math.abs(calc.actual2025.revenue)) * 100
               : null
           }
@@ -326,7 +343,7 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
           actualLabel="2025 실적"
           actualValue={calc.actual2025.op_income}
           changePct={
-            calc.actual2025.op_income !== 0
+            calc.estOp != null && calc.actual2025.op_income !== 0
               ? ((calc.estOp - calc.actual2025.op_income) / Math.abs(calc.actual2025.op_income)) *
                 100
               : null
@@ -351,7 +368,11 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
           </thead>
           <tbody>
             <Row
-              label="① YTD 연환산 (1~3월 × 4)"
+              label={
+                calc.ytdN > 0
+                  ? `① YTD 연환산 (1~${calc.ytdN}월 × ${(12 / calc.ytdN).toFixed(2)})`
+                  : '① YTD 연환산 (데이터 없음)'
+              }
               rev={calc.annualizedRev}
               op={calc.annualizedOp}
               emphasized
@@ -381,14 +402,14 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
               </td>
               <td
                 className={`px-3 py-2 text-right tabular-nums font-bold ${
-                  calc.estRev < 0 ? 'text-red-500' : ''
+                  calc.estRev != null && calc.estRev < 0 ? 'text-red-500' : ''
                 }`}
               >
                 {fmtMillion(calc.estRev)}
               </td>
               <td
                 className={`px-3 py-2 text-right tabular-nums font-bold ${
-                  calc.estOp < 0 ? 'text-red-500' : ''
+                  calc.estOp != null && calc.estOp < 0 ? 'text-red-500' : ''
                 }`}
               >
                 {fmtMillion(calc.estOp)}
@@ -412,10 +433,10 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
               rev={calc.actual2025.revenue}
               op={calc.actual2025.op_income}
             />
-            <Row label="2025 1~3월" rev={calc.q1_2025.revenue} op={calc.q1_2025.op_income} />
-            <Row label="2026 1~3월" rev={calc.q1_2026.revenue} op={calc.q1_2026.op_income} />
+            <Row label={`2025 1~${calc.ytdN}월`} rev={calc.ytd_2025.revenue} op={calc.ytd_2025.op_income} />
+            <Row label={`2026 1~${calc.ytdN}월`} rev={calc.ytd_2026.revenue} op={calc.ytd_2026.op_income} />
             <tr className="border-t border-border/60 bg-muted/20">
-              <td className="px-3 py-2 font-medium">1~3월 YoY</td>
+              <td className="px-3 py-2 font-medium">1~{calc.ytdN}월 YoY</td>
               <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyRev)}`}>
                 {fmtPct(calc.yoyRev)}
               </td>
@@ -516,13 +537,13 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
         <div className="font-medium mb-1">추정 로직</div>
         <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
           <li>
-            <span className="font-medium text-foreground">① YTD 연환산</span> : 2026 1~3월 합계를
-            4배 확장. 분기 매출이 균일하다고 가정 — 빠르지만 계절성·신규 수주 반영이 약함.
+            <span className="font-medium text-foreground">① YTD 연환산</span> : 2026 1~N월 합계를
+            (12÷N)배 확장. 월 추가 적재 시 자동 재산출 — 분기 평균 가정의 단순성은 유지하되 계절성·신규 수주는 부분 반영.
           </li>
           <li>
             <span className="font-medium text-foreground">② YoY 추세 적용</span> :
             <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">
-              2025 연간 × (2026 1~3월 매출 ÷ 2025 1~3월 매출)
+              2025 연간 × (2026 1~N월 매출 ÷ 2025 1~N월 매출)
             </code>
             — 매출 성장률을 매출과 영업이익에 동일 적용. 영업이익률이 2025와 같다고 가정. 영업이익
             자체의 비율 곱셈은 부호가 흔들려 폭증하기 때문에 매출 YoY로 통일.
@@ -599,12 +620,12 @@ function ForecastCard({
   changePct,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   actualLabel: string;
   actualValue: number;
   changePct: number | null;
 }) {
-  const isNeg = value < 0;
+  const isNeg = value != null && value < 0;
   return (
     <div className="rounded-md border border-border bg-card p-3">
       <div className="text-sm text-muted-foreground">{label}</div>

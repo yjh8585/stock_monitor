@@ -201,7 +201,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
             barGap={2}
             barCategoryGap="20%"
           >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis dataKey="monthLabel" tick={{ fontSize: 14 }} />
             <YAxis
               tickFormatter={(v: number) => fmtEokwon(v)}
@@ -224,7 +224,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
               verticalAlign="top"
               wrapperStyle={{ paddingBottom: 4 }}
               content={({ payload }) => (
-                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm">
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-base">
                   {(payload ?? []).map((entry) => (
                     <span
                       key={String(entry.value)}
@@ -232,7 +232,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
                       style={{ color: entry.color }}
                     >
                       <span
-                        className="inline-block w-3 h-3 rounded-sm"
+                        className="inline-block w-4 h-4 rounded-sm"
                         style={{ background: entry.color }}
                       />
                       {entry.value}
@@ -252,7 +252,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
                   dataKey="compare"
                   position="top"
                   formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
-                  style={{ fontSize: 11, fill: 'var(--foreground)' }}
+                  style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
                 />
               </Bar>
               <Bar
@@ -265,7 +265,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
                   dataKey="base"
                   position="top"
                   formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
-                  style={{ fontSize: 11, fill: 'var(--foreground)' }}
+                  style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
                 />
               </Bar>
             </Fragment>
