@@ -1,25 +1,20 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
-
-/** 경영관리 탭 정의 */
-const MANAGEMENT_TABS = [
-  { label: '손익', href: '/management/pnl' },
-  { label: '계획', href: '/management/plan' },
-  { label: '재고', href: '/management/inventory' },
-  { label: '생산', href: '/management/production' },
-  { label: '회사', href: '/management/companies' },
-] as const;
+import { ManagementTabs } from '@/components/management/management-tabs';
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { isAdmin } from '@/lib/auth/permissions';
 
 /**
- * /management 트리 공통 레이아웃.
+ * /management 트리 공통 레이아웃 (server component).
  * - 상단 헤더(제목 + 데이터 갱신 주기 안내)
- * - 손익/재고/생산 3개 탭 네비게이션
+ * - 탭 네비게이션은 ManagementTabs(client) — 회사 탭은 admin에게만 노출.
+ *
+ * proxy.ts가 인증을 강제하므로 user는 정상 흐름에선 null 아님.
+ * 방어적으로 null 검사 후 /login으로 redirect (race condition 등 엣지케이스).
  */
-export default function ManagementLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+export default async function ManagementLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
 
   return (
     <div className="h-full flex flex-col">
@@ -28,25 +23,7 @@ export default function ManagementLayout({ children }: { children: React.ReactNo
         <p className="text-xs text-muted-foreground mt-0.5">
           자체 손익·재고·생산 데이터 · 매월 1회 갱신
         </p>
-        <nav className="mt-3 flex items-center gap-1">
-          {MANAGEMENT_TABS.map((tab) => {
-            const active = pathname === tab.href || pathname.startsWith(tab.href + '/');
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <ManagementTabs isAdmin={isAdmin(user.role)} />
       </div>
       <div className="flex-1 overflow-auto">{children}</div>
     </div>
