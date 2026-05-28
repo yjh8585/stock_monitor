@@ -31,6 +31,7 @@ import { createSupabaseAdminClient } from './admin';
  * - chat_audit_log: 챗봇 도구 호출 감사 로그 (migration 20260523000003)
  * - pnl_plan: 계획 대비 실적 (migration 20260528000001)
  * - inventory_entries: 재고 계획·실적 추이 (migration 20260528000002)
+ * - personnel_entries: 인원 추이 (migration 20260528000003)
  */
 const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -38,6 +39,7 @@ const CONFIDENTIAL_TABLES = [
   'chat_audit_log',
   'pnl_plan',
   'inventory_entries',
+  'personnel_entries',
 ] as const;
 
 /**
