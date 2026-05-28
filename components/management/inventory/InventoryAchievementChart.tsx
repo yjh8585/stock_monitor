@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  LabelList,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -33,6 +35,7 @@ function hexToRgba(hex: string, alpha: number): string {
 
 const BASE = OEM_COLORS[0];
 const PLAN_COLOR = hexToRgba(BASE, 0.4);
+const TARGET_COLOR = '#dc2626';
 
 interface Props {
   points: AchievementMonthPoint[];
@@ -40,9 +43,9 @@ interface Props {
 }
 
 /**
- * 차트 2/3 공통 — 월별 X축, 계획·실적 막대 (달성율 제거).
- * 재고는 달성율 표시가 부적절(낮을수록 좋음 등 의미가 P&L과 반대) → 두 막대 비교만.
- * 범례 클릭으로 계획/실적 시리즈 토글.
+ * 차트 2/3 공통 — 월별 X축, 계획·실적 막대.
+ * - 마지막 연도 12월 계획 = 목표값 → 빨간 점선 ReferenceLine + 해당 막대 위 데이터 레이블.
+ * - 범례 클릭으로 계획/실적 시리즈 토글.
  */
 export default function InventoryAchievementChart({ points, unitLabel = '억원' }: Props) {
   const h = useChartHeight(360, 440, 520);
@@ -55,6 +58,16 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
       return next;
     });
   }, []);
+
+  // 목표값 = 최근 연도 12월 계획값. 해당 포인트가 없으면 null → ReferenceLine·라벨 미렌더.
+  const targetInfo = useMemo(() => {
+    if (points.length === 0) return null;
+    const maxYear = Math.max(...points.map((p) => p.year));
+    const target = points.find((p) => p.year === maxYear && p.month === 12 && p.plan !== null);
+    if (!target || target.plan === null) return null;
+    return { monthLabel: target.monthLabel, value: target.plan };
+  }, [points]);
+
   if (points.length === 0) {
     return (
       <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
@@ -95,19 +108,51 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
               items={[
                 { key: 'plan', label: '계획', shape: 'rect', color: PLAN_COLOR },
                 { key: 'actual', label: '실적', shape: 'rect', color: BASE },
+                ...(targetInfo
+                  ? [
+                      {
+                        key: 'target',
+                        label: `목표 (${targetInfo.monthLabel} 계획)`,
+                        shape: 'line' as const,
+                        color: TARGET_COLOR,
+                      },
+                    ]
+                  : []),
               ]}
               hidden={hidden}
               onToggle={toggle}
             />
           )}
         />
+        {targetInfo && !hidden.has('target') ? (
+          <ReferenceLine
+            y={targetInfo.value}
+            stroke={TARGET_COLOR}
+            strokeDasharray="6 4"
+            strokeWidth={1.5}
+            ifOverflow="extendDomain"
+          />
+        ) : null}
         <Bar
           dataKey="plan"
           name="계획"
           fill={PLAN_COLOR}
           radius={[2, 2, 0, 0]}
           hide={hidden.has('plan')}
-        />
+        >
+          {targetInfo ? (
+            <LabelList
+              dataKey="plan"
+              position="top"
+              formatter={(value: unknown) => {
+                if (typeof value !== 'number') return '';
+                // 목표값과 동일한 값만 표시 (최근 연도 12월)
+                return Math.abs(value - targetInfo.value) < 0.001 ? fmt(value, 0) : '';
+              }}
+              style={{ fontSize: 12, fill: TARGET_COLOR, fontWeight: 600 }}
+            />
+          ) : null}
+        </Bar>
         <Bar
           dataKey="actual"
           name="실적"
