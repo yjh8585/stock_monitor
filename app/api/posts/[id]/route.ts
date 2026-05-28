@@ -1,6 +1,8 @@
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { isAdmin } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 import { fail, ok } from '@/lib/reports/api-response';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
@@ -31,6 +33,12 @@ export async function GET(_req: Request, { params }: RouteContext) {
 }
 
 export async function DELETE(_req: Request, { params }: RouteContext) {
+  // 관리자만 삭제 가능 — UI 가드(상세 페이지에서 버튼 숨김)와 이중 보호.
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user.role)) {
+    return NextResponse.json(fail('FORBIDDEN', '삭제 권한이 없습니다.'), { status: 403 });
+  }
+
   const { id } = await params;
   const numericId = Number(id);
   if (!Number.isFinite(numericId)) {

@@ -12,6 +12,8 @@ import { PostStatusWatcher } from '@/components/reports/post-status-watcher';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { isAdmin } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 
 /**
@@ -60,6 +62,11 @@ async function ReportDetailBody({ params }: PageProps) {
   const post = await getPostDetail(postId);
   if (!post) notFound();
 
+  // 삭제 권한은 관리자만 — UI 가드와 DELETE API 가드 이중 보호.
+  // getCurrentUser는 cookies()를 쓰므로 'use cache' 함수 외부에서만 호출 가능.
+  const currentUser = await getCurrentUser();
+  const canDelete = currentUser ? isAdmin(currentUser.role) : false;
+
   const reportFileUrl = post.file_path
     ? buildReportDownloadUrl(post.file_path, post.file_name)
     : null;
@@ -85,7 +92,7 @@ async function ReportDetailBody({ params }: PageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <PostDeleteButton postId={post.id} postTitle={post.title} />
+          {canDelete ? <PostDeleteButton postId={post.id} postTitle={post.title} /> : null}
           <Link href="/reports" className={buttonVariants({ variant: 'ghost' })}>
             ← 목록
           </Link>

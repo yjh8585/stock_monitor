@@ -100,7 +100,7 @@ export default function ProfitContribution({ annualByBasis }: Props) {
         </div>
       </header>
       <p className="text-xs text-muted-foreground mb-2">
-        단위 백만원 · (고객·제품) cross 기준 · 고객='기타' 제외 · 영업이익 순
+        단위 백만원 · (고객·제품) cross 기준 · 고객=&apos;기타&apos; 제외 · 영업이익 순
       </p>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -206,8 +206,7 @@ function SummaryRow({
       : tone === 'group'
         ? 'bg-blue-100/70 dark:bg-blue-900/30'
         : 'bg-slate-200 dark:bg-slate-700/60';
-  const textCls =
-    tone === 'rest' ? 'font-medium text-muted-foreground' : 'font-bold';
+  const textCls = tone === 'rest' ? 'font-medium text-muted-foreground' : 'font-bold';
   return (
     <tr className={`border-b border-border/50 ${bgCls}`}>
       <td className={`py-1.5 px-2 ${textCls}`}>{label1}</td>
