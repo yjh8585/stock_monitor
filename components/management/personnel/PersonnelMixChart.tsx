@@ -25,8 +25,8 @@ function fmt(n: number | null | undefined, digits = 0): string {
   });
 }
 
-const OFFICE_COLOR = '#2563eb'; // blue-600
-const PRODUCTION_COLOR = '#ea580c'; // orange-600
+const OFFICE_COLOR = '#0891b2'; // cyan-600 — 사무직 차분
+const PRODUCTION_COLOR = '#f59e0b'; // amber-500 — 생산직 활동
 
 interface Props {
   points: MixPoint[];
