@@ -192,7 +192,8 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
       totalMomPct: null,
       turnover: null,
       turnoverDays: null,
-      achievementPct: null,
+      managementSharePct: null,
+      compensationSharePct: null,
       transportSharePct: null,
     };
   }
@@ -223,40 +224,30 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
   const turnover = turnoverRow?.value ?? null;
   const turnoverDays = turnover && turnover !== 0 ? Math.round(365 / turnover) : null;
 
-  const planRow = rows.find(
-    (r) =>
-      r.category === '전체' &&
-      r.item === '전체 재고' &&
-      r.kind === 'plan' &&
-      r.period_year === latest.period_year &&
-      r.period_month === latest.period_month
-  );
-  const planVal = planRow ? convertToKrwEok(planRow) : null;
-  const achievementPct =
-    totalEok !== null && planVal !== null && planVal !== 0
-      ? round((totalEok / planVal) * 100)
-      : null;
-
-  let transportSum = 0;
-  let transportHas = false;
-  for (const r of rows) {
-    if (
-      r.category !== '운송' ||
-      r.kind !== 'actual' ||
-      r.period_year !== latest.period_year ||
-      r.period_month !== latest.period_month
-    )
-      continue;
-    const v = convertToKrwEok(r);
-    if (v !== null) {
-      transportSum += v;
-      transportHas = true;
+  // 분류별 비중 — 동일 month/actual 행에서 분류값 추출 → totalEok 대비 %
+  const sharePct = (pred: (r: InventoryRow) => boolean): number | null => {
+    let sum = 0;
+    let has = false;
+    for (const r of rows) {
+      if (
+        r.kind !== 'actual' ||
+        r.period_year !== latest.period_year ||
+        r.period_month !== latest.period_month ||
+        !pred(r)
+      )
+        continue;
+      const v = convertToKrwEok(r);
+      if (v !== null) {
+        sum += v;
+        has = true;
+      }
     }
-  }
-  const transportSharePct =
-    transportHas && totalEok !== null && totalEok !== 0
-      ? round((transportSum / totalEok) * 100)
-      : null;
+    return has && totalEok !== null && totalEok !== 0 ? round((sum / totalEok) * 100) : null;
+  };
+
+  const managementSharePct = sharePct((r) => r.category === '관리' && r.item === '관리 재고');
+  const compensationSharePct = sharePct((r) => r.category === '보상' && r.item === '보상 재고');
+  const transportSharePct = sharePct((r) => r.category === '운송');
 
   return {
     latestLabel,
@@ -264,7 +255,8 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
     totalMomPct,
     turnover,
     turnoverDays,
-    achievementPct,
+    managementSharePct,
+    compensationSharePct,
     transportSharePct,
   };
 }

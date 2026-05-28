@@ -1,11 +1,11 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
   ComposedChart,
   Legend,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -33,7 +33,6 @@ function hexToRgba(hex: string, alpha: number): string {
 
 const BASE = OEM_COLORS[0];
 const PLAN_COLOR = hexToRgba(BASE, 0.4);
-const RATE_COLOR = '#dc2626';
 
 interface Props {
   points: AchievementMonthPoint[];
@@ -41,17 +40,26 @@ interface Props {
 }
 
 /**
- * 차트 2/3 공통 — 월별 X축, 계획·실적 막대 + 달성율 꺾은선.
- * 데이터 레이블 없음 (호버 툴팁만, 24포인트 가독성).
+ * 차트 2/3 공통 — 월별 X축, 계획·실적 막대 (달성율 제거).
+ * 재고는 달성율 표시가 부적절(낮을수록 좋음 등 의미가 P&L과 반대) → 두 막대 비교만.
+ * 범례 클릭으로 계획/실적 시리즈 토글.
  */
 export default function InventoryAchievementChart({ points, unitLabel = '억원' }: Props) {
   const h = useChartHeight(360, 440, 520);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggle = useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
   if (points.length === 0) {
     return (
       <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
     );
   }
-  const rateMax = Math.max(100, ...points.map((p) => (p.rate === null ? 0 : Math.abs(p.rate))));
   return (
     <ResponsiveContainer width="100%" height={h}>
       <ComposedChart data={points} margin={{ top: 32, right: 24, bottom: 10, left: 10 }} barGap={2}>
@@ -65,19 +73,10 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
           height={56}
         />
         <YAxis
-          yAxisId="amount"
           tickFormatter={(v: number) => fmt(v, 0)}
           tick={{ fontSize: 13 }}
           width={70}
           domain={[0, (max: number) => Math.max(max * 1.2, 1)]}
-        />
-        <YAxis
-          yAxisId="rate"
-          orientation="right"
-          tickFormatter={(v: number) => `${Math.round(v)}%`}
-          tick={{ fontSize: 13 }}
-          width={56}
-          domain={[0, Math.max(rateMax * 1.2, 110)]}
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
@@ -96,22 +95,25 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
               items={[
                 { key: 'plan', label: '계획', shape: 'rect', color: PLAN_COLOR },
                 { key: 'actual', label: '실적', shape: 'rect', color: BASE },
-                { key: 'rate', label: '달성율', shape: 'line', color: RATE_COLOR },
               ]}
+              hidden={hidden}
+              onToggle={toggle}
             />
           )}
         />
-        <Bar yAxisId="amount" dataKey="plan" name="계획" fill={PLAN_COLOR} radius={[2, 2, 0, 0]} />
-        <Bar yAxisId="amount" dataKey="actual" name="실적" fill={BASE} radius={[2, 2, 0, 0]} />
-        <Line
-          yAxisId="rate"
-          type="monotone"
-          dataKey="rate"
-          name="달성율"
-          stroke={RATE_COLOR}
-          strokeWidth={2.5}
-          dot={{ r: 4, fill: RATE_COLOR }}
-          connectNulls
+        <Bar
+          dataKey="plan"
+          name="계획"
+          fill={PLAN_COLOR}
+          radius={[2, 2, 0, 0]}
+          hide={hidden.has('plan')}
+        />
+        <Bar
+          dataKey="actual"
+          name="실적"
+          fill={BASE}
+          radius={[2, 2, 0, 0]}
+          hide={hidden.has('actual')}
         />
       </ComposedChart>
     </ResponsiveContainer>
@@ -142,9 +144,6 @@ function Tip({
       </div>
       <div>
         실적: {fmt(p.actual, 0)} {unitLabel}
-      </div>
-      <div className={p.rate !== null && p.rate < 100 ? 'text-red-500' : 'text-emerald-600'}>
-        달성율: {p.rate === null ? '—' : `${fmt(p.rate, 1)}%`}
       </div>
     </div>
   );

@@ -317,8 +317,9 @@ describe('buildTransportPoints', () => {
 });
 
 describe('buildKpis', () => {
-  it('최신 실적 월 기준 KPI 4종 계산', () => {
+  it('최신 실적 월 기준 KPI 5종 계산 (전체/회전율 + 관리·보상·운송 비중)', () => {
     const rows: InventoryRow[] = [
+      // 2025.12 실적 — MoM 계산용 prev
       row({
         category: '전체',
         item: '전체 재고',
@@ -327,34 +328,7 @@ describe('buildKpis', () => {
         period_month: 12,
         value: 1000,
       }),
-      row({
-        category: '운송',
-        item: '영업 재고',
-        kind: 'actual',
-        period_year: 2025,
-        period_month: 12,
-        value: 100,
-      }),
-      row({
-        category: '운송',
-        item: '미국 운송',
-        kind: 'actual',
-        period_year: 2025,
-        period_month: 12,
-        unit: '백만USD',
-        value: 10,
-        fx_rate: 1400,
-      }),
-      row({
-        category: '전체',
-        item: '회전율',
-        kind: 'actual',
-        period_year: 2025,
-        period_month: 12,
-        unit: null,
-        fx_rate: null,
-        value: 4.0,
-      }),
+      // 2026.01 실적 — latest 기준
       row({
         category: '전체',
         item: '전체 재고',
@@ -362,6 +336,22 @@ describe('buildKpis', () => {
         period_year: 2026,
         period_month: 1,
         value: 1100,
+      }),
+      row({
+        category: '관리',
+        item: '관리 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 200,
+      }),
+      row({
+        category: '보상',
+        item: '보상 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 80,
       }),
       row({
         category: '운송',
@@ -391,14 +381,6 @@ describe('buildKpis', () => {
         fx_rate: null,
         value: 5.0,
       }),
-      row({
-        category: '전체',
-        item: '전체 재고',
-        kind: 'plan',
-        period_year: 2026,
-        period_month: 1,
-        value: 1200,
-      }),
     ];
     const kpis = buildKpis(rows);
     expect(kpis.latestLabel).toBe('2026.01');
@@ -406,7 +388,11 @@ describe('buildKpis', () => {
     expect(kpis.totalMomPct).toBeCloseTo(10, 1);
     expect(kpis.turnover).toBe(5.0);
     expect(kpis.turnoverDays).toBe(73);
-    expect(kpis.achievementPct).toBeCloseTo(91.67, 1);
+    // 관리 = 200 / 1100 × 100 = 18.18%
+    expect(kpis.managementSharePct).toBeCloseTo(18.18, 1);
+    // 보상 = 80 / 1100 × 100 = 7.27%
+    expect(kpis.compensationSharePct).toBeCloseTo(7.27, 1);
+    // 운송 = (110 + 12*14) / 1100 × 100 = 278 / 1100 × 100 = 25.27%
     expect(kpis.transportSharePct).toBeCloseTo(25.27, 1);
   });
 
@@ -424,7 +410,8 @@ describe('buildKpis', () => {
     const kpis = buildKpis(rows);
     expect(kpis.totalEok).toBeNull();
     expect(kpis.turnover).toBeNull();
-    expect(kpis.achievementPct).toBeNull();
+    expect(kpis.managementSharePct).toBeNull();
+    expect(kpis.compensationSharePct).toBeNull();
     expect(kpis.transportSharePct).toBeNull();
   });
 });
