@@ -137,7 +137,7 @@ function renderInsideLabel(props: any): React.ReactElement | null {
   };
   if (x === undefined || y === undefined || width === undefined || height === undefined || !value)
     return null;
-  if (height < 32) return null;
+  if (height < 40) return null;
   const cx = x + width / 2;
   const cy = y + height / 2;
   const [num, pct] = String(value).split('\n');
@@ -146,7 +146,7 @@ function renderInsideLabel(props: any): React.ReactElement | null {
       x={cx}
       y={cy}
       textAnchor="middle"
-      style={{ fontSize: 12, fill: 'white', fontWeight: 600 }}
+      style={{ fontSize: 16, fill: 'white', fontWeight: 600 }}
     >
       <tspan x={cx} dy="-0.3em">
         {num}
