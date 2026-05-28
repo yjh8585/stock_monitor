@@ -10,6 +10,7 @@ const BASE_TABS = [
   { label: '계획', href: '/management/plan' },
   { label: '재고', href: '/management/inventory' },
   { label: '생산', href: '/management/production' },
+  { label: '인원', href: '/management/personnel' },
 ] as const;
 
 /** 관리자에게만 노출되는 탭. */
