@@ -103,10 +103,34 @@ export default function InventoryStatusChart({ points }: Props) {
               />
             )}
           />
-          <Bar yAxisId="amount" dataKey="operating" name="운영" stackId="inv" fill={COLORS.operating} />
-          <Bar yAxisId="amount" dataKey="management" name="관리" stackId="inv" fill={COLORS.management} />
-          <Bar yAxisId="amount" dataKey="compensation" name="보상" stackId="inv" fill={COLORS.compensation} />
-          <Bar yAxisId="amount" dataKey="transport" name="운송" stackId="inv" fill={COLORS.transport}>
+          <Bar
+            yAxisId="amount"
+            dataKey="operating"
+            name="운영"
+            stackId="inv"
+            fill={COLORS.operating}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="management"
+            name="관리"
+            stackId="inv"
+            fill={COLORS.management}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="compensation"
+            name="보상"
+            stackId="inv"
+            fill={COLORS.compensation}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="transport"
+            name="운송"
+            stackId="inv"
+            fill={COLORS.transport}
+          >
             <LabelList
               dataKey="total"
               position="top"

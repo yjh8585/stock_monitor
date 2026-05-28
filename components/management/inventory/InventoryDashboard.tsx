@@ -11,11 +11,7 @@ import {
   buildStatusPoints,
   buildTransportPoints,
 } from '@/lib/inventory/aggregate';
-import type {
-  AchievementCategory,
-  InventoryRow,
-  TransportItem,
-} from '@/lib/inventory/types';
+import type { AchievementCategory, InventoryRow, TransportItem } from '@/lib/inventory/types';
 
 const InventoryStatusChart = dynamic(() => import('./InventoryStatusChart'), { ssr: false });
 const InventoryAchievementChart = dynamic(() => import('./InventoryAchievementChart'), {
