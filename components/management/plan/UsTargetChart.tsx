@@ -34,7 +34,7 @@ export default function UsTargetChart({
   const unitLabel = cur === 'usd' ? 'USD 백만' : '억원';
   return (
     <ChartSection
-      title="4. 미국법인 목표 달성"
+      title={`5. 미국법인 목표 달성 · 단위 ${unitLabel}`}
       controls={
         <>
           <ToggleGroup
@@ -56,7 +56,11 @@ export default function UsTargetChart({
         </>
       }
     >
-      <PlanAchievementChart points={points} unitLabel={unitLabel} />
+      <PlanAchievementChart
+        points={points}
+        unitLabel={unitLabel}
+        amountDigits={item === '영업이익' ? 1 : 0}
+      />
     </ChartSection>
   );
 }

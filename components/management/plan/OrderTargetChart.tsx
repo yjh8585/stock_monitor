@@ -20,7 +20,7 @@ export default function OrderTargetChart({ rows }: { rows: PlanRow[] }) {
   }, [rows, mode]);
   return (
     <ChartSection
-      title="1. 전사 수주목표 달성"
+      title="1. 전사 수주목표 달성 · 단위 억원"
       controls={
         <ToggleGroup
           options={[

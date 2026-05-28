@@ -16,7 +16,7 @@ export default function ImprovementTargetChart({ rows }: { rows: PlanRow[] }) {
   );
   return (
     <ChartSection
-      title="7. 손익개선 목표 달성"
+      title="8. 손익개선 목표 달성 · 단위 백만원"
       controls={
         <ToggleGroup
           options={[

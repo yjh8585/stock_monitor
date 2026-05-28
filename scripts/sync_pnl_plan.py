@@ -28,16 +28,23 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.db import WriteSession  # noqa: E402
 
-SHEET = '계획'
+SHEET_PLAN = '계획'
+SHEET_ORDER = '수주'
 TABLE = 'pnl_plan'
 CONFLICT = 'category,item,basis,kind,period_year,period_type,period_month'
 HEADER_ROW = 1
 DATA_START = 2
-# 1-indexed 컬럼
-COL = {'year': 1, 'pm': 2, 'kind': 3, 'basis': 4, 'category': 5, 'item': 6, 'unit': 7, 'value': 8}
-EXPECTED_HEADERS = {
+# 계획 시트 — 1-indexed 컬럼 (연결/별도 포함)
+COL_PLAN = {'year': 1, 'pm': 2, 'kind': 3, 'basis': 4, 'category': 5, 'item': 6, 'unit': 7, 'value': 8}
+EXPECTED_HEADERS_PLAN = {
   1: '연도', 2: '연간/월', 3: '계획/실적',
   4: '연결/별도', 5: '분류', 6: '항목', 7: '단위', 8: '밸류',
+}
+# 수주 시트 — 연결/별도 없음, basis는 'consolidated' 고정
+COL_ORDER = {'year': 1, 'pm': 2, 'kind': 3, 'category': 4, 'item': 5, 'unit': 6, 'value': 7}
+EXPECTED_HEADERS_ORDER = {
+  1: '연도', 2: '연간/월', 3: '계획/실적',
+  4: '분류', 5: '항목', 6: '단위', 7: '밸류',
 }
 BASIS_MAP = {'연결': 'consolidated', '별도': 'standalone'}
 KIND_MAP = {'계획': 'plan', '실적': 'actual'}
@@ -67,46 +74,71 @@ def _txt(v: Any) -> str:
   return '' if v is None else str(v).strip()
 
 
-def validate_headers(ws) -> list[str]:
-  """헤더 행이 EXPECTED_HEADERS와 일치하는지 검증한다."""
+def validate_headers(ws, expected: dict[int, str]) -> list[str]:
+  """헤더 행이 expected 매핑과 일치하는지 검증한다."""
   errs = []
-  for c, expected in EXPECTED_HEADERS.items():
+  for c, exp in expected.items():
     actual = _txt(ws.cell(HEADER_ROW, c).value)
-    if actual != expected:
-      errs.append(f'  컬럼 {c}: 기대 "{expected}" 실제 "{actual}"')
+    if actual != exp:
+      errs.append(f'  컬럼 {c}: 기대 "{exp}" 실제 "{actual}"')
   return errs
 
 
-def row_to_entry(ws, r: int) -> dict[str, Any] | None:
-  """워크시트 행 r → pnl_plan dict. SKIP할 경우 None 반환."""
-  year = ws.cell(r, COL['year']).value
+def _parse_period(pm_raw: Any) -> tuple[str, int] | None:
+  if isinstance(pm_raw, (int, float)) and 1 <= int(pm_raw) <= 12:
+    return ('month', int(pm_raw))
+  if _txt(pm_raw) == '연간':
+    return ('annual', 0)
+  return None
+
+
+def row_to_entry_plan(ws, r: int) -> dict[str, Any] | None:
+  """계획 시트 행 → pnl_plan dict (연결/별도 컬럼 있음)."""
+  year = ws.cell(r, COL_PLAN['year']).value
   if not isinstance(year, (int, float)):
     return None
-  category = _txt(ws.cell(r, COL['category']).value)
-  item = _txt(ws.cell(r, COL['item']).value)
+  category = _txt(ws.cell(r, COL_PLAN['category']).value)
+  item = _txt(ws.cell(r, COL_PLAN['item']).value)
   if not category or not item:
     return None
-  basis = BASIS_MAP.get(_txt(ws.cell(r, COL['basis']).value))
-  kind = KIND_MAP.get(_txt(ws.cell(r, COL['kind']).value))
+  basis = BASIS_MAP.get(_txt(ws.cell(r, COL_PLAN['basis']).value))
+  kind = KIND_MAP.get(_txt(ws.cell(r, COL_PLAN['kind']).value))
   if basis is None or kind is None:
     return None
-  pm_raw = ws.cell(r, COL['pm']).value
-  if isinstance(pm_raw, (int, float)) and 1 <= int(pm_raw) <= 12:
-    period_type, period_month = 'month', int(pm_raw)
-  elif _txt(pm_raw) == '연간':
-    period_type, period_month = 'annual', 0
-  else:
+  period = _parse_period(ws.cell(r, COL_PLAN['pm']).value)
+  if period is None:
     return None
   return {
-    'category': category,
-    'item': item,
-    'basis': basis,
-    'kind': kind,
+    'category': category, 'item': item, 'basis': basis, 'kind': kind,
     'period_year': int(year),
-    'period_type': period_type,
-    'period_month': period_month,
-    'unit': _txt(ws.cell(r, COL['unit']).value),
-    'value': _num(ws.cell(r, COL['value']).value),
+    'period_type': period[0], 'period_month': period[1],
+    'unit': _txt(ws.cell(r, COL_PLAN['unit']).value),
+    'value': _num(ws.cell(r, COL_PLAN['value']).value),
+  }
+
+
+def row_to_entry_order(ws, r: int) -> dict[str, Any] | None:
+  """수주 시트 행 → pnl_plan dict. 연결/별도 컬럼 없음 → basis='consolidated' 고정.
+  분류='수주', 항목∈{입찰총액|수주성공|수주실패|연기∙중단∙취소}."""
+  year = ws.cell(r, COL_ORDER['year']).value
+  if not isinstance(year, (int, float)):
+    return None
+  category = _txt(ws.cell(r, COL_ORDER['category']).value)
+  item = _txt(ws.cell(r, COL_ORDER['item']).value)
+  if not category or not item:
+    return None
+  kind = KIND_MAP.get(_txt(ws.cell(r, COL_ORDER['kind']).value))
+  if kind is None:
+    return None
+  period = _parse_period(ws.cell(r, COL_ORDER['pm']).value)
+  if period is None:
+    return None
+  return {
+    'category': category, 'item': item, 'basis': 'consolidated', 'kind': kind,
+    'period_year': int(year),
+    'period_type': period[0], 'period_month': period[1],
+    'unit': _txt(ws.cell(r, COL_ORDER['unit']).value),
+    'value': _num(ws.cell(r, COL_ORDER['value']).value),
   }
 
 
@@ -136,16 +168,33 @@ def main() -> int:
   logger.info(f'엑셀 로드: {path}')
   wb = openpyxl.load_workbook(path, data_only=True)
   try:
-    ws = wb[SHEET]
-    errs = validate_headers(ws)
-    if errs:
-      logger.error('헤더 불일치:\n' + '\n'.join(errs))
-      return 2
     entries: list[dict[str, Any]] = []
-    for r in range(DATA_START, ws.max_row + 1):
-      e = row_to_entry(ws, r)
+    # 1) 계획 시트
+    ws_plan = wb[SHEET_PLAN]
+    errs = validate_headers(ws_plan, EXPECTED_HEADERS_PLAN)
+    if errs:
+      logger.error(f'[{SHEET_PLAN}] 헤더 불일치:\n' + '\n'.join(errs))
+      return 2
+    plan_n = 0
+    for r in range(DATA_START, ws_plan.max_row + 1):
+      e = row_to_entry_plan(ws_plan, r)
       if e is not None:
         entries.append(e)
+        plan_n += 1
+    logger.info(f'[{SHEET_PLAN}] {plan_n}행')
+    # 2) 수주 시트 (분류=수주, 항목=입찰총액/수주성공/수주실패/연기∙중단∙취소)
+    ws_order = wb[SHEET_ORDER]
+    errs = validate_headers(ws_order, EXPECTED_HEADERS_ORDER)
+    if errs:
+      logger.error(f'[{SHEET_ORDER}] 헤더 불일치:\n' + '\n'.join(errs))
+      return 2
+    order_n = 0
+    for r in range(DATA_START, ws_order.max_row + 1):
+      e = row_to_entry_order(ws_order, r)
+      if e is not None:
+        entries.append(e)
+        order_n += 1
+    logger.info(f'[{SHEET_ORDER}] {order_n}행')
   finally:
     wb.close()
 

@@ -16,7 +16,7 @@ export default function JilinTargetChart({ rows }: { rows: PlanRow[] }) {
   );
   return (
     <ChartSection
-      title="6. 지린법인 목표 달성"
+      title="7. 지린법인 목표 달성 · 단위 억원"
       controls={
         <ToggleGroup
           options={[
@@ -28,7 +28,11 @@ export default function JilinTargetChart({ rows }: { rows: PlanRow[] }) {
         />
       }
     >
-      <PlanAchievementChart points={points} unitLabel="억원" />
+      <PlanAchievementChart
+        points={points}
+        unitLabel="억원"
+        amountDigits={item === '영업이익' ? 1 : 0}
+      />
     </ChartSection>
   );
 }

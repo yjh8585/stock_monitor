@@ -22,7 +22,7 @@ export default function OpIncomeTargetChart({
   );
   return (
     <ChartSection
-      title="3. 전사 영업이익 목표 달성"
+      title="4. 전사 영업이익 목표 달성 · 단위 억원"
       controls={
         <ToggleGroup
           options={[

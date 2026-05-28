@@ -8,6 +8,7 @@ import type { PlanRow } from '@/lib/plan/types';
 // 차트 컴포넌트 — recharts 청크를 차트 단위로 lazy 분리.
 // 각 차트는 LazyMount 안에 들어가 viewport 진입 시 청크 download + mount.
 const OrderTargetChart = dynamic(() => import('./OrderTargetChart'), { ssr: false });
+const OrderFunnelChart = dynamic(() => import('./OrderFunnelChart'), { ssr: false });
 const RevenueTargetChart = dynamic(() => import('./RevenueTargetChart'), { ssr: false });
 const OpIncomeTargetChart = dynamic(() => import('./OpIncomeTargetChart'), { ssr: false });
 const UsTargetChart = dynamic(() => import('./UsTargetChart'), { ssr: false });
@@ -33,28 +34,31 @@ interface Props {
 export default function PlanDashboard({ rows, prepared, usdKrw }: Props) {
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <OrderTargetChart rows={rows} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
+        <OrderFunnelChart rows={rows} />
+      </LazyMount>
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <RevenueTargetChart rows={rows} prepared={prepared} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <OpIncomeTargetChart rows={rows} prepared={prepared} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <UsTargetChart rows={rows} usdKrw={usdKrw} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <SangsukTargetChart rows={rows} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <JilinTargetChart rows={rows} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <ImprovementTargetChart rows={rows} />
       </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[480px]">
+      <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <FactoryTargetChart rows={rows} />
       </LazyMount>
     </div>
