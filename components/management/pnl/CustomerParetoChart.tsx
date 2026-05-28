@@ -40,7 +40,7 @@ function fmtMillion(n: number): string {
 }
 
 /**
- * 15. 고객 매출 집중도 (파레토).
+ * 14. 고객 매출 집중도 (파레토).
  *
  * - 막대 = 고객별 매출 (내림차순)
  * - 라인 = 누적 매출 점유율 (%)
@@ -85,7 +85,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-        <h2 className="text-lg font-semibold">15. 고객 매출 집중도 (파레토)</h2>
+        <h2 className="text-lg font-semibold">14. 고객 매출 집중도 (파레토) <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span></h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect

@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -30,10 +31,16 @@ interface Props {
   monthlyByBasis: EntriesByBasis;
 }
 
-/** 백만원 천 단위 콤마. null/NaN은 '—' */
-function fmtMillion(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return '—';
-  return Math.round(n).toLocaleString('ko-KR');
+/** 억원 천 단위 콤마. null/NaN은 '—'. DB는 백만원 단위 → /100. */
+const UNIT_DIVISOR = 100;
+function toEokwon(n: number | null | undefined): number | null {
+  if (n == null || Number.isNaN(n)) return null;
+  return n / UNIT_DIVISOR;
+}
+function fmtEokwon(n: number | null | undefined): string {
+  const v = toEokwon(n);
+  if (v == null) return '—';
+  return Math.round(v).toLocaleString('ko-KR');
 }
 
 /** YoY% 포맷 — null은 '—' */
@@ -160,7 +167,7 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">11. 전년 대비 월별 비교</h2>
+        <h2 className="text-lg font-semibold">11. 전년 대비 월별 비교 <span className="text-sm font-normal text-muted-foreground">· 단위 억원</span></h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="기준" options={yearOptions} value={effBase} onChange={setBaseYear} />
@@ -188,16 +195,17 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
         <ResponsiveContainer width="100%" height={h}>
           <BarChart
             data={chartData}
-            margin={{ top: 10, right: 20, bottom: 10, left: 10 }}
+            margin={{ top: 28, right: 24, bottom: 10, left: 10 }}
             barGap={2}
             barCategoryGap="20%"
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis dataKey="monthLabel" tick={{ fontSize: 14 }} />
             <YAxis
-              tickFormatter={(v: number) => fmtMillion(v)}
+              tickFormatter={(v: number) => fmtEokwon(v)}
               tick={{ fontSize: 14 }}
               width={80}
+              domain={[(min: number) => Math.min(0, min * 1.1), (max: number) => max * 1.15]}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
@@ -227,13 +235,27 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
                     name={`${METRIC_LABELS[m]} ${effCompare}`}
                     fill={compareColor}
                     radius={[2, 2, 0, 0]}
-                  />
+                  >
+                    <LabelList
+                      dataKey={`${m}_compare`}
+                      position="top"
+                      formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
+                      style={{ fontSize: 11, fill: 'var(--foreground)' }}
+                    />
+                  </Bar>
                   <Bar
                     dataKey={`${m}_base`}
                     name={`${METRIC_LABELS[m]} ${effBase}`}
                     fill={baseColor}
                     radius={[2, 2, 0, 0]}
-                  />
+                  >
+                    <LabelList
+                      dataKey={`${m}_base`}
+                      position="top"
+                      formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
+                      style={{ fontSize: 11, fill: 'var(--foreground)' }}
+                    />
+                  </Bar>
                 </Fragment>
               );
             })}
@@ -311,13 +333,13 @@ function YoyTooltip({
       {rows.map((r) => (
         <div key={r.metric} className="mb-1 leading-relaxed">
           <span className="text-muted-foreground">{METRIC_LABELS[r.metric]}:</span>{' '}
-          <span className={negCls(r.baseVal)}>{fmtMillion(r.baseVal)}</span>
+          <span className={negCls(r.baseVal)}>{fmtEokwon(r.baseVal)}</span>
           {r.baseRatio != null && (
             <span className={`ml-1 ${negCls(r.baseRatio)}`}>[{fmtPct(r.baseRatio)}]</span>
           )}
           <span className="text-muted-foreground"> ({baseYear})</span>
           <span className="text-muted-foreground"> / 전년 {compareYear} </span>
-          <span className={negCls(r.compVal)}>{fmtMillion(r.compVal)}</span>
+          <span className={negCls(r.compVal)}>{fmtEokwon(r.compVal)}</span>
           {r.compRatio != null && (
             <span className={`ml-1 ${negCls(r.compRatio)}`}>[{fmtPct(r.compRatio)}]</span>
           )}

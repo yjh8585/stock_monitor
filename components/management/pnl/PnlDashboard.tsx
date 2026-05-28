@@ -20,7 +20,6 @@ const ProfitContribution = dynamic(() => import('./ProfitContribution'), { ssr: 
 const YoyMonthlyCompare = dynamic(() => import('./YoyMonthlyCompare'), { ssr: false });
 const YoyMonthlyFiltered = dynamic(() => import('./YoyMonthlyFiltered'), { ssr: false });
 const YoyProductCustomer = dynamic(() => import('./YoyProductCustomer'), { ssr: false });
-const WaterfallProfitability = dynamic(() => import('./WaterfallProfitability'), { ssr: false });
 const CustomerParetoChart = dynamic(() => import('./CustomerParetoChart'), { ssr: false });
 
 interface Props {
@@ -45,7 +44,7 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  *   전체 대신 절반 배열만 필터/그룹.
  * - 차트가 들어간 하단 섹션(MarginScatter / ProfitContribution /
  *   YoyMonthlyCompare / YoyMonthlyFiltered / YoyProductCustomer /
- *   WaterfallProfitability / CustomerParetoChart)은 `LazyMount`로 감싸
+ *   CustomerParetoChart)은 `LazyMount`로 감싸
  *   viewport 진입 시 1회 마운트 + recharts 청크 lazy fetch.
  */
 export default function PnlDashboard({ prepared, costStructure }: Props) {
@@ -87,9 +86,6 @@ export default function PnlDashboard({ prepared, costStructure }: Props) {
           annualByBasis={annualByBasis}
           monthlyByBasis={monthlyByBasis}
         />
-      </LazyMount>
-      <LazyMount className="min-h-[420px] md:min-h-[520px]">
-        <WaterfallProfitability annualEntries={annualEntries} annualByBasis={annualByBasis} />
       </LazyMount>
       <LazyMount className="min-h-[420px] md:min-h-[520px]">
         <CustomerParetoChart annualEntries={annualEntries} annualByBasis={annualByBasis} />

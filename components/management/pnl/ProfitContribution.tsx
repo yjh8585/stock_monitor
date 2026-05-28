@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
-import { aggregateBy, entriesForYear, getDisplayYearLabels, opMarginOf } from '@/lib/pnl/aggregate';
+import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 
@@ -12,16 +12,37 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
+/** (고객, 제품) 두 차원이 모두 '기타'인 catchall 행은 TOP/WORST 랭킹에서 제외. */
+function isCatchall(r: AggregatedRow): boolean {
+  return r.dims.customer === '기타' && r.dims.product === '기타';
+}
+
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('ko-KR');
 }
 function fmtPct(n: number | null): string {
   return n == null ? '—' : `${n.toFixed(1)}%`;
 }
+function marginOf(revenue: number, op: number): number | null {
+  return revenue ? (op / revenue) * 100 : null;
+}
+function negCls(n: number | null | undefined): string {
+  return n != null && n < 0 ? 'text-red-500' : '';
+}
 
-/** 영업이익률 음수 빨강 */
-function marginCls(n: number | null): string {
-  return n != null && n < 0 ? 'text-red-500 font-medium' : '';
+interface SummaryAgg {
+  revenue: number;
+  op_income: number;
+}
+
+function sumAgg(rows: readonly AggregatedRow[]): SummaryAgg {
+  let revenue = 0;
+  let op_income = 0;
+  for (const r of rows) {
+    revenue += r.revenue;
+    op_income += r.op_income;
+  }
+  return { revenue, op_income };
 }
 
 export default function ProfitContribution({ annualByBasis }: Props) {
@@ -40,28 +61,33 @@ export default function ProfitContribution({ annualByBasis }: Props) {
     [yearLabel, yearLabels]
   );
 
-  const { top, worst, corp, restOfTop } = useMemo(() => {
+  const { top, worst, corp } = useMemo(() => {
     const entries = entriesForYear(basisEntries, basis, effYear);
     const cross = aggregateBy(entries, ['customer', 'product']).filter(
-      (r) => r.revenue !== 0 || r.op_income !== 0
+      (r) => (r.revenue !== 0 || r.op_income !== 0) && !isCatchall(r)
     );
     const sorted = [...cross].sort((a, b) => b.op_income - a.op_income);
     const top7 = sorted.slice(0, 7);
-    const worst7 = sorted.slice(-7).reverse(); // 최하위가 위로
+    const worst7 = [...sorted].slice(-7).reverse(); // 최하위가 위로
     const corpAgg = aggregateBy(entries, []);
-    const corpRow: AggregatedRow | null = corpAgg[0] ?? null;
-    // top7 제외 나머지 합산
-    const topKeys = new Set(top7.map((r) => r.key));
-    const rest = cross.filter((r) => !topKeys.has(r.key));
-    const restRev = rest.reduce((s, r) => s + r.revenue, 0);
-    const restOp = rest.reduce((s, r) => s + r.op_income, 0);
-    return {
-      top: top7,
-      worst: worst7,
-      corp: corpRow,
-      restOfTop: { revenue: restRev, op_income: restOp },
-    };
+    const corpRow = corpAgg[0] ?? null;
+    return { top: top7, worst: worst7, corp: corpRow };
   }, [basisEntries, basis, effYear]);
+
+  const corpSummary: SummaryAgg = corp
+    ? { revenue: corp.revenue, op_income: corp.op_income }
+    : { revenue: 0, op_income: 0 };
+
+  const topAgg = sumAgg(top);
+  const worstAgg = sumAgg(worst);
+  const restOfTop: SummaryAgg = {
+    revenue: corpSummary.revenue - topAgg.revenue,
+    op_income: corpSummary.op_income - topAgg.op_income,
+  };
+  const restOfWorst: SummaryAgg = {
+    revenue: corpSummary.revenue - worstAgg.revenue,
+    op_income: corpSummary.op_income - worstAgg.op_income,
+  };
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -72,51 +98,46 @@ export default function ProfitContribution({ annualByBasis }: Props) {
           <YearSelect label="연도" options={yearLabels} value={effYear} onChange={setYearLabel} />
         </div>
       </header>
+      <p className="text-xs text-muted-foreground mb-2">
+        단위 백만원 · (고객·제품) cross 기준 · (기타·기타) catchall 제외 · 영업이익 순
+      </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ContribTable title="이익기여 TOP 7" rows={top} />
-        <ContribTable title="이익기여 WORST 7" rows={worst} />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <ContribTable
+          title="이익기여 TOP 7"
+          summaryLabel="TOP7"
+          rows={top}
+          corp={corpSummary}
+          groupSum={topAgg}
+          rest={restOfTop}
+        />
+        <ContribTable
+          title="이익기여 WORST 7"
+          summaryLabel="WORST7"
+          rows={worst}
+          corp={corpSummary}
+          groupSum={worstAgg}
+          rest={restOfWorst}
+        />
       </div>
-
-      {corp ? (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left py-1.5 px-2">구분</th>
-                <th className="text-right py-1.5 px-2">매출(백만)</th>
-                <th className="text-right py-1.5 px-2">영업이익(백만)</th>
-                <th className="text-right py-1.5 px-2">영업이익률</th>
-              </tr>
-            </thead>
-            <tbody>
-              <SummaryRow label="전사 합계" revenue={corp.revenue} op={corp.op_income} />
-              <SummaryRow
-                label="TOP7 제외 나머지"
-                revenue={restOfTop.revenue}
-                op={restOfTop.op_income}
-              />
-            </tbody>
-          </table>
-        </div>
-      ) : null}
     </section>
   );
 }
 
-function SummaryRow({ label, revenue, op }: { label: string; revenue: number; op: number }) {
-  const margin = revenue ? (op / revenue) * 100 : null;
-  return (
-    <tr className="border-b border-border/50">
-      <td className="py-1.5 px-2 font-medium">{label}</td>
-      <td className="text-right py-1.5 px-2">{fmt(revenue)}</td>
-      <td className={`text-right py-1.5 px-2 ${op < 0 ? 'text-red-500' : ''}`}>{fmt(op)}</td>
-      <td className={`text-right py-1.5 px-2 ${marginCls(margin)}`}>{fmtPct(margin)}</td>
-    </tr>
-  );
+interface ContribTableProps {
+  title: string;
+  summaryLabel: string;
+  rows: AggregatedRow[];
+  corp: SummaryAgg;
+  groupSum: SummaryAgg;
+  rest: SummaryAgg;
 }
 
-function ContribTable({ title, rows }: { title: string; rows: AggregatedRow[] }) {
+/**
+ * 합계행 2개(전사·TOP7|WORST7) + 7개 개별행 + 합계행 1개(나머지) 단일 테이블.
+ * 이미지 레이아웃: 고객 | 제품 | 매출 | 영업이익 | 이익률.
+ */
+function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: ContribTableProps) {
   return (
     <div className="rounded-md border border-border p-3">
       <div className="font-semibold mb-2">{title}</div>
@@ -132,19 +153,19 @@ function ContribTable({ title, rows }: { title: string; rows: AggregatedRow[] })
             </tr>
           </thead>
           <tbody>
+            <SummaryRow label1="전사" label2="합계" agg={corp} bold />
+            <SummaryRow label1={summaryLabel} label2="합계" agg={groupSum} bold />
             {rows.map((r) => {
-              const margin = opMarginOf(r);
+              const margin = marginOf(r.revenue, r.op_income);
               return (
                 <tr key={r.key} className="border-b border-border/50">
                   <td className="py-1.5 px-2">{r.dims.customer || '—'}</td>
                   <td className="py-1.5 px-2">{r.dims.product || '—'}</td>
                   <td className="text-right py-1.5 px-2">{fmt(r.revenue)}</td>
-                  <td className={`text-right py-1.5 px-2 ${r.op_income < 0 ? 'text-red-500' : ''}`}>
+                  <td className={`text-right py-1.5 px-2 ${negCls(r.op_income)}`}>
                     {fmt(r.op_income)}
                   </td>
-                  <td className={`text-right py-1.5 px-2 ${marginCls(margin)}`}>
-                    {fmtPct(margin)}
-                  </td>
+                  <td className={`text-right py-1.5 px-2 ${negCls(margin)}`}>{fmtPct(margin)}</td>
                 </tr>
               );
             })}
@@ -154,10 +175,40 @@ function ContribTable({ title, rows }: { title: string; rows: AggregatedRow[] })
                   데이터 없음
                 </td>
               </tr>
-            ) : null}
+            ) : (
+              <SummaryRow label1="나머지" label2="합계" agg={rest} muted />
+            )}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function SummaryRow({
+  label1,
+  label2,
+  agg,
+  bold,
+  muted,
+}: {
+  label1: string;
+  label2: string;
+  agg: SummaryAgg;
+  bold?: boolean;
+  muted?: boolean;
+}) {
+  const margin = marginOf(agg.revenue, agg.op_income);
+  const baseCls = bold ? 'font-bold' : muted ? 'font-medium text-muted-foreground' : 'font-medium';
+  return (
+    <tr className={`border-b border-border/50 ${muted ? 'bg-muted/30' : 'bg-muted/20'}`}>
+      <td className={`py-1.5 px-2 ${baseCls}`}>{label1}</td>
+      <td className={`py-1.5 px-2 ${baseCls}`}>{label2}</td>
+      <td className={`text-right py-1.5 px-2 ${baseCls}`}>{fmt(agg.revenue)}</td>
+      <td className={`text-right py-1.5 px-2 ${baseCls} ${negCls(agg.op_income)}`}>
+        {fmt(agg.op_income)}
+      </td>
+      <td className={`text-right py-1.5 px-2 ${baseCls} ${negCls(margin)}`}>{fmtPct(margin)}</td>
+    </tr>
   );
 }

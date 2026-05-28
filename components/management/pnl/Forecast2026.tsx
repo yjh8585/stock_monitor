@@ -303,7 +303,7 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">2. 2026 연간 추정 (매출·영업이익)</h2>
+        <h2 className="text-lg font-semibold">2. 2026 연간 추정 (매출·영업이익) <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span></h2>
         <BasisToggle value={basis} onChange={setBasis} />
       </header>
 
