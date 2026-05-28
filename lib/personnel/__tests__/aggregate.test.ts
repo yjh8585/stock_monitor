@@ -4,6 +4,7 @@ import {
   buildDomesticPoints,
   buildOverseasPoints,
   buildMixPoints,
+  buildFieldMixPoints,
   buildTableData,
 } from '../aggregate';
 import type { PersonnelRow } from '../types';
@@ -149,6 +150,37 @@ describe('buildMixPoints', () => {
     const pts = buildMixPoints(rows, 'domestic-outsource');
     expect(pts[0].office).toBe(10);
     expect(pts[0].production).toBe(20);
+  });
+});
+
+describe('buildFieldMixPoints', () => {
+  it('국내 한정 — 현장(생산·품질·연구소) vs 관리(그 외)', () => {
+    const rows: PersonnelRow[] = [
+      // 현장 = 생산, 품질, 연구소
+      row({ region: '국내', detail: '생산', kind: '생산', headcount: 50 }),
+      row({ region: '국내', detail: '품질', kind: '사무', headcount: 20 }),
+      row({ region: '국내', detail: '연구소', kind: '임원', headcount: 5 }),
+      // 관리 = 그 외 (PM, 영업 등)
+      row({ region: '국내', detail: 'PM', kind: '사무', headcount: 10 }),
+      row({ region: '국내', detail: '영업', kind: '사무', headcount: 15 }),
+      // 외주·미국은 제외
+      row({ region: '외주', detail: '사내외주', kind: '생산', headcount: 999 }),
+      row({ region: '미국', detail: '', kind: '사무', headcount: 999 }),
+    ];
+    const pts = buildFieldMixPoints(rows);
+    expect(pts).toHaveLength(1);
+    expect(pts[0].field).toBe(75); // 50+20+5
+    expect(pts[0].admin).toBe(25); // 10+15
+    expect(pts[0].total).toBe(100);
+    expect(pts[0].fieldPct).toBeCloseTo(75, 1);
+    expect(pts[0].adminPct).toBeCloseTo(25, 1);
+  });
+
+  it('국내 외 지역만 있으면 빈 배열', () => {
+    const rows: PersonnelRow[] = [
+      row({ region: '미국', detail: '', kind: '사무', headcount: 100 }),
+    ];
+    expect(buildFieldMixPoints(rows)).toEqual([]);
   });
 });
 

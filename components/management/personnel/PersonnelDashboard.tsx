@@ -6,6 +6,7 @@ import LazyMount from '@/components/common/LazyMount';
 import { ChartSection, ToggleGroup } from '@/components/management/plan/_selectors';
 import {
   buildDomesticPoints,
+  buildFieldMixPoints,
   buildMixPoints,
   buildOverallPoints,
   buildOverseasPoints,
@@ -17,6 +18,7 @@ const PersonnelOverallChart = dynamic(() => import('./PersonnelOverallChart'), {
 const PersonnelDomesticChart = dynamic(() => import('./PersonnelDomesticChart'), { ssr: false });
 const PersonnelOverseasChart = dynamic(() => import('./PersonnelOverseasChart'), { ssr: false });
 const PersonnelMixChart = dynamic(() => import('./PersonnelMixChart'), { ssr: false });
+const PersonnelFieldMixChart = dynamic(() => import('./PersonnelFieldMixChart'), { ssr: false });
 const PersonnelTable = dynamic(() => import('./PersonnelTable'), { ssr: false });
 
 interface Props {
@@ -55,6 +57,7 @@ export default function PersonnelDashboard({ rows }: Props) {
   const domesticPts = useMemo(() => buildDomesticPoints(rows, domesticMode), [rows, domesticMode]);
   const overseasPts = useMemo(() => buildOverseasPoints(rows, overseasReg), [rows, overseasReg]);
   const mixPts = useMemo(() => buildMixPoints(rows, mixOption), [rows, mixOption]);
+  const fieldMixPts = useMemo(() => buildFieldMixPoints(rows), [rows]);
   const tableData = useMemo(() => buildTableData(rows), [rows]);
 
   return (
@@ -97,7 +100,7 @@ export default function PersonnelDashboard({ rows }: Props) {
 
       <LazyMount className="min-h-[420px] md:min-h-[500px]">
         <ChartSection
-          title="4. 사무 / 생산 비중"
+          title="4. 사무 / 생산 구분"
           unit="명"
           controls={
             <select
@@ -117,8 +120,14 @@ export default function PersonnelDashboard({ rows }: Props) {
         </ChartSection>
       </LazyMount>
 
+      <LazyMount className="min-h-[420px] md:min-h-[500px]">
+        <ChartSection title="5. 현장 / 관리 구분" unit="명 · 국내 인원 기준">
+          <PersonnelFieldMixChart points={fieldMixPts} />
+        </ChartSection>
+      </LazyMount>
+
       <LazyMount className="min-h-[600px]">
-        <ChartSection title="5. 인원 수" unit="명">
+        <ChartSection title="6. 인원 수" unit="명">
           <PersonnelTable data={tableData} />
         </ChartSection>
       </LazyMount>
