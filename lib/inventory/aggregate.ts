@@ -106,9 +106,7 @@ interface AchAgg {
   month: number;
 }
 
-function aggregateAchievement(
-  rows: readonly InventoryRow[],
-): AchievementMonthPoint[] {
+function aggregateAchievement(rows: readonly InventoryRow[]): AchievementMonthPoint[] {
   const byKey = new Map<string, AchAgg>();
   for (const r of rows) {
     const key = `${r.period_year}-${r.period_month}`;
@@ -157,7 +155,7 @@ function aggregateAchievement(
  */
 export function buildAchievementPoints(
   rows: readonly InventoryRow[],
-  category: AchievementCategory,
+  category: AchievementCategory
 ): AchievementMonthPoint[] {
   return aggregateAchievement(rows.filter(CATEGORY_FILTER[category]));
 }
@@ -173,12 +171,10 @@ const TRANSPORT_ITEM_MAP: Record<TransportItem, string> = {
  */
 export function buildTransportPoints(
   rows: readonly InventoryRow[],
-  item: TransportItem,
+  item: TransportItem
 ): AchievementMonthPoint[] {
   const targetItem = TRANSPORT_ITEM_MAP[item];
-  return aggregateAchievement(
-    rows.filter((r) => r.category === '운송' && r.item === targetItem),
-  );
+  return aggregateAchievement(rows.filter((r) => r.category === '운송' && r.item === targetItem));
 }
 
 /**
@@ -187,10 +183,7 @@ export function buildTransportPoints(
 export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
   const totalActuals = rows.filter(
     (r) =>
-      r.category === '전체' &&
-      r.item === '전체 재고' &&
-      r.kind === 'actual' &&
-      r.value !== null,
+      r.category === '전체' && r.item === '전체 재고' && r.kind === 'actual' && r.value !== null
   );
   if (totalActuals.length === 0) {
     return {
@@ -204,7 +197,7 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
     };
   }
   const sorted = [...totalActuals].sort(
-    (a, b) => b.period_year - a.period_year || b.period_month - a.period_month,
+    (a, b) => b.period_year - a.period_year || b.period_month - a.period_month
   );
   const latest = sorted[0];
   const prev = sorted[1] ?? null;
@@ -225,7 +218,7 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
       r.item === '회전율' &&
       r.kind === 'actual' &&
       r.period_year === latest.period_year &&
-      r.period_month === latest.period_month,
+      r.period_month === latest.period_month
   );
   const turnover = turnoverRow?.value ?? null;
   const turnoverDays = turnover && turnover !== 0 ? Math.round(365 / turnover) : null;
@@ -236,7 +229,7 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
       r.item === '전체 재고' &&
       r.kind === 'plan' &&
       r.period_year === latest.period_year &&
-      r.period_month === latest.period_month,
+      r.period_month === latest.period_month
   );
   const planVal = planRow ? convertToKrwEok(planRow) : null;
   const achievementPct =

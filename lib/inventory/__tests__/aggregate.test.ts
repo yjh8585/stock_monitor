@@ -10,9 +10,14 @@ import type { InventoryRow } from '../types';
 
 function row(partial: Partial<InventoryRow>): InventoryRow {
   return {
-    category: '운영', item: '운영 재고', kind: 'actual',
-    period_year: 2025, period_month: 1,
-    unit: '억원', fx_rate: 1400, value: 100,
+    category: '운영',
+    item: '운영 재고',
+    kind: 'actual',
+    period_year: 2025,
+    period_month: 1,
+    unit: '억원',
+    fx_rate: 1400,
+    value: 100,
     ...partial,
   };
 }
@@ -38,12 +43,58 @@ describe('convertToKrwEok', () => {
 describe('buildStatusPoints', () => {
   it('실적 행만 모아 누적막대 + 회전율 데이터 생성', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 100 }),
-      row({ category: '관리', item: '관리 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 50 }),
-      row({ category: '보상', item: '보상 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 30 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 20 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2025, period_month: 1, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '전체', item: '회전율', kind: 'actual', period_year: 2025, period_month: 1, unit: null, fx_rate: null, value: 4.1 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 100,
+      }),
+      row({
+        category: '관리',
+        item: '관리 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 50,
+      }),
+      row({
+        category: '보상',
+        item: '보상 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 30,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 20,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '회전율',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: null,
+        fx_rate: null,
+        value: 4.1,
+      }),
     ];
     const pts = buildStatusPoints(rows);
     expect(pts).toHaveLength(1);
@@ -58,16 +109,44 @@ describe('buildStatusPoints', () => {
 
   it('계획 행은 무시 (차트 1은 실적만)', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'plan', period_year: 2025, period_month: 1, value: 999 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 999,
+      }),
     ];
     expect(buildStatusPoints(rows)).toHaveLength(0);
   });
 
   it('월 오름차순 정렬', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2026, period_month: 3, value: 1 }),
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2025, period_month: 12, value: 1 }),
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2026, period_month: 1, value: 1 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 3,
+        value: 1,
+      }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        value: 1,
+      }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 1,
+      }),
     ];
     const labels = buildStatusPoints(rows).map((p) => p.monthLabel);
     expect(labels).toEqual(['2025.12', '2026.01', '2026.03']);
@@ -77,8 +156,22 @@ describe('buildStatusPoints', () => {
 describe('buildAchievementPoints', () => {
   it('total 카테고리: 전체-전체재고 행 사용', () => {
     const rows: InventoryRow[] = [
-      row({ category: '전체', item: '전체 재고', kind: 'plan', period_year: 2025, period_month: 1, value: 100 }),
-      row({ category: '전체', item: '전체 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 95 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 100,
+      }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 95,
+      }),
     ];
     const pts = buildAchievementPoints(rows, 'total');
     expect(pts).toHaveLength(1);
@@ -89,11 +182,52 @@ describe('buildAchievementPoints', () => {
 
   it('transport 카테고리: 영업 + 미국환산 + 우즈벡환산 합산', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '영업 재고', kind: 'plan', period_year: 2026, period_month: 3, value: 20 }),
-      row({ category: '운송', item: '미국 운송', kind: 'plan', period_year: 2026, period_month: 3, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '운송', item: '우즈벡 운송', kind: 'plan', period_year: 2026, period_month: 3, unit: '백만USD', value: 5, fx_rate: 1400 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2026, period_month: 3, value: 18 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2026, period_month: 3, unit: '백만USD', value: 8, fx_rate: 1400 }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 3,
+        value: 20,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 3,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '우즈벡 운송',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 3,
+        unit: '백만USD',
+        value: 5,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 3,
+        value: 18,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 3,
+        unit: '백만USD',
+        value: 8,
+        fx_rate: 1400,
+      }),
     ];
     const pts = buildAchievementPoints(rows, 'transport');
     expect(pts).toHaveLength(1);
@@ -104,7 +238,14 @@ describe('buildAchievementPoints', () => {
 
   it('plan만 있고 actual null → rate null', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'plan', period_year: 2026, period_month: 12, value: 100 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 12,
+        value: 100,
+      }),
     ];
     const pts = buildAchievementPoints(rows, 'operating');
     expect(pts).toHaveLength(1);
@@ -117,8 +258,26 @@ describe('buildAchievementPoints', () => {
 describe('buildTransportPoints', () => {
   it('us → 미국 운송 (환산)', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '미국 운송', kind: 'plan', period_year: 2025, period_month: 1, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2025, period_month: 1, unit: '백만USD', value: 9, fx_rate: 1400 }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 9,
+        fx_rate: 1400,
+      }),
     ];
     const pts = buildTransportPoints(rows, 'us');
     expect(pts[0].plan).toBe(140);
@@ -126,7 +285,16 @@ describe('buildTransportPoints', () => {
   });
   it('uz → 우즈벡 운송', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '우즈벡 운송', kind: 'plan', period_year: 2026, period_month: 4, unit: '백만USD', value: 5, fx_rate: 1400 }),
+      row({
+        category: '운송',
+        item: '우즈벡 운송',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 4,
+        unit: '백만USD',
+        value: 5,
+        fx_rate: 1400,
+      }),
     ];
     const pts = buildTransportPoints(rows, 'uz');
     expect(pts).toHaveLength(1);
@@ -134,7 +302,14 @@ describe('buildTransportPoints', () => {
   });
   it('sales → 영업 재고', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '영업 재고', kind: 'plan', period_year: 2025, period_month: 6, value: 50 }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 6,
+        value: 50,
+      }),
     ];
     const pts = buildTransportPoints(rows, 'sales');
     expect(pts[0].plan).toBe(50);
@@ -144,15 +319,86 @@ describe('buildTransportPoints', () => {
 describe('buildKpis', () => {
   it('최신 실적 월 기준 KPI 4종 계산', () => {
     const rows: InventoryRow[] = [
-      row({ category: '전체', item: '전체 재고', kind: 'actual', period_year: 2025, period_month: 12, value: 1000 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2025, period_month: 12, value: 100 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2025, period_month: 12, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '전체', item: '회전율', kind: 'actual', period_year: 2025, period_month: 12, unit: null, fx_rate: null, value: 4.0 }),
-      row({ category: '전체', item: '전체 재고', kind: 'actual', period_year: 2026, period_month: 1, value: 1100 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2026, period_month: 1, value: 110 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2026, period_month: 1, unit: '백만USD', value: 12, fx_rate: 1400 }),
-      row({ category: '전체', item: '회전율', kind: 'actual', period_year: 2026, period_month: 1, unit: null, fx_rate: null, value: 5.0 }),
-      row({ category: '전체', item: '전체 재고', kind: 'plan', period_year: 2026, period_month: 1, value: 1200 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        value: 1000,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        value: 100,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '회전율',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        unit: null,
+        fx_rate: null,
+        value: 4.0,
+      }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 1100,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 110,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        unit: '백만USD',
+        value: 12,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '회전율',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        unit: null,
+        fx_rate: null,
+        value: 5.0,
+      }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 1,
+        value: 1200,
+      }),
     ];
     const kpis = buildKpis(rows);
     expect(kpis.latestLabel).toBe('2026.01');
@@ -166,7 +412,14 @@ describe('buildKpis', () => {
 
   it('실적 없으면 모두 null', () => {
     const rows: InventoryRow[] = [
-      row({ category: '전체', item: '전체 재고', kind: 'plan', period_year: 2026, period_month: 1, value: 100 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 1,
+        value: 100,
+      }),
     ];
     const kpis = buildKpis(rows);
     expect(kpis.totalEok).toBeNull();
