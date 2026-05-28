@@ -41,7 +41,7 @@ export function filterByBasis(entries: readonly PnlEntry[], basis: Basis): PnlEn
  *
  * 표시 정책 (사용자 확정):
  * - 연결: '2023' | '2024' | '2025(E)' | '2026' | '2026(P)' — DB year_label 그대로
- * - 별도: '2023' | '2024' | '2025' — DB엔 월별만 있으므로 period_year → 4자리 라벨
+ * - 별도: '2023' | '2024' | '2025' | '2026' — DB엔 월별만 있으므로 period_year → 4자리 라벨 (2026 YTD 포함)
  *
  * 입력 entries는 (a) raw 월별 행 또는 (b) deriveStandaloneAnnual로 변환된 연간 행 어느 쪽이든
  * 받을 수 있도록 두 경우 모두 처리한다. 별도 연간 derive 결과는 year_label도 String(period_year)로
@@ -58,7 +58,7 @@ export function getDisplayYearLabels(entries: readonly PnlEntry[], basis: Basis)
     } else {
       // 별도: period_year 기준 4자리 라벨. 월별/연간 어느 입력이든 동일하게 동작.
       const y = e.period_year;
-      if (y >= 2023 && y <= 2025) labels.add(String(y));
+      if (y >= 2023 && y <= 2026) labels.add(String(y));
     }
   }
   if (basis === 'consolidated') {
@@ -414,7 +414,7 @@ export function aggregateMonthlyByDim(
  * 연도 라벨 후보 (월별 데이터 기준).
  *
  * - 연결 월별: 2025, 2026
- * - 별도 월별: 2022~2025
+ * - 별도 월별: 2022~2026
  */
 export function getMonthlyYears(entries: readonly PnlEntry[], basis: Basis): number[] {
   const years = new Set<number>();

@@ -73,7 +73,7 @@ npm run format          # 자동 포맷
 | `/hansae`           | 한세그룹 대시보드 + intraday                                                                                                                                                                                                                                  |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로 outlook·두바이유)                                                                                                                                                                                                             |
 | `/reports`          | 보고서 + youtube-summary. `'use cache'` + `generateStaticParams` + `updateTag` 패턴. 메모리 `project_reports_migration.md`.                                                                                                                                   |
-| `/management`       | 경영관리/손익(PnL). 사외비 테이블은 **`confidentialDb.from(...)`로 조회**. 탭: pnl/plan/inventory/production/companies. `/management/companies`는 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, 실패해도 INSERT graceful). |
+| `/management`       | 경영관리. 탭: **pnl**(손익 15섹션: 1~9 기존, **10 이익기여도 TOP7/WORST7(고객·제품)**, 11·12 전년대비 월별, 13 제품·고객 YoY, **14 수익성 워터폴**, **15 고객 매출 집중도(파레토)**) / **plan**(계획 대비 실적·달성율 콤보 차트 8종 — 수주·전사 매출/영업이익·미국/상숙/지린·손익개선·공장. `pnl_plan` 사외비 테이블 + 차트 2·3은 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD) / inventory / production / **companies**. 사외비 테이블(`pnl_entries`, `pnl_cost_structure`, `pnl_plan`)은 **`confidentialDb.from(...)`로 조회**. `/management/companies`는 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, 실패해도 INSERT graceful). |
 | `/login`            | 세션 로그인                                                                                                                                                                                                                                                   |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                                                                                                                                                                                                               |
 
@@ -97,11 +97,11 @@ npm run format          # 자동 포맷
 - 공용 유틸: `format`, `utils`, `logger`, `types`, `database.types`(Supabase 생성), `series`, `stockPrices`, `compareData`, `customerLogos`, `financialFormatter` 등
 - React 훅: `useChartHeight`, `useIsMobile`
 - `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
-  - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — `confidentialDb.from('pnl_entries')...`, TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅)
+  - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — `confidentialDb.from('pnl_entries'|'pnl_cost_structure'|'pnl_plan'|'chat_audit_log')...`, TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅)
 - `lib/auth/` — 세션·권한·사용자 (`proxy.ts`가 사용). 새 라우트 권한은 `permissions.ts`에 등록.
 - **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만):
   - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.
-  - `lib/pnl/`(사외비), `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/` — `source.ts` 패턴
+  - `lib/pnl/`(사외비), `lib/plan/`(사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX), `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/` — `source.ts` 패턴
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure 4종, `aggregate.test.ts`로 단위 테스트)
   - `lib/oem-companies/<slug>/` — OEM 회사별 탭. `source.ts`(`'use cache'`+`cacheTag`+PT map LEFT JOIN) + `aggregate.ts`(pure) + `aggregate.test.ts`. 상세 → `docs/oem-collection.md`
   - `lib/hansae/`, `lib/naver/`, `lib/sentiment/`, `lib/chat/`
@@ -115,7 +115,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - `onboard_company.py` — 신규 회사 추가 직후 1회 실행(ticker/name/id 식별 → enrich + 캐시 무효화). **멱등**(append-only + DB 트리거 page 매핑 + WriteSession 자동 revalidate) → 부분 실패 시 같은 명령 재실행. 비-12월 결산은 `--fiscal-year-end-month`.
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
-- `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동(단 `sync_oem_excel.py`·`import_oem_sales.py`는 workflow 활성이라 유지).
+- `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동(단 `sync_oem_excel.py`·`import_oem_sales.py`·`sync_pnl_excel.py`·`sync_pnl_plan.py`는 정기 재실행이라 유지).
+- **사외비 적재 정책** (`sync_pnl_excel.py`, `sync_pnl_plan.py`): 입력 엑셀은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. **stdout에 금액 비노출** — `summarize()`/dry-run 출력은 행수·연도·월·null 카운트만. revenue_sum 등 금액 합계 출력 금지. dry-run 안전성 확인 후 본 적재. WriteSession 자동 revalidate.
 - `_*.json` / `_*.log` / `_*.py` — 임시 산출물. 비활성이면 `_archive/` 이동(폴더 `.gitignore`가 새 산출물 자동 무시).
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용):
@@ -172,7 +173,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **OEM products는 차종, 부품사 products는 부품**. OEM에 부품 채우지 말 것. 제품군 카테고리 필터(`StockTable`/`DomesticTable`)는 부품사에만 적용(OEM은 항상 통과).
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만(`enrich_description_*.py`).
 - **dart_collection_status**: companies 별도 컬럼. 실패/재시도 추적은 financials와 분리.
-- **사외비 테이블 격리** (`20260523000002`/`3`): `pnl_entries`·`pnl_cost_structure`·`chat_audit_log`는 RLS enable + 정책 없음(default deny) → anon 직접 접근 불가. **서버 코드는 반드시 `confidentialDb.from(...)`** (`lib/supabase/confidential.ts`, service_role 자동 + TS union 컴파일 차단). **새 사외비 테이블 5-step**: (1) 마이그레이션 `ENABLE ROW LEVEL SECURITY`(정책 X) (2) `generate_typescript_types`로 `lib/database.types.ts` 갱신 (3) `confidential.ts`의 `CONFIDENTIAL_TABLES`에 한 줄 (4) 업로드 API `confidentialDb...upsert + revalidateTag` (5) 페이지 `'use cache' + cacheTag + confidentialDb...select`.
+- **사외비 테이블 격리** (`20260523000002`/`3`, `20260528000001`): `pnl_entries`·`pnl_cost_structure`·`chat_audit_log`·`pnl_plan`은 RLS enable + 정책 없음(default deny) → anon 직접 접근 불가. **서버 코드는 반드시 `confidentialDb.from(...)`** (`lib/supabase/confidential.ts`, service_role 자동 + TS union 컴파일 차단). **새 사외비 테이블 5-step**: (1) 마이그레이션 `ENABLE ROW LEVEL SECURITY`(정책 X) (2) `generate_typescript_types`로 `lib/database.types.ts` 갱신 (3) `confidential.ts`의 `CONFIDENTIAL_TABLES`에 한 줄 (4) 업로드 API `confidentialDb...upsert + revalidateTag` (5) 페이지 `'use cache' + cacheTag + confidentialDb...select`.
 - **챗봇 외부 LLM 전송 정책** (2026-05-23/24 SSOT): 챗봇(`/api/chat`) 도구 결과는 모두 Anthropic API로 전송. (1) `lib/chat/tools.ts` 화이트리스트에 **사외비 테이블 추가 금지**(PnL 의도적 제외) (2) `lib/chat/system-prompt.ts` DATA_CATALOG에 내부 고객사·공장·제품 명단 **평문 금지** (3) 모든 도구 호출은 `chat_audit_log` 자동 기록(`lib/chat/audit.ts` fire-and-forget) (4) 사외비 토픽 거절 안내는 `lib/chat/sensitive-policy.ts`의 `BLOCKED_TOPICS` SSOT — 새 도메인은 한 줄 추가.
 
 **챗봇 감사 로그** (`chat_audit_log`, `20260523000003`): user_id/user_role/tool_name/input_json/row_count/is_error/error_msg. RLS 정책 없음(service_role 전용). `lib/chat/loop.ts`가 도구 실행 직후 `logToolCall()` 호출(await 안 함 — 실패해도 응답 정상). 보존 1년(cron 미구현).

@@ -26,12 +26,17 @@ export async function encodeSession(payload: SessionPayload): Promise<string> {
     .sign(getSecretKey());
 }
 
-export async function decodeSession(token: string | undefined | null): Promise<SessionPayload | null> {
+export async function decodeSession(
+  token: string | undefined | null
+): Promise<SessionPayload | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecretKey(), { algorithms: ['HS256'] });
     const sub = typeof payload.sub === 'string' ? payload.sub : null;
-    const role = payload.role === 'mobility' || payload.role === 'holdings' ? payload.role : null;
+    const role =
+      payload.role === 'mobility' || payload.role === 'holdings' || payload.role === 'admin'
+        ? payload.role
+        : null;
     if (!sub || !role) return null;
     return { sub, role };
   } catch {
