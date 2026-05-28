@@ -186,24 +186,35 @@ def row_to_entry(
   mapping: dict[str, tuple[int, str]],
   mode: str,
 ) -> dict[str, Any] | None:
-  """엑셀 행 → pnl_entries dict 변환. SKIP할 경우 None 반환."""
-  # 1) 매출 우선 확인 — 0/None은 의미없는 행
-  revenue = norm_num(get_cell(row, mapping['revenue'][0]))
-  if revenue is None or revenue == 0:
+  """엑셀 행 → pnl_entries dict 변환. SKIP할 경우 None 반환.
+
+  SKIP 정책: revenue·비용·영업이익 7개 metric이 모두 None/0이면 의미 없는 행.
+  (revenue=0이라도 비용성 행은 영업이익에 음수 기여하므로 보존해야 1번 차트와 4번 차트가 일치한다.)
+  """
+  metrics = {
+    'revenue':       norm_num(get_cell(row, mapping['revenue'][0])),
+    'material_cost': norm_num(get_cell(row, mapping['material_cost'][0])),
+    'labor_cost':    norm_num(get_cell(row, mapping['labor_cost'][0])),
+    'expense':       norm_num(get_cell(row, mapping['expense'][0])),
+    'sga':           norm_num(get_cell(row, mapping['sga'][0])),
+    'rnd':           norm_num(get_cell(row, mapping['rnd'][0])),
+    'op_income':     norm_num(get_cell(row, mapping['op_income'][0])),
+  }
+  if all(v is None or v == 0 for v in metrics.values()):
     return None
 
-  # 2) 연도 라벨 파싱
+  # 연도 라벨 파싱
   year_label, period_year, is_plan, is_estimate = parse_year_label(
     get_cell(row, mapping['year_label'][0])
   )
   if year_label is None or period_year is None:
     return None
 
-  # 3) basis 결정 (시트 기본값에 시트 내부 기준 컬럼이 있으면 그 값으로 덮어쓰기)
+  # basis 결정 (시트 기본값에 시트 내부 기준 컬럼이 있으면 그 값으로 덮어쓰기)
   basis_raw = norm_text(get_cell(row, mapping['basis_label'][0]))
   basis = BASIS_MAP.get(basis_raw, default_basis)
 
-  # 4) period_month (월별 시트만)
+  # period_month (월별 시트만)
   if mode == 'monthly':
     raw_month = get_cell(row, mapping['period_month'][0])
     if isinstance(raw_month, (int, float)) and 1 <= int(raw_month) <= 12:
@@ -225,13 +236,7 @@ def row_to_entry(
     'factory':  norm_text(get_cell(row, mapping['factory'][0])),
     'product':  norm_text(get_cell(row, mapping['product'][0])),
     'customer': norm_text(get_cell(row, mapping['customer'][0])),
-    'revenue':       revenue,
-    'material_cost': norm_num(get_cell(row, mapping['material_cost'][0])),
-    'labor_cost':    norm_num(get_cell(row, mapping['labor_cost'][0])),
-    'expense':       norm_num(get_cell(row, mapping['expense'][0])),
-    'sga':           norm_num(get_cell(row, mapping['sga'][0])),
-    'rnd':           norm_num(get_cell(row, mapping['rnd'][0])),
-    'op_income':     norm_num(get_cell(row, mapping['op_income'][0])),
+    **metrics,
   }
 
 
