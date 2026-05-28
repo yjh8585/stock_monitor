@@ -104,7 +104,7 @@ function barColor(b: Omit<WaterfallBar, 'fill'>): string {
 }
 
 /**
- * 13-1. 수익성 워터폴.
+ * 14. 수익성 워터폴.
  *
  * - basis 토글 + 단일 연도 선택
  * - 매출 → −재료비 → −노무비 → −경비 → 매출총이익 → −판관비 → −연구비 → 영업이익
