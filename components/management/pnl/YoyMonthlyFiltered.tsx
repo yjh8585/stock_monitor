@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -25,9 +26,15 @@ interface Props {
 
 const SUPPORTED_METRICS: readonly MetricKey[] = ['revenue', 'op_income'];
 
-function fmtMillion(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return '—';
-  return Math.round(n).toLocaleString('ko-KR');
+const UNIT_DIVISOR = 100;
+function toEokwon(n: number | null | undefined): number | null {
+  if (n == null || Number.isNaN(n)) return null;
+  return n / UNIT_DIVISOR;
+}
+function fmtEokwon(n: number | null | undefined): string {
+  const v = toEokwon(n);
+  if (v == null) return '—';
+  return Math.round(v).toLocaleString('ko-KR');
 }
 
 function fmtYoy(pct: number | null): string {
@@ -51,7 +58,7 @@ interface ChartRow {
 }
 
 /**
- * 11. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
+ * 12. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
  *
  * - 9번과 동일한 막대 비교 패턴, 단 지표는 매출/영업이익 중 1개만 선택(디폴트=매출)
  * - 고객/제품 multi-select 필터 — 미선택 = 전체
@@ -155,7 +162,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">11. 전년 대비 월별 비교 (고객·제품 선택)</h2>
+        <h2 className="text-lg font-semibold">12. 전년 대비 월별 비교 (고객·제품 선택) <span className="text-sm font-normal text-muted-foreground">· 단위 억원</span></h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="기준" options={yearOptions} value={effBase} onChange={setBaseYear} />
@@ -190,16 +197,17 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
         <ResponsiveContainer width="100%" height={h}>
           <BarChart
             data={chartData}
-            margin={{ top: 10, right: 20, bottom: 10, left: 10 }}
+            margin={{ top: 28, right: 24, bottom: 10, left: 10 }}
             barGap={2}
             barCategoryGap="20%"
           >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis dataKey="monthLabel" tick={{ fontSize: 14 }} />
             <YAxis
-              tickFormatter={(v: number) => fmtMillion(v)}
+              tickFormatter={(v: number) => fmtEokwon(v)}
               tick={{ fontSize: 14 }}
               width={80}
+              domain={[(min: number) => Math.min(0, min * 1.1), (max: number) => max * 1.15]}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
@@ -216,7 +224,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
               verticalAlign="top"
               wrapperStyle={{ paddingBottom: 4 }}
               content={({ payload }) => (
-                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm">
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-base">
                   {(payload ?? []).map((entry) => (
                     <span
                       key={String(entry.value)}
@@ -224,7 +232,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
                       style={{ color: entry.color }}
                     >
                       <span
-                        className="inline-block w-3 h-3 rounded-sm"
+                        className="inline-block w-4 h-4 rounded-sm"
                         style={{ background: entry.color }}
                       />
                       {entry.value}
@@ -239,13 +247,27 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
                 name={`${METRIC_LABELS[metric]} ${effCompare}`}
                 fill={compareColor}
                 radius={[2, 2, 0, 0]}
-              />
+              >
+                <LabelList
+                  dataKey="compare"
+                  position="top"
+                  formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
+                  style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
+                />
+              </Bar>
               <Bar
                 dataKey="base"
                 name={`${METRIC_LABELS[metric]} ${effBase}`}
                 fill={baseColor}
                 radius={[2, 2, 0, 0]}
-              />
+              >
+                <LabelList
+                  dataKey="base"
+                  position="top"
+                  formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
+                  style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
+                />
+              </Bar>
             </Fragment>
           </BarChart>
         </ResponsiveContainer>
@@ -290,10 +312,10 @@ function FilteredTooltip({
       <div className="font-semibold mb-1">{label}</div>
       <div className="mb-1 leading-relaxed">
         <span className="text-muted-foreground">{METRIC_LABELS[metric]}:</span>{' '}
-        <span className={negCls(baseVal)}>{fmtMillion(baseVal)}</span>
+        <span className={negCls(baseVal)}>{fmtEokwon(baseVal)}</span>
         <span className="text-muted-foreground"> ({baseYear})</span>
         <span className="text-muted-foreground"> / 전년 {compareYear} </span>
-        <span className={negCls(compVal)}>{fmtMillion(compVal)}</span>
+        <span className={negCls(compVal)}>{fmtEokwon(compVal)}</span>
         <span className="text-muted-foreground"> / YoY </span>
         <span className={negCls(yoy)}>{fmtYoy(yoy)}</span>
       </div>

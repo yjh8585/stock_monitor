@@ -40,7 +40,7 @@ function fmtMillion(n: number): string {
 }
 
 /**
- * 13-2. 고객 매출 집중도 (파레토).
+ * 14. 고객 매출 집중도 (파레토).
  *
  * - 막대 = 고객별 매출 (내림차순)
  * - 라인 = 누적 매출 점유율 (%)
@@ -83,9 +83,9 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
   const h = useChartHeight(280, 360, 420);
 
   return (
-    <div className="rounded-md border border-border bg-card p-3">
+    <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-        <div className="text-lg font-semibold">고객 매출 집중도 (파레토)</div>
+        <h2 className="text-lg font-semibold">14. 고객 매출 집중도 (파레토) <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span></h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect
@@ -101,7 +101,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
       ) : (
         <ResponsiveContainer width="100%" height={h}>
           <ComposedChart data={chartData} margin={{ top: 10, right: 30, bottom: 30, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis
               dataKey="name"
               tick={{ fontSize: 14 }}
@@ -169,7 +169,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
           </ComposedChart>
         </ResponsiveContainer>
       )}
-    </div>
+    </section>
   );
 }
 

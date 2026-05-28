@@ -749,6 +749,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      kia_retail_sales: {
+        Row: {
+          collected_at: string;
+          period_type: string;
+          plant: string;
+          region: string;
+          retail_units: number;
+          source_url: string | null;
+          vehicle_model: string;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          period_type?: string;
+          plant?: string;
+          region?: string;
+          retail_units?: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          year_period?: string;
+        };
+        Update: {
+          collected_at?: string;
+          period_type?: string;
+          plant?: string;
+          region?: string;
+          retail_units?: number;
+          source_url?: string | null;
+          vehicle_model?: string;
+          year_period?: string;
+        };
+        Relationships: [];
+      };
       kia_sales: {
         Row: {
           collected_at: string;
@@ -1248,6 +1281,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      pnl_plan: {
+        Row: {
+          basis: string;
+          category: string;
+          item: string;
+          kind: string;
+          period_month: number;
+          period_type: string;
+          period_year: number;
+          unit: string;
+          value: number | null;
+        };
+        Insert: {
+          basis: string;
+          category: string;
+          item: string;
+          kind: string;
+          period_month?: number;
+          period_type: string;
+          period_year: number;
+          unit: string;
+          value?: number | null;
+        };
+        Update: {
+          basis?: string;
+          category?: string;
+          item?: string;
+          kind?: string;
+          period_month?: number;
+          period_type?: string;
+          period_year?: number;
+          unit?: string;
+          value?: number | null;
+        };
+        Relationships: [];
+      };
       posts: {
         Row: {
           category: string | null;
@@ -1684,6 +1753,48 @@ export type Database = {
           report_type?: string;
           sha256?: string | null;
           url?: string;
+        };
+        Relationships: [];
+      };
+      uzbekistan_auto_stats: {
+        Row: {
+          brand: string;
+          collected_at: string;
+          company: string;
+          kind: string;
+          period_type: string;
+          publish_date: string | null;
+          source_type: string;
+          source_url: string | null;
+          units: number;
+          vehicle_model: string;
+          year_period: string;
+        };
+        Insert: {
+          brand?: string;
+          collected_at?: string;
+          company?: string;
+          kind?: string;
+          period_type?: string;
+          publish_date?: string | null;
+          source_type: string;
+          source_url?: string | null;
+          units?: number;
+          vehicle_model?: string;
+          year_period?: string;
+        };
+        Update: {
+          brand?: string;
+          collected_at?: string;
+          company?: string;
+          kind?: string;
+          period_type?: string;
+          publish_date?: string | null;
+          source_type?: string;
+          source_url?: string | null;
+          units?: number;
+          vehicle_model?: string;
+          year_period?: string;
         };
         Relationships: [];
       };
