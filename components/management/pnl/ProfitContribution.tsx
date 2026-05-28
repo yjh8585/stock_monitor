@@ -68,11 +68,11 @@ export default function ProfitContribution({ annualByBasis }: Props) {
       (r) => (r.revenue !== 0 || r.op_income !== 0) && !isCatchall(r)
     );
     const sorted = [...cross].sort((a, b) => b.op_income - a.op_income);
-    const top7 = sorted.slice(0, 7);
-    const worst7 = [...sorted].slice(-7).reverse(); // 최하위가 위로
+    const top10 = sorted.slice(0, 10);
+    const worst10 = [...sorted].slice(-10).reverse(); // 최하위가 위로
     const corpAgg = aggregateBy(entries, []);
     const corpRow = corpAgg[0] ?? null;
-    return { top: top7, worst: worst7, corp: corpRow };
+    return { top: top10, worst: worst10, corp: corpRow };
   }, [basisEntries, basis, effYear]);
 
   const corpSummary: SummaryAgg = corp
@@ -93,7 +93,7 @@ export default function ProfitContribution({ annualByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">10. 이익기여도 TOP7 / WORST7 (고객·제품)</h2>
+        <h2 className="text-lg font-semibold">10. 이익기여도 TOP10 / WORST10 (고객·제품)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect label="연도" options={yearLabels} value={effYear} onChange={setYearLabel} />
@@ -105,16 +105,16 @@ export default function ProfitContribution({ annualByBasis }: Props) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ContribTable
-          title="이익기여 TOP 7"
-          summaryLabel="TOP7"
+          title="이익기여 TOP 10"
+          summaryLabel="TOP10"
           rows={top}
           corp={corpSummary}
           groupSum={topAgg}
           rest={restOfTop}
         />
         <ContribTable
-          title="이익기여 WORST 7"
-          summaryLabel="WORST7"
+          title="이익기여 WORST 10"
+          summaryLabel="WORST10"
           rows={worst}
           corp={corpSummary}
           groupSum={worstAgg}
@@ -135,7 +135,7 @@ interface ContribTableProps {
 }
 
 /**
- * 합계행 2개(전사·TOP7|WORST7) + 7개 개별행 + 합계행 1개(나머지) 단일 테이블.
+ * 합계행 2개(전사·TOP10|WORST10) + 10개 개별행 + 합계행 1개(나머지) 단일 테이블.
  * 이미지 레이아웃: 고객 | 제품 | 매출 | 영업이익 | 이익률.
  */
 function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: ContribTableProps) {
@@ -195,7 +195,7 @@ function SummaryRow({
   label1: string;
   label2: string;
   agg: SummaryAgg;
-  /** 'corp' = 전사 진한 파랑, 'group' = TOP7/WORST7 연한 파랑, 'rest' = 나머지 회색 */
+  /** 'corp' = 전사 진한 파랑, 'group' = TOP10/WORST10 연한 파랑, 'rest' = 나머지 회색 */
   tone: 'corp' | 'group' | 'rest';
 }) {
   const margin = marginOf(agg.revenue, agg.op_income);
