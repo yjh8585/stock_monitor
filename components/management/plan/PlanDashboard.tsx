@@ -16,17 +16,10 @@ const SangsukTargetChart = dynamic(() => import('./SangsukTargetChart'), { ssr: 
 const JilinTargetChart = dynamic(() => import('./JilinTargetChart'), { ssr: false });
 const ImprovementTargetChart = dynamic(() => import('./ImprovementTargetChart'), { ssr: false });
 const FactoryTargetChart = dynamic(() => import('./FactoryTargetChart'), { ssr: false });
-// 정확도 / 효율 분석 (10~13)
-const AccuracyTrendChart = dynamic(() => import('./AccuracyTrendChart'), { ssr: false });
-const AccuracyTable = dynamic(() => import('./AccuracyTable'), { ssr: false });
-const OrderToRevenueChart = dynamic(() => import('./OrderToRevenueChart'), { ssr: false });
-const ImprovementContributionChart = dynamic(() => import('./ImprovementContributionChart'), {
-  ssr: false,
-});
 
 interface Props {
   rows: PlanRow[];
-  /** 전사 매출/영업이익 실적용 (차트 2·3 및 정확도 차트들) */
+  /** 전사 매출/영업이익 실적용 (차트 2·3) */
   prepared: PreparedPnlData;
   /** 현재 USD→KRW (원/USD). 없으면 null */
   usdKrw: number | null;
@@ -35,8 +28,7 @@ interface Props {
 /**
  * 계획 페이지 클라이언트 루트.
  *
- * - 1~9: 기존 KPI별 plan vs actual 콤보 차트.
- * - 10~13: 정확도 / 효율 분석 (다년 추이, 통계 표, 수주→매출, 손익개선 종합).
+ * - 서버에서 getPlanData()로 사전 가공된 데이터를 받아 8개 차트에 전달.
  * - 모든 차트는 LazyMount + dynamic import로 viewport 진입 시 청크 fetch.
  */
 export default function PlanDashboard({ rows, prepared, usdKrw }: Props) {
@@ -69,27 +61,6 @@ export default function PlanDashboard({ rows, prepared, usdKrw }: Props) {
       <LazyMount className="min-h-[480px] md:min-h-[560px]">
         <FactoryTargetChart rows={rows} />
       </LazyMount>
-
-      {/* 정확도 / 효율 분석 섹션 — 10~13 */}
-      <div className="pt-6 mt-4 border-t border-border/40">
-        <h2 className="text-base font-semibold mb-3 text-muted-foreground">
-          📊 정확도 / 효율 분석
-        </h2>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <LazyMount className="min-h-[400px] md:min-h-[440px]">
-            <AccuracyTrendChart rows={rows} prepared={prepared} />
-          </LazyMount>
-          <LazyMount className="min-h-[400px] md:min-h-[440px]">
-            <AccuracyTable rows={rows} prepared={prepared} />
-          </LazyMount>
-          <LazyMount className="min-h-[400px] md:min-h-[440px]">
-            <OrderToRevenueChart rows={rows} prepared={prepared} />
-          </LazyMount>
-          <LazyMount className="min-h-[400px] md:min-h-[440px]">
-            <ImprovementContributionChart rows={rows} prepared={prepared} />
-          </LazyMount>
-        </div>
-      </div>
     </div>
   );
 }

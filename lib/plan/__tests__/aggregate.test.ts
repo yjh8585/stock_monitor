@@ -1,13 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  buildAccuracySeries,
-  buildAccuracyStats,
-  buildAchievement,
-  fillCancelExcluded,
-  normalizeUnit,
-  type KpiDef,
-} from '../aggregate';
-import type { PreparedPnlData } from '@/lib/pnl/aggregate';
+import { normalizeUnit, buildAchievement, fillCancelExcluded } from '../aggregate';
 import type { PlanRow } from '../types';
 
 function row(p: Partial<PlanRow>): PlanRow {
@@ -83,109 +75,6 @@ describe('buildAchievement', () => {
     const pts = buildAchievement(rows, { unit: '억원' });
     expect(pts[0].actual).toBe(2); // 200백만원 = 2억원
     expect(pts[0].rate).toBe(40);
-  });
-});
-
-// 정확도 차트 테스트 — source='plan'만 사용 (prepared 의존 ✖).
-const emptyPrepared: PreparedPnlData = {
-  annualEntries: [],
-  annualByBasis: { consolidated: [], standalone: [] },
-  monthlyByBasis: { consolidated: [], standalone: [] },
-};
-
-const kpiOrder: KpiDef = {
-  key: 'order',
-  label: '수주액',
-  color: '#2563eb',
-  source: 'plan',
-  category: '수주',
-  item: '수주액',
-  basis: 'consolidated',
-  unit: '억원',
-};
-
-describe('buildAccuracySeries', () => {
-  it('단일 KPI의 다년 달성률을 펼친다', () => {
-    const rows: PlanRow[] = [
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2023, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'actual', period_year: 2023, value: 80 }),
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2024, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'actual', period_year: 2024, value: 110 }),
-    ];
-    const pts = buildAccuracySeries(rows, emptyPrepared, [kpiOrder]);
-    expect(pts).toEqual([
-      { year: 2023, yearLabel: '2023', order: 80 },
-      { year: 2024, yearLabel: '2024', order: 110 },
-    ]);
-  });
-
-  it('KPI 데이터 없는 연도는 null', () => {
-    const rows: PlanRow[] = [
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2023, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'actual', period_year: 2023, value: 80 }),
-      // 2024는 actual 없음 → rate null
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2024, value: 100 }),
-    ];
-    const pts = buildAccuracySeries(rows, emptyPrepared, [kpiOrder]);
-    expect(pts).toEqual([
-      { year: 2023, yearLabel: '2023', order: 80 },
-      { year: 2024, yearLabel: '2024', order: null },
-    ]);
-  });
-});
-
-describe('buildAccuracyStats', () => {
-  it('평균·표준편차·최고·최저·연도수 계산', () => {
-    const rows: PlanRow[] = [
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2021, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'actual', period_year: 2021, value: 80 }),
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2022, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'actual', period_year: 2022, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'plan', period_year: 2023, value: 100 }),
-      row({ category: '수주', item: '수주액', kind: 'actual', period_year: 2023, value: 120 }),
-    ];
-    const stats = buildAccuracyStats(rows, emptyPrepared, [kpiOrder]);
-    // rates = [80, 100, 120], avg=100, variance = (400+0+400)/3 = 266.67, std ≈ 16.3
-    expect(stats[0].label).toBe('수주액');
-    expect(stats[0].avg).toBe(100);
-    expect(stats[0].std).toBeCloseTo(16.3, 1);
-    expect(stats[0].max).toBe(120);
-    expect(stats[0].min).toBe(80);
-    expect(stats[0].count).toBe(3);
-  });
-
-  it('데이터 0개면 count=0 + 통계 null', () => {
-    const stats = buildAccuracyStats([], emptyPrepared, [kpiOrder]);
-    expect(stats[0]).toEqual({
-      key: 'order',
-      label: '수주액',
-      avg: null,
-      std: null,
-      max: null,
-      min: null,
-      count: 0,
-    });
-  });
-
-  it('표준편차 내림차순 정렬', () => {
-    const kpiA: KpiDef = { ...kpiOrder, key: 'a', label: 'A' };
-    const kpiB: KpiDef = { ...kpiOrder, key: 'b', label: 'B', item: '수주성공' };
-    // A는 변동 적음, B는 변동 큼 — B가 먼저 와야.
-    const rows: PlanRow[] = [
-      // A
-      row({ item: '수주액', kind: 'plan', period_year: 2023, value: 100 }),
-      row({ item: '수주액', kind: 'actual', period_year: 2023, value: 99 }),
-      row({ item: '수주액', kind: 'plan', period_year: 2024, value: 100 }),
-      row({ item: '수주액', kind: 'actual', period_year: 2024, value: 101 }),
-      // B
-      row({ item: '수주성공', kind: 'plan', period_year: 2023, value: 100 }),
-      row({ item: '수주성공', kind: 'actual', period_year: 2023, value: 50 }),
-      row({ item: '수주성공', kind: 'plan', period_year: 2024, value: 100 }),
-      row({ item: '수주성공', kind: 'actual', period_year: 2024, value: 150 }),
-    ];
-    const stats = buildAccuracyStats(rows, emptyPrepared, [kpiA, kpiB]);
-    expect(stats[0].key).toBe('b');
-    expect(stats[1].key).toBe('a');
   });
 });
 
