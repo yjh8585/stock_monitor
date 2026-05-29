@@ -53,9 +53,10 @@ export default function AppLayout({
               window.location.reload();
             }
           }}
-          className="ml-3 text-sm font-semibold hover:text-primary transition-colors"
+          className="ml-3 flex items-center hover:opacity-80 transition-opacity"
         >
-          한세모빌리티 BI
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-full.png" alt="한세모빌리티" className="h-6 w-auto" />
         </Link>
       </div>
       {/* 데스크톱: 사이드바 + 메인 가로 배치 */}

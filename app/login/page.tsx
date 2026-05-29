@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { LoginForm } from './login-form';
 
@@ -24,9 +24,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">한세모빌리티 BI</CardTitle>
-          <CardDescription>한세모빌리티 / 홀딩스 계정으로 로그인하세요.</CardDescription>
+        <CardHeader className="items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-full.png" alt="한세모빌리티" className="h-10 w-auto" />
+          <CardDescription className="text-center pt-1">
+            한세모빌리티 / 홀딩스 계정으로 로그인하세요.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm next={next} />

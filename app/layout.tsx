@@ -15,7 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Stock Monitor',
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : 'http://localhost:3000'
+  ),
+  title: '한세모빌리티 BI',
   description: '자동차 산업 주요 기업 실적 및 주가 모니터링',
 };
 

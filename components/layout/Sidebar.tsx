@@ -172,9 +172,10 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
           <Link
             href="/management"
             onClick={(e) => handleSamePageReload(e, '/management', pathname)}
-            className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors"
+            className="flex items-center hover:opacity-80 transition-opacity"
           >
-            한세모빌리티 BI
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo-full.png" alt="한세모빌리티" className="h-6 w-auto" />
           </Link>
         )}
         <button
