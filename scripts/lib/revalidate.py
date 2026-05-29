@@ -82,19 +82,14 @@ COLUMN_TO_TAGS = {
     # 경영관리(PnL)
     'pnl_entries': ['pnl_entries'],
     'pnl_cost_structure': ['pnl_cost_structure'],
+    'pnl_plan': ['pnl_plan'],
+    'inventory_entries': ['inventory_entries'],
+    'personnel_entries': ['personnel_entries'],
 }
 
 
-def revalidate_tags(tags: list[str]) -> bool:
-    """Next.js /api/revalidate 호출. 실패해도 silent fail (수집 작업은 성공해야 함)."""
-    if not requests:
-        logger.debug('requests 미설치 — revalidate 스킵')
-        return False
-    url = os.environ.get('NEXT_REVALIDATE_URL', '').strip()
-    secret = os.environ.get('NEXT_REVALIDATE_SECRET', '').strip()
-    if not url or not secret:
-        logger.debug('NEXT_REVALIDATE_URL/SECRET 미설정 — revalidate 스킵')
-        return False
+def _post_revalidate(url: str, secret: str, tags: list[str], label: str) -> bool:
+    """단일 /api/revalidate 엔드포인트 POST. 실패해도 예외 전파 없이 False 반환."""
     try:
         resp = requests.post(
             url,
@@ -103,24 +98,74 @@ def revalidate_tags(tags: list[str]) -> bool:
             timeout=10,
         )
         if resp.status_code == 200:
-            logger.info(f'  ✓ cache revalidated: {tags}')
+            logger.info(f'  ✓ cache revalidated [{label}]: {tags}')
             return True
-        logger.warning(f'  revalidate 실패 {resp.status_code}: {resp.text[:200]}')
+        logger.warning(f'  revalidate 실패 [{label}] {resp.status_code}: {resp.text[:200]}')
         return False
     except Exception as e:
-        logger.warning(f'  revalidate 예외: {e}')
+        logger.warning(f'  revalidate 예외 [{label}]: {e}')
         return False
 
 
-def revalidate_for_tables(tables: list[str]) -> bool:
-    """변경된 테이블 목록 → 영향받는 cacheTag 자동 매핑 → 무효화."""
+def revalidate_tags(tags: list[str]) -> bool:
+    """Next.js /api/revalidate 호출. 실패해도 silent fail (수집 작업은 성공해야 함).
+
+    대상 URL = NEXT_REVALIDATE_URL (로컬 dev는 localhost, cron은 prod URL)."""
+    if not requests:
+        logger.debug('requests 미설치 — revalidate 스킵')
+        return False
+    url = os.environ.get('NEXT_REVALIDATE_URL', '').strip()
+    secret = os.environ.get('NEXT_REVALIDATE_SECRET', '').strip()
+    if not url or not secret:
+        logger.debug('NEXT_REVALIDATE_URL/SECRET 미설정 — revalidate 스킵')
+        return False
+    return _post_revalidate(url, secret, tags, label='default')
+
+
+def revalidate_tags_prod(tags: list[str]) -> bool:
+    """프로덕션 /api/revalidate 호출 (NEXT_REVALIDATE_PROD_URL).
+
+    로컬에서 수동 실행하는 사외비 sync는 NEXT_REVALIDATE_URL=localhost라 프로덕션
+    캐시가 안 비워진다. `--revalidate-prod` 옵션이 이 함수로 프로덕션을 추가 무효화한다.
+    설정 누락이나 실패 시 명시적으로 WARNING (사용자가 의도적으로 켠 옵션이므로)."""
+    if not requests:
+        logger.warning('requests 미설치 — 프로덕션 revalidate 스킵')
+        return False
+    url = os.environ.get('NEXT_REVALIDATE_PROD_URL', '').strip()
+    secret = os.environ.get('NEXT_REVALIDATE_SECRET', '').strip()
+    if not url:
+        logger.warning('NEXT_REVALIDATE_PROD_URL 미설정 — 프로덕션 revalidate 스킵 '
+                       '(.env.local에 prod /api/revalidate URL 추가 필요)')
+        return False
+    if not secret:
+        logger.warning('NEXT_REVALIDATE_SECRET 미설정 — 프로덕션 revalidate 스킵')
+        return False
+    return _post_revalidate(url, secret, tags, label='prod')
+
+
+def _tags_for_tables(tables: list[str]) -> list[str]:
     tags: set[str] = set()
     for t in tables:
         for tag in COLUMN_TO_TAGS.get(t, []):
             tags.add(tag)
+    return sorted(tags)
+
+
+def revalidate_for_tables(tables: list[str]) -> bool:
+    """변경된 테이블 목록 → 영향받는 cacheTag 자동 매핑 → (기본 URL) 무효화."""
+    tags = _tags_for_tables(tables)
     if not tags:
         return False
-    return revalidate_tags(sorted(tags))
+    return revalidate_tags(tags)
+
+
+def revalidate_prod_for_tables(tables: list[str]) -> bool:
+    """변경된 테이블 목록 → cacheTag 매핑 → 프로덕션 추가 무효화 (--revalidate-prod용)."""
+    tags = _tags_for_tables(tables)
+    if not tags:
+        logger.warning(f'프로덕션 revalidate: {tables} 에 매핑된 cacheTag 없음 — 스킵')
+        return False
+    return revalidate_tags_prod(tags)
 
 
 def revalidate_all() -> bool:

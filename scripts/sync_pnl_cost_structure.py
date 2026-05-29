@@ -6,6 +6,7 @@
 
 데이터 2행부터 시작.
 """
+import argparse
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.db import upsert_rows  # noqa: E402
+from lib.revalidate import revalidate_prod_for_tables  # noqa: E402
 
 def _latest_excel() -> Path:
   base = Path(__file__).resolve().parents[1] / '참고' / '손익'
@@ -53,6 +55,12 @@ def parse_period(raw_period: Any) -> tuple[str, int] | None:
 
 
 def main() -> int:
+  parser = argparse.ArgumentParser(description='비용비율 시트 → Supabase pnl_cost_structure 적재')
+  parser.add_argument('--revalidate-prod', action='store_true',
+                      help='적재 후 프로덕션 캐시도 추가 무효화 (NEXT_REVALIDATE_PROD_URL). '
+                           '로컬 수동 실행 시 프로덕션 stale 방지용')
+  args = parser.parse_args()
+
   if not EXCEL_PATH.exists():
     logger.error(f'엑셀 파일 없음: {EXCEL_PATH}')
     return 1
@@ -99,6 +107,8 @@ def main() -> int:
   try:
     n = upsert_rows(TABLE, rows, conflict_cols=CONFLICT_COLS)
     logger.success(f'pnl_cost_structure upsert 완료: {n}행')
+    if args.revalidate_prod:
+      revalidate_prod_for_tables([TABLE])
     return 0
   except Exception as e:
     logger.error(f'upsert 실패: {e}')

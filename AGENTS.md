@@ -116,7 +116,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
 - `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동(단 `sync_oem_excel.py`·`import_oem_sales.py`·`sync_pnl_excel.py`·`sync_pnl_plan.py`·`sync_inventory.py`·`sync_personnel.py`는 정기 재실행이라 유지).
-- **사외비 적재 정책** (`sync_pnl_excel.py`, `sync_pnl_plan.py`, `sync_inventory.py`, `sync_personnel.py`): 입력 엑셀은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. **stdout에 금액·인원수 비노출** — `summarize()`/dry-run 출력은 행수·연도·월·null 카운트만. revenue_sum, headcount 등 금액·수치 합계 출력 금지. `sync_inventory.py`는 추가로 4분류합 vs 전체재고 검증(mismatch 행수만 보고, 임계 0.5%). dry-run 안전성 확인 후 본 적재. WriteSession 자동 revalidate.
+- **사외비 적재 정책** (`sync_pnl_excel.py`, `sync_pnl_plan.py`, `sync_inventory.py`, `sync_personnel.py`): 입력 엑셀은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. **stdout에 금액·인원수 비노출** — `summarize()`/dry-run 출력은 행수·연도·월·null 카운트만. revenue_sum, headcount 등 금액·수치 합계 출력 금지. `sync_inventory.py`는 추가로 4분류합 vs 전체재고 검증(mismatch 행수만 보고, 임계 0.5%). dry-run 안전성 확인 후 본 적재. WriteSession 자동 revalidate(`NEXT_REVALIDATE_URL` — 로컬은 localhost). **로컬 수동 실행은 프로덕션 캐시가 안 비워지므로 `--revalidate-prod` 플래그로 추가 무효화**(`NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET` 사용, 적재 성공 후 1회). `pnl_cost_structure` 포함 5종 테이블은 `lib/revalidate.py` `COLUMN_TO_TAGS`에 매핑(누락 시 무효화 no-op).
 - `_*.json` / `_*.log` / `_*.py` — 임시 산출물. 비활성이면 `_archive/` 이동(폴더 `.gitignore`가 새 산출물 자동 무시).
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용):
