@@ -27,6 +27,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.db import WriteSession  # noqa: E402
+from lib.revalidate import revalidate_prod_for_tables  # noqa: E402
 
 SHEET_PLAN = '계획'
 SHEET_ORDER = '수주'
@@ -162,6 +163,9 @@ def main() -> int:
   ap = argparse.ArgumentParser(description='손익 계획 시트 → Supabase pnl_plan 적재')
   ap.add_argument('--dry-run', action='store_true',
                   help='실제 upsert 없이 파싱 결과만 요약 출력')
+  ap.add_argument('--revalidate-prod', action='store_true',
+                  help='적재 후 프로덕션 캐시도 추가 무효화 (NEXT_REVALIDATE_PROD_URL). '
+                       '로컬 수동 실행 시 프로덕션 stale 방지용')
   args = ap.parse_args()
 
   path = _latest_excel()
@@ -216,6 +220,8 @@ def main() -> int:
       w.table(TABLE).upsert(chunk, on_conflict=CONFLICT).execute()
 
   logger.success(f'pnl_plan upsert 완료: {len(entries)}행')
+  if args.revalidate_prod:
+    revalidate_prod_for_tables([TABLE])
   return 0
 
 

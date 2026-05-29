@@ -39,6 +39,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.db import upsert_rows  # noqa: E402
+from lib.revalidate import revalidate_prod_for_tables  # noqa: E402
 
 
 def _latest_excel() -> Path:
@@ -324,6 +325,9 @@ def main() -> int:
   parser = argparse.ArgumentParser(description='손익 엑셀 → Supabase pnl_entries 적재')
   parser.add_argument('--dry-run', action='store_true',
                       help='실제 upsert 없이 파싱 결과만 요약 출력')
+  parser.add_argument('--revalidate-prod', action='store_true',
+                      help='적재 후 프로덕션 캐시도 추가 무효화 (NEXT_REVALIDATE_PROD_URL). '
+                           '로컬 수동 실행 시 프로덕션 stale 방지용')
   args = parser.parse_args()
 
   if not EXCEL_PATH.exists():
@@ -351,9 +355,11 @@ def main() -> int:
     return 0
 
   try:
-    # upsert_rows는 내부적으로 revalidate_for_tables를 자동 호출한다
+    # upsert_rows는 내부적으로 revalidate_for_tables를 자동 호출한다 (기본 URL=localhost)
     n = upsert_rows(TABLE, all_entries, conflict_cols=CONFLICT_COLS)
     logger.success(f'pnl_entries upsert 완료: {n}행')
+    if args.revalidate_prod:
+      revalidate_prod_for_tables([TABLE])
     return 0
   except Exception as e:
     logger.error(f'upsert 실패: {e}')
