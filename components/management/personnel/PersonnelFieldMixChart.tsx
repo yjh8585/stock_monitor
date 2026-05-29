@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { FieldMixPoint } from '@/lib/personnel/types';
 
 function fmt(n: number | null | undefined, digits = 0): string {
@@ -34,6 +35,9 @@ interface Props {
 interface EnrichedFieldMixPoint extends FieldMixPoint {
   fieldLabel: string;
   adminLabel: string;
+  /** 합계 레이블 앵커(무한소) + 보이는 시리즈 동적 합계. */
+  __anchor: number;
+  __labelTotal: number | null;
 }
 
 /**
@@ -66,8 +70,10 @@ export default function PersonnelFieldMixChart({ points }: Props) {
           p.admin !== null && p.adminPct !== null
             ? `${fmt(p.admin, 0)}\n(${p.adminPct.toFixed(1)}%)`
             : '',
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: sumVisibleStack(p, ['admin', 'field'], hidden),
       })),
-    [points]
+    [points, hidden]
   );
 
   if (points.length === 0) {
@@ -114,8 +120,17 @@ export default function PersonnelFieldMixChart({ points }: Props) {
         </Bar>
         <Bar dataKey="field" name="현장" stackId="fm" fill={FIELD_COLOR} hide={hidden.has('field')}>
           <LabelList dataKey="fieldLabel" content={renderInsideLabel} />
+        </Bar>
+        <Bar
+          dataKey="__anchor"
+          stackId="fm"
+          fill="transparent"
+          isAnimationActive={false}
+          legendType="none"
+          tooltipType="none"
+        >
           <LabelList
-            dataKey="total"
+            dataKey="__labelTotal"
             position="top"
             formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
             style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 700 }}

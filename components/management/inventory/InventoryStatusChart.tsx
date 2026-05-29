@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
@@ -16,6 +16,7 @@ import {
 import { useChartHeight } from '@/lib/useChartHeight';
 import { ChartSection } from '@/components/management/plan/_selectors';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { StatusMonthPoint } from '@/lib/inventory/types';
 
 function fmt(n: number | null | undefined, digits = 0): string {
@@ -62,6 +63,20 @@ export default function InventoryStatusChart({ points }: Props) {
       return next;
     });
   }, []);
+  // 합계 데이터 레이블은 범례로 숨기지 않은 막대 시리즈만 동적 합산(회전율 라인 제외).
+  const chartData = useMemo(
+    () =>
+      points.map((p) => ({
+        ...p,
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: sumVisibleStack(
+          p,
+          ['operating', 'management', 'compensation', 'transport'],
+          hidden
+        ),
+      })),
+    [points, hidden]
+  );
   if (points.length === 0) {
     return (
       <ChartSection title="1. 재고 현황 (실적)" unit="억원 / 회">
@@ -73,7 +88,7 @@ export default function InventoryStatusChart({ points }: Props) {
   return (
     <ChartSection title="1. 재고 현황 (실적)" unit="억원 / 회">
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={points} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
+        <ComposedChart data={chartData} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
           <XAxis
             dataKey="monthLabel"
@@ -154,9 +169,18 @@ export default function InventoryStatusChart({ points }: Props) {
             stackId="inv"
             fill={COLORS.transport}
             hide={hidden.has('transport')}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="__anchor"
+            stackId="inv"
+            fill="transparent"
+            isAnimationActive={false}
+            legendType="none"
+            tooltipType="none"
           >
             <LabelList
-              dataKey="total"
+              dataKey="__labelTotal"
               position="top"
               formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
               style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}

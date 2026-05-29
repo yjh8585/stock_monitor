@@ -16,6 +16,7 @@ import {
 import { ChartSection } from './_selectors';
 import { LegendRow } from './PlanAchievementChart';
 import { useChartHeight } from '@/lib/useChartHeight';
+import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { PlanRow } from '@/lib/plan/types';
 
 const COLOR_SUCCESS = '#16a34a'; // green-600
@@ -25,7 +26,10 @@ const COLOR_RATE = '#2563eb'; // blue-600
 
 function fmt(n: number | null | undefined, digits = 0): string {
   if (n == null || Number.isNaN(n)) return '—';
-  return n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  return n.toLocaleString('ko-KR', {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
 }
 
 interface FunnelPoint {
@@ -85,8 +89,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
     const out: FunnelPoint[] = [];
     for (const p of Array.from(byYear.values()).sort((a, b) => a.year - b.year)) {
       if (p.success === null && p.fail === null && p.cancel === null) continue;
-      const sum =
-        (p.success ?? 0) + (p.fail ?? 0) + (p.cancel ?? 0);
+      const sum = (p.success ?? 0) + (p.fail ?? 0) + (p.cancel ?? 0);
       p.total = sum > 0 ? sum : null;
       p.successRate = p.total && p.success != null ? (p.success / p.total) * 100 : null;
       out.push(p);
@@ -109,18 +112,27 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
     });
   }, []);
 
+  // 합계(입찰총액) 레이블은 범례로 숨기지 않은 막대 시리즈만 동적 합산(성공율 라인 제외).
+  const chartData = useMemo(
+    () =>
+      points.map((p) => ({
+        ...p,
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: sumVisibleStack(p, ['success', 'fail', 'cancel'], hidden),
+      })),
+    [points, hidden]
+  );
+
   const h = useChartHeight(360, 440, 520);
 
   return (
     <ChartSection title="2. 입찰 성공율" unit="억원">
       {points.length === 0 ? (
-        <div className="py-12 text-center text-base text-muted-foreground">
-          데이터가 없습니다.
-        </div>
+        <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
       ) : (
         <ResponsiveContainer width="100%" height={h}>
           <ComposedChart
-            data={points}
+            data={chartData}
             margin={{ top: 48, right: 24, bottom: 10, left: 10 }}
             barCategoryGap="25%"
           >
@@ -190,11 +202,20 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
               fill={COLOR_CANCEL}
               radius={[2, 2, 0, 0]}
               hide={hidden.has('cancel')}
+            />
+            {/* 스택 최상단에 항상 존재하는 투명 앵커 막대 — 보이는 시리즈만의 동적 합계(입찰총액)를
+                막대 바깥쪽(top)에 표시. 막대 시리즈를 토글로 꺼도 레이블이 사라지지 않는다. */}
+            <Bar
+              yAxisId="amount"
+              dataKey="__anchor"
+              stackId="funnel"
+              fill="transparent"
+              isAnimationActive={false}
+              legendType="none"
+              tooltipType="none"
             >
-              {/* 스택 최상단 막대에만 총액 라벨 표시 — 라벨은 입찰성공율 라인 위치보다 아래쪽에 위치하도록
-                 amount 축 도메인 압축으로 시각 분리. 라벨 자체는 막대 바깥쪽(top)에 노출. */}
               <LabelList
-                dataKey="total"
+                dataKey="__labelTotal"
                 position="top"
                 formatter={(value: unknown) => (typeof value === 'number' ? fmt(value) : '')}
                 style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}

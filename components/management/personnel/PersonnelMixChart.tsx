@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { MixPoint } from '@/lib/personnel/types';
 
 /** 숫자 포맷 (ko-KR). */
@@ -37,6 +38,9 @@ interface EnrichedMixPoint extends MixPoint {
   /** 막대 안 표시용 — "인원수\n(비중%)" 두 줄. */
   officeLabel: string;
   productionLabel: string;
+  /** 합계 레이블 앵커(무한소) + 보이는 시리즈 동적 합계. */
+  __anchor: number;
+  __labelTotal: number | null;
 }
 
 /**
@@ -69,8 +73,10 @@ export default function PersonnelMixChart({ points }: Props) {
           p.production !== null && p.productionPct !== null
             ? `${fmt(p.production, 0)}\n(${p.productionPct.toFixed(1)}%)`
             : '',
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: sumVisibleStack(p, ['office', 'production'], hidden),
       })),
-    [points]
+    [points, hidden]
   );
 
   if (points.length === 0) {
@@ -124,8 +130,17 @@ export default function PersonnelMixChart({ points }: Props) {
           hide={hidden.has('production')}
         >
           <LabelList dataKey="productionLabel" content={renderInsideLabel} />
+        </Bar>
+        <Bar
+          dataKey="__anchor"
+          stackId="m"
+          fill="transparent"
+          isAnimationActive={false}
+          legendType="none"
+          tooltipType="none"
+        >
           <LabelList
-            dataKey="total"
+            dataKey="__labelTotal"
             position="top"
             formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
             style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 700 }}

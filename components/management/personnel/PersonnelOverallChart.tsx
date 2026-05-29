@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { OverallStackPoint } from '@/lib/personnel/types';
 
 /** 숫자 포맷 (ko-KR, 천 단위 구분). null/NaN은 em-dash. */
@@ -60,6 +61,16 @@ export default function PersonnelOverallChart({ points }: Props) {
       return next;
     });
   }, []);
+  // 합계 데이터 레이블은 범례로 숨기지 않은 시리즈만 동적 합산(points/hidden 변경 시 재계산).
+  const chartData = useMemo(
+    () =>
+      points.map((p) => ({
+        ...p,
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: sumVisibleStack(p, ['domestic', 'us', 'cn', 'uz', 'intel'], hidden),
+      })),
+    [points, hidden]
+  );
   if (points.length === 0) {
     return (
       <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
@@ -67,7 +78,7 @@ export default function PersonnelOverallChart({ points }: Props) {
   }
   return (
     <ResponsiveContainer width="100%" height={h}>
-      <ComposedChart data={points} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
+      <ComposedChart data={chartData} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
         <XAxis dataKey="periodLabel" tick={{ fontSize: 13 }} />
         <YAxis tickFormatter={(v: number) => fmt(v, 0)} tick={{ fontSize: 13 }} width={70} />
@@ -118,9 +129,17 @@ export default function PersonnelOverallChart({ points }: Props) {
           stackId="p"
           fill={COLORS.intel}
           hide={hidden.has('intel')}
+        />
+        <Bar
+          dataKey="__anchor"
+          stackId="p"
+          fill="transparent"
+          isAnimationActive={false}
+          legendType="none"
+          tooltipType="none"
         >
           <LabelList
-            dataKey="total"
+            dataKey="__labelTotal"
             position="top"
             formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
             style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
