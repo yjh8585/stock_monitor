@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { DomesticStackPoint } from '@/lib/personnel/types';
 
 /** 숫자 포맷 (ko-KR, 천 단위). */
@@ -57,9 +58,9 @@ export default function PersonnelDomesticChart({ points }: Props) {
       return next;
     });
   }, []);
-  // 일부 시점에 partner/internal이 null이면 마지막 stack이 안 그려지면서 합계 LabelList도 사라진다.
-  // 0으로 채우면 recharts가 Bar를 skip해 동일한 문제 → 무한소(0.0001)로 채워 stack 최상단에 Bar가 존재하게 한다.
-  // 호버 툴팁은 payload(enriched)를 사용하므로 0.0001은 fmt에서 '0'으로 표시됨.
+  // 일부 시점에 partner/internal이 null이면 막대 세그먼트가 안 그려지므로 무한소(0.0001)로 채운다.
+  // (호버 툴팁은 payload(enriched)를 사용하므로 0.0001은 fmt에서 '0'으로 표시됨.)
+  // 합계 레이블은 별도 앵커 막대(__anchor)에 동적 합계(__labelTotal)로 표시 — 원본 null은 0으로 합산.
   const enriched = useMemo(
     () =>
       points.map((p) => ({
@@ -67,8 +68,10 @@ export default function PersonnelDomesticChart({ points }: Props) {
         domestic: p.domestic ?? 0.0001,
         internal: p.internal ?? 0.0001,
         partner: p.partner ?? 0.0001,
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: sumVisibleStack(p, ['domestic', 'internal', 'partner'], hidden),
       })),
-    [points]
+    [points, hidden]
   );
   if (points.length === 0) {
     return (
@@ -125,9 +128,17 @@ export default function PersonnelDomesticChart({ points }: Props) {
           stackId="d"
           fill={COLORS.partner}
           hide={hidden.has('partner')}
+        />
+        <Bar
+          dataKey="__anchor"
+          stackId="d"
+          fill="transparent"
+          isAnimationActive={false}
+          legendType="none"
+          tooltipType="none"
         >
           <LabelList
-            dataKey="total"
+            dataKey="__labelTotal"
             position="top"
             formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
             style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
