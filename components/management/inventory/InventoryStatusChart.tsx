@@ -79,14 +79,14 @@ export default function InventoryStatusChart({ points }: Props) {
   );
   if (points.length === 0) {
     return (
-      <ChartSection title="1. 재고 현황 (실적)" unit="억원 / 회">
+      <ChartSection title="1. 재고 현황 (종류)" unit="억원 / 회">
         <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
       </ChartSection>
     );
   }
   const turnoverMax = Math.max(1, ...points.map((p) => p.turnover ?? 0));
   return (
-    <ChartSection title="1. 재고 현황 (실적)" unit="억원 / 회">
+    <ChartSection title="1. 재고 현황 (종류)" unit="억원 / 회">
       <ResponsiveContainer width="100%" height={h}>
         <ComposedChart data={chartData} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />

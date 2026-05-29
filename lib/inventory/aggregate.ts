@@ -6,6 +6,9 @@ import type {
   InventoryKpis,
   AchievementCategory,
   TransportItem,
+  CountryStatusPoint,
+  DomesticItem,
+  OverseasItem,
 } from './types';
 
 function round(n: number): number {
@@ -87,6 +90,56 @@ export function buildStatusPoints(rows: readonly InventoryRow[]): StatusMonthPoi
   return Array.from(byKey.values()).sort((a, b) => a.year - b.year || a.month - b.month);
 }
 
+/**
+ * 차트 2 (재고 현황 국가) 월별 포인트 빌더 — 실적만.
+ *
+ * - domestic: 국내 3개 항목(구동+제동조향+전장) 합 (억원)
+ * - us/uz: 미국/우즈벡 단일 항목 (백만USD → 환산)
+ * - total: 전체/전체 재고 actual
+ * - residual: total − (domestic+us+uz). "영업+국내보상". 음수면 0, total null이면 null.
+ */
+export function buildCountryStatusPoints(rows: readonly InventoryRow[]): CountryStatusPoint[] {
+  const byKey = new Map<string, CountryStatusPoint>();
+  for (const r of rows) {
+    if (r.kind !== 'actual') continue;
+    const key = `${r.period_year}-${r.period_month}`;
+    let p = byKey.get(key);
+    if (!p) {
+      p = {
+        monthLabel: fmtMonth(r.period_year, r.period_month),
+        year: r.period_year,
+        month: r.period_month,
+        domestic: null,
+        us: null,
+        uz: null,
+        residual: null,
+        total: null,
+      };
+      byKey.set(key, p);
+    }
+    if (r.category === '국내') {
+      const v = convertToKrwEok(r);
+      if (v !== null) p.domestic = round((p.domestic ?? 0) + v);
+    } else if (r.category === '미국' && r.item === '미국') {
+      p.us = convertToKrwEok(r);
+    } else if (r.category === '우즈벡' && r.item === '우즈벡') {
+      p.uz = convertToKrwEok(r);
+    } else if (r.category === '전체' && r.item === '전체 재고') {
+      p.total = convertToKrwEok(r);
+    }
+  }
+  for (const p of byKey.values()) {
+    if (p.total === null) {
+      p.residual = null;
+    } else {
+      const sum = (p.domestic ?? 0) + (p.us ?? 0) + (p.uz ?? 0);
+      const res = round(p.total - sum);
+      p.residual = res < 0 ? 0 : res;
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.year - b.year || a.month - b.month);
+}
+
 const CATEGORY_FILTER: Record<AchievementCategory, (r: InventoryRow) => boolean> = {
   total: (r) => r.category === '전체' && r.item === '전체 재고',
   operating: (r) => r.category === '운영' && r.item === '운영 재고',
@@ -150,7 +203,7 @@ function aggregateAchievement(rows: readonly InventoryRow[]): AchievementMonthPo
 }
 
 /**
- * 차트 2 (계획대비 실적) — 카테고리별 월별 포인트.
+ * 차트 3 (계획대비 실적 전사) — 카테고리별 월별 포인트.
  * 운송은 3개 항목 합산. 그 외는 단일 항목. 단위는 모두 억원.
  */
 export function buildAchievementPoints(
@@ -167,7 +220,7 @@ const TRANSPORT_ITEM_MAP: Record<TransportItem, string> = {
 };
 
 /**
- * 차트 3 (계획대비 운송) — 운송 분류 단일 항목 토글.
+ * 차트 6 (계획대비 실적 운송) — 운송 분류 단일 항목 토글.
  */
 export function buildTransportPoints(
   rows: readonly InventoryRow[],
@@ -175,6 +228,39 @@ export function buildTransportPoints(
 ): AchievementMonthPoint[] {
   const targetItem = TRANSPORT_ITEM_MAP[item];
   return aggregateAchievement(rows.filter((r) => r.category === '운송' && r.item === targetItem));
+}
+
+const DOMESTIC_ITEM_MAP: Record<DomesticItem, string> = {
+  drive: '구동',
+  brake: '제동조향',
+  electronics: '전장',
+};
+
+/**
+ * 차트 4 (계획대비 실적 국내) — 국내 분류 단일 항목 토글.
+ */
+export function buildDomesticAchievementPoints(
+  rows: readonly InventoryRow[],
+  item: DomesticItem
+): AchievementMonthPoint[] {
+  const targetItem = DOMESTIC_ITEM_MAP[item];
+  return aggregateAchievement(rows.filter((r) => r.category === '국내' && r.item === targetItem));
+}
+
+const OVERSEAS_MAP: Record<OverseasItem, { category: string; item: string }> = {
+  us: { category: '미국', item: '미국' },
+  uz: { category: '우즈벡', item: '우즈벡' },
+};
+
+/**
+ * 차트 5 (계획대비 실적 해외) — 미국/우즈벡 국가값 토글. 운송 항목과 별개.
+ */
+export function buildOverseasAchievementPoints(
+  rows: readonly InventoryRow[],
+  item: OverseasItem
+): AchievementMonthPoint[] {
+  const t = OVERSEAS_MAP[item];
+  return aggregateAchievement(rows.filter((r) => r.category === t.category && r.item === t.item));
 }
 
 /**

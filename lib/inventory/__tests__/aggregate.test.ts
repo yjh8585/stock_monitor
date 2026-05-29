@@ -5,6 +5,9 @@ import {
   buildAchievementPoints,
   buildTransportPoints,
   buildKpis,
+  buildCountryStatusPoints,
+  buildDomesticAchievementPoints,
+  buildOverseasAchievementPoints,
 } from '../aggregate';
 import type { InventoryRow } from '../types';
 
@@ -413,5 +416,246 @@ describe('buildKpis', () => {
     expect(kpis.managementSharePct).toBeNull();
     expect(kpis.compensationSharePct).toBeNull();
     expect(kpis.transportSharePct).toBeNull();
+  });
+});
+
+describe('buildCountryStatusPoints', () => {
+  it('국가별 누적 + residual = 전체 − 국가합', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '국내',
+        item: '구동',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 30,
+      }),
+      row({
+        category: '국내',
+        item: '제동조향',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 20,
+      }),
+      row({
+        category: '국내',
+        item: '전장',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 10,
+      }),
+      row({
+        category: '미국',
+        item: '미국',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 250,
+      }),
+    ];
+    const pts = buildCountryStatusPoints(rows);
+    expect(pts).toHaveLength(1);
+    expect(pts[0].domestic).toBe(60);
+    expect(pts[0].us).toBe(140);
+    expect(pts[0].uz).toBeNull();
+    expect(pts[0].total).toBe(250);
+    expect(pts[0].residual).toBe(50);
+  });
+
+  it('계획 행 무시 (차트 2는 실적만)', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '국내',
+        item: '구동',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 999,
+      }),
+    ];
+    expect(buildCountryStatusPoints(rows)).toHaveLength(0);
+  });
+
+  it('전체재고 null → residual null', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '국내',
+        item: '구동',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 30,
+      }),
+    ];
+    const pts = buildCountryStatusPoints(rows);
+    expect(pts[0].total).toBeNull();
+    expect(pts[0].residual).toBeNull();
+  });
+
+  it('residual 음수 방어 → 0', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '국내',
+        item: '구동',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 300,
+      }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 250,
+      }),
+    ];
+    expect(buildCountryStatusPoints(rows)[0].residual).toBe(0);
+  });
+});
+
+describe('buildDomesticAchievementPoints', () => {
+  it('drive → 국내/구동, 다른 항목 무시', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '국내',
+        item: '구동',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 30,
+      }),
+      row({
+        category: '국내',
+        item: '구동',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 27,
+      }),
+      row({
+        category: '국내',
+        item: '전장',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 99,
+      }),
+    ];
+    const pts = buildDomesticAchievementPoints(rows, 'drive');
+    expect(pts).toHaveLength(1);
+    expect(pts[0].plan).toBe(30);
+    expect(pts[0].actual).toBe(27);
+    expect(pts[0].rate).toBe(90);
+  });
+
+  it('brake → 제동조향, electronics → 전장', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '국내',
+        item: '제동조향',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 2,
+        value: 20,
+      }),
+      row({
+        category: '국내',
+        item: '전장',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 2,
+        value: 10,
+      }),
+    ];
+    expect(buildDomesticAchievementPoints(rows, 'brake')[0].plan).toBe(20);
+    expect(buildDomesticAchievementPoints(rows, 'electronics')[0].plan).toBe(10);
+  });
+});
+
+describe('buildOverseasAchievementPoints', () => {
+  it('us → 미국/미국 (백만USD 환산)', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '미국',
+        item: '미국',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '미국',
+        item: '미국',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 9,
+        fx_rate: 1400,
+      }),
+    ];
+    const pts = buildOverseasAchievementPoints(rows, 'us');
+    expect(pts[0].plan).toBe(140);
+    expect(pts[0].actual).toBe(126);
+  });
+
+  it('uz → 우즈벡/우즈벡', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '우즈벡',
+        item: '우즈벡',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 4,
+        unit: '백만USD',
+        value: 5,
+        fx_rate: 1400,
+      }),
+    ];
+    const pts = buildOverseasAchievementPoints(rows, 'uz');
+    expect(pts).toHaveLength(1);
+    expect(pts[0].plan).toBe(70);
+  });
+
+  it('미국 토글은 운송/미국 운송과 무관 (국가값만)', () => {
+    const rows: InventoryRow[] = [
+      row({
+        category: '미국',
+        item: '미국',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 99,
+        fx_rate: 1400,
+      }),
+    ];
+    expect(buildOverseasAchievementPoints(rows, 'us')[0].plan).toBe(140);
   });
 });
