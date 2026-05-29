@@ -257,7 +257,7 @@ describe('aggregateTopModels', () => {
       salesPrevPeriod: 400,
       ytdSales: 150,
     });
-    expect(out.totals).toEqual({ latestPeriod: 400, prevPeriod: 400, ytd: 150 });
+    expect(out.totals).toEqual({ latestPeriod: 400, prevPeriod: 400, ytd: 150, ytdPrev: 100 });
   });
 
   it('합계 행 제외 — totals는 모델 SUM만', () => {

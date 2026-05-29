@@ -420,15 +420,6 @@ export function aggregateKpi(
  *  - 'factory:HMI:내수' / 'factory:HMI:수출' : 해외 공장 + region 필터 (#7) */
 export type CompanyRegionFilter = string;
 
-/**
- * 차종명을 프로그램 코드로 통일.
- *
- * - "Avante (CN7)", "Avante (CN7c)", "Avante (CN7 HEV)" → 모두 "Avante (CN7)"
- * - "Tucson (NX4)", "Tucson (NX4a)", "Tucson (NX4 HEV)" → 모두 "Tucson (NX4)"
- * - 매칭 없으면 원본 그대로 반환.
- *
- * 형식: `이름 (CODE[region][ PT])` — CODE는 대문자+숫자, region 접미는 소문자, PT는 공백+토큰.
- */
 /** 모델명 → 프로그램 코드 통일 (모든 hyundai 모델 일괄 적용).
  *  - "Avante (CN7)" / "Elantra (CN7c)" / "Avante (CN7 HEV)" / "Avante (CN7 N)" → "Elantra (CN7)"
  *  - "Tucson (NX4a)" / "Tucson HEV (NX4e HEV)" / "Tucson OB (NX4a OB)" → "Tucson (NX4)"

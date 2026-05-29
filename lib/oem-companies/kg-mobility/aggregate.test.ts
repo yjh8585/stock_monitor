@@ -227,7 +227,7 @@ describe('aggregateTopModels', () => {
       salesPrevPeriod: 1200,
       ytdSales: 600,
     });
-    expect(out.totals).toEqual({ latestPeriod: 1200, prevPeriod: 1200, ytd: 600 });
+    expect(out.totals).toEqual({ latestPeriod: 1200, prevPeriod: 1200, ytd: 600, ytdPrev: 400 });
   });
 
   it('region 필터 = 내수 적용 시 totals도 내수만 합산', () => {
