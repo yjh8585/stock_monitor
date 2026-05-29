@@ -206,7 +206,13 @@ export async function getKiaData(): Promise<KiaPageData> {
   );
 
   // 해외 plant 5개 (kia_sales factory 컬럼 기준 — 'CKD'/한국은 별도 'domestic'으로 묶음)
-  const KIA_OVERSEAS_PLANTS = ['U.S. Plant', 'China Plants', 'Slovakia Plant', 'Mexico Plant', 'India Plant'];
+  const KIA_OVERSEAS_PLANTS = [
+    'U.S. Plant',
+    'China Plants',
+    'Slovakia Plant',
+    'Mexico Plant',
+    'India Plant',
+  ];
   const topModelsByFactory: Record<string, CompanyTopModelsResult> = {
     all: aggregateTopModels(withPt, 10, 'all'),
     domestic: aggregateTopModels(withPt, 10, 'domestic'),

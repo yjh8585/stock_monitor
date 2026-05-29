@@ -167,7 +167,10 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">11. 전년 대비 월별 비교 <span className="text-sm font-normal text-muted-foreground">· 단위 억원</span></h2>
+        <h2 className="text-lg font-semibold">
+          11. 전년 대비 월별 비교{' '}
+          <span className="text-sm font-normal text-muted-foreground">· 단위 억원</span>
+        </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="기준" options={yearOptions} value={effBase} onChange={setBaseYear} />
@@ -239,7 +242,9 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
                     <LabelList
                       dataKey={`${m}_compare`}
                       position="top"
-                      formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
+                      formatter={(value: unknown) =>
+                        typeof value === 'number' ? fmtEokwon(value) : ''
+                      }
                       style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
                     />
                   </Bar>
@@ -252,7 +257,9 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
                     <LabelList
                       dataKey={`${m}_base`}
                       position="top"
-                      formatter={(value: unknown) => (typeof value === 'number' ? fmtEokwon(value) : '')}
+                      formatter={(value: unknown) =>
+                        typeof value === 'number' ? fmtEokwon(value) : ''
+                      }
                       style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 500 }}
                     />
                   </Bar>

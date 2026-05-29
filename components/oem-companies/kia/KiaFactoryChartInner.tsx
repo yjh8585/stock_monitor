@@ -67,11 +67,7 @@ function sortFactoriesByTotal(data: FactoryMixPoint[]): string[] {
 
 /** Kia 해외 공장별 stacked bar — 합계 line 없음. Tooltip에 비중(%) 표시.
  *  Legend 클릭으로 시리즈 hide/show 토글 (#1). */
-export default function KiaFactoryChartInner({
-  monthly,
-  annual,
-  hideLabelsOnMonth = true,
-}: Props) {
+export default function KiaFactoryChartInner({ monthly, annual, hideLabelsOnMonth = true }: Props) {
   const [mode, setMode] = useState<ViewMode>('year');
   const height = useChartHeight(240, 280, 320);
   const { isHidden, legendProps } = useHiddenSeries();

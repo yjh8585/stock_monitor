@@ -72,7 +72,7 @@ export default function IntradayCombinedChart({
         lastValueVisible: true,
         title: '가격',
       },
-      0,
+      0
     );
     const priceData = intraday
       .map((d) => ({
@@ -94,7 +94,7 @@ export default function IntradayCombinedChart({
           lastValueVisible: true,
           title: s.label,
         },
-        1,
+        1
       );
       const points = supply
         .map((d) => {
@@ -169,7 +169,9 @@ export default function IntradayCombinedChart({
           )}
           {commentary.boardTopics && commentary.boardTopics.length > 0 && (
             <div className="mt-1.5 border-t border-border/40 pt-1.5">
-              <div className="text-[11px] text-muted-foreground font-medium">💬 종목토론 핫토픽</div>
+              <div className="text-[11px] text-muted-foreground font-medium">
+                💬 종목토론 핫토픽
+              </div>
               <ul className="mt-0.5 ml-3 list-disc text-xs text-muted-foreground space-y-0.5">
                 {commentary.boardTopics.map((t, i) => (
                   <li key={i}>{t}</li>

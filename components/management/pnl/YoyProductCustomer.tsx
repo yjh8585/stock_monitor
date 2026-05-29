@@ -201,7 +201,12 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">13. 제품·고객 YoY 매트릭스 <span className="text-sm font-normal text-muted-foreground">· 셀=YoY% · 툴팁=매출 백만원</span></h2>
+        <h2 className="text-lg font-semibold">
+          13. 제품·고객 YoY 매트릭스{' '}
+          <span className="text-sm font-normal text-muted-foreground">
+            · 셀=YoY% · 툴팁=매출 백만원
+          </span>
+        </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearDropdown label="연도" options={yearLabels} value={effBase} onChange={setBaseYear} />

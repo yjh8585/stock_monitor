@@ -60,9 +60,7 @@ export async function assertSafeReportUrl(rawUrl: string): Promise<URL> {
 
   for (const { address, family } of addresses) {
     if (isBlockedIp(address, family)) {
-      throw new UnsafeReportUrlError(
-        `호스트 ${hostname}가 내부망 IP(${address})로 해석됩니다.`
-      );
+      throw new UnsafeReportUrlError(`호스트 ${hostname}가 내부망 IP(${address})로 해석됩니다.`);
     }
   }
 

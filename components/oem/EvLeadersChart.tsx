@@ -14,7 +14,10 @@ import {
   YAxis,
 } from 'recharts';
 import type { OemSalesGroupPtMonth } from '@/lib/types';
-import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
+import {
+  DATA_LABEL_STYLE,
+  GRID_STROKE_OPACITY,
+} from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits, ptSumByGroup, shortenOemName } from './helpers';
 
 interface Props {

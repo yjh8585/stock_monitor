@@ -5,10 +5,7 @@
  * 단순하게 — shortenOemName이 identity가 되도록.
  */
 import { describe, expect, it } from 'vitest';
-import type {
-  OemSalesGroupCountryMonth,
-  OemSalesModelCountryMonth,
-} from '@/lib/types';
+import type { OemSalesGroupCountryMonth, OemSalesModelCountryMonth } from '@/lib/types';
 import {
   aggregateCountryTop15,
   aggregateModelSeries,

@@ -48,7 +48,9 @@ export function buildBlockedTopicsInstruction(
   role?: UserRole,
   topics: BlockedTopic[] = BLOCKED_TOPICS
 ): string {
-  const applicable = topics.filter((t) => !t.appliesToRoles || (role && t.appliesToRoles.includes(role)));
+  const applicable = topics.filter(
+    (t) => !t.appliesToRoles || (role && t.appliesToRoles.includes(role))
+  );
   if (applicable.length === 0) return '';
 
   const topicList = applicable.map((t) => `${t.label}(${t.examples} 등)`).join(', ');

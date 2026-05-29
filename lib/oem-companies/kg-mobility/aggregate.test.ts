@@ -82,8 +82,9 @@ describe('attachPowertrains', () => {
     expect(attachPowertrains(rows, map)[0].resolved_powertrain).toBe('ICE');
   });
   it('매핑도 없으면 null', () => {
-    expect(attachPowertrains([row({ model: '신모델', units: 100 })], [])[0].resolved_powertrain)
-      .toBeNull();
+    expect(
+      attachPowertrains([row({ model: '신모델', units: 100 })], [])[0].resolved_powertrain
+    ).toBeNull();
   });
   it('valid_to 지난 매핑 fallback', () => {
     const rows = [row({ period: '2025-06', model: '토레스', units: 100 })];
@@ -122,9 +123,7 @@ describe('aggregateAnnualSeries', () => {
     const rows: CompanySaleRow[] = [];
     for (let y = 2024; y <= 2025; y++) {
       for (let m = 1; m <= 12; m++) {
-        rows.push(
-          row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'X', units: 100 })
-        );
+        rows.push(row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'X', units: 100 }));
       }
     }
     const out = aggregateAnnualSeries(withPt(rows));
@@ -139,7 +138,9 @@ describe('aggregateKpi', () => {
     const rows: CompanySaleRow[] = [];
     for (let y = 2024; y <= 2025; y++) {
       for (let m = 1; m <= 12; m++) {
-        rows.push(row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'X', pt: 'ICE', units: 100 }));
+        rows.push(
+          row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'X', pt: 'ICE', units: 100 })
+        );
         if (y === 2025 && m >= 7) {
           rows.push(
             row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'EVX', pt: 'EV', units: 50 })
@@ -196,12 +197,21 @@ describe('aggregateTopModels', () => {
     const rows: CompanySaleRow[] = [];
     for (let y = 2024; y <= 2025; y++) {
       for (let m = 1; m <= 12; m++) {
-        rows.push(row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'A', units: 100 * (y - 2023) }));
-        rows.push(row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'B', units: 200 * (y - 2023) }));
+        rows.push(
+          row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'A', units: 100 * (y - 2023) })
+        );
+        rows.push(
+          row({ period: `${y}-${String(m).padStart(2, '0')}`, model: 'B', units: 200 * (y - 2023) })
+        );
       }
     }
     const out = aggregateTopModels(withPt(rows), 2);
-    expect(out.rows[0]).toMatchObject({ model: 'B', salesLatestPeriod: 4800, salesPrevPeriod: 2400, ytdSales: 0 });
+    expect(out.rows[0]).toMatchObject({
+      model: 'B',
+      salesLatestPeriod: 4800,
+      salesPrevPeriod: 2400,
+      ytdSales: 0,
+    });
     expect(out.rows[1]).toMatchObject({ model: 'A', salesLatestPeriod: 2400, ytdSales: 0 });
     expect(out.rows[0].yoyPct).toBeCloseTo(100);
     // totals: A+B both years (A=100/year×12=1200/2400, B=200×12=2400/4800)

@@ -64,9 +64,12 @@ export function HyundaiRetailWholesaleRegionCard({
   years: string[];
 }) {
   // 기본 선택: 데이터가 있는 가장 최근 연도 (years 마지막)
-  const defaultYear = years.length > 0 ? years[years.length - 1] : defaultCard?.latestYear ?? '';
+  const defaultYear = years.length > 0 ? years[years.length - 1] : (defaultCard?.latestYear ?? '');
   const [selectedYear, setSelectedYear] = useState<string>(defaultYear);
-  const card = useMemo(() => byYear[selectedYear] ?? defaultCard, [byYear, selectedYear, defaultCard]);
+  const card = useMemo(
+    () => byYear[selectedYear] ?? defaultCard,
+    [byYear, selectedYear, defaultCard]
+  );
 
   if (!card) {
     return (
@@ -144,7 +147,12 @@ function Kpi({
 /** US/EU retail vs wholesale 비교 — Phase 2C + 연도 드롭다운(#9). 2026 YTD KPI 자동 포함. */
 export default function HyundaiRetailWholesaleCard({ data, byYear, usYears, euYears }: Props) {
   // 데이터 없으면 표시 안 함
-  if (!data.us && !data.eu && Object.keys(byYear.us).length === 0 && Object.keys(byYear.eu).length === 0) {
+  if (
+    !data.us &&
+    !data.eu &&
+    Object.keys(byYear.us).length === 0 &&
+    Object.keys(byYear.eu).length === 0
+  ) {
     return null;
   }
 

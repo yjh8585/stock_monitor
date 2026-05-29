@@ -14,7 +14,9 @@ const components: Components = {
   h1: ({ children }) => <h3 className="mt-2 mb-1 text-sm font-semibold first:mt-0">{children}</h3>,
   h2: ({ children }) => <h4 className="mt-2 mb-1 text-sm font-semibold first:mt-0">{children}</h4>,
   h3: ({ children }) => <h5 className="mt-2 mb-1 text-sm font-semibold first:mt-0">{children}</h5>,
-  h4: ({ children }) => <h6 className="mt-1.5 mb-0.5 text-xs font-semibold first:mt-0">{children}</h6>,
+  h4: ({ children }) => (
+    <h6 className="mt-1.5 mb-0.5 text-xs font-semibold first:mt-0">{children}</h6>
+  ),
   // 단락
   p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
   // 리스트

@@ -4,11 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import {
-  COMPANY_TYPES,
-  COUNTRIES,
-  DATA_SOURCES,
-} from '@/lib/companies/schemas';
+import { COMPANY_TYPES, COUNTRIES, DATA_SOURCES } from '@/lib/companies/schemas';
 import type { CompanyListItem } from '@/lib/companies/source';
 
 interface Props {

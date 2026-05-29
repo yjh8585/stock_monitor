@@ -115,15 +115,21 @@ export async function getOemData() {
   cacheTag('oem_model_outlook');
 
   const supabase = createSupabaseAnonClient();
-  const [groupMonthRaw, groupPtMonthRaw, groupCountryMonthRaw, typeSegMonthRaw, modelRows, outlooks] =
-    await Promise.all([
-      fetchAll(supabase, 'oem_sales_group_month'),
-      fetchAll(supabase, 'oem_sales_group_pt_month'),
-      fetchAll(supabase, 'oem_sales_group_country_month'),
-      fetchAll(supabase, 'oem_sales_type_seg_month'),
-      fetchNaModelRows(supabase),
-      fetchLatestOutlooks(supabase),
-    ]);
+  const [
+    groupMonthRaw,
+    groupPtMonthRaw,
+    groupCountryMonthRaw,
+    typeSegMonthRaw,
+    modelRows,
+    outlooks,
+  ] = await Promise.all([
+    fetchAll(supabase, 'oem_sales_group_month'),
+    fetchAll(supabase, 'oem_sales_group_pt_month'),
+    fetchAll(supabase, 'oem_sales_group_country_month'),
+    fetchAll(supabase, 'oem_sales_type_seg_month'),
+    fetchNaModelRows(supabase),
+    fetchLatestOutlooks(supabase),
+  ]);
 
   const groupMonth: OemSalesGroupMonth[] = groupMonthRaw;
   const groupPtMonth: OemSalesGroupPtMonth[] = groupPtMonthRaw;

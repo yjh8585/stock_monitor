@@ -38,7 +38,7 @@ function fmtPct(n: number | null): string {
 
 function nearestSupplyAt(
   supply: IntradaySupplyPoint[],
-  targetTs: number,
+  targetTs: number
 ): IntradaySupplyPoint | null {
   if (supply.length === 0) return null;
   let best = supply[0];
@@ -91,7 +91,7 @@ function buildBoardTopics(posts: BoardPostSummary[] | undefined): string[] {
   const todayMs = startToday.getTime();
   const ranked = [...posts]
     .filter((p) => new Date(p.postedAt).getTime() >= todayMs)
-    .sort((a, b) => (b.views + b.likes * 5 - (a.views + a.likes * 5)))
+    .sort((a, b) => b.views + b.likes * 5 - (a.views + a.likes * 5))
     .slice(0, 3);
   if (ranked.length === 0) return [];
   return ranked.map((p) => {
@@ -111,14 +111,13 @@ export function buildIntradayCommentary(
   intraday: IntradayPoint[],
   supply: IntradaySupplyPoint[],
   news?: NewsItem[],
-  posts?: BoardPostSummary[],
+  posts?: BoardPostSummary[]
 ): Commentary | null {
   if (intraday.length < 2) return null;
 
   const first = intraday[0];
   const last = intraday[intraday.length - 1];
-  const priceChangePct =
-    first.price > 0 ? ((last.price - first.price) / first.price) * 100 : 0;
+  const priceChangePct = first.price > 0 ? ((last.price - first.price) / first.price) * 100 : 0;
 
   const latestSupply = supply.length > 0 ? supply[supply.length - 1] : null;
   const foreign = latestSupply?.foreignNet ?? 0;
@@ -166,8 +165,7 @@ export function buildIntradayCommentary(
     let bestDelta = 0;
     let bestIdx = -1;
     for (let i = 1; i < supply.length; i++) {
-      const dF =
-        (supply[i].foreignNet ?? 0) - (supply[i - 1].foreignNet ?? 0);
+      const dF = (supply[i].foreignNet ?? 0) - (supply[i - 1].foreignNet ?? 0);
       if (Math.abs(dF) > Math.abs(bestDelta)) {
         bestDelta = dF;
         bestIdx = i;
@@ -184,7 +182,7 @@ export function buildIntradayCommentary(
           institutionNet: null,
           individualNet: null,
         })),
-        slotTs,
+        slotTs
       );
       const prevSlotTs = new Date(supply[bestIdx - 1].snapshotTs).getTime();
       const pricePrev = nearestSupplyAt(
@@ -194,18 +192,14 @@ export function buildIntradayCommentary(
           institutionNet: null,
           individualNet: null,
         })),
-        prevSlotTs,
+        prevSlotTs
       );
       const dPrice =
         priceNow && pricePrev && pricePrev.foreignNet
-          ? ((priceNow.foreignNet! - pricePrev.foreignNet) / pricePrev.foreignNet) *
-            100
+          ? ((priceNow.foreignNet! - pricePrev.foreignNet) / pricePrev.foreignNet) * 100
           : null;
       const direction = bestDelta > 0 ? '매수 유입' : '매도 출회';
-      const tail =
-        dPrice !== null
-          ? ` → 가격 ${fmtPct(dPrice)}`
-          : '';
+      const tail = dPrice !== null ? ` → 가격 ${fmtPct(dPrice)}` : '';
       strongCause = `${fmtTimeKst(slotIso)} 외국인 ${direction} ${fmtSigned(bestDelta)}주${tail}`;
     }
   }

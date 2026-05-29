@@ -15,6 +15,7 @@
 ## 파일 구조
 
 **생성:**
+
 - `supabase/migrations/20260528000001_create_pnl_plan.sql` — pnl_plan 테이블 + RLS deny
 - `scripts/sync_pnl_plan.py` — 계획 시트 → pnl_plan 적재 (블라인드)
 - `lib/plan/types.ts` — 계획 도메인 타입
@@ -28,6 +29,7 @@
 - `scripts/sync_pnl_excel.py` — `_archive`에서 복원·수정
 
 **수정:**
+
 - `lib/database.types.ts` — pnl_plan 타입 (Supabase 생성)
 - `lib/supabase/confidential.ts` — CONFIDENTIAL_TABLES에 pnl_plan
 - `app/management/plan/page.tsx` — placeholder → PlanDashboard
@@ -40,6 +42,7 @@
 - `AGENTS.md` — 라우트/도메인/스크립트/마이그레이션 갱신
 
 **삭제:**
+
 - `components/management/pnl/Insights.tsx` — 분리로 미사용
 
 ---
@@ -47,6 +50,7 @@
 ## Task 1: pnl_plan 마이그레이션
 
 **Files:**
+
 - Create: `supabase/migrations/20260528000001_create_pnl_plan.sql`
 
 - [ ] **Step 1: 마이그레이션 작성**
@@ -94,6 +98,7 @@ git commit -m "feat(plan): pnl_plan 사외비 테이블 마이그레이션"
 ## Task 2: database.types + confidential 등록
 
 **Files:**
+
 - Modify: `lib/database.types.ts` (Supabase 생성)
 - Modify: `lib/supabase/confidential.ts`
 
@@ -106,7 +111,12 @@ Supabase MCP `generate_typescript_types` 호출 → 결과를 `lib/database.type
 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES` 배열을 읽고 `'pnl_plan'`을 추가한다. 예 (실제 배열 형식에 맞춰):
 
 ```ts
-const CONFIDENTIAL_TABLES = ['pnl_entries', 'pnl_cost_structure', 'chat_audit_log', 'pnl_plan'] as const;
+const CONFIDENTIAL_TABLES = [
+  'pnl_entries',
+  'pnl_cost_structure',
+  'chat_audit_log',
+  'pnl_plan',
+] as const;
 ```
 
 - [ ] **Step 3: typecheck**
@@ -126,6 +136,7 @@ git commit -m "feat(plan): pnl_plan 타입 + confidentialDb 등록"
 ## Task 3: sync_pnl_excel.py 복원·수정 (4월 데이터 재적재)
 
 **Files:**
+
 - Create: `scripts/sync_pnl_excel.py` (`scripts/_archive/sync_pnl_excel.py` 복원 후 수정)
 
 원본은 `scripts/_archive/sync_pnl_excel.py`. 아래 2가지만 수정한다.
@@ -173,11 +184,13 @@ def summarize(entries: Iterable[dict[str, Any]]) -> None:
 - [ ] **Step 3: 사용자 직접 실행 (dry-run → 적재)**
 
 사용자에게 안내:
+
 ```
 ! scripts/venv/Scripts/python.exe scripts/sync_pnl_excel.py --dry-run
 ! scripts/venv/Scripts/python.exe scripts/sync_pnl_excel.py
 ```
-Expected(dry-run): 헤더 검증 통과, 2026 months가 `[1,2,3,4]` 포함(연결_월/월). 금액 미출력.
+
+Expected(dry-run): 헤더 검증 통과, 2026 months가 `[1,2,3,4]` 포함(연결\_월/월). 금액 미출력.
 
 - [ ] **Step 4: 커밋**
 
@@ -191,6 +204,7 @@ git commit -m "feat(plan): sync_pnl_excel 최신 엑셀 glob + 금액 비노출 
 ## Task 4: sync_pnl_plan.py (계획 시트 적재, 블라인드)
 
 **Files:**
+
 - Create: `scripts/sync_pnl_plan.py`
 
 계획 시트 컬럼: `1연도 2연간/월 3계획/실적 4연결/별도 5분류 6항목 7단위 8밸류`. 헤더 row 1, 데이터 row 2~.
@@ -352,10 +366,12 @@ Expected: `with WriteSession() as w: w.table('x').upsert(rows, on_conflict=...).
 - [ ] **Step 3: 사용자 직접 실행**
 
 안내:
+
 ```
 ! scripts/venv/Scripts/python.exe scripts/sync_pnl_plan.py --dry-run
 ! scripts/venv/Scripts/python.exe scripts/sync_pnl_plan.py
 ```
+
 Expected(dry-run): 헤더 통과. 예시 — `('공장','구동 매출','actual')`은 years에 2026 포함하되 nulls≥1(2026 공백). `('수주','수주액(취소 제외)','actual')` years=[2018,2019,2020,2021,2022,2024].
 
 - [ ] **Step 4: 커밋**
@@ -370,6 +386,7 @@ git commit -m "feat(plan): sync_pnl_plan 계획 시트 적재 스크립트"
 ## Task 5: lib/plan/types.ts
 
 **Files:**
+
 - Create: `lib/plan/types.ts`
 
 - [ ] **Step 1: 타입 정의**
@@ -420,6 +437,7 @@ git commit -m "feat(plan): 계획 도메인 타입"
 ## Task 6: lib/plan/aggregate.ts + 테스트 (TDD)
 
 **Files:**
+
 - Create: `lib/plan/aggregate.ts`
 - Create: `lib/plan/__tests__/aggregate.test.ts`
 
@@ -431,17 +449,20 @@ git commit -m "feat(plan): 계획 도메인 타입"
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import {
-  normalizeUnit,
-  buildAchievement,
-  fillCancelExcluded,
-} from '../aggregate';
+import { normalizeUnit, buildAchievement, fillCancelExcluded } from '../aggregate';
 import type { PlanRow } from '../types';
 
 function row(p: Partial<PlanRow>): PlanRow {
   return {
-    category: '수주', item: '수주액', basis: 'consolidated', kind: 'plan',
-    period_year: 2025, period_type: 'annual', period_month: 0, unit: '억원', value: 0,
+    category: '수주',
+    item: '수주액',
+    basis: 'consolidated',
+    kind: 'plan',
+    period_year: 2025,
+    period_type: 'annual',
+    period_month: 0,
+    unit: '억원',
+    value: 0,
     ...p,
   };
 }
@@ -492,7 +513,14 @@ describe('buildAchievement', () => {
   it('백만원 실적을 억원으로 환산', () => {
     const rows: PlanRow[] = [
       row({ kind: 'plan', period_year: 2026, period_type: 'annual', unit: '억원', value: 5 }),
-      row({ kind: 'actual', period_year: 2026, period_type: 'month', period_month: 1, unit: '백만원', value: 200 }),
+      row({
+        kind: 'actual',
+        period_year: 2026,
+        period_type: 'month',
+        period_month: 1,
+        unit: '백만원',
+        value: 200,
+      }),
     ];
     const pts = buildAchievement(rows, { unit: '억원' });
     expect(pts[0].actual).toBe(2); // 200백만원 = 2억원
@@ -504,7 +532,14 @@ describe('fillCancelExcluded', () => {
   it('취소제외 결측 연도는 수주액 실적으로 채운다', () => {
     const base = [
       { yearLabel: '2024', year: 2024, ytd: false, plan: 100, actual: 90, rate: 90 },
-      { yearLabel: '2025', year: 2025, ytd: false, plan: 110, actual: 100, rate: 100 / 110 * 100 },
+      {
+        yearLabel: '2025',
+        year: 2025,
+        ytd: false,
+        plan: 110,
+        actual: 100,
+        rate: (100 / 110) * 100,
+      },
     ];
     const cancel = [
       { yearLabel: '2024', year: 2024, ytd: false, plan: 100, actual: 85, rate: 85 },
@@ -529,11 +564,7 @@ Expected: FAIL (모듈/함수 없음).
 import type { AchievementPoint, PlanRow } from './types';
 
 /** 단위 환산. 지원: 억원↔백만원(1억원=100백만원). USD/동일단위는 그대로. */
-export function normalizeUnit(
-  value: number | null,
-  from: string,
-  to: string
-): number | null {
+export function normalizeUnit(value: number | null, from: string, to: string): number | null {
   if (value === null) return null;
   if (from === to) return value;
   if (from === '백만원' && to === '억원') return value / 100;
@@ -651,6 +682,7 @@ git commit -m "feat(plan): aggregate 시리즈 빌더 + 테스트"
 ## Task 7: lib/plan/source.ts
 
 **Files:**
+
 - Create: `lib/plan/source.ts`
 
 - [ ] **Step 1: source 작성**
@@ -736,6 +768,7 @@ git commit -m "feat(plan): source.ts (pnl_plan + 실적 + FX)"
 ## Task 8: PlanAchievementChart 공통 컴포넌트
 
 **Files:**
+
 - Create: `components/management/plan/PlanAchievementChart.tsx`
 
 콤보: 계획 막대(연한색)+실적 막대(진한색)+달성율 라인(우측 Y축, 표식). 색은 `OEM_COLORS`.
@@ -786,7 +819,9 @@ const RATE_COLOR = '#dc2626'; // 달성율 라인
 export default function PlanAchievementChart({ points, unitLabel }: Props) {
   const h = useChartHeight(300, 380, 460);
   if (points.length === 0) {
-    return <div className="py-12 text-center text-sm text-muted-foreground">데이터가 없습니다.</div>;
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">데이터가 없습니다.</div>
+    );
   }
   return (
     <ResponsiveContainer width="100%" height={h}>
@@ -798,7 +833,12 @@ export default function PlanAchievementChart({ points, unitLabel }: Props) {
           tickFormatter={(v: number) => fmt(v)}
           tick={{ fontSize: 14 }}
           width={80}
-          label={{ value: unitLabel, position: 'insideTopLeft', fontSize: 12, fill: 'var(--muted-foreground)' }}
+          label={{
+            value: unitLabel,
+            position: 'insideTopLeft',
+            fontSize: 12,
+            fill: 'var(--muted-foreground)',
+          }}
         />
         <YAxis
           yAxisId="rate"
@@ -809,7 +849,11 @@ export default function PlanAchievementChart({ points, unitLabel }: Props) {
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', fontSize: '15px' }}
+          contentStyle={{
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            fontSize: '15px',
+          }}
           content={<AchievementTooltip unitLabel={unitLabel} />}
         />
         <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 4, fontSize: 13 }} />
@@ -844,10 +888,17 @@ function AchievementTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-md p-2 text-sm" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+    <div
+      className="rounded-md p-2 text-sm"
+      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+    >
       <div className="font-semibold mb-1">{label}</div>
-      <div>계획: {fmt(p.plan)} {unitLabel}</div>
-      <div>실적: {fmt(p.actual)} {unitLabel}</div>
+      <div>
+        계획: {fmt(p.plan)} {unitLabel}
+      </div>
+      <div>
+        실적: {fmt(p.actual)} {unitLabel}
+      </div>
       <div className={p.rate != null && p.rate < 100 ? 'text-red-500' : 'text-emerald-600'}>
         달성율: {p.rate == null ? '—' : `${fmt(p.rate, 1)}%`}
       </div>
@@ -860,6 +911,7 @@ function AchievementTooltip({
 
 Run: `npm run typecheck`
 Expected: PASS.
+
 ```bash
 git add components/management/plan/PlanAchievementChart.tsx
 git commit -m "feat(plan): PlanAchievementChart 공통 콤보 차트"
@@ -870,6 +922,7 @@ git commit -m "feat(plan): PlanAchievementChart 공통 콤보 차트"
 ## Task 9: 8개 차트 래퍼 + selector 헬퍼
 
 **Files:**
+
 - Create: `components/management/plan/_selectors.tsx` (공통 토글 버튼)
 - Create: 8개 `*TargetChart.tsx`
 
@@ -898,7 +951,9 @@ export function ToggleGroup<T extends string>({
           type="button"
           onClick={() => onChange(o.value)}
           className={`px-2.5 py-1 text-sm transition-colors ${
-            value === o.value ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'
+            value === o.value
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-background hover:bg-muted'
           }`}
         >
           {o.label}
@@ -961,10 +1016,9 @@ export default function OrderTargetChart({ rows }: { rows: PlanRow[] }) {
   const points = useMemo(() => {
     const gross = buildAchievement(pick(rows, '수주', '수주액', 'consolidated'), { unit: '억원' });
     if (mode === 'gross') return gross;
-    const cancel = buildAchievement(
-      pick(rows, '수주', '수주액(취소 제외)', 'consolidated'),
-      { unit: '억원' }
-    );
+    const cancel = buildAchievement(pick(rows, '수주', '수주액(취소 제외)', 'consolidated'), {
+      unit: '억원',
+    });
     return fillCancelExcluded(gross, cancel);
   }, [rows, mode]);
   return (
@@ -1032,7 +1086,8 @@ export function buildCorpAchievement(
     const a = actualByYear.get(year);
     const actual = a ? Math.round(a.value * 10000) / 10000 : null;
     const ytd = a?.ytd ?? false;
-    const rate = plan && plan !== 0 && actual !== null ? Math.round((actual / plan) * 1000000) / 10000 : null;
+    const rate =
+      plan && plan !== 0 && actual !== null ? Math.round((actual / plan) * 1000000) / 10000 : null;
     if (plan === null && actual === null) continue;
     out.push({ yearLabel: ytd ? `${year} YTD` : String(year), year, ytd, plan, actual, rate });
   }
@@ -1130,7 +1185,13 @@ import type { AchievementPoint, PlanRow } from '@/lib/plan/types';
 type Item = '매출' | '영업이익';
 type Cur = 'usd' | 'krw';
 
-export default function UsTargetChart({ rows, usdKrw }: { rows: PlanRow[]; usdKrw: number | null }) {
+export default function UsTargetChart({
+  rows,
+  usdKrw,
+}: {
+  rows: PlanRow[];
+  usdKrw: number | null;
+}) {
   const [item, setItem] = useState<Item>('매출');
   const [cur, setCur] = useState<Cur>('usd');
   const points = useMemo<AchievementPoint[]>(() => {
@@ -1342,6 +1403,7 @@ export default function FactoryTargetChart({ rows }: { rows: PlanRow[] }) {
 
 Run: `npm run typecheck`
 Expected: PASS.
+
 ```bash
 git add components/management/plan/
 git commit -m "feat(plan): 8개 목표 달성 콤보 차트 + selector"
@@ -1352,6 +1414,7 @@ git commit -m "feat(plan): 8개 목표 달성 콤보 차트 + selector"
 ## Task 10: PlanDashboard + 페이지 연결
 
 **Files:**
+
 - Create: `components/management/plan/PlanDashboard.tsx`
 - Modify: `app/management/plan/page.tsx`
 
@@ -1383,14 +1446,30 @@ interface Props {
 export default function PlanDashboard({ rows, prepared, usdKrw }: Props) {
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">
-      <LazyMount className="min-h-[420px]"><OrderTargetChart rows={rows} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><RevenueTargetChart rows={rows} prepared={prepared} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><OpIncomeTargetChart rows={rows} prepared={prepared} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><UsTargetChart rows={rows} usdKrw={usdKrw} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><SangsukTargetChart rows={rows} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><JilinTargetChart rows={rows} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><ImprovementTargetChart rows={rows} /></LazyMount>
-      <LazyMount className="min-h-[420px]"><FactoryTargetChart rows={rows} /></LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <OrderTargetChart rows={rows} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <RevenueTargetChart rows={rows} prepared={prepared} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <OpIncomeTargetChart rows={rows} prepared={prepared} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <UsTargetChart rows={rows} usdKrw={usdKrw} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <SangsukTargetChart rows={rows} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <JilinTargetChart rows={rows} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <ImprovementTargetChart rows={rows} />
+      </LazyMount>
+      <LazyMount className="min-h-[420px]">
+        <FactoryTargetChart rows={rows} />
+      </LazyMount>
     </div>
   );
 }
@@ -1430,6 +1509,7 @@ git commit -m "feat(plan): PlanDashboard + 계획 페이지 연결"
 ## Task 11: 경영관리 신규 10번 ProfitContribution
 
 **Files:**
+
 - Create: `components/management/pnl/ProfitContribution.tsx`
 
 연결/별도 토글 + 연도 드롭다운. top7/worst7(고객-제품, 영업이익 기준) 표 + 전사 합계 + top7 제외 나머지.
@@ -1442,12 +1522,7 @@ git commit -m "feat(plan): PlanDashboard + 계획 페이지 연결"
 import { useMemo, useState } from 'react';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
-import {
-  aggregateBy,
-  entriesForYear,
-  getDisplayYearLabels,
-  opMarginOf,
-} from '@/lib/pnl/aggregate';
+import { aggregateBy, entriesForYear, getDisplayYearLabels, opMarginOf } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 
@@ -1477,7 +1552,10 @@ export default function ProfitContribution({ annualByBasis }: Props) {
   );
   const [yearLabel, setYearLabel] = useState<string>('');
   const effYear = useMemo(
-    () => (yearLabel && yearLabels.includes(yearLabel) ? yearLabel : yearLabels[yearLabels.length - 1] ?? ''),
+    () =>
+      yearLabel && yearLabels.includes(yearLabel)
+        ? yearLabel
+        : (yearLabels[yearLabels.length - 1] ?? ''),
     [yearLabel, yearLabels]
   );
 
@@ -1583,7 +1661,9 @@ function ContribTable({ title, rows }: { title: string; rows: AggregatedRow[] })
                   <td className={`text-right py-1.5 px-2 ${r.op_income < 0 ? 'text-red-500' : ''}`}>
                     {fmt(r.op_income)}
                   </td>
-                  <td className={`text-right py-1.5 px-2 ${marginCls(margin)}`}>{fmtPct(margin)}</td>
+                  <td className={`text-right py-1.5 px-2 ${marginCls(margin)}`}>
+                    {fmtPct(margin)}
+                  </td>
                 </tr>
               );
             })}
@@ -1606,6 +1686,7 @@ function ContribTable({ title, rows }: { title: string; rows: AggregatedRow[] })
 
 Run: `npm run typecheck`
 Expected: PASS.
+
 ```bash
 git add components/management/pnl/ProfitContribution.tsx
 git commit -m "feat(pnl): 10번 이익기여도 TOP7/WORST7 차트"
@@ -1616,6 +1697,7 @@ git commit -m "feat(pnl): 10번 이익기여도 TOP7/WORST7 차트"
 ## Task 12: PnlDashboard 재배치 + Insights 분리 + 재번호
 
 **Files:**
+
 - Modify: `components/management/pnl/PnlDashboard.tsx`
 - Modify: `components/management/pnl/WaterfallProfitability.tsx`
 - Modify: `components/management/pnl/CustomerParetoChart.tsx`
@@ -1647,6 +1729,7 @@ const ProfitContribution = dynamic(() => import('./ProfitContribution'), { ssr: 
 const WaterfallProfitability = dynamic(() => import('./WaterfallProfitability'), { ssr: false });
 const CustomerParetoChart = dynamic(() => import('./CustomerParetoChart'), { ssr: false });
 ```
+
 `Insights` dynamic import 줄 삭제. JSX에서 MarginScatter LazyMount 뒤에 ProfitContribution 삽입, Insights LazyMount를 Waterfall+Pareto 2개로 교체:
 
 ```tsx
@@ -1706,6 +1789,7 @@ git commit -m "feat(pnl): 10번 차트 삽입 + 시사점 14·15 분리 + 재번
 ## Task 13: 검증 + AGENTS.md + 정리
 
 **Files:**
+
 - Modify: `AGENTS.md`
 - Delete: `scripts/_inspect_plan_structure.py`, `scripts/_inspect_plan_years.py`, `scripts/_plan_*.txt`, `참고/손익/_sheets_info.json` (임시 산출물)
 
@@ -1717,6 +1801,7 @@ Expected: lint+format+typecheck+test 모두 PASS. 실패 시 `npm run lint:fix` 
 - [ ] **Step 2: dev 서버 골든 패스 (로그인 필요)**
 
 `npm run dev` → 로그인 → 검증:
+
 - `/management/pnl`: 섹션 번호 1~15 순서 정상. 10번 ProfitContribution TOP7/WORST7 표 + 전사/나머지 합계. 14 워터폴 · 15 파레토 독립 섹션. 4월 데이터 반영(월별 차트 2026 4월까지).
 - `/management/plan`: 8개 차트 렌더. 각 토글(수주액/취소제외, 연결/별도, 매출/영업이익, USD/원화, Design VE 등, 구동/제동/조향/전장) 동작. 달성율 라인 표시. 공장 2026 막대 공란 확인.
 - 콘솔/네트워크 에러 없음.
@@ -1735,6 +1820,7 @@ Expected: lint+format+typecheck+test 모두 PASS. 실패 시 `npm run lint:fix` 
 git rm -f --ignore-unmatch scripts/_inspect_plan_structure.py scripts/_inspect_plan_years.py
 rm -f scripts/_plan_structure_dump.txt scripts/_plan_years_dump.txt scripts/_plan_dims_dump.txt 참고/손익/_sheets_info.json
 ```
+
 (이미 git에 없으면 파일시스템만 정리.)
 
 - [ ] **Step 5: 최종 커밋**

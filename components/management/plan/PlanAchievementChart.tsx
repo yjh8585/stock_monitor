@@ -27,7 +27,10 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function fmt(n: number | null, digits = 0): string {
   if (n == null || Number.isNaN(n)) return '—';
-  return n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  return n.toLocaleString('ko-KR', {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
 }
 
 interface Props {
@@ -69,10 +72,7 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
       <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
     );
   }
-  const rateMax = Math.max(
-    100,
-    ...points.map((p) => (p.rate == null ? 0 : Math.abs(p.rate)))
-  );
+  const rateMax = Math.max(100, ...points.map((p) => (p.rate == null ? 0 : Math.abs(p.rate))));
   return (
     <ResponsiveContainer width="100%" height={h}>
       <ComposedChart data={points} margin={{ top: 48, right: 24, bottom: 10, left: 10 }} barGap={2}>
@@ -167,9 +167,7 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
           <LabelList
             dataKey="rate"
             position="top"
-            formatter={(value: unknown) =>
-              typeof value === 'number' ? `${fmt(value, 1)}%` : ''
-            }
+            formatter={(value: unknown) => (typeof value === 'number' ? `${fmt(value, 1)}%` : '')}
             style={{ fontSize: 16, fill: RATE_COLOR, fontWeight: 600 }}
             offset={16}
           />
@@ -209,10 +207,7 @@ export function LegendRow({
             {it.shape === 'rect' ? (
               <span className="inline-block w-4 h-4 rounded-sm" style={{ background: it.color }} />
             ) : (
-              <span
-                className="inline-block w-5 h-0.5 relative"
-                style={{ background: it.color }}
-              >
+              <span className="inline-block w-5 h-0.5 relative" style={{ background: it.color }}>
                 <span
                   className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-block w-2 h-2 rounded-full"
                   style={{ background: it.color }}

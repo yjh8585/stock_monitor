@@ -41,7 +41,7 @@ export function buildAchievement(rows: readonly PlanRow[], opts: BuildOpts): Ach
   for (const year of Array.from(years).sort((a, b) => a - b)) {
     // 계획 — annual
     const planRow = rows.find(
-      (r) => r.period_year === year && r.kind === 'plan' && r.period_type === 'annual',
+      (r) => r.period_year === year && r.kind === 'plan' && r.period_type === 'annual'
     );
     const plan =
       planRow && planRow.value !== null
@@ -50,7 +50,7 @@ export function buildAchievement(rows: readonly PlanRow[], opts: BuildOpts): Ach
 
     // 실적 — annual 우선, 없으면 month 합산
     const actualAnnual = rows.find(
-      (r) => r.period_year === year && r.kind === 'actual' && r.period_type === 'annual',
+      (r) => r.period_year === year && r.kind === 'actual' && r.period_type === 'annual'
     );
     let actual: number | null = null;
     let ytd = false;
@@ -58,7 +58,7 @@ export function buildAchievement(rows: readonly PlanRow[], opts: BuildOpts): Ach
       actual = normalizeUnit(actualAnnual.value, actualAnnual.unit, opts.unit);
     } else {
       const months = rows.filter(
-        (r) => r.period_year === year && r.kind === 'actual' && r.period_type === 'month',
+        (r) => r.period_year === year && r.kind === 'actual' && r.period_type === 'month'
       );
       if (months.length > 0) {
         ytd = true;
@@ -94,7 +94,7 @@ export function buildAchievement(rows: readonly PlanRow[], opts: BuildOpts): Ach
  */
 export function fillCancelExcluded(
   base: readonly AchievementPoint[],
-  cancel: readonly AchievementPoint[],
+  cancel: readonly AchievementPoint[]
 ): AchievementPoint[] {
   const cancelByYear = new Map(cancel.map((p) => [p.year, p]));
   return base.map((b) => {
@@ -114,7 +114,7 @@ function pickRows(
   rows: readonly PlanRow[],
   category: string,
   item: string,
-  basis: Basis,
+  basis: Basis
 ): PlanRow[] {
   return rows.filter((r) => r.category === category && r.item === item && r.basis === basis);
 }
@@ -131,7 +131,7 @@ export function buildCorpAchievement(
   prepared: PreparedPnlData,
   basis: Basis,
   item: '매출' | '영업이익',
-  metric: 'revenue' | 'op_income',
+  metric: 'revenue' | 'op_income'
 ): AchievementPoint[] {
   const planRows = pickRows(rows, '손익', item, basis);
   const planPts = buildAchievement(planRows, { unit: '억원' });

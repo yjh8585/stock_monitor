@@ -173,10 +173,7 @@ export default async function HyundaiPage() {
       <HyundaiMarketShareChart data={data.usMarketShare} />
 
       {/* 3) 미국 retail 차종 TOP10 — 한 줄 단독 */}
-      <HyundaiUsRetailTopCard
-        byYear={data.usRetailTopByYear}
-        years={data.usRetailYears}
-      />
+      <HyundaiUsRetailTopCard byYear={data.usRetailTopByYear} years={data.usRetailYears} />
 
       {/* 4) 유럽 (HME) — Retail vs Wholesale */}
       <HyundaiRetailWholesaleRegionCard

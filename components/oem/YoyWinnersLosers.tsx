@@ -2,7 +2,16 @@
 
 import { useMemo } from 'react';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { growthPct } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';

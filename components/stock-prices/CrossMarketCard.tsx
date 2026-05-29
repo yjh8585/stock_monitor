@@ -30,8 +30,12 @@ export default function CrossMarketCard({
     const findSecondary = (ticker: string) =>
       secondaryCompanies.find((c) => c.ticker === ticker)?.id ?? secondaryCompanies[0]?.id ?? '';
     return {
-      primary: defaultPrimaryTicker ? findPrimary(defaultPrimaryTicker) : primaryCompanies[0]?.id ?? '',
-      secondary: defaultSecondaryTicker ? findSecondary(defaultSecondaryTicker) : secondaryCompanies[0]?.id ?? '',
+      primary: defaultPrimaryTicker
+        ? findPrimary(defaultPrimaryTicker)
+        : (primaryCompanies[0]?.id ?? ''),
+      secondary: defaultSecondaryTicker
+        ? findSecondary(defaultSecondaryTicker)
+        : (secondaryCompanies[0]?.id ?? ''),
     };
   });
 
@@ -72,18 +76,28 @@ export default function CrossMarketCard({
       });
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [primary, secondary, seriesCache]);
 
   const series = useMemo<MultiSeriesItem[]>(() => {
     const items: MultiSeriesItem[] = [];
     const primaryCompany = primaryCompanies.find((c) => c.id === primary);
     if (primaryCompany) {
-      items.push({ label: primaryCompany.name_kr, color: PRIMARY_COLOR, data: seriesCache[primary] ?? [] });
+      items.push({
+        label: primaryCompany.name_kr,
+        color: PRIMARY_COLOR,
+        data: seriesCache[primary] ?? [],
+      });
     }
     const secondaryCompany = secondaryCompanies.find((c) => c.id === secondary);
     if (secondaryCompany) {
-      items.push({ label: secondaryCompany.name_kr, color: SECONDARY_COLOR, data: seriesCache[secondary] ?? [] });
+      items.push({
+        label: secondaryCompany.name_kr,
+        color: SECONDARY_COLOR,
+        data: seriesCache[secondary] ?? [],
+      });
     }
     return items;
   }, [primaryCompanies, secondaryCompanies, primary, secondary, seriesCache]);

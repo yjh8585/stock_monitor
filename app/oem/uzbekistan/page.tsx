@@ -30,10 +30,10 @@ export default async function UzbekistanPage() {
       <div>
         <h2 className="text-base font-semibold">우즈베키스탄 자동차 시장</h2>
         <p className="text-xs text-muted-foreground">
-          출처: uzavtosanoat.uz · 회사별 sales (매월 보도자료, YTD 차분) + 연간 production (Statistical info) ·{' '}
-          {data.totalRows.toLocaleString('ko-KR')}행 · 최신 수집{' '}
-          {data.lastCollectedAt?.slice(0, 10) ?? '-'} · 회사 6개: UzAuto Motors / Khorezm Auto /
-          ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors
+          출처: uzavtosanoat.uz · 회사별 sales (매월 보도자료, YTD 차분) + 연간 production
+          (Statistical info) · {data.totalRows.toLocaleString('ko-KR')}행 · 최신 수집{' '}
+          {data.lastCollectedAt?.slice(0, 10) ?? '-'} · 회사 6개: UzAuto Motors / Khorezm Auto / ADM
+          Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors
         </p>
       </div>
 
@@ -131,7 +131,9 @@ export default async function UzbekistanPage() {
               {data.productionKpi.carTotalLatest.toLocaleString('ko-KR')}
               <span className="ml-1 text-sm text-muted-foreground">대</span>
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{data.productionKpi.chevroletLatestLabel}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {data.productionKpi.chevroletLatestLabel}
+            </p>
           </div>
           <div className="rounded-lg border border-border p-4">
             <p className="text-xs text-muted-foreground">

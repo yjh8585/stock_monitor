@@ -66,7 +66,7 @@ export interface UzbekistanProductionKpi {
   enginesLatestLabel: string;
   enginesPrev: number;
   enginesYoy: number | null;
-  carTotalLatest: number;  // Chevrolet + BYD
+  carTotalLatest: number; // Chevrolet + BYD
 }
 
 export interface UzbekistanKpi {
@@ -135,8 +135,7 @@ function periodYear(p: string): string {
 
 function aggregateMonthlyByCompany(rows: UzbekistanRow[]): UzbekistanCompanyMonthlyPoint[] {
   const months = rows.filter(
-    (r) =>
-      r.kind === 'sales' && r.period_type === 'month' && r.source_type === 'uzavtosanoat'
+    (r) => r.kind === 'sales' && r.period_type === 'month' && r.source_type === 'uzavtosanoat'
   );
   const byPeriod = new Map<string, UzbekistanCompanyMonthlyPoint>();
   for (const r of months) {
@@ -160,14 +159,12 @@ function aggregateMonthlyByCompany(rows: UzbekistanRow[]): UzbekistanCompanyMont
 function aggregateAnnualByCompany(rows: UzbekistanRow[]): UzbekistanCompanyMonthlyPoint[] {
   // year row 우선 사용 (YTD 최신). 없으면 month 합산.
   const yearRows = rows.filter(
-    (r) =>
-      r.kind === 'sales' && r.period_type === 'year' && r.source_type === 'uzavtosanoat'
+    (r) => r.kind === 'sales' && r.period_type === 'year' && r.source_type === 'uzavtosanoat'
   );
   if (yearRows.length === 0) {
     // fallback: month 합산
     const months = rows.filter(
-      (r) =>
-        r.kind === 'sales' && r.period_type === 'month' && r.source_type === 'uzavtosanoat'
+      (r) => r.kind === 'sales' && r.period_type === 'month' && r.source_type === 'uzavtosanoat'
     );
     const byYear = new Map<string, UzbekistanCompanyMonthlyPoint>();
     const monthsByYear = new Map<string, Set<number>>();
@@ -216,10 +213,7 @@ function aggregateAnnualByCompany(rows: UzbekistanRow[]): UzbekistanCompanyMonth
 
 function aggregateProductionAnnualByBrand(rows: UzbekistanRow[]): UzbekistanProductionYearPoint[] {
   const years = rows.filter(
-    (r) =>
-      r.kind === 'production' &&
-      r.period_type === 'year' &&
-      r.source_type === 'uzavtosanoat'
+    (r) => r.kind === 'production' && r.period_type === 'year' && r.source_type === 'uzavtosanoat'
   );
   const byYear = new Map<string, UzbekistanProductionYearPoint>();
   for (const r of years) {
@@ -237,10 +231,7 @@ function aggregateProductionAnnualByBrand(rows: UzbekistanRow[]): UzbekistanProd
 /** stat.uz 월별 production (모델별 stacked, source_type='stat-uz'). */
 function aggregateStatUzMonthlyByModel(rows: UzbekistanRow[]): UzbekistanProductionYearPoint[] {
   const months = rows.filter(
-    (r) =>
-      r.kind === 'production' &&
-      r.period_type === 'month' &&
-      r.source_type === 'stat-uz'
+    (r) => r.kind === 'production' && r.period_type === 'month' && r.source_type === 'stat-uz'
   );
   const byPeriod = new Map<string, UzbekistanProductionYearPoint>();
   for (const r of months) {
@@ -318,10 +309,7 @@ function aggregateCarBrandShare(rows: UzbekistanRow[]): UzbekistanShareRow[] {
 function aggregateCompanySalesShare(rows: UzbekistanRow[]): UzbekistanShareRow[] {
   // annual sales row (uzavtosanoat)
   const years = rows.filter(
-    (r) =>
-      r.kind === 'sales' &&
-      r.period_type === 'year' &&
-      r.source_type === 'uzavtosanoat'
+    (r) => r.kind === 'sales' && r.period_type === 'year' && r.source_type === 'uzavtosanoat'
   );
   const byYear = new Map<string, Record<string, number>>();
   for (const r of years) {
@@ -380,7 +368,9 @@ function aggregateKpi(rows: UzbekistanRow[]): UzbekistanKpi {
   };
   if (annual.length === 0) return empty;
   // 가장 최근 완료 연도 + 직전 연도
-  const completedYears = annual.filter((p) => !p.is_ytd).sort((a, b) => (a.period < b.period ? 1 : -1));
+  const completedYears = annual
+    .filter((p) => !p.is_ytd)
+    .sort((a, b) => (a.period < b.period ? 1 : -1));
   const ytdYear = annual.find((p) => p.is_ytd);
   const latest = completedYears[0];
   const prev = completedYears[1];
@@ -390,9 +380,7 @@ function aggregateKpi(rows: UzbekistanRow[]): UzbekistanKpi {
     totalPrevYear: prev?.total ?? 0,
     prevYearLabel: prev?.period_label ?? '',
     yoyPct:
-      latest && prev && prev.total > 0
-        ? ((latest.total - prev.total) / prev.total) * 100
-        : null,
+      latest && prev && prev.total > 0 ? ((latest.total - prev.total) / prev.total) * 100 : null,
     ytdLatest: ytdYear?.total ?? 0,
     ytdLabel: ytdYear?.period_label ?? '',
     ytdPrev: 0,
@@ -411,15 +399,11 @@ export async function getUzbekistanData(): Promise<UzbekistanPageData> {
   const annualByCompany = aggregateAnnualByCompany(all);
   const productionAnnualByBrand = aggregateProductionAnnualByBrand(all);
   const companies = [
-    ...new Set(
-      all
-        .filter((r) => r.kind === 'sales' && r.company)
-        .map((r) => r.company)
-    ),
+    ...new Set(all.filter((r) => r.kind === 'sales' && r.company).map((r) => r.company)),
   ].sort();
   const lastCollectedAt = all.reduce<string | null>((max, r) => {
     const ts = (r as unknown as { collected_at?: string }).collected_at;
-    return max == null || (ts && ts > max) ? ts ?? max : max;
+    return max == null || (ts && ts > max) ? (ts ?? max) : max;
   }, null);
 
   return {
