@@ -7,13 +7,25 @@ import { ChartSection, ToggleGroup } from '@/components/management/plan/_selecto
 import InventoryKpiCards from './InventoryKpiCards';
 import {
   buildAchievementPoints,
+  buildCountryStatusPoints,
+  buildDomesticAchievementPoints,
   buildKpis,
+  buildOverseasAchievementPoints,
   buildStatusPoints,
   buildTransportPoints,
 } from '@/lib/inventory/aggregate';
-import type { AchievementCategory, InventoryRow, TransportItem } from '@/lib/inventory/types';
+import type {
+  AchievementCategory,
+  DomesticItem,
+  InventoryRow,
+  OverseasItem,
+  TransportItem,
+} from '@/lib/inventory/types';
 
 const InventoryStatusChart = dynamic(() => import('./InventoryStatusChart'), { ssr: false });
+const InventoryCountryStatusChart = dynamic(() => import('./InventoryCountryStatusChart'), {
+  ssr: false,
+});
 const InventoryAchievementChart = dynamic(() => import('./InventoryAchievementChart'), {
   ssr: false,
 });
@@ -30,6 +42,17 @@ const ACH_OPTIONS: { value: AchievementCategory; label: string }[] = [
   { value: 'transport', label: '운송' },
 ];
 
+const DOMESTIC_OPTIONS: { value: DomesticItem; label: string }[] = [
+  { value: 'drive', label: '구동' },
+  { value: 'brake', label: '제동조향' },
+  { value: 'electronics', label: '전장' },
+];
+
+const OVERSEAS_OPTIONS: { value: OverseasItem; label: string }[] = [
+  { value: 'us', label: '미국' },
+  { value: 'uz', label: '우즈벡' },
+];
+
 const TRANSPORT_OPTIONS: { value: TransportItem; label: string }[] = [
   { value: 'us', label: '미국' },
   { value: 'uz', label: '우즈벡' },
@@ -38,11 +61,16 @@ const TRANSPORT_OPTIONS: { value: TransportItem; label: string }[] = [
 
 export default function InventoryDashboard({ rows }: Props) {
   const [achCat, setAchCat] = useState<AchievementCategory>('total');
+  const [domItem, setDomItem] = useState<DomesticItem>('drive');
+  const [ovsItem, setOvsItem] = useState<OverseasItem>('us');
   const [tranItem, setTranItem] = useState<TransportItem>('us');
 
   const kpis = useMemo(() => buildKpis(rows), [rows]);
   const statusPts = useMemo(() => buildStatusPoints(rows), [rows]);
+  const countryPts = useMemo(() => buildCountryStatusPoints(rows), [rows]);
   const achPts = useMemo(() => buildAchievementPoints(rows, achCat), [rows, achCat]);
+  const domPts = useMemo(() => buildDomesticAchievementPoints(rows, domItem), [rows, domItem]);
+  const ovsPts = useMemo(() => buildOverseasAchievementPoints(rows, ovsItem), [rows, ovsItem]);
   const tranPts = useMemo(() => buildTransportPoints(rows, tranItem), [rows, tranItem]);
 
   return (
@@ -54,8 +82,12 @@ export default function InventoryDashboard({ rows }: Props) {
       </LazyMount>
 
       <LazyMount className="min-h-[420px] md:min-h-[500px]">
+        <InventoryCountryStatusChart points={countryPts} />
+      </LazyMount>
+
+      <LazyMount className="min-h-[420px] md:min-h-[500px]">
         <ChartSection
-          title="2. 계획 대비 실적"
+          title="3. 계획 대비 실적 (전사)"
           unit="억원"
           controls={<ToggleGroup options={ACH_OPTIONS} value={achCat} onChange={setAchCat} />}
         >
@@ -65,7 +97,31 @@ export default function InventoryDashboard({ rows }: Props) {
 
       <LazyMount className="min-h-[420px] md:min-h-[500px]">
         <ChartSection
-          title="3. 계획 대비 운송"
+          title="4. 계획 대비 실적 (국내)"
+          unit="억원"
+          controls={
+            <ToggleGroup options={DOMESTIC_OPTIONS} value={domItem} onChange={setDomItem} />
+          }
+        >
+          <InventoryAchievementChart points={domPts} unitLabel="억원" />
+        </ChartSection>
+      </LazyMount>
+
+      <LazyMount className="min-h-[420px] md:min-h-[500px]">
+        <ChartSection
+          title="5. 계획 대비 실적 (해외)"
+          unit="억원"
+          controls={
+            <ToggleGroup options={OVERSEAS_OPTIONS} value={ovsItem} onChange={setOvsItem} />
+          }
+        >
+          <InventoryAchievementChart points={ovsPts} unitLabel="억원" />
+        </ChartSection>
+      </LazyMount>
+
+      <LazyMount className="min-h-[420px] md:min-h-[500px]">
+        <ChartSection
+          title="6. 계획 대비 실적 (운송)"
           unit="억원"
           controls={
             <ToggleGroup options={TRANSPORT_OPTIONS} value={tranItem} onChange={setTranItem} />

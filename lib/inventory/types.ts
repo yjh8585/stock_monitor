@@ -71,3 +71,26 @@ export type AchievementCategory =
 
 /** 차트 3 토글 옵션. */
 export type TransportItem = 'us' | 'uz' | 'sales';
+
+/** 차트 2 (재고 현황 국가) 월별 누적막대. 단위 = 억원. 회전율 없음. */
+export interface CountryStatusPoint {
+  monthLabel: string;
+  year: number;
+  month: number;
+  /** 국내 = 구동 + 제동조향 + 전장 (억원) */
+  domestic: number | null;
+  /** 미국 (백만USD → 환산) */
+  us: number | null;
+  /** 우즈벡 (백만USD → 환산) */
+  uz: number | null;
+  /** 영업+국내보상 = total − (domestic+us+uz). 기본 숨김 시리즈. 음수면 0. */
+  residual: number | null;
+  /** 전체재고 actual (residual 계산·툴팁용) */
+  total: number | null;
+}
+
+/** 차트 4 (계획대비 실적 국내) 토글 옵션. */
+export type DomesticItem = 'drive' | 'brake' | 'electronics';
+
+/** 차트 5 (계획대비 실적 해외) 토글 옵션. 운송용 TransportItem과 별개(국가값). */
+export type OverseasItem = 'us' | 'uz';
