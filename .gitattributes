@@ -1,0 +1,17 @@
+# 모든 텍스트 파일을 저장소에서 LF로 통일.
+# (prettier endOfLine=lf 기본 + CLAUDE.md "LF 정책"과 일치, Windows CRLF 노이즈 방지)
+* text=auto eol=lf
+
+# 바이너리 — 줄끝 정규화 금지
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
