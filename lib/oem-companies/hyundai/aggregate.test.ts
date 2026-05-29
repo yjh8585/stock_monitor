@@ -136,12 +136,12 @@ describe('aggregateTopModels (factory 무관 — 회사 전체 합산)', () => {
 });
 
 describe('normalizeProgramCode (#10)', () => {
-  it('CN7 region/PT 접미 제거 → 같은 CN7로 통합', () => {
-    expect(normalizeProgramCode('Avante (CN7)')).toBe('Avante (CN7)');
-    expect(normalizeProgramCode('Avante (CN7c)')).toBe('Avante (CN7)');
-    expect(normalizeProgramCode('Avante (CN7e)')).toBe('Avante (CN7)');
-    expect(normalizeProgramCode('Avante (CN7 HEV)')).toBe('Avante (CN7)');
-    expect(normalizeProgramCode('Avante (CN7 EV)')).toBe('Avante (CN7)');
+  it('CN7 region/PT 접미 제거 + Avante→Elantra 글로벌명 통일', () => {
+    expect(normalizeProgramCode('Avante (CN7)')).toBe('Elantra (CN7)');
+    expect(normalizeProgramCode('Avante (CN7c)')).toBe('Elantra (CN7)');
+    expect(normalizeProgramCode('Avante (CN7e)')).toBe('Elantra (CN7)');
+    expect(normalizeProgramCode('Avante (CN7 HEV)')).toBe('Elantra (CN7)');
+    expect(normalizeProgramCode('Avante (CN7 EV)')).toBe('Elantra (CN7)');
   });
 
   it('NX4 / OS / SX2 등 다른 코드 패턴', () => {
@@ -170,7 +170,7 @@ describe('aggregateTopModels — 차종 통일 (#10)', () => {
     }
     const out = aggregateTopModels(withPt(rows), 5, 'all');
     expect(out.rows).toHaveLength(1);
-    expect(out.rows[0].model).toBe('Avante (CN7)');
+    expect(out.rows[0].model).toBe('Elantra (CN7)');
     expect(out.rows[0].salesLatestPeriod).toBe(12 * (100 + 50 + 30));
   });
 

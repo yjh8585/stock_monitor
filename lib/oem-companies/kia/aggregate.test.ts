@@ -171,16 +171,20 @@ describe('aggregateTopModels — Aggregate 모델 제외', () => {
 });
 
 describe('aggregateKiaFactoryMix', () => {
-  it('월별 공장별 합산 — 5 plant만 (factory=""인 한국 출하 제외)', () => {
+  it("월별 공장별 합산 — 한국 출하(factory='')는 'Korea Plants'로 포함", () => {
     const rows = withPt([
       row({ period: '2025-01', factory: 'U.S. Plant', region: '', model: 'A', units: 1000 }),
       row({ period: '2025-01', factory: 'China Plants', region: '', model: 'A', units: 500 }),
-      row({ period: '2025-01', region: '내수', model: 'A', units: 100 }), // 제외
+      row({ period: '2025-01', region: '내수', model: 'A', units: 100 }), // Korea Plants로 포함
     ]);
     const out = aggregateKiaFactoryMix(rows);
     expect(out).toHaveLength(1);
-    expect(out[0].factories).toEqual({ 'U.S. Plant': 1000, 'China Plants': 500 });
-    expect(out[0].total).toBe(1500);
+    expect(out[0].factories).toEqual({
+      'U.S. Plant': 1000,
+      'China Plants': 500,
+      'Korea Plants': 100,
+    });
+    expect(out[0].total).toBe(1600);
   });
 
   it('연간 공장별 합산', () => {
