@@ -123,7 +123,6 @@ export class PostService {
     });
     logger.info({ id }, '보고서 PDF 게시글 처리 완료');
   }
-
 }
 
 function buildInitialInsert(input: CreatePostInput): PostInsert {

@@ -85,9 +85,7 @@ export async function getStockPriceSeries(companyId: string): Promise<SeriesPoin
   const last = lastQuote?.[0];
   if (last) {
     // ts(UTC) → KST 일자
-    const kstDate = new Date(
-      new Date(last.ts).getTime() + 9 * 60 * 60_000
-    )
+    const kstDate = new Date(new Date(last.ts).getTime() + 9 * 60 * 60_000)
       .toISOString()
       .slice(0, 10);
     const price = Number(last.price);

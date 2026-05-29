@@ -5,6 +5,7 @@
 **Goal:** `/management/inventory`에 사외비 재고 데이터(2025.01~2026.12 월별 계획·실적)를 적재하고 KPI 카드 4개 + 콤보/계획대비/운송 차트 3개를 렌더한다.
 
 **Architecture:**
+
 - DB: 새 사외비 테이블 `inventory_entries` (RLS enable + 정책 없음 → service_role 전용).
 - 수집: `scripts/sync_inventory.py`가 `참고/손익/자료정리_월별손익_*.xlsx`의 `재고` 시트 → `WriteSession` upsert + 자동 `revalidateTag('inventory_entries')`.
 - 도메인: `lib/inventory/` (`source.ts` = `'use cache'` + `confidentialDb` fetch, `aggregate.ts` = pure 변환·환산·KPI 빌더, `__tests__/aggregate.test.ts` = vitest).
@@ -15,6 +16,7 @@
 **Tech Stack:** Next.js 16 (cacheComponents) · React 19 · Recharts (lightweight-charts 미사용 차트 영역) · Tailwind 4 · Supabase service_role · Python 3 + openpyxl + postgrest-py.
 
 **핵심 결정사항 (grill-me 결과):**
+
 - Q1: 별도 `inventory_entries` 테이블 (pnl_plan과 분리)
 - Q2: 원본 단위 DB 저장 + 페이지에서 환산
 - Q3: `fx_rate` numeric(10,4) (`"1,400원/$"` 파싱)
@@ -35,38 +37,40 @@
 
 ### 신규 파일
 
-| 경로 | 책임 |
-|------|------|
-| `supabase/migrations/20260528000002_create_inventory_entries.sql` | 사외비 inventory_entries 테이블 + RLS + Index |
-| `scripts/sync_inventory.py` | 엑셀 `재고` 시트 → `inventory_entries` upsert (WriteSession + 자동 revalidate) |
-| `lib/inventory/types.ts` | InventoryRow DB 행 타입 + 차트 포인트 타입 |
-| `lib/inventory/aggregate.ts` | pure 함수 — USD 환산, 월별 포인트 빌더, KPI 계산 |
-| `lib/inventory/__tests__/aggregate.test.ts` | aggregate.ts 단위 테스트 |
-| `lib/inventory/source.ts` | `'use cache'` + `cacheTag` + `confidentialDb` fetch |
-| `components/management/inventory/InventoryDashboard.tsx` | client 루트 (LazyMount + dynamic) |
-| `components/management/inventory/InventoryKpiCards.tsx` | KPI 카드 4개 |
-| `components/management/inventory/InventoryStatusChart.tsx` | 차트 1 (콤보: 누적막대 + 회전율) |
-| `components/management/inventory/InventoryAchievementChart.tsx` | 차트 2/3 공통 (월별 X축, 토글) |
+| 경로                                                              | 책임                                                                           |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `supabase/migrations/20260528000002_create_inventory_entries.sql` | 사외비 inventory_entries 테이블 + RLS + Index                                  |
+| `scripts/sync_inventory.py`                                       | 엑셀 `재고` 시트 → `inventory_entries` upsert (WriteSession + 자동 revalidate) |
+| `lib/inventory/types.ts`                                          | InventoryRow DB 행 타입 + 차트 포인트 타입                                     |
+| `lib/inventory/aggregate.ts`                                      | pure 함수 — USD 환산, 월별 포인트 빌더, KPI 계산                               |
+| `lib/inventory/__tests__/aggregate.test.ts`                       | aggregate.ts 단위 테스트                                                       |
+| `lib/inventory/source.ts`                                         | `'use cache'` + `cacheTag` + `confidentialDb` fetch                            |
+| `components/management/inventory/InventoryDashboard.tsx`          | client 루트 (LazyMount + dynamic)                                              |
+| `components/management/inventory/InventoryKpiCards.tsx`           | KPI 카드 4개                                                                   |
+| `components/management/inventory/InventoryStatusChart.tsx`        | 차트 1 (콤보: 누적막대 + 회전율)                                               |
+| `components/management/inventory/InventoryAchievementChart.tsx`   | 차트 2/3 공통 (월별 X축, 토글)                                                 |
 
 ### 수정 파일
 
-| 경로 | 변경 내용 |
-|------|----------|
-| `lib/database.types.ts` | Supabase MCP로 재생성 — `inventory_entries` 타입 추가 |
-| `lib/supabase/confidential.ts` | `CONFIDENTIAL_TABLES`에 `'inventory_entries'` 한 줄 추가 |
-| `app/management/inventory/page.tsx` | placeholder → 실제 dashboard |
-| `AGENTS.md` | `/management/inventory` 라우트 책임 표 + 사외비 테이블 명단 갱신 |
+| 경로                                | 변경 내용                                                        |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `lib/database.types.ts`             | Supabase MCP로 재생성 — `inventory_entries` 타입 추가            |
+| `lib/supabase/confidential.ts`      | `CONFIDENTIAL_TABLES`에 `'inventory_entries'` 한 줄 추가         |
+| `app/management/inventory/page.tsx` | placeholder → 실제 dashboard                                     |
+| `AGENTS.md`                         | `/management/inventory` 라우트 책임 표 + 사외비 테이블 명단 갱신 |
 
 ---
 
 ## Task 1: DB 마이그레이션 — inventory_entries 테이블
 
 **Files:**
+
 - Create: `supabase/migrations/20260528000002_create_inventory_entries.sql`
 
 - [ ] **Step 1.1: 최신 마이그레이션 번호 확인**
 
 Run (PowerShell):
+
 ```powershell
 Get-ChildItem supabase/migrations -Filter "20260528*.sql" | Select-Object Name
 ```
@@ -76,6 +80,7 @@ Expected: `20260528000001_create_pnl_plan.sql` 존재. 새 파일은 `2026052800
 - [ ] **Step 1.2: 마이그레이션 SQL 작성**
 
 Create `supabase/migrations/20260528000002_create_inventory_entries.sql`:
+
 ```sql
 -- 재고 추이 — 재고 시트(long-format) 적재.
 -- 한 행 = (분류,항목,계획/실적,연도,월) 단위의 단일 지표값.
@@ -105,6 +110,7 @@ COMMENT ON TABLE inventory_entries IS '한세모빌리티 재고 계획·실적 
 - [ ] **Step 1.3: 마이그레이션 푸시 (사용자 직접 실행 권장)**
 
 Supabase MCP 또는 사용자가 Studio에서 SQL 실행. 검증:
+
 ```powershell
 # 적용 후 columns 확인 — Supabase Studio SQL Editor에서:
 # SELECT column_name, data_type FROM information_schema.columns WHERE table_name='inventory_entries';
@@ -124,11 +130,13 @@ git commit -m "feat(db): add inventory_entries (사외비 재고 계획·실적)
 ## Task 2: TypeScript 타입 재생성
 
 **Files:**
+
 - Modify: `lib/database.types.ts` (전체 재생성)
 
 - [ ] **Step 2.1: Supabase MCP로 타입 재생성**
 
 Supabase MCP의 `generate_typescript_types` 호출 또는:
+
 ```powershell
 npx supabase gen types typescript --project-id <PROJECT_ID> --schema public > lib/database.types.ts
 ```
@@ -161,6 +169,7 @@ git commit -m "chore(types): regenerate database.types with inventory_entries"
 ## Task 3: confidentialDb facade에 inventory_entries 등록
 
 **Files:**
+
 - Modify: `lib/supabase/confidential.ts:34-39`
 
 - [ ] **Step 3.1: CONFIDENTIAL_TABLES 배열에 한 줄 추가**
@@ -168,6 +177,7 @@ git commit -m "chore(types): regenerate database.types with inventory_entries"
 Edit `lib/supabase/confidential.ts`:
 
 Replace:
+
 ```ts
 const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -178,6 +188,7 @@ const CONFIDENTIAL_TABLES = [
 ```
 
 With:
+
 ```ts
 const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -189,6 +200,7 @@ const CONFIDENTIAL_TABLES = [
 ```
 
 또한 상단 주석(33-39 라인)에 한 줄 추가:
+
 ```ts
  * - inventory_entries: 재고 계획·실적 추이 (migration 20260528000002)
 ```
@@ -213,11 +225,13 @@ git commit -m "feat(confidential): allow inventory_entries via confidentialDb"
 ## Task 4: sync_inventory.py 스크립트 작성
 
 **Files:**
+
 - Create: `scripts/sync_inventory.py`
 
 - [ ] **Step 4.1: 스크립트 골격 작성 (헤더, import, 상수)**
 
 Create `scripts/sync_inventory.py`:
+
 ```python
 #!/usr/bin/env python3
 """재고 시트(자료정리_월별손익*.xlsx '재고') → Supabase inventory_entries 적재.
@@ -272,6 +286,7 @@ TOLERANCE_PCT = 0.5  # 4분류합 vs 전체재고 mismatch 임계
 - [ ] **Step 4.2: 파서 헬퍼 함수**
 
 Append:
+
 ```python
 def _num(v: Any) -> float | None:
   """숫자 셀을 float로 정규화."""
@@ -309,6 +324,7 @@ def validate_headers(ws) -> list[str]:
 - [ ] **Step 4.3: 행 파서**
 
 Append:
+
 ```python
 def row_to_entry(ws, r: int) -> dict[str, Any] | None:
   year = ws.cell(r, COL['year']).value
@@ -340,6 +356,7 @@ def row_to_entry(ws, r: int) -> dict[str, Any] | None:
 - [ ] **Step 4.4: summarize + 검증 함수 (금액 비노출)**
 
 Append:
+
 ```python
 def summarize(entries: list[dict[str, Any]]) -> None:
   """(분류·항목·kind) 행수·연도 커버리지·null 카운트. 금액 비노출."""
@@ -408,6 +425,7 @@ def validate_total(entries: list[dict[str, Any]]) -> None:
 - [ ] **Step 4.5: main() + 입력 파일 헬퍼**
 
 Append:
+
 ```python
 def _latest_excel() -> Path:
   base = Path(__file__).resolve().parents[1] / '참고' / '손익'
@@ -469,6 +487,7 @@ python scripts/sync_inventory.py --dry-run
 ```
 
 Expected:
+
 - 8개 (분류·항목·kind) 그룹 출력
 - "검증 OK: 4분류합 == 전체재고" 또는 mismatch=0
 - "dry-run 완료"
@@ -491,6 +510,7 @@ python scripts/sync_inventory.py
 ```
 
 Expected:
+
 - summarize + validate_total 출력
 - "inventory_entries upsert 완료: 336행" 부근
 - WriteSession 종료 시 자동 `revalidateTag('inventory_entries')`
@@ -498,6 +518,7 @@ Expected:
 - [ ] **Step 5.2: DB 적재 검증 (Supabase Studio)**
 
 Studio SQL Editor:
+
 ```sql
 SELECT category, item, COUNT(*) as rows,
        MIN(period_year * 100 + period_month) as min_period,
@@ -514,11 +535,13 @@ Expected: 8개 (category, item) 그룹. 2025.01 ~ 2026.12.
 ## Task 6: lib/inventory/types.ts
 
 **Files:**
+
 - Create: `lib/inventory/types.ts`
 
 - [ ] **Step 6.1: 타입 정의 작성**
 
 Create `lib/inventory/types.ts`:
+
 ```ts
 /** 재고(/management/inventory) 도메인 타입. */
 
@@ -543,10 +566,10 @@ export interface StatusMonthPoint {
   year: number;
   month: number;
   /** 4개 분류 (원화 환산 완료, 억원) */
-  operating: number | null;   // 운영
-  management: number | null;  // 관리
+  operating: number | null; // 운영
+  management: number | null; // 관리
   compensation: number | null; // 보상
-  transport: number | null;   // 운송 (영업 + 미국환산 + 우즈벡환산)
+  transport: number | null; // 운송 (영업 + 미국환산 + 우즈벡환산)
   /** 합계 (data label용) */
   total: number | null;
   /** 회전율 (회) — 실적만 존재 */
@@ -581,7 +604,12 @@ export interface InventoryKpis {
 }
 
 /** 차트 2 토글 옵션. */
-export type AchievementCategory = 'total' | 'operating' | 'management' | 'compensation' | 'transport';
+export type AchievementCategory =
+  | 'total'
+  | 'operating'
+  | 'management'
+  | 'compensation'
+  | 'transport';
 
 /** 차트 3 토글 옵션. */
 export type TransportItem = 'us' | 'uz' | 'sales';
@@ -607,6 +635,7 @@ git commit -m "feat(inventory): add inventory domain types"
 ## Task 7: lib/inventory/aggregate.ts — pure 함수 + TDD
 
 **Files:**
+
 - Create: `lib/inventory/aggregate.ts`
 - Test: `lib/inventory/__tests__/aggregate.test.ts`
 
@@ -615,6 +644,7 @@ git commit -m "feat(inventory): add inventory domain types"
 - [ ] **Step 7.1.1: 테스트 먼저 작성**
 
 Create `lib/inventory/__tests__/aggregate.test.ts`:
+
 ```ts
 import { describe, it, expect } from 'vitest';
 import { convertToKrwEok } from '../aggregate';
@@ -622,9 +652,14 @@ import type { InventoryRow } from '../types';
 
 function row(partial: Partial<InventoryRow>): InventoryRow {
   return {
-    category: '운영', item: '운영 재고', kind: 'actual',
-    period_year: 2025, period_month: 1,
-    unit: '억원', fx_rate: 1400, value: 100,
+    category: '운영',
+    item: '운영 재고',
+    kind: 'actual',
+    period_year: 2025,
+    period_month: 1,
+    unit: '억원',
+    fx_rate: 1400,
+    value: 100,
     ...partial,
   };
 }
@@ -660,6 +695,7 @@ Expected: FAIL "Cannot find module '../aggregate'".
 - [ ] **Step 7.1.3: aggregate.ts 최소 구현**
 
 Create `lib/inventory/aggregate.ts`:
+
 ```ts
 /** 재고(/management/inventory) 도메인 — pure 변환 함수. */
 import type {
@@ -706,18 +742,65 @@ Expected: PASS (5 passed).
 - [ ] **Step 7.2.1: 테스트 추가**
 
 Append to `lib/inventory/__tests__/aggregate.test.ts`:
+
 ```ts
 import { buildStatusPoints } from '../aggregate';
 
 describe('buildStatusPoints', () => {
   it('실적 행만 모아 누적막대 + 회전율 데이터 생성', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 100 }),
-      row({ category: '관리', item: '관리 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 50 }),
-      row({ category: '보상', item: '보상 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 30 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 20 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2025, period_month: 1, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '전체', item: '회전율', kind: 'actual', period_year: 2025, period_month: 1, unit: null, fx_rate: null, value: 4.1 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 100,
+      }),
+      row({
+        category: '관리',
+        item: '관리 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 50,
+      }),
+      row({
+        category: '보상',
+        item: '보상 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 30,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 20,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '회전율',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: null,
+        fx_rate: null,
+        value: 4.1,
+      }),
     ];
     const pts = buildStatusPoints(rows);
     expect(pts).toHaveLength(1);
@@ -733,16 +816,44 @@ describe('buildStatusPoints', () => {
 
   it('계획 행은 무시 (차트 1은 실적만)', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'plan', period_year: 2025, period_month: 1, value: 999 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 999,
+      }),
     ];
     expect(buildStatusPoints(rows)).toHaveLength(0);
   });
 
   it('월 오름차순 정렬', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2026, period_month: 3, value: 1 }),
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2025, period_month: 12, value: 1 }),
-      row({ category: '운영', item: '운영 재고', kind: 'actual', period_year: 2026, period_month: 1, value: 1 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 3,
+        value: 1,
+      }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        value: 1,
+      }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 1,
+      }),
     ];
     const labels = buildStatusPoints(rows).map((p) => p.monthLabel);
     expect(labels).toEqual(['2025.12', '2026.01', '2026.03']);
@@ -761,6 +872,7 @@ Expected: FAIL "buildStatusPoints is not defined".
 - [ ] **Step 7.2.3: buildStatusPoints 구현**
 
 Append to `lib/inventory/aggregate.ts`:
+
 ```ts
 function fmtMonth(year: number, month: number): string {
   return `${year}.${String(month).padStart(2, '0')}`;
@@ -837,14 +949,29 @@ Expected: PASS (8 passed).
 - [ ] **Step 7.3.1: 테스트 추가**
 
 Append:
+
 ```ts
 import { buildAchievementPoints } from '../aggregate';
 
 describe('buildAchievementPoints', () => {
   it('total 카테고리: 전체-전체재고 행 사용', () => {
     const rows: InventoryRow[] = [
-      row({ category: '전체', item: '전체 재고', kind: 'plan', period_year: 2025, period_month: 1, value: 100 }),
-      row({ category: '전체', item: '전체 재고', kind: 'actual', period_year: 2025, period_month: 1, value: 95 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        value: 100,
+      }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        value: 95,
+      }),
     ];
     const pts = buildAchievementPoints(rows, 'total');
     expect(pts).toHaveLength(1);
@@ -855,11 +982,52 @@ describe('buildAchievementPoints', () => {
 
   it('transport 카테고리: 영업 + 미국환산 + 우즈벡환산 합산', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '영업 재고', kind: 'plan', period_year: 2026, period_month: 3, value: 20 }),
-      row({ category: '운송', item: '미국 운송', kind: 'plan', period_year: 2026, period_month: 3, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '운송', item: '우즈벡 운송', kind: 'plan', period_year: 2026, period_month: 3, unit: '백만USD', value: 5, fx_rate: 1400 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2026, period_month: 3, value: 18 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2026, period_month: 3, unit: '백만USD', value: 8, fx_rate: 1400 }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 3,
+        value: 20,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 3,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '우즈벡 운송',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 3,
+        unit: '백만USD',
+        value: 5,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 3,
+        value: 18,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 3,
+        unit: '백만USD',
+        value: 8,
+        fx_rate: 1400,
+      }),
     ];
     const pts = buildAchievementPoints(rows, 'transport');
     expect(pts).toHaveLength(1);
@@ -872,7 +1040,14 @@ describe('buildAchievementPoints', () => {
 
   it('plan만 있고 actual null → rate null', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운영', item: '운영 재고', kind: 'plan', period_year: 2026, period_month: 12, value: 100 }),
+      row({
+        category: '운영',
+        item: '운영 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 12,
+        value: 100,
+      }),
     ];
     const pts = buildAchievementPoints(rows, 'operating');
     expect(pts).toHaveLength(1);
@@ -894,6 +1069,7 @@ Expected: FAIL.
 - [ ] **Step 7.3.3: buildAchievementPoints 구현**
 
 Append to `lib/inventory/aggregate.ts`:
+
 ```ts
 const CATEGORY_FILTER: Record<AchievementCategory, (r: InventoryRow) => boolean> = {
   total: (r) => r.category === '전체' && r.item === '전체 재고',
@@ -901,7 +1077,9 @@ const CATEGORY_FILTER: Record<AchievementCategory, (r: InventoryRow) => boolean>
   management: (r) => r.category === '관리' && r.item === '관리 재고',
   compensation: (r) => r.category === '보상' && r.item === '보상 재고',
   // 운송: 3개 항목 모두 (영업 + 미국 + 우즈벡)
-  transport: (r) => r.category === '운송' && (r.item === '영업 재고' || r.item === '미국 운송' || r.item === '우즈벡 운송'),
+  transport: (r) =>
+    r.category === '운송' &&
+    (r.item === '영업 재고' || r.item === '미국 운송' || r.item === '우즈벡 운송'),
 };
 
 /**
@@ -913,16 +1091,33 @@ const CATEGORY_FILTER: Record<AchievementCategory, (r: InventoryRow) => boolean>
  */
 export function buildAchievementPoints(
   rows: readonly InventoryRow[],
-  category: AchievementCategory,
+  category: AchievementCategory
 ): AchievementMonthPoint[] {
   const filter = CATEGORY_FILTER[category];
   const filtered = rows.filter(filter);
-  const byKey = new Map<string, { plan: number; planHasVal: boolean; actual: number; actualHasVal: boolean; year: number; month: number }>();
+  const byKey = new Map<
+    string,
+    {
+      plan: number;
+      planHasVal: boolean;
+      actual: number;
+      actualHasVal: boolean;
+      year: number;
+      month: number;
+    }
+  >();
   for (const r of filtered) {
     const key = `${r.period_year}-${r.period_month}`;
     let agg = byKey.get(key);
     if (!agg) {
-      agg = { plan: 0, planHasVal: false, actual: 0, actualHasVal: false, year: r.period_year, month: r.period_month };
+      agg = {
+        plan: 0,
+        planHasVal: false,
+        actual: 0,
+        actualHasVal: false,
+        year: r.period_year,
+        month: r.period_month,
+      };
       byKey.set(key, agg);
     }
     const v = convertToKrwEok(r);
@@ -966,14 +1161,33 @@ Expected: PASS (11 passed).
 - [ ] **Step 7.4.1: 테스트 추가**
 
 Append:
+
 ```ts
 import { buildTransportPoints } from '../aggregate';
 
 describe('buildTransportPoints', () => {
   it('us → 미국 운송 (환산)', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '미국 운송', kind: 'plan', period_year: 2025, period_month: 1, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2025, period_month: 1, unit: '백만USD', value: 9, fx_rate: 1400 }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 1,
+        unit: '백만USD',
+        value: 9,
+        fx_rate: 1400,
+      }),
     ];
     const pts = buildTransportPoints(rows, 'us');
     expect(pts[0].plan).toBe(140);
@@ -981,7 +1195,16 @@ describe('buildTransportPoints', () => {
   });
   it('uz → 우즈벡 운송', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '우즈벡 운송', kind: 'plan', period_year: 2026, period_month: 4, unit: '백만USD', value: 5, fx_rate: 1400 }),
+      row({
+        category: '운송',
+        item: '우즈벡 운송',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 4,
+        unit: '백만USD',
+        value: 5,
+        fx_rate: 1400,
+      }),
     ];
     const pts = buildTransportPoints(rows, 'uz');
     expect(pts).toHaveLength(1);
@@ -989,7 +1212,14 @@ describe('buildTransportPoints', () => {
   });
   it('sales → 영업 재고', () => {
     const rows: InventoryRow[] = [
-      row({ category: '운송', item: '영업 재고', kind: 'plan', period_year: 2025, period_month: 6, value: 50 }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'plan',
+        period_year: 2025,
+        period_month: 6,
+        value: 50,
+      }),
     ];
     const pts = buildTransportPoints(rows, 'sales');
     expect(pts[0].plan).toBe(50);
@@ -1008,6 +1238,7 @@ Expected: FAIL.
 - [ ] **Step 7.4.3: buildTransportPoints 구현**
 
 Append to `lib/inventory/aggregate.ts`:
+
 ```ts
 const TRANSPORT_ITEM_MAP: Record<TransportItem, string> = {
   us: '미국 운송',
@@ -1023,16 +1254,33 @@ const TRANSPORT_ITEM_MAP: Record<TransportItem, string> = {
  */
 export function buildTransportPoints(
   rows: readonly InventoryRow[],
-  item: TransportItem,
+  item: TransportItem
 ): AchievementMonthPoint[] {
   const targetItem = TRANSPORT_ITEM_MAP[item];
   const filtered = rows.filter((r) => r.category === '운송' && r.item === targetItem);
-  const byKey = new Map<string, { plan: number; planHasVal: boolean; actual: number; actualHasVal: boolean; year: number; month: number }>();
+  const byKey = new Map<
+    string,
+    {
+      plan: number;
+      planHasVal: boolean;
+      actual: number;
+      actualHasVal: boolean;
+      year: number;
+      month: number;
+    }
+  >();
   for (const r of filtered) {
     const key = `${r.period_year}-${r.period_month}`;
     let agg = byKey.get(key);
     if (!agg) {
-      agg = { plan: 0, planHasVal: false, actual: 0, actualHasVal: false, year: r.period_year, month: r.period_month };
+      agg = {
+        plan: 0,
+        planHasVal: false,
+        actual: 0,
+        actualHasVal: false,
+        year: r.period_year,
+        month: r.period_month,
+      };
       byKey.set(key, agg);
     }
     const v = convertToKrwEok(r);
@@ -1050,7 +1298,14 @@ export function buildTransportPoints(
     const plan = agg.planHasVal ? round(agg.plan) : null;
     const actual = agg.actualHasVal ? round(agg.actual) : null;
     const rate = plan && plan !== 0 && actual !== null ? round((actual / plan) * 100) : null;
-    pts.push({ monthLabel: fmtMonth(agg.year, agg.month), year: agg.year, month: agg.month, plan, actual, rate });
+    pts.push({
+      monthLabel: fmtMonth(agg.year, agg.month),
+      year: agg.year,
+      month: agg.month,
+      plan,
+      actual,
+      rate,
+    });
   }
   return pts.sort((a, b) => a.year - b.year || a.month - b.month);
 }
@@ -1069,6 +1324,7 @@ Expected: PASS (14 passed).
 - [ ] **Step 7.5.1: 테스트 추가**
 
 Append:
+
 ```ts
 import { buildKpis } from '../aggregate';
 
@@ -1076,17 +1332,88 @@ describe('buildKpis', () => {
   it('최신 실적 월 기준 KPI 4종 계산', () => {
     const rows: InventoryRow[] = [
       // 2025.12 실적
-      row({ category: '전체', item: '전체 재고', kind: 'actual', period_year: 2025, period_month: 12, value: 1000 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2025, period_month: 12, value: 100 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2025, period_month: 12, unit: '백만USD', value: 10, fx_rate: 1400 }),
-      row({ category: '전체', item: '회전율', kind: 'actual', period_year: 2025, period_month: 12, unit: null, fx_rate: null, value: 4.0 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        value: 1000,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        value: 100,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        unit: '백만USD',
+        value: 10,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '회전율',
+        kind: 'actual',
+        period_year: 2025,
+        period_month: 12,
+        unit: null,
+        fx_rate: null,
+        value: 4.0,
+      }),
       // 2026.01 실적
-      row({ category: '전체', item: '전체 재고', kind: 'actual', period_year: 2026, period_month: 1, value: 1100 }),
-      row({ category: '운송', item: '영업 재고', kind: 'actual', period_year: 2026, period_month: 1, value: 110 }),
-      row({ category: '운송', item: '미국 운송', kind: 'actual', period_year: 2026, period_month: 1, unit: '백만USD', value: 12, fx_rate: 1400 }),
-      row({ category: '전체', item: '회전율', kind: 'actual', period_year: 2026, period_month: 1, unit: null, fx_rate: null, value: 5.0 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 1100,
+      }),
+      row({
+        category: '운송',
+        item: '영업 재고',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        value: 110,
+      }),
+      row({
+        category: '운송',
+        item: '미국 운송',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        unit: '백만USD',
+        value: 12,
+        fx_rate: 1400,
+      }),
+      row({
+        category: '전체',
+        item: '회전율',
+        kind: 'actual',
+        period_year: 2026,
+        period_month: 1,
+        unit: null,
+        fx_rate: null,
+        value: 5.0,
+      }),
       // 2026.01 계획
-      row({ category: '전체', item: '전체 재고', kind: 'plan', period_year: 2026, period_month: 1, value: 1200 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 1,
+        value: 1200,
+      }),
     ];
     const kpis = buildKpis(rows);
     expect(kpis.latestLabel).toBe('2026.01');
@@ -1104,7 +1431,14 @@ describe('buildKpis', () => {
 
   it('실적 없으면 모두 null', () => {
     const rows: InventoryRow[] = [
-      row({ category: '전체', item: '전체 재고', kind: 'plan', period_year: 2026, period_month: 1, value: 100 }),
+      row({
+        category: '전체',
+        item: '전체 재고',
+        kind: 'plan',
+        period_year: 2026,
+        period_month: 1,
+        value: 100,
+      }),
     ];
     const kpis = buildKpis(rows);
     expect(kpis.totalEok).toBeNull();
@@ -1124,6 +1458,7 @@ npm test -- aggregate.test.ts
 - [ ] **Step 7.5.3: buildKpis 구현**
 
 Append to `lib/inventory/aggregate.ts`:
+
 ```ts
 /**
  * KPI 카드 — 최신 실적 월(전체 재고 actual 존재) 기준.
@@ -1138,7 +1473,8 @@ Append to `lib/inventory/aggregate.ts`:
 export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
   // 1. 최신 실적 월 = max(year, month) where category='전체' & item='전체 재고' & kind='actual' & value not null
   const totalActuals = rows.filter(
-    (r) => r.category === '전체' && r.item === '전체 재고' && r.kind === 'actual' && r.value !== null,
+    (r) =>
+      r.category === '전체' && r.item === '전체 재고' && r.kind === 'actual' && r.value !== null
   );
   if (totalActuals.length === 0) {
     return {
@@ -1170,7 +1506,7 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
       r.item === '회전율' &&
       r.kind === 'actual' &&
       r.period_year === latest.period_year &&
-      r.period_month === latest.period_month,
+      r.period_month === latest.period_month
   );
   const turnover = turnoverRow?.value ?? null;
   const turnoverDays = turnover && turnover !== 0 ? Math.round(365 / turnover) : null;
@@ -1182,11 +1518,13 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
       r.item === '전체 재고' &&
       r.kind === 'plan' &&
       r.period_year === latest.period_year &&
-      r.period_month === latest.period_month,
+      r.period_month === latest.period_month
   );
   const planVal = planRow ? convertToKrwEok(planRow) : null;
   const achievementPct =
-    totalEok !== null && planVal !== null && planVal !== 0 ? round((totalEok / planVal) * 100) : null;
+    totalEok !== null && planVal !== null && planVal !== 0
+      ? round((totalEok / planVal) * 100)
+      : null;
 
   // 5. 운송 비중 — 최신 월 운송 분류 actual 합산 / totalEok
   const transportRows = rows.filter(
@@ -1194,7 +1532,7 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
       r.category === '운송' &&
       r.kind === 'actual' &&
       r.period_year === latest.period_year &&
-      r.period_month === latest.period_month,
+      r.period_month === latest.period_month
   );
   let transportSum = 0;
   let transportHas = false;
@@ -1206,7 +1544,9 @@ export function buildKpis(rows: readonly InventoryRow[]): InventoryKpis {
     }
   }
   const transportSharePct =
-    transportHas && totalEok !== null && totalEok !== 0 ? round((transportSum / totalEok) * 100) : null;
+    transportHas && totalEok !== null && totalEok !== 0
+      ? round((transportSum / totalEok) * 100)
+      : null;
 
   return {
     latestLabel,
@@ -1240,11 +1580,13 @@ git commit -m "feat(inventory): aggregate.ts pure builders (status/achievement/t
 ## Task 8: lib/inventory/source.ts (server fetch + 'use cache')
 
 **Files:**
+
 - Create: `lib/inventory/source.ts`
 
 - [ ] **Step 8.1: source.ts 작성**
 
 Create `lib/inventory/source.ts`:
+
 ```ts
 /**
  * 재고(/management/inventory) 도메인 데이터 입구 — fetch + 'use cache'.
@@ -1310,11 +1652,13 @@ git commit -m "feat(inventory): source.ts ('use cache' + confidentialDb)"
 ## Task 9: InventoryKpiCards 컴포넌트
 
 **Files:**
+
 - Create: `components/management/inventory/InventoryKpiCards.tsx`
 
 - [ ] **Step 9.1: KPI 카드 작성**
 
 Create `components/management/inventory/InventoryKpiCards.tsx`:
+
 ```tsx
 'use client';
 
@@ -1322,7 +1666,10 @@ import type { InventoryKpis } from '@/lib/inventory/types';
 
 function fmt(n: number | null, digits = 0, suffix = ''): string {
   if (n === null || Number.isNaN(n)) return '—';
-  return n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits }) + suffix;
+  return (
+    n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits }) +
+    suffix
+  );
 }
 
 function ArrowPct({ value }: { value: number | null }) {
@@ -1338,9 +1685,7 @@ function ArrowPct({ value }: { value: number | null }) {
 function AchievementBadge({ value }: { value: number | null }) {
   if (value === null) return <span className="text-muted-foreground">—</span>;
   const good = value >= 100;
-  return (
-    <span className={good ? 'text-emerald-600' : 'text-red-600'}>{fmt(value, 1, '%')}</span>
-  );
+  return <span className={good ? 'text-emerald-600' : 'text-red-600'}>{fmt(value, 1, '%')}</span>;
 }
 
 interface Props {
@@ -1407,11 +1752,13 @@ git commit -m "feat(inventory): KPI cards (totalEok/turnover/achievement/transpo
 ## Task 10: InventoryStatusChart (차트 1 — 콤보)
 
 **Files:**
+
 - Create: `components/management/inventory/InventoryStatusChart.tsx`
 
 - [ ] **Step 10.1: 차트 1 작성**
 
 Create `components/management/inventory/InventoryStatusChart.tsx`:
+
 ```tsx
 'use client';
 
@@ -1434,7 +1781,10 @@ import type { StatusMonthPoint } from '@/lib/inventory/types';
 
 function fmt(n: number | null | undefined, digits = 0): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—';
-  return n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  return n.toLocaleString('ko-KR', {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
 }
 
 // 운영/관리/보상/운송 색상 (구분되는 4색)
@@ -1472,13 +1822,25 @@ export default function InventoryStatusChart({ points }: Props) {
       <ResponsiveContainer width="100%" height={h}>
         <ComposedChart data={points} margin={{ top: 32, right: 24, bottom: 10, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-          <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} interval={0} angle={-30} textAnchor="end" height={56} />
+          <XAxis
+            dataKey="monthLabel"
+            tick={{ fontSize: 12 }}
+            interval={0}
+            angle={-30}
+            textAnchor="end"
+            height={56}
+          />
           <YAxis
             yAxisId="amount"
             tickFormatter={(v: number) => fmt(v, 0)}
             tick={{ fontSize: 13 }}
             width={70}
-            label={{ value: '억원', position: 'top', offset: 16, style: { fontSize: 12, fill: 'var(--muted-foreground)' } }}
+            label={{
+              value: '억원',
+              position: 'top',
+              offset: 16,
+              style: { fontSize: 12, fill: 'var(--muted-foreground)' },
+            }}
           />
           <YAxis
             yAxisId="turnover"
@@ -1487,11 +1849,20 @@ export default function InventoryStatusChart({ points }: Props) {
             tick={{ fontSize: 13 }}
             width={56}
             domain={[0, turnoverMax * 1.3]}
-            label={{ value: '회전율', position: 'top', offset: 16, style: { fontSize: 12, fill: 'var(--muted-foreground)' } }}
+            label={{
+              value: '회전율',
+              position: 'top',
+              offset: 16,
+              style: { fontSize: 12, fill: 'var(--muted-foreground)' },
+            }}
           />
           <Tooltip
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', fontSize: '14px' }}
+            contentStyle={{
+              backgroundColor: 'var(--card)',
+              border: '1px solid var(--border)',
+              fontSize: '14px',
+            }}
             content={<StatusTooltip />}
           />
           <Legend
@@ -1509,10 +1880,34 @@ export default function InventoryStatusChart({ points }: Props) {
               />
             )}
           />
-          <Bar yAxisId="amount" dataKey="operating" name="운영" stackId="inv" fill={COLORS.operating} />
-          <Bar yAxisId="amount" dataKey="management" name="관리" stackId="inv" fill={COLORS.management} />
-          <Bar yAxisId="amount" dataKey="compensation" name="보상" stackId="inv" fill={COLORS.compensation} />
-          <Bar yAxisId="amount" dataKey="transport" name="운송" stackId="inv" fill={COLORS.transport}>
+          <Bar
+            yAxisId="amount"
+            dataKey="operating"
+            name="운영"
+            stackId="inv"
+            fill={COLORS.operating}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="management"
+            name="관리"
+            stackId="inv"
+            fill={COLORS.management}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="compensation"
+            name="보상"
+            stackId="inv"
+            fill={COLORS.compensation}
+          />
+          <Bar
+            yAxisId="amount"
+            dataKey="transport"
+            name="운송"
+            stackId="inv"
+            fill={COLORS.transport}
+          >
             <LabelList
               dataKey="total"
               position="top"
@@ -1548,13 +1943,18 @@ function StatusTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-md p-2 text-sm" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+    <div
+      className="rounded-md p-2 text-sm"
+      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+    >
       <div className="font-semibold mb-1">{label}</div>
       <div>운영: {fmt(p.operating, 0)} 억원</div>
       <div>관리: {fmt(p.management, 0)} 억원</div>
       <div>보상: {fmt(p.compensation, 0)} 억원</div>
       <div>운송: {fmt(p.transport, 0)} 억원</div>
-      <div className="font-semibold pt-1 mt-1 border-t border-border">합계: {fmt(p.total, 0)} 억원</div>
+      <div className="font-semibold pt-1 mt-1 border-t border-border">
+        합계: {fmt(p.total, 0)} 억원
+      </div>
       <div className="text-red-600">회전율: {fmt(p.turnover, 1)} 회</div>
     </div>
   );
@@ -1579,11 +1979,13 @@ git commit -m "feat(inventory): chart 1 (status combo — stacked bar + turnover
 ## Task 11: InventoryAchievementChart (차트 2/3 공통)
 
 **Files:**
+
 - Create: `components/management/inventory/InventoryAchievementChart.tsx`
 
 - [ ] **Step 11.1: 차트 2/3 공통 컴포넌트 작성**
 
 Create `components/management/inventory/InventoryAchievementChart.tsx`:
+
 ```tsx
 'use client';
 
@@ -1605,7 +2007,10 @@ import type { AchievementMonthPoint } from '@/lib/inventory/types';
 
 function fmt(n: number | null | undefined, digits = 0): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—';
-  return n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  return n.toLocaleString('ko-KR', {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -1635,15 +2040,30 @@ interface Props {
 export default function InventoryAchievementChart({ points, unitLabel = '억원' }: Props) {
   const h = useChartHeight(360, 440, 520);
   if (points.length === 0) {
-    return <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>;
+    return (
+      <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
+    );
   }
   const rateMax = Math.max(100, ...points.map((p) => (p.rate === null ? 0 : Math.abs(p.rate))));
   return (
     <ResponsiveContainer width="100%" height={h}>
       <ComposedChart data={points} margin={{ top: 32, right: 24, bottom: 10, left: 10 }} barGap={2}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-        <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} interval={0} angle={-30} textAnchor="end" height={56} />
-        <YAxis yAxisId="amount" tickFormatter={(v: number) => fmt(v, 0)} tick={{ fontSize: 13 }} width={70} domain={[0, (max: number) => Math.max(max * 1.2, 1)]} />
+        <XAxis
+          dataKey="monthLabel"
+          tick={{ fontSize: 12 }}
+          interval={0}
+          angle={-30}
+          textAnchor="end"
+          height={56}
+        />
+        <YAxis
+          yAxisId="amount"
+          tickFormatter={(v: number) => fmt(v, 0)}
+          tick={{ fontSize: 13 }}
+          width={70}
+          domain={[0, (max: number) => Math.max(max * 1.2, 1)]}
+        />
         <YAxis
           yAxisId="rate"
           orientation="right"
@@ -1654,7 +2074,11 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', fontSize: '14px' }}
+          contentStyle={{
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            fontSize: '14px',
+          }}
           content={<Tip unitLabel={unitLabel} />}
         />
         <Legend
@@ -1701,10 +2125,17 @@ function Tip({
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-md p-2 text-sm" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+    <div
+      className="rounded-md p-2 text-sm"
+      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+    >
       <div className="font-semibold mb-1">{label}</div>
-      <div>계획: {fmt(p.plan, 0)} {unitLabel}</div>
-      <div>실적: {fmt(p.actual, 0)} {unitLabel}</div>
+      <div>
+        계획: {fmt(p.plan, 0)} {unitLabel}
+      </div>
+      <div>
+        실적: {fmt(p.actual, 0)} {unitLabel}
+      </div>
       <div className={p.rate !== null && p.rate < 100 ? 'text-red-500' : 'text-emerald-600'}>
         달성율: {p.rate === null ? '—' : `${fmt(p.rate, 1)}%`}
       </div>
@@ -1731,11 +2162,13 @@ git commit -m "feat(inventory): achievement chart 2/3 shared component (monthly 
 ## Task 12: InventoryDashboard 조립
 
 **Files:**
+
 - Create: `components/management/inventory/InventoryDashboard.tsx`
 
 - [ ] **Step 12.1: Dashboard 작성**
 
 Create `components/management/inventory/InventoryDashboard.tsx`:
+
 ```tsx
 'use client';
 
@@ -1750,14 +2183,12 @@ import {
   buildStatusPoints,
   buildTransportPoints,
 } from '@/lib/inventory/aggregate';
-import type {
-  AchievementCategory,
-  InventoryRow,
-  TransportItem,
-} from '@/lib/inventory/types';
+import type { AchievementCategory, InventoryRow, TransportItem } from '@/lib/inventory/types';
 
 const InventoryStatusChart = dynamic(() => import('./InventoryStatusChart'), { ssr: false });
-const InventoryAchievementChart = dynamic(() => import('./InventoryAchievementChart'), { ssr: false });
+const InventoryAchievementChart = dynamic(() => import('./InventoryAchievementChart'), {
+  ssr: false,
+});
 
 interface Props {
   rows: InventoryRow[];
@@ -1808,7 +2239,9 @@ export default function InventoryDashboard({ rows }: Props) {
         <ChartSection
           title="3. 계획 대비 운송"
           unit="억원"
-          controls={<ToggleGroup options={TRANSPORT_OPTIONS} value={tranItem} onChange={setTranItem} />}
+          controls={
+            <ToggleGroup options={TRANSPORT_OPTIONS} value={tranItem} onChange={setTranItem} />
+          }
         >
           <InventoryAchievementChart points={tranPts} unitLabel="억원" />
         </ChartSection>
@@ -1836,11 +2269,13 @@ git commit -m "feat(inventory): dashboard assembly (KPI + 3 charts with toggles)
 ## Task 13: page.tsx 교체
 
 **Files:**
+
 - Modify: `app/management/inventory/page.tsx` (전체 교체)
 
 - [ ] **Step 13.1: 기존 placeholder → 실제 dashboard**
 
 Replace `app/management/inventory/page.tsx`:
+
 ```tsx
 import InventoryDashboard from '@/components/management/inventory/InventoryDashboard';
 import { getInventoryData } from '@/lib/inventory/source';
@@ -1894,6 +2329,7 @@ npm run dev
 브라우저 → `http://localhost:3000/login` → 로그인 → `/management/inventory` 진입.
 
 확인 항목:
+
 1. KPI 카드 4개 표시 (전체 재고 / 회전율 / 달성율 / 운송 비중)
 2. 차트 1 — 누적막대 4색(운영·관리·보상·운송) + 합계 데이터 레이블 + 회전율 빨간 꺾은선
 3. 차트 2 — 토글 [전체|운영|관리|보상|운송] 클릭 시 데이터 교체
@@ -1906,6 +2342,7 @@ npm run dev
 - [ ] **Step 14.4: AGENTS.md 갱신**
 
 Edit `AGENTS.md`:
+
 - "관리 라우트 책임 표"에서 `/management`의 `pnl`/`plan`/`inventory`/`production`/`companies` 설명 줄 수정 — `inventory` 항목에 새 차트 4개 요약 한 줄 추가.
 - "사외비 테이블 격리" 섹션의 테이블 명단에 `inventory_entries` 추가.
 - "데이터·DB 규칙" 끝에 "재고 USD 환산" 한 줄 (단위 통일, fx_rate DB 보존).

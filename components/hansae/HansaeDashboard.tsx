@@ -111,10 +111,7 @@ export default function HansaeDashboard({ initial }: Props) {
   return (
     <div className="flex flex-col gap-6">
       {bundles.map((b) => (
-        <section
-          key={b.company.id}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-4"
-        >
+        <section key={b.company.id} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* 왼쪽 2단위: 주가 + [뉴스 | 종목토론] */}
           <div className="flex flex-col gap-4">
             <HansaeStockCard bundle={b} />

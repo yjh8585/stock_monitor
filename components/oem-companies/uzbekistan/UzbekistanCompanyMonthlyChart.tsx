@@ -2,9 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type {
-  UzbekistanCompanyMonthlyPoint,
-} from '@/lib/oem-companies/uzbekistan/source';
+import type { UzbekistanCompanyMonthlyPoint } from '@/lib/oem-companies/uzbekistan/source';
 
 const ChartFallback = () => (
   <div className="flex h-[280px] w-full items-center justify-center text-xs text-muted-foreground">

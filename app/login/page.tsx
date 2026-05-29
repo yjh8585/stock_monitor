@@ -12,11 +12,7 @@ function pickNext(value: SearchParams['next']): string {
   return value;
 }
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await getCurrentUser();
   const params = await searchParams;
   const next = pickNext(params.next);

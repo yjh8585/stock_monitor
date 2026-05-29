@@ -35,7 +35,7 @@ type NavItem = {
 function handleSamePageReload(
   e: React.MouseEvent<HTMLAnchorElement>,
   href: string,
-  pathname: string,
+  pathname: string
 ): void {
   if (pathname === href) {
     e.preventDefault();
@@ -74,13 +74,7 @@ function getVisibleNavItems(user: CurrentUser | null): readonly NavItem[] {
 }
 
 /** 모바일 Sheet 내 네비게이션 */
-export function MobileNav({
-  user,
-  onClose,
-}: {
-  user: CurrentUser | null;
-  onClose: () => void;
-}) {
+export function MobileNav({ user, onClose }: { user: CurrentUser | null; onClose: () => void }) {
   const pathname = usePathname();
   const items = getVisibleNavItems(user);
   return (
@@ -244,10 +238,7 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
       {user ? (
         <div className="border-t border-border p-1.5">
           {!collapsed && (
-            <div
-              className="px-2 mb-1 text-xs text-muted-foreground truncate"
-              title={user.id}
-            >
+            <div className="px-2 mb-1 text-xs text-muted-foreground truncate" title={user.id}>
               {user.displayName}
             </div>
           )}

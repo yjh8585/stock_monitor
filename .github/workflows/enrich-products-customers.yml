@@ -19,7 +19,7 @@ on:
 jobs:
   enrich:
     runs-on: ubuntu-latest
-    timeout-minutes: 350  # 549개 1~2시간 예상
+    timeout-minutes: 350 # 549개 1~2시간 예상
     defaults:
       run:
         working-directory: scripts

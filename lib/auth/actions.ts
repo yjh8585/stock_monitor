@@ -16,10 +16,7 @@ function sanitizeNext(next: unknown): string {
   return next;
 }
 
-export async function loginAction(
-  _prev: LoginState,
-  formData: FormData,
-): Promise<LoginState> {
+export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const id = String(formData.get('id') ?? '').trim();
   const password = String(formData.get('password') ?? '');
   const next = sanitizeNext(formData.get('next'));

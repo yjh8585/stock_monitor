@@ -21,15 +21,15 @@
 
 ## 2. 현재 상태 검토
 
-| 위치 | 현재 동작 | 갱신 후 동작 |
-|---|---|---|
-| `lib/auth/users.ts` | `Role = 'mobility' \| 'holdings'`. ADMIN_ID/PW 매핑 ✖ | `'admin'` 추가, 3번째 사용자 매핑 |
-| `lib/auth/session.ts` | `decodeSession`이 `'mobility' \| 'holdings'`만 허용 | `'admin'`도 허용 |
-| `lib/auth/permissions.ts` | path-based `canAccess`, mobility의 `/hansae` 차단만 | `/management/companies` 비관리자 차단 + `isAdmin(role)` 헬퍼 |
-| `app/api/posts/[id]/route.ts` DELETE | 세션 검증 ✖, role 검증 ✖ | `getCurrentUser()` + `isAdmin(role)` 가드, 비관리자 403 |
-| `components/reports/post-delete-button.tsx` | 항상 렌더 | 부모가 isAdmin 판별 후 조건부 마운트 |
-| `app/reports/[id]/page.tsx` | `PostDeleteButton` 무조건 렌더 | `getCurrentUser()` 호출, admin만 렌더 |
-| `app/management/layout.tsx` | client component, 회사 탭 무조건 표시 | server로 변환 + ManagementTabs(client)에 isAdmin prop |
+| 위치                                        | 현재 동작                                             | 갱신 후 동작                                                 |
+| ------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| `lib/auth/users.ts`                         | `Role = 'mobility' \| 'holdings'`. ADMIN_ID/PW 매핑 ✖ | `'admin'` 추가, 3번째 사용자 매핑                            |
+| `lib/auth/session.ts`                       | `decodeSession`이 `'mobility' \| 'holdings'`만 허용   | `'admin'`도 허용                                             |
+| `lib/auth/permissions.ts`                   | path-based `canAccess`, mobility의 `/hansae` 차단만   | `/management/companies` 비관리자 차단 + `isAdmin(role)` 헬퍼 |
+| `app/api/posts/[id]/route.ts` DELETE        | 세션 검증 ✖, role 검증 ✖                              | `getCurrentUser()` + `isAdmin(role)` 가드, 비관리자 403      |
+| `components/reports/post-delete-button.tsx` | 항상 렌더                                             | 부모가 isAdmin 판별 후 조건부 마운트                         |
+| `app/reports/[id]/page.tsx`                 | `PostDeleteButton` 무조건 렌더                        | `getCurrentUser()` 호출, admin만 렌더                        |
+| `app/management/layout.tsx`                 | client component, 회사 탭 무조건 표시                 | server로 변환 + ManagementTabs(client)에 isAdmin prop        |
 
 ## 3. 변경 매트릭스
 
@@ -56,7 +56,10 @@ export function isAdmin(role: Role): boolean {
 
 export function canAccess(pathname: string, role: Role): boolean {
   if (role === 'mobility' && pathname.startsWith('/hansae')) return false;
-  if (!isAdmin(role) && ADMIN_ONLY_PATHS.some(p => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (
+    !isAdmin(role) &&
+    ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
     return false;
   }
   return true;
@@ -68,6 +71,7 @@ export function canAccess(pathname: string, role: Role): boolean {
 ### 3.4 `app/api/posts/[id]/route.ts` DELETE handler
 
 handler 시작부에:
+
 ```typescript
 const user = await getCurrentUser();
 if (!user || !isAdmin(user.role)) {
@@ -127,16 +131,16 @@ export function ManagementTabs({ isAdmin }: { isAdmin: boolean }) {
 
 ## 5. 권한 매트릭스 (변경 후)
 
-| 기능 | mobility | holdings | admin |
-|---|---|---|---|
-| `/management/pnl` `/plan` `/inventory` `/production` | ✓ | ✓ | ✓ |
-| `/management/companies` | ✖ (redirect) | ✖ (redirect) | ✓ |
-| `/reports` 목록 / 상세 / 조회 | ✓ | ✓ | ✓ |
-| `POST /api/posts` (등록) | ✓ | ✓ | ✓ |
-| `POST /api/uploads/report` (파일 업로드) | ✓ | ✓ | ✓ |
-| `DELETE /api/posts/:id` (삭제) | ✖ (403) | ✖ (403) | ✓ |
-| `/hansae` | ✖ (기존 그대로) | ✓ | ✓ |
-| 기타 페이지 | 기존 그대로 | 기존 그대로 | 기존 그대로 |
+| 기능                                                 | mobility        | holdings     | admin       |
+| ---------------------------------------------------- | --------------- | ------------ | ----------- |
+| `/management/pnl` `/plan` `/inventory` `/production` | ✓               | ✓            | ✓           |
+| `/management/companies`                              | ✖ (redirect)    | ✖ (redirect) | ✓           |
+| `/reports` 목록 / 상세 / 조회                        | ✓               | ✓            | ✓           |
+| `POST /api/posts` (등록)                             | ✓               | ✓            | ✓           |
+| `POST /api/uploads/report` (파일 업로드)             | ✓               | ✓            | ✓           |
+| `DELETE /api/posts/:id` (삭제)                       | ✖ (403)         | ✖ (403)      | ✓           |
+| `/hansae`                                            | ✖ (기존 그대로) | ✓            | ✓           |
+| 기타 페이지                                          | 기존 그대로     | 기존 그대로  | 기존 그대로 |
 
 ## 6. 검증 (수동)
 

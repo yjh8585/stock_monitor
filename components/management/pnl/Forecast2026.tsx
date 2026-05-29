@@ -320,7 +320,10 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">2. 2026 연간 추정 (매출·영업이익) <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span></h2>
+        <h2 className="text-lg font-semibold">
+          2. 2026 연간 추정 (매출·영업이익){' '}
+          <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span>
+        </h2>
         <BasisToggle value={basis} onChange={setBasis} />
       </header>
 
@@ -433,8 +436,16 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
               rev={calc.actual2025.revenue}
               op={calc.actual2025.op_income}
             />
-            <Row label={`2025 1~${calc.ytdN}월`} rev={calc.ytd_2025.revenue} op={calc.ytd_2025.op_income} />
-            <Row label={`2026 1~${calc.ytdN}월`} rev={calc.ytd_2026.revenue} op={calc.ytd_2026.op_income} />
+            <Row
+              label={`2025 1~${calc.ytdN}월`}
+              rev={calc.ytd_2025.revenue}
+              op={calc.ytd_2025.op_income}
+            />
+            <Row
+              label={`2026 1~${calc.ytdN}월`}
+              rev={calc.ytd_2026.revenue}
+              op={calc.ytd_2026.op_income}
+            />
             <tr className="border-t border-border/60 bg-muted/20">
               <td className="px-3 py-2 font-medium">1~{calc.ytdN}월 YoY</td>
               <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyRev)}`}>
@@ -538,7 +549,8 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
         <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
           <li>
             <span className="font-medium text-foreground">① YTD 연환산</span> : 2026 1~N월 합계를
-            (12÷N)배 확장. 월 추가 적재 시 자동 재산출 — 분기 평균 가정의 단순성은 유지하되 계절성·신규 수주는 부분 반영.
+            (12÷N)배 확장. 월 추가 적재 시 자동 재산출 — 분기 평균 가정의 단순성은 유지하되
+            계절성·신규 수주는 부분 반영.
           </li>
           <li>
             <span className="font-medium text-foreground">② YoY 추세 적용</span> :

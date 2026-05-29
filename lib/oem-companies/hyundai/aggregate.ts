@@ -246,7 +246,8 @@ export function aggregateHyundaiKoreaPlantMonthlyStack(
   rows: (CompanySaleRowWithPt & { factory: string })[]
 ): HyundaiExportRegionPoint[] {
   const filtered = rows.filter(
-    (r) => r.period_type === 'month' && r.factory === '' && (r.region === '내수' || r.region === '수출')
+    (r) =>
+      r.period_type === 'month' && r.factory === '' && (r.region === '내수' || r.region === '수출')
   );
   const map = new Map<string, { 내수: number; 수출: number }>();
   for (const r of filtered) {
@@ -272,7 +273,8 @@ export function aggregateHyundaiKoreaPlantAnnualStack(
   rows: (CompanySaleRowWithPt & { factory: string })[]
 ): HyundaiExportRegionPoint[] {
   const filtered = rows.filter(
-    (r) => r.period_type === 'month' && r.factory === '' && (r.region === '내수' || r.region === '수출')
+    (r) =>
+      r.period_type === 'month' && r.factory === '' && (r.region === '내수' || r.region === '수출')
   );
   const yearMap = new Map<string, { 내수: number; 수출: number; months: Set<string> }>();
   for (const r of filtered) {
@@ -516,8 +518,7 @@ export function aggregateTopModels(
     monthRows = monthRows.filter((r) => r.factory === '' && r.region === regionRestrict);
   } else if (mode === 'factory') {
     monthRows = monthRows.filter(
-      (r) =>
-        r.factory === factoryRestrict && (regionRestrict ? r.region === regionRestrict : true)
+      (r) => r.factory === factoryRestrict && (regionRestrict ? r.region === regionRestrict : true)
     );
   }
   if (monthRows.length === 0) return EMPTY_TOP_RESULT;
@@ -1022,7 +1023,9 @@ function buildRetailWholesaleCard(
   let prevRetail: number;
   if (isYtd) {
     prevRetail = retailRows
-      .filter((r) => r.region === region && r.period_type === 'month' && r.vehicle_model === 'Total')
+      .filter(
+        (r) => r.region === region && r.period_type === 'month' && r.vehicle_model === 'Total'
+      )
       .filter((r) => retailYear(r.year_period) === prevYear)
       .filter((r) => targetMonths.has(r.year_period.slice(-2)))
       .reduce((sum, r) => sum + (r.retail_units ?? 0), 0);
@@ -1084,9 +1087,7 @@ export function aggregateHyundaiRetailTopResult(
       .map((r) => r.year_period.slice(-2))
   );
   const isYtdMode = selectedMonths.size > 0 && selectedMonths.size < 12;
-  const lastCompletedYear = isYtdMode
-    ? String(parseInt(selectedYear, 10) - 1)
-    : selectedYear;
+  const lastCompletedYear = isYtdMode ? String(parseInt(selectedYear, 10) - 1) : selectedYear;
   const prevYear = String(parseInt(lastCompletedYear, 10) - 1);
 
   type Agg = { latest: number; prev: number; ytd: number; ytdPrev: number };

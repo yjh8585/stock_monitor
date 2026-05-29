@@ -257,8 +257,8 @@ export function NewCompanyForm() {
 
       <div className="border-t border-border pt-4 text-xs text-muted-foreground space-y-1">
         <p>
-          <strong>data_source → page 자동 매핑</strong> (트리거):
-          yfinance·marklines → parts-top100 / fnguide·dart·pykrx+dart → domestic. 그 외 매핑 없음.
+          <strong>data_source → page 자동 매핑</strong> (트리거): yfinance·marklines → parts-top100
+          / fnguide·dart·pykrx+dart → domestic. 그 외 매핑 없음.
         </p>
         <p>products·customers·homepage_url은 추가 후 onboard_company.py가 자동 보강.</p>
       </div>

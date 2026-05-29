@@ -145,55 +145,55 @@ export default function HansaeSupplyPanel({ supply, companyName }: Props) {
       </div>
 
       <>
-      {supply.length === 0 ? (
-        <div className="text-sm text-muted-foreground">
-          수급 데이터 없음 (PYKRX 야간 배치가 한 번 이상 실행되어야 함)
-        </div>
-      ) : (
-        <>
-          {/* 가격 요약 — 일자별 종가/등락 */}
-          <div className="mb-4 grid grid-cols-[3.5rem_1fr_1fr] gap-2 items-center text-sm border-b border-border/50 pb-3">
-            <span className="text-[11px] text-muted-foreground">날짜</span>
-            <span className="text-right text-[11px] text-muted-foreground">종가</span>
-            <span className="text-right text-[11px] text-muted-foreground">등락</span>
-            {ordered.map((r) => (
-              <div key={r.tradeDate} className="contents">
-                <span className="text-muted-foreground tabular-nums">
-                  {new Date(r.tradeDate).toLocaleDateString('ko-KR', {
-                    month: '2-digit',
-                    day: '2-digit',
-                  })}
-                </span>
-                <span className="text-right tabular-nums">{fmtPrice(r.closePrice)}</span>
-                <span className={`text-right tabular-nums ${pctColor(r.changePct)}`}>
-                  {fmtPct(r.changePct)}
-                </span>
-              </div>
-            ))}
+        {supply.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            수급 데이터 없음 (PYKRX 야간 배치가 한 번 이상 실행되어야 함)
           </div>
+        ) : (
+          <>
+            {/* 가격 요약 — 일자별 종가/등락 */}
+            <div className="mb-4 grid grid-cols-[3.5rem_1fr_1fr] gap-2 items-center text-sm border-b border-border/50 pb-3">
+              <span className="text-[11px] text-muted-foreground">날짜</span>
+              <span className="text-right text-[11px] text-muted-foreground">종가</span>
+              <span className="text-right text-[11px] text-muted-foreground">등락</span>
+              {ordered.map((r) => (
+                <div key={r.tradeDate} className="contents">
+                  <span className="text-muted-foreground tabular-nums">
+                    {new Date(r.tradeDate).toLocaleDateString('ko-KR', {
+                      month: '2-digit',
+                      day: '2-digit',
+                    })}
+                  </span>
+                  <span className="text-right tabular-nums">{fmtPrice(r.closePrice)}</span>
+                  <span className={`text-right tabular-nums ${pctColor(r.changePct)}`}>
+                    {fmtPct(r.changePct)}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-          {/* 외국인/기관/개인 각자 가로 막대 차트 */}
-          <div className="space-y-4">
-            {INVESTORS.map((inv) => (
-              <InvestorBars
-                key={inv.key}
-                rows={ordered}
-                investor={inv}
-                maxAbs={maxAbs}
-                todayStr={todayStr}
-              />
-            ))}
-          </div>
+            {/* 외국인/기관/개인 각자 가로 막대 차트 */}
+            <div className="space-y-4">
+              {INVESTORS.map((inv) => (
+                <InvestorBars
+                  key={inv.key}
+                  rows={ordered}
+                  investor={inv}
+                  maxAbs={maxAbs}
+                  todayStr={todayStr}
+                />
+              ))}
+            </div>
 
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            막대 길이 = 절대값 기준 상대 강도 · 양수(오른쪽) 순매수, 음수(왼쪽) 순매도 ·
-            오늘 분단위 잠정 추세는 위 가격 차트(1D) 하단 pane 참조
-          </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            * 오늘 수치는 장중 잠정값이며, 장 마감 후 야간 배치로 확정값이 갱신됩니다.
-          </p>
-        </>
-      )}
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              막대 길이 = 절대값 기준 상대 강도 · 양수(오른쪽) 순매수, 음수(왼쪽) 순매도 · 오늘
+              분단위 잠정 추세는 위 가격 차트(1D) 하단 pane 참조
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              * 오늘 수치는 장중 잠정값이며, 장 마감 후 야간 배치로 확정값이 갱신됩니다.
+            </p>
+          </>
+        )}
       </>
     </div>
   );

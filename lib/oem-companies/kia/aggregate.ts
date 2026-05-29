@@ -636,9 +636,9 @@ function emptyTypePoint(period: string, period_label: string): KiaExportTypeMixP
 
 export interface ShipmentBreakdownRow {
   period_label: string;
-  domestic: number;  // 내수 (한국 시장)
-  export: number;    // 수출 (한국 공장에서 수출)
-  overseas: number;  // 해외 (해외 공장 도매)
+  domestic: number; // 내수 (한국 시장)
+  export: number; // 수출 (한국 공장에서 수출)
+  overseas: number; // 해외 (해외 공장 도매)
 }
 
 export function aggregateKiaShipmentBreakdown(
@@ -646,7 +646,10 @@ export function aggregateKiaShipmentBreakdown(
 ): ShipmentBreakdownRow[] {
   const monthRows = rows.filter((r) => r.period_type === 'month' && isCountable(r));
   // 연도별 분류
-  const byYear = new Map<string, { domestic: number; export: number; overseas: number; months: Set<number> }>();
+  const byYear = new Map<
+    string,
+    { domestic: number; export: number; overseas: number; months: Set<number> }
+  >();
   for (const r of monthRows) {
     const y = periodYear(r.year_period);
     const mm = parseInt(r.year_period.slice(-2), 10);
@@ -879,9 +882,7 @@ export function aggregateKiaRetailKpi(rows: KiaRetailSaleRow[]): CompanyKpiSumma
   // YTD = inProgressYear 의 실제 발생 월 (retail_units>0)
   const inProgressMonths = new Set(
     months
-      .filter(
-        (r) => periodYear(r.year_period) === String(inProgressYear) && r.retail_units > 0
-      )
+      .filter((r) => periodYear(r.year_period) === String(inProgressYear) && r.retail_units > 0)
       .map((r) => parseInt(r.year_period.slice(-2), 10))
   );
   const hasInProgress = inProgressMonths.size > 0;
@@ -950,9 +951,7 @@ export function aggregateKiaRetailTopModels(
       .map((r) => r.year_period.slice(-2))
   );
   const isYtdMode = selectedMonths.size > 0 && selectedMonths.size < 12;
-  const lastCompletedYear = isYtdMode
-    ? String(inProgressYear - 1)
-    : String(inProgressYear);
+  const lastCompletedYear = isYtdMode ? String(inProgressYear - 1) : String(inProgressYear);
   const prevYear = String(parseInt(lastCompletedYear, 10) - 1);
 
   type Agg = { latest: number; prev: number; ytd: number; ytdPrev: number };

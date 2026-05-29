@@ -198,8 +198,7 @@ export default function CompanyTopModelsTable({
   const showBrandInsteadOfPt = data.length > 0 && data.every((r) => !!r.brand);
   const ptColLabel = showBrandInsteadOfPt ? 'Brand' : 'PT';
   // 자동 hide: brand도 PT도 없으면 컬럼 의미 없음 (정규화로 PT null인 모드)
-  const allEmpty =
-    data.length > 0 && data.every((r) => r.resolvedPt == null && !r.brand);
+  const allEmpty = data.length > 0 && data.every((r) => r.resolvedPt == null && !r.brand);
   const showPtCol = !hidePtColumn && !allEmpty;
 
   // '전체' 모드에서만 차종 통일 안내 (사용자 명시: ALL만 정규화 — domestic/koreaShip 제외).
@@ -258,7 +257,8 @@ export default function CompanyTopModelsTable({
         </div>
         {isUnified && !hideUnifiedNote && (
           <p className="mt-1 text-[11px] text-muted-foreground">
-            전체 모드에서만 프로그램 코드 기준으로 통일(예: CN7/CN7c/CN7 HEV → CN7). 국내·공장별 모드는 IR 엑셀 원본 표기 그대로.
+            전체 모드에서만 프로그램 코드 기준으로 통일(예: CN7/CN7c/CN7 HEV → CN7). 국내·공장별
+            모드는 IR 엑셀 원본 표기 그대로.
           </p>
         )}
       </CardHeader>
@@ -273,18 +273,14 @@ export default function CompanyTopModelsTable({
               <TableRow>
                 <TableHead className="w-[80px] text-muted-foreground">순위</TableHead>
                 <TableHead>차종</TableHead>
-                {showPtCol && (
-                  <TableHead className="hidden md:table-cell">{ptColLabel}</TableHead>
-                )}
+                {showPtCol && <TableHead className="hidden md:table-cell">{ptColLabel}</TableHead>}
                 {showYtd && (
                   <TableHead className="hidden text-right md:table-cell">
                     {ytdPeriodLabel}
                   </TableHead>
                 )}
                 {showYtdYoy && (
-                  <TableHead className="hidden text-right md:table-cell">
-                    YoY (YTD)
-                  </TableHead>
+                  <TableHead className="hidden text-right md:table-cell">YoY (YTD)</TableHead>
                 )}
                 <TableHead className="text-right">{latestPeriodLabel}</TableHead>
                 <TableHead className="hidden text-right md:table-cell">{prevPeriodLabel}</TableHead>
@@ -300,7 +296,9 @@ export default function CompanyTopModelsTable({
                       <span>{row.model}</span>
                       <span className="md:hidden">
                         {showBrandInsteadOfPt && row.brand ? (
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">{row.brand}</span>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                            {row.brand}
+                          </span>
                         ) : (
                           <PtBadge pt={row.resolvedPt} />
                         )}
@@ -310,7 +308,9 @@ export default function CompanyTopModelsTable({
                   {showPtCol && (
                     <TableCell className="hidden md:table-cell">
                       {showBrandInsteadOfPt && row.brand ? (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">{row.brand}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                          {row.brand}
+                        </span>
                       ) : (
                         <PtBadge pt={row.resolvedPt} />
                       )}

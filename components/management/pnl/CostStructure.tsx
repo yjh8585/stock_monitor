@@ -124,7 +124,8 @@ export default function CostStructure({ costStructure }: Props) {
       <header className="mb-3">
         <h2 className="text-lg font-semibold">1. 전사 비용구조</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          연결 기준 · 2026은 1~{maxYtdMonth(costStructure, 2026) || 0}월 누적(YTD) 실적 · 단위 백만원
+          연결 기준 · 2026은 1~{maxYtdMonth(costStructure, 2026) || 0}월 누적(YTD) 실적 · 단위
+          백만원
         </p>
       </header>
       <div className="overflow-x-auto">

@@ -83,7 +83,15 @@ export default function KiaTopModelsCard({
     if (dataset === 'wholesale') return factoryOptions;
     // retail: 'all' + retailPlants. 사용자 명시 — '전체 / 국내 / 해외 5'에 맞춰
     // 'Korea Plants'를 'domestic' 위치에 두려면 정렬 (CKD/Special Vehicle/HMGICs는 마지막).
-    const primary = ['all', 'Korea Plants', 'U.S. Plant', 'China Plants', 'Slovakia Plant', 'Mexico Plant', 'India Plant'];
+    const primary = [
+      'all',
+      'Korea Plants',
+      'U.S. Plant',
+      'China Plants',
+      'Slovakia Plant',
+      'Mexico Plant',
+      'India Plant',
+    ];
     const present = primary.filter((p) => p === 'all' || retailPlants.includes(p));
     const extras = retailPlants.filter((p) => !primary.includes(p));
     return [...present, ...extras];
@@ -98,8 +106,8 @@ export default function KiaTopModelsCard({
   }, [dataset, plant]);
 
   const sourceMap = dataset === 'wholesale' ? wholesaleByFactory : retailByPlant;
-  const current: CompanyTopModelsResult =
-    sourceMap[effectivePlant] ?? sourceMap.all ?? { rows: [], totals: { latestPeriod: 0, prevPeriod: 0, ytd: 0 } };
+  const current: CompanyTopModelsResult = sourceMap[effectivePlant] ??
+    sourceMap.all ?? { rows: [], totals: { latestPeriod: 0, prevPeriod: 0, ytd: 0 } };
   const data = current.rows;
   const totals = current.totals;
   const showYtd = !!ytdPeriodLabel && data.some((r) => r.ytdSales > 0);
@@ -174,7 +182,9 @@ export default function KiaTopModelsCard({
                 <TableHead className="w-[80px] text-muted-foreground">순위</TableHead>
                 <TableHead>차종</TableHead>
                 {showYtd && (
-                  <TableHead className="hidden text-right md:table-cell">{ytdPeriodLabel}</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">
+                    {ytdPeriodLabel}
+                  </TableHead>
                 )}
                 {showYtdYoy && (
                   <TableHead className="hidden text-right md:table-cell">YoY (YTD)</TableHead>

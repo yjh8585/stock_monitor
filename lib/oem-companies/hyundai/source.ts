@@ -388,7 +388,9 @@ function buildRetailDataByYear(
   const out: Record<string, HyundaiEuRetailData> = {};
   for (const y of years) {
     out[y] =
-      region === 'US' ? aggregateHyundaiUsRetail(retailRows, y) : aggregateHyundaiEuRetail(retailRows, y);
+      region === 'US'
+        ? aggregateHyundaiUsRetail(retailRows, y)
+        : aggregateHyundaiEuRetail(retailRows, y);
   }
   return out;
 }

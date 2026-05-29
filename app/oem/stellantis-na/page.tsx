@@ -75,8 +75,9 @@ export default async function StellantisNaPage() {
         hideUnifiedNote
       />
       <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        ※ 2024년 데이터에는 <span className="font-medium text-foreground">Ram LD PU / Ram HD PU</span>
-        가 분리 표기되지 않고 통합 표기 &quot;Ram P/U&quot; 합계 약{' '}
+        ※ 2024년 데이터에는{' '}
+        <span className="font-medium text-foreground">Ram LD PU / Ram HD PU</span>가 분리 표기되지
+        않고 통합 표기 &quot;Ram P/U&quot; 합계 약{' '}
         <span className="font-medium text-foreground">373,120</span>대로 보고됨 (2024년부터 LD/HD
         분리). 분리 표기 이후 연도(2025+)와 직접 비교 시 참고.
       </p>

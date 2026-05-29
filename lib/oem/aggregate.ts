@@ -120,9 +120,7 @@ export function aggregateOemCountryMatrix(rows: OemSalesGroupCountryMonth[]): {
  *
  * 빈 월은 0으로 채우고, 전년동월(prevYm = ym - 100) 매출이 임계값 이상일 때만 YoY 계산.
  */
-export function aggregateModelSeries(
-  rows: OemSalesModelCountryMonth[]
-): ModelMonthlySeries[] {
+export function aggregateModelSeries(rows: OemSalesModelCountryMonth[]): ModelMonthlySeries[] {
   const result: ModelMonthlySeries[] = [];
   for (const target of NA_MODEL_TARGETS) {
     const modelSet = new Set(target.models);

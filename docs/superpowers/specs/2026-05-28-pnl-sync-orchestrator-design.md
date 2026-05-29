@@ -11,11 +11,11 @@
 
 경영관리 페이지(`/management`)는 `참고/손익/자료정리_월별손익_*.xlsx` 단일 엑셀에서 데이터를 받는다. 현재 3개 Python 스크립트가 각각 같은 엑셀을 열고 자기 시트만 처리한다.
 
-| 스크립트 | 처리 시트 | 적재 테이블 |
-|---|---|---|
-| `sync_pnl_excel.py` | 연간 / 연결_월 / 월 | `pnl_entries` |
-| `sync_pnl_cost_structure.py` | 비용비율 | `pnl_cost_structure` |
-| `sync_pnl_plan.py` | 계획 / 수주 | `pnl_plan` |
+| 스크립트                     | 처리 시트            | 적재 테이블          |
+| ---------------------------- | -------------------- | -------------------- |
+| `sync_pnl_excel.py`          | 연간 / 연결\_월 / 월 | `pnl_entries`        |
+| `sync_pnl_cost_structure.py` | 비용비율             | `pnl_cost_structure` |
+| `sync_pnl_plan.py`           | 계획 / 수주          | `pnl_plan`           |
 
 엑셀 시트 총 14개 중 6개가 수집 대상이고, 5개는 raw/intermediate(`월별_원본`, `정리_연간`, `정리_연결`, `정리_별도`, `참고`), 3개(`재고`, `인원`, `생산`)는 향후 수집 후보다.
 
@@ -28,9 +28,9 @@
 
 ## 2. 두 단계 접근
 
-| 단계 | 운영 방식 | 상태 |
-|---|---|---|
-| **Phase 0** | Python CLI 직접 실행 (Claude Code/사용자가 `python scripts/sync_pnl_*.py`) | 운영 중 |
+| 단계        | 운영 방식                                                                                      | 상태                                                |
+| ----------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Phase 0** | Python CLI 직접 실행 (Claude Code/사용자가 `python scripts/sync_pnl_*.py`)                     | 운영 중                                             |
 | **Phase 1** | 웹 업로드 (`/management/companies` 페이지 → Vercel API → exceljs 파싱 → confidentialDb upsert) | 디자인 승인. 구현은 데이터 검증 안정화 후 별도 plan |
 
 **Phase 0 → Phase 1 마이그레이션 시점:** 사용자가 데이터 적재 검증을 충분히 마치고 명시적 GO 사인을 줄 때. 그 전까지는 Python이 단일 진실 공급원(SSOT).
@@ -118,27 +118,31 @@ UI 결과 카드 렌더 (행수/연도/경고/실패)
 
 ### 5.2 파일 / 책임
 
-| 종류 | 경로 | 책임 |
-|---|---|---|
-| 생성 | `app/api/management-sync/upload/route.ts` | POST handler (admin 가드 포함) |
-| 생성 | `lib/management-sync/types.ts` | `SyncModule`, `SyncResult` |
-| 생성 | `lib/management-sync/registry.ts` | `SYNC_MODULES` 배열 + `IGNORE_SHEETS` |
-| 생성 | `lib/management-sync/confidential-log.ts` | `summarizeSafe`, `assertNoAmount` |
-| 생성 | `lib/management-sync/orchestrator.ts` | `runSync(buffer, opts)` |
-| 생성 | `lib/management-sync/modules/pnl-entries.ts` | Python 모듈과 동등 |
-| 생성 | `lib/management-sync/modules/cost-structure.ts` | 동일 |
-| 생성 | `lib/management-sync/modules/plan.ts` | 동일 |
-| 생성 | `lib/management-sync/modules/*.test.ts` | Vitest |
-| 생성 | `components/management/companies/ExcelUploader.tsx` | 업로드 폼 + 결과 카드 |
-| 수정 | `app/management/companies/page.tsx` | ExcelUploader 마운트 |
-| 수정 | `lib/supabase/confidential.ts` | `CONFIDENTIAL_TABLES`에 `management_sync_audit_log` |
-| 생성 | `supabase/migrations/YYYYMMDD_create_management_sync_audit_log.sql` | audit 테이블 + RLS deny |
+| 종류 | 경로                                                                | 책임                                                |
+| ---- | ------------------------------------------------------------------- | --------------------------------------------------- |
+| 생성 | `app/api/management-sync/upload/route.ts`                           | POST handler (admin 가드 포함)                      |
+| 생성 | `lib/management-sync/types.ts`                                      | `SyncModule`, `SyncResult`                          |
+| 생성 | `lib/management-sync/registry.ts`                                   | `SYNC_MODULES` 배열 + `IGNORE_SHEETS`               |
+| 생성 | `lib/management-sync/confidential-log.ts`                           | `summarizeSafe`, `assertNoAmount`                   |
+| 생성 | `lib/management-sync/orchestrator.ts`                               | `runSync(buffer, opts)`                             |
+| 생성 | `lib/management-sync/modules/pnl-entries.ts`                        | Python 모듈과 동등                                  |
+| 생성 | `lib/management-sync/modules/cost-structure.ts`                     | 동일                                                |
+| 생성 | `lib/management-sync/modules/plan.ts`                               | 동일                                                |
+| 생성 | `lib/management-sync/modules/*.test.ts`                             | Vitest                                              |
+| 생성 | `components/management/companies/ExcelUploader.tsx`                 | 업로드 폼 + 결과 카드                               |
+| 수정 | `app/management/companies/page.tsx`                                 | ExcelUploader 마운트                                |
+| 수정 | `lib/supabase/confidential.ts`                                      | `CONFIDENTIAL_TABLES`에 `management_sync_audit_log` |
+| 생성 | `supabase/migrations/YYYYMMDD_create_management_sync_audit_log.sql` | audit 테이블 + RLS deny                             |
 
 ### 5.3 모듈 contract (TypeScript — Python과 동등)
 
 ```typescript
 export interface SyncModule {
-  readonly meta: { readonly name: string; readonly sheets: readonly string[]; readonly table: string };
+  readonly meta: {
+    readonly name: string;
+    readonly sheets: readonly string[];
+    readonly table: string;
+  };
   run(workbook: ExcelJS.Workbook, opts: { dryRun: boolean }): Promise<SyncResult>;
 }
 

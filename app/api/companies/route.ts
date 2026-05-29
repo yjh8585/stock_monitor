@@ -132,10 +132,7 @@ export async function POST(req: Request) {
       'onboard workflow_dispatch 실패 — INSERT는 유지'
     );
   } else {
-    logger.info(
-      { ticker: data.ticker, url: dispatch.url },
-      'onboard workflow_dispatch 트리거됨'
-    );
+    logger.info({ ticker: data.ticker, url: dispatch.url }, 'onboard workflow_dispatch 트리거됨');
   }
 
   return NextResponse.json(

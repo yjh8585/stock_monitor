@@ -14,7 +14,10 @@ import {
 } from 'recharts';
 import { fmtChange, arrowColor } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
-import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
+import {
+  DATA_LABEL_STYLE,
+  GRID_STROKE_OPACITY,
+} from '@/components/oem-companies/common/chartStyle';
 import {
   buildRanking,
   fmtFull,

@@ -22,9 +22,9 @@ interface Props {
 }
 
 const COLORS = {
-  domestic: '#1e3a5f',  // 진한 남색
-  export: '#22c55e',    // 녹색
-  overseas: '#bbf7d0',  // 연녹색
+  domestic: '#1e3a5f', // 진한 남색
+  export: '#22c55e', // 녹색
+  overseas: '#bbf7d0', // 연녹색
 };
 
 function fmtUnitsTick(n: number): string {
@@ -100,7 +100,13 @@ export default function ShipmentStackedHBarChartInner({ data }: Props) {
             const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);
             const pct = total > 0 ? (v / total) * 100 : 0;
             const label =
-              name === 'domestic' ? '내수' : name === 'export' ? '수출' : name === 'overseas' ? '해외' : String(name);
+              name === 'domestic'
+                ? '내수'
+                : name === 'export'
+                  ? '수출'
+                  : name === 'overseas'
+                    ? '해외'
+                    : String(name);
             return [`${v.toLocaleString('ko-KR')}대 (${pct.toFixed(1)}%)`, label];
           }}
           itemSorter={(item) => -(item.value as number)}
@@ -108,7 +114,9 @@ export default function ShipmentStackedHBarChartInner({ data }: Props) {
         <Legend
           wrapperStyle={{ fontSize: '14px' }}
           {...legendProps}
-          formatter={(v) => (v === 'domestic' ? '내수' : v === 'export' ? '수출' : v === 'overseas' ? '해외' : v)}
+          formatter={(v) =>
+            v === 'domestic' ? '내수' : v === 'export' ? '수출' : v === 'overseas' ? '해외' : v
+          }
         />
         <Bar
           dataKey="domestic"

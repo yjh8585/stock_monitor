@@ -16,8 +16,10 @@ interface Props {
 export default function HyundaiUsRetailTopCard({ byYear, years }: Props) {
   if (years.length === 0) return null;
   const selectedYear = years[years.length - 1];
-  const current: CompanyTopModelsResult =
-    byYear[selectedYear] ?? { rows: [], totals: { latestPeriod: 0, prevPeriod: 0, ytd: 0 } };
+  const current: CompanyTopModelsResult = byYear[selectedYear] ?? {
+    rows: [],
+    totals: { latestPeriod: 0, prevPeriod: 0, ytd: 0 },
+  };
 
   const isYtdMode = current.rows.some((r) => (r.ytdSales ?? 0) > 0);
   const latestLabel = isYtdMode ? String(parseInt(selectedYear, 10) - 1) : selectedYear;
