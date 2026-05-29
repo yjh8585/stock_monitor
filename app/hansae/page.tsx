@@ -27,8 +27,8 @@ export default async function HansaePage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">한세그룹 주식 대시보드</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          한세예스24홀딩스 · 한세실업 · 한세엠케이 · 장중 5분 자동 갱신 · 수급/뉴스/종목토론 감성
-          병치
+          한세예스24홀딩스 · 한세실업 · 한세엠케이 · 예스24 · 장중 5분 자동 갱신 ·
+          수급/뉴스/종목토론 감성 병치
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">

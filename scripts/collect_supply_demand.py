@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-한세 3종목(016450/105630/069640)의 일별 투자자별 매매동향을 pykrx로 수집해
+한세 4종목(016450/105630/069640/053280)의 일별 투자자별 매매동향을 pykrx로 수집해
 stock_supply_demand 테이블에 upsert한다.
 
 - 외국인합계 → foreign_net
