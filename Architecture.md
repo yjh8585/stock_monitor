@@ -83,9 +83,33 @@
 | `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                       |
 | `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`       |
 | `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴     |
-| `/management`       | 경영관리/손익(PnL)              | `pnl_entries`, `pnl_cost_structure`         |
+| `/management`       | 경영관리 (탭 구조 → §5-A)       | 사외비 5종 (`pnl_entries` 등, §7-G)         |
 | `/login`            | 세션 로그인                     | Supabase Auth                               |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts` |
+
+### 5-A. 경영관리(`/management`) 탭 구조
+
+탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_plan`·`inventory_entries`·`personnel_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
+
+- **pnl** — 손익 15섹션: 1~9 기존, 10 이익기여도 TOP7/WORST7(고객·제품), 11·12 전년대비 월별, 13 제품·고객 YoY, 14 수익성 워터폴, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`.
+- **plan** — 계획 대비 실적·달성율 콤보 차트 8종(수주·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 2·3은 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
+- **inventory** — 재고 KPI 5개 + 차트 6종:
+  1. 재고 현황(종류) 콤보 — 운영+관리+보상+운송 누적막대 + 회전율 꺾은선(실적만)
+  2. 재고 현황(국가) 누적막대 — 국내(구동+제동조향+전장)·미국·우즈벡 + 영업+국내보상(=전체−국가합, 기본 숨김; 켜면 총액=차트1). 실적만, 회전율 제외
+  3. 계획대비 실적(전사) 토글[전체·운영·관리·보상·운송]
+  4. 계획대비 실적(국내) 토글[구동·제동조향·전장]
+  5. 계획대비 실적(해외) 토글[미국·우즈벡 국가값, 운송과 별개]
+  6. 계획대비 실적(운송) 토글[미국·우즈벡·영업재고]
+  - 차트 3~6은 최근연도 12월 계획값을 빨간 점선 ReferenceLine. 국가합(국내+미국+우즈벡)은 전체의 ~88%(나머지=영업+보상 국내분). 소스 `inventory_entries`. USD→원화는 `value × fx_rate / 100`(fx=1400).
+- **production** — (목록상 탭, 상세 미기재)
+- **personnel** — 인원 차트 4종 + 표:
+  1. 전체 인원 누적막대 5층[국내(외주포함)·미국·중국·우즈벡·이인텔리전스]
+  2. 국내 인원 누적막대 3층[국내·사내외주·협력사원] — 1·2는 전체/사무/생산 토글
+  3. 해외·자회사 막대[미국·중국·우즈벡·이인텔리전스 토글]
+  4. 사무·생산 비중 누적막대 2층, 드롭다운[전체·국내+외주·국내·미국·중국·우즈벡]
+  5. 인원 수 표(시점 4개 가로 펼침, 국내·국내+외주·해외 소계 + 전체 합계)
+  - 사무=임원+사무. 소스 `personnel_entries`. 과거=연말, 현재=최신 시점.
+- **companies** — 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, INSERT graceful).
 
 **API 라우트 분류**:
 
