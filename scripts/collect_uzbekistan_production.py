@@ -5,21 +5,24 @@
   1. stat.uz/ru/press-tsentr/novosti-goskomstata/ 페이지 순회 → 'Промышленное производство' 보도자료 link 수집
   2. 보도자료 HTML 에서 PDF iframe URL 추출
   3. PDF 다운로드 + pdfplumber로 'Количество произведенных автомобилей' 표 파싱
-  4. uzbekistan_auto_stats upsert (kind='production', source_type='stat-uz', period_type='month' YTD 누계)
+  4. uzbekistan_auto_stats upsert (kind='production', source_type='stat-uz', period_type='ytd')
 
-PDF 발표 패턴: 매월 25일 전후 '1~X월 YTD 누계' 1건.
+PDF 표 구조 (중요 — 차분 불가):
+  'Количество произведенных автомобилей ... за январь-N, шт.'
+  | Промышленная продукция | <전년> год | <당년> год |   ← 두 컬럼은 동일 1~N월 YTD의 전년/당년
+  | "Cobalt"               | 44 747     | 53 802     |
+  → 한 PDF = 1~N월 누계(YTD)의 당년·전년 동기 비교. 인접 발표 간 차분이 아니므로
+    period_type='ytd', year_period='YYYY-MM'(=당년-N월, 전년-N월)로 모델별 스냅샷 적재.
 
-YTD 차분 정책 (uzavtosanoat sales와 동일):
-  - 같은 연도 PDF를 last_month 오름차순 정렬
-  - 모델별 (YTD 이번) - (YTD 직전) = 월별 production
-  - 첫 발표 (1월이 아니면) 평균 분할
-  - 연 누계 row (가장 최신 YTD) 동시 적재
+천단위 표기: 공백 구분('53 802'=53802). 컬럼 구분도 공백이라 정규식이 마지막 3자리만
+  뽑던 버그(53802→802) 수정 — 숫자 토큰을 '\\d{1,3}(?: \\d{3})*'로 명시.
 
-모델 정규화:
-  - 'Cobalt'/'Damas'/'Tracker'/'Onix' → 그대로 (Chevrolet 브랜드)
-  - 'KIA'/'Chery'/'Haval'/'BYD' → 그대로 (브랜드 자체)
-  - 'Грузовые автомобили' = LCV (Light Commercial Vehicles) brand에 매핑
-  - 'Специализированные автомобили' (특수차) — 사용자 명시: 'Damas/Labo' 통합 처리는 별도 모델
+모델 정규화 (사용자 명시):
+  - 'Cobalt'/'Tracker'/'Onix' → Chevrolet 브랜드
+  - 'Damas' + 'Специализированные'(특수차) → Chevrolet 'Damas/Labo' 합산 (같은 라인 변형)
+  - 'KIA'/'Chery'/'Haval'/'BYD' → 브랜드 자체
+  - 'Грузовые автомобили' → LCV (Light Commercial Vehicles)
+  - 'Легковые автомобили' = 승용 합계 → 적재 skip (모델 합으로 도출, cross-check만)
 
 플래그:
   --year-from 2024
@@ -64,20 +67,22 @@ RU_MONTHS = {
   'январ': 1, 'феврал': 2, 'март': 3, 'апрел': 4, 'май': 5, 'мая': 5, 'июн': 6,
   'июл': 7, 'август': 8, 'сентябр': 9, 'октябр': 10, 'ноябр': 11, 'декабр': 12,
 }
-PERIOD_RE = re.compile(
-  r'(?:за\s+)?(?P<from>январ\w*|феврал\w*|март\w*|апрел\w*|ма[яй]|июн\w*|июл\w*|август\w*|сентябр\w*|октябр\w*|ноябр\w*|декабр\w*)\s*[\-–—]\s*(?P<to>январ\w*|феврал\w*|март\w*|апрел\w*|ма[яй]|июн\w*|июл\w*|август\w*|сентябр\w*|октябр\w*|ноябр\w*|декабр\w*)\s+(?P<year>\d{4})',
-  re.IGNORECASE
-)
+_MONTH_ALT = r'январ\w*|феврал\w*|март\w*|апрел\w*|ма[яй]|июн\w*|июл\w*|август\w*|сентябр\w*|октябр\w*|ноябр\w*|декабр\w*'
+# 표 제목의 기간 (연도 인라인 없을 수 있음): 'за январь-апрель, шт'
+MONTH_RANGE_RE = re.compile(rf'(?P<from>{_MONTH_ALT})\s*[\-–—]\s*(?P<to>{_MONTH_ALT})', re.IGNORECASE)
+# 컬럼 헤더의 두 연도: '2025 год¹⁾ 2026 год' → (전년, 당년)
+YEARS_RE = re.compile(r'(\d{4})\s*год\D{0,8}?(\d{4})\s*год', re.IGNORECASE)
 
-# 모델 라인 정규식: '"Cobalt"  44 747  53 802' (탭/공백 mix)
+# 천단위 공백 숫자 토큰 — '53 802'=53802, '135 367'=135367. nbsp/narrow-nbsp 포함.
+_N = r'(\d{1,3}(?:[\s  ]\d{3})*)'
+# 모델 라인: '"Cobalt" 44 747 53 802' — (전년, 당년) 두 컬럼.
 MODEL_LINE_RE = re.compile(
-  r'[“"](?P<model>Cobalt|Damas|Tracker|Onix|KIA|Chery|Haval|BYD)[”"]\s*([\d\s ]+)\s+([\d\s ]+)',
+  rf'["“”«»]?(?P<model>Cobalt|Damas|Tracker|Onix|KIA|Chery|Haval|BYD)["“”«»]?\s+{_N}\s+{_N}',
   re.IGNORECASE
 )
-# 합계 라인
-TRUCK_LINE_RE = re.compile(r'Грузовые\s+автомобили\s+([\d\s]+)\s+([\d\s]+)', re.IGNORECASE)
-PC_LINE_RE = re.compile(r'Легковые\s+автомобили\s+([\d\s]+)\s+([\d\s]+)', re.IGNORECASE)
-SV_LINE_RE = re.compile(r'Специализированные\s+автомоби\s*ли\s+([\d\s]+)\s+([\d\s]+)', re.IGNORECASE)
+TRUCK_LINE_RE = re.compile(rf'Грузовые\s+автомобили\s+{_N}\s+{_N}', re.IGNORECASE)
+PC_LINE_RE = re.compile(rf'Легковые\s+автомобили\s+{_N}\s+{_N}', re.IGNORECASE)
+SV_LINE_RE = re.compile(rf'Специализированные\s+автомоби\s*ли\s+{_N}\s+{_N}', re.IGNORECASE)
 
 
 def _month_of(word: str) -> int | None:
@@ -158,160 +163,103 @@ def fetch_pdf(pdf_url: str) -> bytes | None:
     return None
 
 
+# 모델명 → (brand, vehicle_model) 매핑. Damas/Специализированные는 별도 합산.
+def _map_model(name: str) -> tuple[str, str]:
+  if name in ('Cobalt', 'Tracker', 'Onix'):
+    return ('Chevrolet', name)
+  return (name, '')  # KIA/Chery/Haval/BYD → 브랜드 자체
+
+
 def parse_industry_pdf(pdf_bytes: bytes) -> dict | None:
-  """PDF에서 자동차 페이지 텍스트 + YTD 기간 + 모델별 production 추출."""
+  """PDF 자동차 표에서 (당년/전년, 1~N월, 모델별 prev·cur YTD) 추출.
+
+  반환: {'cur_year', 'prior_year', 'last_month', 'rows': [(brand, model, prev, cur)]}
+  표 두 컬럼 = 동일 1~N월의 전년·당년 YTD (차분 아님). 천단위 공백 보존.
+  """
   with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
     auto_text = ''
+    first_text = pdf.pages[0].extract_text() or '' if pdf.pages else ''
     for p in pdf.pages:
       text = p.extract_text() or ''
       if 'автомоб' in text.lower() and ('cobalt' in text.lower() or 'легков' in text.lower()):
         auto_text += '\n' + text
-    if not auto_text:
-      return None
-
-  # 기간 파싱
-  period_m = PERIOD_RE.search(auto_text)
-  if not period_m:
-    # PDF 첫 페이지에도 기간 있음 — 다시 전체 pdf 확인
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-      first_text = pdf.pages[0].extract_text() or ''
-    period_m = PERIOD_RE.search(first_text)
-  if not period_m:
+  if not auto_text:
     return None
-  year = int(period_m.group('year'))
-  last_m = _month_of(period_m.group('to'))
+
+  # 기간(월) — 'за январь-апрель, шт'
+  mr = MONTH_RANGE_RE.search(auto_text)
+  last_m = _month_of(mr.group('to')) if mr else None
   if last_m is None:
     return None
 
-  # 모델별 production
-  models: dict[str, int] = {}
-  # 모델 row 정규식 — 두 컬럼 값 중 최신 (오른쪽) 사용
+  # 두 연도 — 컬럼 헤더 '2025 год 2026 год'. 없으면 첫 페이지/발행일로 추정.
+  ym = YEARS_RE.search(auto_text) or YEARS_RE.search(first_text)
+  if ym:
+    prior_year, cur_year = int(ym.group(1)), int(ym.group(2))
+  else:
+    dm = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', first_text)  # 'Дата выпуска: 26.05.2026'
+    if not dm:
+      return None
+    cur_year = int(dm.group(3))
+    prior_year = cur_year - 1
+  if cur_year <= prior_year:
+    cur_year, prior_year = prior_year, cur_year
+
+  # 모델별 (prev, cur)
+  out: list[tuple[str, str, int, int]] = []
+  damas_prev = damas_cur = 0
   for m in MODEL_LINE_RE.finditer(auto_text):
     name = m.group('model')
     try:
-      prev_val = _parse_int_with_spaces(m.group(2))
-      cur_val = _parse_int_with_spaces(m.group(3))
-      models[name] = cur_val
-      models[f'{name}_prev'] = prev_val  # cross-check 용
+      prev_v = _parse_int_with_spaces(m.group(2))
+      cur_v = _parse_int_with_spaces(m.group(3))
     except Exception:
       continue
+    if name == 'Damas':  # 'Damas/Labo'로 합산 (+ Специализированные)
+      damas_prev += prev_v
+      damas_cur += cur_v
+    else:
+      brand, model = _map_model(name)
+      out.append((brand, model, prev_v, cur_v))
 
-  # Грузовые/Легковые/Специализированные
-  tm = TRUCK_LINE_RE.search(auto_text)
-  if tm:
-    try:
-      models['Грузовые'] = _parse_int_with_spaces(tm.group(2))
-    except Exception:
-      pass
-  pm = PC_LINE_RE.search(auto_text)
-  if pm:
-    try:
-      models['Легковые'] = _parse_int_with_spaces(pm.group(2))
-    except Exception:
-      pass
-  sv = SV_LINE_RE.search(auto_text)
+  sv = SV_LINE_RE.search(auto_text)  # Специализированные → Damas/Labo 합산
   if sv:
     try:
-      # 사용자 명시: 'Damas/Labo' 통합 (Specialized + Damas)
-      models['Специализированные'] = _parse_int_with_spaces(sv.group(2))
+      damas_prev += _parse_int_with_spaces(sv.group(1))
+      damas_cur += _parse_int_with_spaces(sv.group(2))
+    except Exception:
+      pass
+  if damas_cur or damas_prev:
+    out.append(('Chevrolet', 'Damas/Labo', damas_prev, damas_cur))
+
+  tm = TRUCK_LINE_RE.search(auto_text)  # Грузовые → LCV
+  if tm:
+    try:
+      out.append(('LCV', '', _parse_int_with_spaces(tm.group(1)), _parse_int_with_spaces(tm.group(2))))
     except Exception:
       pass
 
-  return {'year': year, 'last_month': last_m, 'models': models}
+  if not out:
+    return None
+  return {'cur_year': cur_year, 'prior_year': prior_year, 'last_month': last_m, 'rows': out}
 
 
-def diff_to_monthly(parsed: list[dict]) -> list[dict]:
-  """YTD 차분 → 월별 row + 연 누계 row."""
-  rows: list[dict] = []
-  by_year: dict[int, list[dict]] = {}
-  for p in parsed:
-    by_year.setdefault(p['year'], []).append(p)
-  for year, items in by_year.items():
-    items.sort(key=lambda x: x['last_month'])
-    prev_ytd: dict[str, int] = {}
-    for p in items:
-      mm = p['last_month']
-      year_period = f'{year}-{mm:02d}'
-      for model, ytd_v in p['models'].items():
-        if model.endswith('_prev'):
-          continue  # cross-check 용
-        prev_v = prev_ytd.get(model, 0)
-        month_v = ytd_v - prev_v
-        # 'Damas' + 'Специализированные' → 'Damas/Labo' 통합 (사용자 명시)
-        # Грузовые → 'LCV', Легковые → 합계 (적재 skip), 그 외 → 모델명 그대로
-        if model == 'Грузовые':
-          db_brand, db_model = 'LCV', ''
-        elif model == 'Легковые':
-          continue  # 합계 row — 모델별 SUM에서 도출 가능
-        elif model in ('Damas', 'Специализированные'):
-          db_brand, db_model = 'Chevrolet', 'Damas/Labo'
-        elif model in ('Cobalt', 'Tracker', 'Onix'):
-          db_brand, db_model = 'Chevrolet', model
-        else:
-          db_brand, db_model = model, ''
-        # 평균 분할 (첫 발표가 1월 아니고 prev 없으면)
-        if not prev_ytd and mm > 1:
-          avg = ytd_v // mm
-          for m in range(1, mm + 1):
-            rows.append({
-              'kind': 'production',
-              'period_type': 'month',
-              'year_period': f'{year}-{m:02d}',
-              'company': '',
-              'brand': db_brand,
-              'vehicle_model': db_model,
-              'units': avg,
-              'source_type': 'stat-uz',
-              'source_url': BASE + NEWS_LIST,
-            })
-        else:
-          rows.append({
-            'kind': 'production',
-            'period_type': 'month',
-            'year_period': year_period,
-            'company': '',
-            'brand': db_brand,
-            'vehicle_model': db_model,
-            'units': month_v,
-            'source_type': 'stat-uz',
-            'source_url': BASE + NEWS_LIST,
-          })
-        prev_ytd[model] = ytd_v
-
-    # 연 누계 (마지막 YTD)
-    last = items[-1]
-    for model, ytd_v in last['models'].items():
-      if model.endswith('_prev') or model == 'Легковые':
-        continue
-      if model == 'Грузовые':
-        db_brand, db_model = 'LCV', ''
-      elif model in ('Damas', 'Специализированные'):
-        db_brand, db_model = 'Chevrolet', 'Damas/Labo'
-      elif model in ('Cobalt', 'Tracker', 'Onix'):
-        db_brand, db_model = 'Chevrolet', model
-      else:
-        db_brand, db_model = model, ''
-      rows.append({
-        'kind': 'production',
-        'period_type': 'year',
-        'year_period': str(year),
-        'company': '',
-        'brand': db_brand,
-        'vehicle_model': db_model,
-        'units': ytd_v,
-        'source_type': 'stat-uz',
-        'source_url': BASE + NEWS_LIST,
-      })
-  # dedupe (PK 충돌 시 합산)
+def build_ytd_rows(parsed: list[dict]) -> list[dict]:
+  """모델별 YTD 스냅샷 row (period_type='ytd', year_period='YYYY-MM'). 당년+전년 동기.
+  PK 충돌은 최신 발표(나중 호출) 우선."""
+  src = BASE + NEWS_LIST
   by_pk: dict[tuple, dict] = {}
-  for r in rows:
-    pk = (r['kind'], r['period_type'], r['year_period'], r['company'], r['brand'],
-          r['vehicle_model'], r['source_type'])
-    cur = by_pk.get(pk)
-    if cur is None:
-      by_pk[pk] = dict(r)
-    else:
-      cur['units'] += r['units']
+  for p in parsed:
+    lm = p['last_month']
+    for brand, model, prev_v, cur_v in p['rows']:
+      for yr, units in ((p['cur_year'], cur_v), (p['prior_year'], prev_v)):
+        row = {
+          'kind': 'production', 'period_type': 'ytd', 'year_period': f'{yr}-{lm:02d}',
+          'company': '', 'brand': brand, 'vehicle_model': model, 'units': units,
+          'source_type': 'stat-uz', 'source_url': src,
+        }
+        pk = (row['year_period'], brand, model)
+        by_pk[pk] = row  # 최신 우선
   return list(by_pk.values())
 
 
@@ -345,15 +293,16 @@ def main() -> int:
     parsed = parse_industry_pdf(pdf_bytes)
     if parsed is None:
       continue
-    if parsed['year'] < args.year_from or parsed['year'] > year_to:
+    # 당년 기준 필터 (전년 컬럼은 당년-1이라 함께 들어옴)
+    if parsed['cur_year'] < args.year_from or parsed['cur_year'] > year_to:
       continue
     parsed['news_url'] = n['href']
     parsed_list.append(parsed)
-    logger.debug(f'  parsed {parsed["year"]} 1-{parsed["last_month"]}월: '
-                 f'models={list(parsed["models"].keys())}')
+    logger.debug(f'  parsed {parsed["cur_year"]} (vs {parsed["prior_year"]}) 1-{parsed["last_month"]}월: '
+                 f'models={len(parsed["rows"])}')
 
   logger.info(f'산업 PDF 파싱: {len(parsed_list)}건')
-  rows = diff_to_monthly(parsed_list)
+  rows = build_ytd_rows(parsed_list)
   logger.info(f'적재 row: {len(rows)}건')
 
   ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')

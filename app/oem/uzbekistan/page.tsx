@@ -1,5 +1,6 @@
 import UzbekistanBrandSeriesChart from '@/components/oem-companies/uzbekistan/UzbekistanBrandSeriesChart';
 import UzbekistanCompanyMonthlyChart from '@/components/oem-companies/uzbekistan/UzbekistanCompanyMonthlyChart';
+import UzbekistanModelYearTable from '@/components/oem-companies/uzbekistan/UzbekistanModelYearTable';
 import UzbekistanProductionYearChart from '@/components/oem-companies/uzbekistan/UzbekistanProductionYearChart';
 import UzbekistanShareChart from '@/components/oem-companies/uzbekistan/UzbekistanShareChart';
 import { getUzbekistanData } from '@/lib/oem-companies/uzbekistan/source';
@@ -30,10 +31,10 @@ export default async function UzbekistanPage() {
       <div>
         <h2 className="text-base font-semibold">우즈베키스탄 자동차 시장</h2>
         <p className="text-xs text-muted-foreground">
-          출처: uzavtosanoat.uz · 회사별 sales (매월 보도자료, YTD 차분) + 연간 production
-          (Statistical info) · {data.totalRows.toLocaleString('ko-KR')}행 · 최신 수집{' '}
-          {data.lastCollectedAt?.slice(0, 10) ?? '-'} · 회사 6개: UzAuto Motors / Khorezm Auto / ADM
-          Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors
+          출처: uzavtosanoat.uz (회사별 판매, 매월 보도자료 YTD 차분) + stat.uz (모델별 생산 YTD) +
+          연간 생산(Statistical info) · {data.totalRows.toLocaleString('ko-KR')}행 · 최신 수집{' '}
+          {data.lastCollectedAt?.slice(0, 10) ?? '-'} · 판매 회사 {data.companies.length}개:{' '}
+          {data.companies.join(' / ')}
         </p>
       </div>
 
@@ -57,20 +58,32 @@ export default async function UzbekistanPage() {
               </p>
             )}
           </div>
-          <div className="rounded-lg border border-border p-4">
-            <p className="text-xs text-muted-foreground">{data.kpi.prevYearLabel} 합계 (sales)</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {data.kpi.totalPrevYear.toLocaleString('ko-KR')}
-              <span className="ml-1 text-sm text-muted-foreground">대</span>
-            </p>
-          </div>
+          {data.kpi.prevYearLabel && (
+            <div className="rounded-lg border border-border p-4">
+              <p className="text-xs text-muted-foreground">{data.kpi.prevYearLabel} 합계 (sales)</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {data.kpi.totalPrevYear.toLocaleString('ko-KR')}
+                <span className="ml-1 text-sm text-muted-foreground">대</span>
+              </p>
+            </div>
+          )}
           {data.kpi.ytdLabel && (
             <div className="rounded-lg border border-border p-4">
-              <p className="text-xs text-muted-foreground">{data.kpi.ytdLabel} (sales)</p>
+              <p className="text-xs text-muted-foreground">{data.kpi.ytdLabel} (sales, YTD)</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">
                 {data.kpi.ytdLatest.toLocaleString('ko-KR')}
                 <span className="ml-1 text-sm text-muted-foreground">대</span>
               </p>
+              {data.kpi.ytdYoyPct != null && (
+                <p
+                  className={`mt-1 text-sm tabular-nums ${
+                    data.kpi.ytdYoyPct > 0 ? 'text-emerald-600' : 'text-rose-600'
+                  }`}
+                >
+                  {data.kpi.ytdYoyPct > 0 ? '+' : ''}
+                  {data.kpi.ytdYoyPct.toFixed(1)}% YoY vs 전년 동기
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -80,8 +93,8 @@ export default async function UzbekistanPage() {
       <UzbekistanCompanyMonthlyChart
         monthly={data.monthlyByCompany}
         annual={data.annualByCompany}
-        title="회사별 sales (월/연 토글 · 6 enterprises stacked)"
-        footer="uzavtosanoat.uz 매월 14~18일 보도자료의 YTD 누계를 차분 → 월별 도출. 일부 월 보도자료가 timeout으로 누락될 수 있음 (별도 재수집 시 보완). 차분 결과 음수는 발표 정정/조정으로 가정."
+        title="회사별 판매 (월/연 토글 · stacked)"
+        footer="uzavtosanoat.uz 보도자료의 YTD 누계('реализовано'/'продано' = 판매)를 차분해 월별 도출. 중간 보도가 없는 달은 인접 발표의 증분을 구간 월수로 균등 분배(예: 6월 미발표 시 7월 발표분을 6·7월로 분배). 연초 첫 발표가 N월이면 1~N월 균등 분배. 생산('выпущено') 보도는 별도(생산 데이터)로 분리."
       />
 
       {/* 연간 production (Statistical info) */}
@@ -89,13 +102,13 @@ export default async function UzbekistanPage() {
         <UzbekistanProductionYearChart
           annual={data.productionAnnualByBrand}
           title="연간 생산 (uzavtosanoat Statistical Info · brand별)"
-          footer="출처: uzavtosanoat.uz/en/page/statistical_information_and_analysis · 2016~2025 연간. Chevrolet (천대 → 대) / BYD (2024~) / LCV (Light Commercial Vehicles) / Engines (천대 → 대)."
+          footer="출처: uzavtosanoat.uz/en/page/statistical_information_and_analysis · 2016~2025 연간. Chevrolet (천대 → 대) / BYD (2024~) / LCV (Light Commercial Vehicles). 엔진(Powertrain)은 완성차가 아니므로 제외."
         />
       )}
 
-      {/* Production KPI 카드 4장 */}
+      {/* Production KPI 카드 3장 (완성차만 — 엔진 제외) */}
       {data.productionKpi.chevroletLatest > 0 && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <div className="rounded-lg border border-border p-4">
             <p className="text-xs text-muted-foreground">
               Chevrolet 생산 {data.productionKpi.chevroletLatestLabel}
@@ -135,25 +148,6 @@ export default async function UzbekistanPage() {
               {data.productionKpi.chevroletLatestLabel}
             </p>
           </div>
-          <div className="rounded-lg border border-border p-4">
-            <p className="text-xs text-muted-foreground">
-              엔진 생산 {data.productionKpi.enginesLatestLabel}
-            </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {data.productionKpi.enginesLatest.toLocaleString('ko-KR')}
-              <span className="ml-1 text-sm text-muted-foreground">대</span>
-            </p>
-            {data.productionKpi.enginesYoy != null && (
-              <p
-                className={`mt-1 text-xs tabular-nums ${
-                  data.productionKpi.enginesYoy > 0 ? 'text-emerald-600' : 'text-rose-600'
-                }`}
-              >
-                {data.productionKpi.enginesYoy > 0 ? '+' : ''}
-                {data.productionKpi.enginesYoy.toFixed(1)}% YoY
-              </p>
-            )}
-          </div>
         </div>
       )}
 
@@ -177,7 +171,7 @@ export default async function UzbekistanPage() {
         </div>
       )}
 
-      {/* Chevrolet 10년 시계열 + Engines */}
+      {/* Chevrolet 10년 시계열 (엔진 제외 — 완성차만) */}
       {data.chevroletSeries.length > 0 && (
         <UzbekistanBrandSeriesChart
           data={data.chevroletSeries}
@@ -186,21 +180,30 @@ export default async function UzbekistanPage() {
           footer="uzavtosanoat.uz Statistical Info · CHEVROLET cars 연간 production (천대 단위 → 대 환산). YoY는 우측 축."
         />
       )}
-      {data.enginesSeries.length > 0 && (
-        <UzbekistanBrandSeriesChart
-          data={data.enginesSeries}
-          title="엔진 연간 생산 시계열 (2016~2025, YoY)"
-          color="#7c3aed"
-          footer="uzavtosanoat.uz Statistical Info · Engines 연간 production. UzAuto Motors Powertrain 등 엔진 생산 합계."
+
+      {/* 차종별 생산량 연도별 표 (만년 + 최신 YTD) */}
+      <UzbekistanModelYearTable
+        data={data.productionModelYearTable}
+        title="차종별 생산량 (연도별 + 최신연도 YTD)"
+        footer="출처: stat.uz 통계위 보도자료(news-of-committee, 모델별 생산). 만년이 발표된 해(예: 2025)는 연간, 진행 중인 해는 최신 누계(1~N월 YTD). YoY는 동기간 기준. 'Damas/Labo'=Damas+특수승용 합산, 'Tank 500'=GWM. 수입(국가별) 항목은 제외."
+      />
+
+      {/* 차종(모델)별 생산량 — 연간 grouped */}
+      {data.productionByModel.length > 0 && (
+        <UzbekistanProductionYearChart
+          annual={data.productionByModel}
+          grouped
+          title="차종별 연간 생산량 (stat.uz · 모델별)"
+          footer="출처: stat.uz 통계위 보도자료. 모델을 x축으로 연간 생산량 비교(만년 발표연도만 — 현재 2025). 추가 연도 만년 기사가 수집되면 자동으로 다개년 grouped 비교로 표시."
         />
       )}
 
-      {/* stat.uz 월별 production (모델별) */}
+      {/* stat.uz 차종별 월별 생산 추이 */}
       {data.statUzMonthlyByModel.length > 0 && (
         <UzbekistanProductionYearChart
           annual={data.statUzMonthlyByModel}
-          title="stat.uz 월별 production (모델별 stacked · 1~N월 YTD 차분)"
-          footer="출처: stat.uz 산업 보도자료 PDF (매월 25~26일 1~N월 YTD 누계 발표) → YTD 차분으로 월별 도출. Chevrolet=Cobalt/Damas/Labo/Tracker/Onix, KIA/Chery/Haval/BYD는 brand 자체. Грузовые автомобили = LCV. 첫 발표 데이터는 평균 분할로 적재 (1월 발표 이전이면 1~N월 균등)."
+          title="차종별 월별 생산 추이 (stat.uz · 모델별 stacked)"
+          footer="출처: stat.uz 통계위 보도자료(월별 1~N월 누계 발표)를 차분해 월별 도출. Chevrolet=Cobalt/Damas-Labo/Tracker/Onix, KIA/Chery/Haval/BYD/Tank는 brand 자체. 중간 미발표월은 인접 발표 증분을 균등 분배."
         />
       )}
     </div>
