@@ -12,6 +12,7 @@ import {
 import { useTheme } from 'next-themes';
 import RangeToggle, { type RangeKey } from './RangeToggle';
 import { sliceByRange } from '@/lib/seriesRange';
+import { arrowColor, fmtChange, growthPct } from '@/lib/format';
 import type { SeriesPoint } from '@/lib/series';
 
 interface SeriesChartProps {
@@ -43,6 +44,8 @@ export default function SeriesChart({
 
   const sliced = useMemo(() => sliceByRange(data, range), [data, range]);
   const last = sliced.at(-1);
+  // 전일 대비 등락 — 기간 토글과 무관하게 원본 data의 최근 2개 포인트 기준
+  const changePct = growthPct(data.at(-1)?.value ?? null, data.at(-2)?.value ?? null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -102,14 +105,20 @@ export default function SeriesChart({
   const lastLabel = last
     ? `${last.value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} ${unit}`
     : '—';
+  const changeLabel = fmtChange(changePct);
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-base font-medium truncate">{title}</div>
-          <div className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
-            {lastLabel}
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className="text-xl font-semibold text-foreground tabular-nums">{lastLabel}</span>
+            {changeLabel && (
+              <span className={`text-sm font-medium tabular-nums ${arrowColor(changePct)}`}>
+                {changeLabel}
+              </span>
+            )}
           </div>
         </div>
         <RangeToggle value={range} onChange={setRange} />
