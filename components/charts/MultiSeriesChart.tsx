@@ -12,6 +12,7 @@ import {
 import { useTheme } from 'next-themes';
 import RangeToggle, { type RangeKey } from './RangeToggle';
 import { sliceByRange } from '@/lib/seriesRange';
+import { arrowColor, fmtChange, growthPct } from '@/lib/format';
 import type { SeriesPoint } from '@/lib/series';
 
 export interface MultiSeriesItem {
@@ -57,6 +58,10 @@ export default function MultiSeriesChart({
 
   // 마지막 값 라벨 (각 series별)
   const lastValues = slicedAll.map((s) => s.data.at(-1)?.value);
+  // 전일 대비 등락 — 기간 토글과 무관하게 원본 series 데이터의 최근 2개 포인트 기준
+  const changePcts = series.map((s) =>
+    growthPct(s.data.at(-1)?.value ?? null, s.data.at(-2)?.value ?? null)
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -134,6 +139,7 @@ export default function MultiSeriesChart({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 tabular-nums mt-0.5">
             {series.map((s, i) => {
               const v = lastValues[i];
+              const changeLabel = fmtChange(changePcts[i]);
               return (
                 <span key={s.label} className="inline-flex items-center gap-1.5">
                   <span
@@ -146,6 +152,13 @@ export default function MultiSeriesChart({
                       ? `${v.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} ${unit}`
                       : '—'}
                   </span>
+                  {changeLabel && (
+                    <span
+                      className={`text-sm font-medium tabular-nums ${arrowColor(changePcts[i])}`}
+                    >
+                      {changeLabel}
+                    </span>
+                  )}
                 </span>
               );
             })}
