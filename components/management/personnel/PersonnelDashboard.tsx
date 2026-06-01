@@ -52,12 +52,13 @@ export default function PersonnelDashboard({ rows }: Props) {
   const [domesticMode, setDomesticMode] = useState<KindMode>('all');
   const [overseasReg, setOverseasReg] = useState<OverseasRegion>('us');
   const [mixOption, setMixOption] = useState<MixOption>('all');
+  const [fieldMode, setFieldMode] = useState<KindMode>('all');
 
   const overallPts = useMemo(() => buildOverallPoints(rows, overallMode), [rows, overallMode]);
   const domesticPts = useMemo(() => buildDomesticPoints(rows, domesticMode), [rows, domesticMode]);
   const overseasPts = useMemo(() => buildOverseasPoints(rows, overseasReg), [rows, overseasReg]);
   const mixPts = useMemo(() => buildMixPoints(rows, mixOption), [rows, mixOption]);
-  const fieldMixPts = useMemo(() => buildFieldMixPoints(rows), [rows]);
+  const fieldMixPts = useMemo(() => buildFieldMixPoints(rows, fieldMode), [rows, fieldMode]);
   const tableData = useMemo(() => buildTableData(rows), [rows]);
 
   return (
@@ -121,7 +122,13 @@ export default function PersonnelDashboard({ rows }: Props) {
       </LazyMount>
 
       <LazyMount className="min-h-[420px] md:min-h-[500px]">
-        <ChartSection title="5. 현장 / 관리 구분" unit="명 · 국내 인원 기준">
+        <ChartSection
+          title="5. 현장 / 관리 구분"
+          unit="명 · 국내 인원 기준"
+          controls={
+            <ToggleGroup options={KIND_OPTIONS} value={fieldMode} onChange={setFieldMode} />
+          }
+        >
           <PersonnelFieldMixChart points={fieldMixPts} />
         </ChartSection>
       </LazyMount>

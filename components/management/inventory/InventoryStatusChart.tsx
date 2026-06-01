@@ -85,6 +85,13 @@ export default function InventoryStatusChart({ points }: Props) {
     );
   }
   const turnoverMax = Math.max(1, ...points.map((p) => p.turnover ?? 0));
+  // 막대(좌축)는 하단, 회전율 라인(우축)은 상단으로 분리해 데이터 레이블 겹침 방지.
+  const amountMax = Math.max(
+    1,
+    ...points.map(
+      (p) => (p.operating ?? 0) + (p.management ?? 0) + (p.compensation ?? 0) + (p.transport ?? 0)
+    )
+  );
   return (
     <ChartSection title="1. 재고 현황 (종류)" unit="억원 / 회">
       <ResponsiveContainer width="100%" height={h}>
@@ -103,6 +110,7 @@ export default function InventoryStatusChart({ points }: Props) {
             tickFormatter={(v: number) => fmt(v, 0)}
             tick={{ fontSize: 13 }}
             width={70}
+            domain={[0, amountMax * 1.6]}
           />
           <YAxis
             yAxisId="turnover"
@@ -110,7 +118,7 @@ export default function InventoryStatusChart({ points }: Props) {
             tickFormatter={(v: number) => `${v.toFixed(1)}회`}
             tick={{ fontSize: 13 }}
             width={56}
-            domain={[0, turnoverMax * 1.3]}
+            domain={[0, turnoverMax * 1.05]}
           />
           <Tooltip
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}

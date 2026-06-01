@@ -182,6 +182,20 @@ describe('buildFieldMixPoints', () => {
     ];
     expect(buildFieldMixPoints(rows)).toEqual([]);
   });
+
+  it('production 모드 — 국내 생산직만 대상으로 현장/관리 분해', () => {
+    const rows: PersonnelRow[] = [
+      row({ region: '국내', detail: '생산', kind: '생산', headcount: 50 }), // 현장 · 생산직
+      row({ region: '국내', detail: '품질', kind: '사무', headcount: 20 }), // 현장이나 사무직 → 제외
+      row({ region: '국내', detail: 'PM', kind: '생산', headcount: 8 }), // 관리 · 생산직
+      row({ region: '국내', detail: '영업', kind: '사무', headcount: 15 }), // 제외
+    ];
+    const pts = buildFieldMixPoints(rows, 'production');
+    expect(pts).toHaveLength(1);
+    expect(pts[0].field).toBe(50);
+    expect(pts[0].admin).toBe(8);
+    expect(pts[0].total).toBe(58);
+  });
 });
 
 describe('buildTableData', () => {

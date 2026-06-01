@@ -199,10 +199,14 @@ export function buildMixPoints(rows: readonly PersonnelRow[], option: MixOption)
  * 차트 5 — 현장/관리 구분 (국내 인원 기준).
  * - 현장 = 지역=국내 + detail∈{생산, 품질, 연구소}
  * - 관리 = 지역=국내 + detail∉{생산, 품질, 연구소}
- * - 임원·사무·생산 모두 합산 (kind 무관)
+ * - mode: all / office(=임원+사무) / production — 선택 직군으로 모집단 필터
  */
-export function buildFieldMixPoints(rows: readonly PersonnelRow[]): FieldMixPoint[] {
-  const filtered = rows.filter((r) => r.region === '국내');
+export function buildFieldMixPoints(
+  rows: readonly PersonnelRow[],
+  mode: KindMode = 'all'
+): FieldMixPoint[] {
+  const kinds = new Set<PersonnelKind>(kindsOf(mode));
+  const filtered = rows.filter((r) => r.region === '국내' && kinds.has(r.kind));
   const dates = uniqueDates(filtered);
   return dates.map((date) => {
     const at = filtered.filter((r) => r.period_date === date);
