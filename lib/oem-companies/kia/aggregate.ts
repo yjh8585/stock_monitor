@@ -46,9 +46,11 @@ export const KIA_NON_MODEL_LABELS = new Set<string>([
   'Aggregate (PR Annual Special)',
 ]);
 
-/** PR 보완 factory marker — 공장별 stack에서 제외 (시계열 합산엔 포함). */
-function isPrAggregateFactory(factory: string): boolean {
-  return factory.startsWith('Overseas (PR');
+/** PR 보완분 marker — 공장별 stack에서 제외 (시계열 합산엔 포함).
+ *  factory='Overseas (PR)' (해외 미분해) + model='Aggregate (PR...)' (한국 내수/CKD 미분해).
+ *  2024 11~12월 보도자료 보완분은 공장별 분해가 불가 → 공장 차트는 1~10월까지(2024.10)로 표시. */
+function isPrAggregate(r: { factory: string; vehicle_model: string }): boolean {
+  return r.factory.startsWith('Overseas (PR') || r.vehicle_model.startsWith('Aggregate (PR');
 }
 
 /** Kia export 엑셀의 vehicle_type (8종, 연도별 차이 포함) → 6개 카테고리로 정규화.
@@ -131,6 +133,22 @@ function annualYearLabel(year: string, monthSet: Set<number>): { key: string; is
   // 과거 연도 미완 — 마지막 월까지 표시.
   const lastMonth = monthCount > 0 ? Math.max(...monthSet) : 0;
   return { key: `${year}.${String(lastMonth).padStart(2, '0')}`, isYtd: false };
+}
+
+/** annual 포인트 중 과거 미완 연도('YYYY.NN')를 찾아 차트 footer 보조문구 생성.
+ *  출처가 연중까지만 게시한 경우(2024 export/retail 등) 누계 수치를 안내한다.
+ *  예: '⚠ 2024년은 11~12월 미게재로 1~10월까지만 집계 (누계 1,234,567대)'.
+ *  해당 연도가 없으면 null (12개월 완비 차트는 자동으로 표시 안 됨). */
+export function partialYearNote(points: { period_label: string; total: number }[]): string | null {
+  const parts = points
+    .filter((p) => /^\d{4}\.\d{2}$/.test(p.period_label))
+    .map((p) => {
+      const [y, mm] = p.period_label.split('.');
+      const m = parseInt(mm, 10);
+      const head = m < 12 ? `${m + 1}~12월 미게재로 ` : '';
+      return `${y}년은 ${head}1~${m}월까지만 집계 (누계 ${p.total.toLocaleString('ko-KR')}대)`;
+    });
+  return parts.length > 0 ? `⚠ ${parts.join(' · ')}` : null;
 }
 
 /** 회사 전체 도매 합산 시 double counting 방지.
@@ -427,6 +445,34 @@ export function aggregateTopModels(
   };
 }
 
+/** 차종 TOP10 '직전 완료연도' 컬럼 라벨.
+ *  모델별 분해가 부분연도까지만이면 'YYYY.NN' (Kia 2024: 11~12월이 Aggregate 합계 보완이라
+ *  차종 분해는 1~10월까지) — 완비면 'YYYY년'.
+ *  wholesale 모델 행(isCountable + 비-Aggregate) 기준. retail도 동 기간(2024 10개월)이라 공용. */
+export function kiaTopPrevYearLabel(rows: (CompanySaleRowWithPt & { factory: string })[]): {
+  label: string;
+  lastMonth: number;
+  partial: boolean;
+} {
+  const monthRows = rows.filter(
+    (r) => r.period_type === 'month' && isCountable(r) && !KIA_NON_MODEL_LABELS.has(r.vehicle_model)
+  );
+  if (monthRows.length === 0) return { label: '', lastMonth: 0, partial: false };
+  const periods = [...new Set(monthRows.map((r) => r.year_period))].sort();
+  const latest = periods[periods.length - 1];
+  const latestYear = parseInt(periodYear(latest), 10);
+  const isComplete = parseInt(latest.slice(-2), 10) === 12;
+  const completedYear = isComplete ? latestYear : latestYear - 1;
+  const prevYear = completedYear - 1;
+  const prevMonths = monthRows
+    .filter((r) => periodYear(r.year_period) === String(prevYear))
+    .map((r) => parseInt(r.year_period.slice(-2), 10));
+  const lastMonth = prevMonths.length ? Math.max(...prevMonths) : 0;
+  const partial = lastMonth > 0 && lastMonth < 12;
+  const label = partial ? `${prevYear}.${String(lastMonth).padStart(2, '0')}` : `${prevYear}년`;
+  return { label, lastMonth, partial };
+}
+
 // ============================================================
 // PowerTrain Mix
 // ============================================================
@@ -483,6 +529,20 @@ export function aggregatePtMixAnnual(
   return [...byYear.values()].sort((a, b) => (a.period < b.period ? -1 : 1));
 }
 
+/** PT mix에서 EV로 집계되는 차종 목록 (resolved_powertrain='EV' & 실판매>0, 정렬).
+ *  PT mix의 EV 막대 구성을 차트 주석에 노출하기 위함. */
+export function listEvModels(rows: (CompanySaleRowWithPt & { factory: string })[]): string[] {
+  return [
+    ...new Set(
+      rows
+        .filter(
+          (r) => r.period_type === 'month' && r.resolved_powertrain === 'EV' && r.sales_units > 0
+        )
+        .map((r) => r.vehicle_model)
+    ),
+  ].sort();
+}
+
 // ============================================================
 // 공장별 출하량 stacked bar (한국 + 해외 5 plant) — 월/연 토글
 // 사용자 명시: 한국 공장(factory='', 내수+수출+CKD)을 'Korea Plants'로 포함.
@@ -499,7 +559,7 @@ export function aggregateKiaFactoryMix(
   rows: (CompanySaleRowWithPt & { factory: string })[]
 ): FactoryMixPoint[] {
   const monthRows = rows.filter(
-    (r) => r.period_type === 'month' && isCountable(r) && !isPrAggregateFactory(r.factory)
+    (r) => r.period_type === 'month' && isCountable(r) && !isPrAggregate(r)
   );
   const byPeriod = new Map<string, FactoryMixPoint>();
   for (const r of monthRows) {
@@ -523,7 +583,11 @@ export function aggregateKiaFactoryMix(
 export function aggregateKiaFactoryMixAnnual(
   rows: (CompanySaleRowWithPt & { factory: string })[]
 ): FactoryMixPoint[] {
-  const monthRows = rows.filter((r) => r.period_type === 'month' && isCountable(r));
+  // 월별 차트와 동일하게 PR 보완분('Overseas (PR)' = 2024 11~12월 공장 미분해) 제외.
+  // → 2024 공장별 합계는 해외 11~12월(약 42만대)만큼 출하량 추이보다 작다(의도).
+  const monthRows = rows.filter(
+    (r) => r.period_type === 'month' && isCountable(r) && !isPrAggregate(r)
+  );
   const monthsByYear = new Map<string, Set<number>>();
   for (const r of monthRows) {
     const y = periodYear(r.year_period);

@@ -8,6 +8,7 @@ interface Props {
   monthly: CompanyPtMixPoint[];
   annual: CompanyPtMixPoint[];
   title?: string;
+  footer?: React.ReactNode;
 }
 
 const ChartFallback = () => (
@@ -27,6 +28,7 @@ export default function CompanyPowertrainMixChart({
   monthly,
   annual,
   title = 'PowerTrain Mix',
+  footer,
 }: Props) {
   return (
     <Card size="sm" className="gap-3">
@@ -35,6 +37,7 @@ export default function CompanyPowertrainMixChart({
       </CardHeader>
       <CardContent>
         <MixChartInner monthly={monthly} annual={annual} />
+        {footer && <div className="mt-2 px-1 text-[11px] text-muted-foreground">{footer}</div>}
       </CardContent>
     </Card>
   );

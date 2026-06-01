@@ -35,6 +35,8 @@ interface Props {
   latestPeriodLabel?: string;
   prevPeriodLabel?: string;
   ytdPeriodLabel?: string;
+  /** 직전연도 부분집계 안내 (예: '2024.10'). undefined면 표시 안 함. */
+  prevPeriodPartialNote?: string;
 }
 
 /** Plant key 라벨 매핑 (드롭다운 표기 단순화). */
@@ -74,6 +76,7 @@ export default function KiaTopModelsCard({
   latestPeriodLabel = '최근 연도',
   prevPeriodLabel = '직전 연도',
   ytdPeriodLabel,
+  prevPeriodPartialNote,
 }: Props) {
   const [dataset, setDataset] = useState<Dataset>('wholesale');
   const [plant, setPlant] = useState<string>('all');
@@ -169,6 +172,11 @@ export default function KiaTopModelsCard({
             </Select>
           </div>
         </div>
+        {prevPeriodPartialNote && (
+          <div className="mt-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-500">
+            {prevPeriodPartialNote}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="px-0 md:px-4">
         {data.length === 0 ? (

@@ -92,7 +92,8 @@ _KIND_PATTERNS = {
   'model': re.compile(r'차\s*종\s*별\s*판매실적'),
   'factory': re.compile(r'해외\s*공장(?:별)?\s*판매실적'),
   'export': re.compile(r'지역\s*별\s*수출실적'),
-  'retail': re.compile(r'현지\s*판매실적'),
+  # 2024+ '현지판매실적' + 2021~2023 '해외현지판매'(실적 글자 없음) 모두 매칭.
+  'retail': re.compile(r'(?:해외)?\s*현지\s*판매(?:실적)?'),
 }
 
 # Retail 엑셀 region 헤더 매핑 (R4 컬럼명 → DB region).
@@ -119,11 +120,15 @@ _RETAIL_REGION_ALIAS = {
   'asia\npacific': 'Asia Pacific',
   'india': 'India',
   'china': 'China',
+  # 2021~2022 해외현지판매는 China 옆에 중국 합작법인 별도 컬럼 → China로 합산.
+  'dyk (china)': 'China',  # 2021 동풍열달기아
+  'kcn (china)': 'China',  # 2022 기아차이나 (DYK 후신)
 }
 
-# month sheet 이름 → 월 번호 (1~12).
+# month sheet 이름 → 월 번호 (1~12). 'ma' = 2021~2022 March 축약(Ma21/Ma22).
+# 시트명의 연도 접미사(Jan21/Dec22)는 parse_retail_excel에서 숫자 제거 후 매핑.
 _RETAIL_MONTH_MAP = {
-  'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
+  'jan': 1, 'feb': 2, 'mar': 3, 'ma': 3, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
   'july': 7, 'jul': 7, 'aug': 8, 'sep': 9, 'sept': 9, 'oct': 10, 'nov': 11, 'dec': 12,
 }
 
@@ -710,8 +715,10 @@ def parse_retail_excel(
 
     for sname in wb.sheetnames:
       key = sname.strip().lower().rstrip('.')
-      month_no = _RETAIL_MONTH_MAP.get(key)
       is_total = (key == 'total')
+      # 2021~2022 시트명은 연도 접미사 포함(Jan21/Ma21/Dec22) → 숫자 제거 후 월 매핑.
+      key_month = re.sub(r'\d+', '', key).strip()
+      month_no = None if is_total else _RETAIL_MONTH_MAP.get(key_month)
       if not month_no and not is_total:
         logger.debug(f'  {path.name} 알 수 없는 sheet={sname!r} skip')
         continue
@@ -733,10 +740,9 @@ def parse_retail_excel(
         logger.warning(f'  {path.name} sheet={sname}: 헤더 미발견')
         continue
 
-      # region 컬럼 매핑: 'Total' + 12 region 컬럼 매핑.
+      # region 컬럼 매핑: 'Total' + region 컬럼 매핑.
       region_cols: dict[int, str] = {}
       total_col: int | None = None
-      korea_col: int | None = None
       for c in range(plant_header_col + 1, plant_header_col + 25):
         v = _nfc(ws.cell(header_row, c).value)
         if not v:
@@ -748,31 +754,26 @@ def parse_retail_excel(
         norm = _normalize_retail_region(v)
         if norm:
           region_cols[c] = norm
-          if norm == 'Korea':
-            korea_col = c
 
-      if not region_cols or not total_col or not korea_col:
+      if not region_cols or not total_col:
         logger.warning(
           f'  {path.name} sheet={sname}: 컬럼 매핑 실패 '
-          f'(region={len(region_cols)}, total={total_col}, korea={korea_col})'
+          f'(region={len(region_cols)}, total={total_col})'
         )
         continue
 
-      # 모델명 col 추정: 데이터 row의 plant_header_col 빈 + Korea col 직전 첫 non-empty col.
-      # 실제 엑셀: plant_header_col=2 (B), model_col=5 (E), Total=7 (G), Korea=8 (H).
-      # 안정 추정: model_col = korea_col - 3 (header에서 'Korea'와 모델명 사이 'Total' + 빈 한 칸).
-      model_col = korea_col - 3
+      # 모델명 col 추정: Total col 바로 왼쪽 2칸 (Total과 모델 사이 빈 칸 1개).
+      # 실제 엑셀: plant_header_col=2 (B), model_col=5 (E), Total=7 (G).
+      # Korea 컬럼 유무와 무관 (2021~2023 해외현지판매는 Korea/내수 컬럼 없음).
+      model_col = total_col - 2
       if model_col <= plant_header_col:
         model_col = plant_header_col + 2
 
-      # 엑셀에 2가지 plant section layout 혼재:
-      #  - Footer-style: 모델 rows → 그 다음 SUM row(B=plant 이름 + total 숫자).
-      #    예: Korea Plants / U.S. Plant / Slovakia Plant / Mexico Plant /
-      #         China Plants / India Plant / CKD / Special Vehicle.
-      #  - Header-style: B=plant 이름 + total 빈 (SUM 없음) → 다음 행부터 모델 즉시 그 plant로 적재.
-      #    예: *Russia Plant (HMMR), HMGICs Plant.
-      pending: list[tuple[str, dict[int, Any]]] = []  # footer-style 모델 buffer
-      current_header_plant: str | None = None  # header-style 현재 plant
+      # 모든 plant 섹션은 footer-style: 모델 rows → 그 다음 SUM row(B=plant 이름 + total).
+      # SUM row의 total이 0이어도(신규 가동 plant: 2025 HMGICs Plant 1~5월 등) footer로 처리해야
+      # 그 아래 다음 섹션(CKD 등)이 흡수되지 않는다. '*' prefix 행(예: '*Russia Plant')만
+      # total=0일 때 sub-section 각주로 보고 무시(pending 유지, 상위 footer에서 묶임).
+      pending: list[tuple[str, dict[int, Any]]] = []  # 모델 buffer
 
       def _clean_plant_label(lbl: str) -> str:
         # '*Russia Plant\n(HMMR)' → 'Russia Plant', 'Korea Plants' → 'Korea Plants' 등.
@@ -784,9 +785,11 @@ def parse_retail_excel(
           'us plant': 'U.S. Plant', 'u.s plant': 'U.S. Plant', 'u.s. plant': 'U.S. Plant',
           'china plant': 'China Plants', 'china plants': 'China Plants',
           'korea plants': 'Korea Plants', 'korea plant': 'Korea Plants',
+          'korean plants': 'Korea Plants',  # 2021~2022 표기
           'slovakia plant': 'Slovakia Plant',
           'mexico plant': 'Mexico Plant',
-          'india plant': 'India Plant',
+          'india plant': 'India Plant', 'india plants': 'India Plant',  # 2021 'India Plants'
+          'czech plant': 'Czech Plant',  # 2021 '*Czech Plant' (HMM Czech)
           'hmgics plant': 'HMGICs Plant',
           'russia plant': 'Russia Plant',
           'ckd': 'CKD',
@@ -800,16 +803,19 @@ def parse_retail_excel(
 
         total_val = ws.cell(r, total_col).value
         total_is_num = total_val is not None and isinstance(total_val, (int, float))
-        # Russia Plant 등 header-style은 total=0으로 비어있어도 0 cell이라 isinstance 통과.
-        # → total 값이 실제로 0이면 footer로 보지 않고 header로 처리.
         total_nonzero = total_is_num and _safe_int(total_val) != 0
 
-        # Plant footer row (footer-style): B=plant + model_col 빈 + total 숫자(>0)
-        if b and not d and total_nonzero:
+        # '*' prefix 행(예: '*Russia Plant')이 total=0이면 sub-section 각주 → 무시(pending 유지).
+        # total>0이면 아래 footer 분기에서 정상 처리(_clean_plant_label이 '*' 제거).
+        if b and not d and not total_nonzero and b.lstrip().startswith('*'):
+          continue
+
+        # Plant footer (SUM) row: B=plant + model_col 빈 + total 숫자(0 포함).
+        # total=0이어도 footer로 처리 — 신규 가동 plant(HMGICs 등)가 0일 때 다음 섹션 흡수 방지.
+        if b and not d and total_is_num:
           plant_label = _clean_plant_label(b)
           if plant_label.lower() in {'total', 'sub-total'}:
             pending = []
-            current_header_plant = None
             continue
           plant_total = _safe_int(total_val)
           if not is_total:
@@ -834,45 +840,13 @@ def parse_retail_excel(
                 'source_url': source_url,
               })
           pending = []
-          current_header_plant = None
           continue
 
-        # Plant header row (header-style): B=plant + model_col 빈 + total 빈/0
-        if b and not d and not total_nonzero:
-          # leading '*' sub-header (예: '*Russia Plant (HMMR)')는 다음 footer의 sub-section.
-          # 이 경우 header-style 아니라 그냥 무시 (pending 유지) — China Plants footer에서 묶임.
-          if b.lstrip().startswith('*'):
-            continue
-          current_header_plant = _clean_plant_label(b)
-          continue
-
-        # 모델 row: model_col에 모델명, plant_header_col 빈
+        # 모델 row: model_col에 모델명, plant_header_col 빈 → pending buffer.
         if d and not b:
           model_name = d.strip()
           if model_name.lower() in {'total', 'sub-total', 'bev total'}:
             continue
-          # header-style이면 즉시 적재
-          if current_header_plant:
-            for col, region in region_cols.items():
-              cv = ws.cell(r, col).value
-              if cv is None or cv == '':
-                continue
-              units = _safe_int(cv)
-              if units == 0:
-                continue
-              rows.append({
-                'period_type': 'month' if not is_total else 'annual',
-                'year_period': (
-                  f'{year}-{month_no:02d}' if not is_total else str(year)
-                ),
-                'plant': current_header_plant,
-                'vehicle_model': model_name,
-                'region': region,
-                'retail_units': units,
-                'source_url': source_url,
-              })
-            continue
-          # footer-style이면 pending에 buffer
           cells: dict[int, Any] = {}
           for col in region_cols:
             cells[col] = ws.cell(r, col).value

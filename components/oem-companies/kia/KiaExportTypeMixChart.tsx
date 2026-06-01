@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { partialYearNote } from '@/lib/oem-companies/kia/aggregate';
 import type { KiaExportTypeMixPoint } from '@/lib/types';
 
 interface Props {
@@ -27,10 +28,18 @@ export default function KiaExportTypeMixChart({
   title = '수출 차종 Type Mix',
   footer,
 }: Props) {
+  const note = partialYearNote(annual);
   return (
     <Card size="sm" className="gap-3">
       <CardHeader className="border-b">
-        <CardTitle>{title}</CardTitle>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <CardTitle>{title}</CardTitle>
+          {note && (
+            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-500">
+              {note}
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Inner monthly={monthly} annual={annual} />
