@@ -62,17 +62,29 @@
 
 ## `/oem/uzbekistan` — 우즈베키스탄 자동차 시장
 
-- **범위**: 회사별 sales + 연간 production by brand (2024~)
-- **출처**:
-  - uzavtosanoat.uz 회사별 sales 매월 보도자료 — RU 정규식 파싱 + **YTD 차분 → 월별 row**
-  - uzavtosanoat.uz Statistical info — 연간 production by brand (Chevrolet/BYD/LCV/Engines, 2016~2025)
-- **테이블** `uzbekistan_auto_stats` (단일 통합): kind=sales\|production, period_type=month\|quarter\|year
-  - **company enum 6개** = UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors
-  - source_type = uzavtosanoat \| stat-uz
-  - **UzAuto Motors만 companies 테이블 등록**(UZMT, data_source=uzauto-pdf). 나머지 5개는 sales row의 company 컬럼만 사용
-- **차트**: KPI 3장 + 회사별 sales 월/연 stacked + 연간 production by brand stacked
-- **cron**: `collect-uzbekistan-sales.yml` — 매월 20일 03:00 UTC(보도자료 14~18일 발표 후 안전 일정). 마이그레이션 `20260527000004`
-- **TODO**: stat.uz 분기 production은 추후 별도 수집 추가 예정
+- **범위**: 회사별 **판매**(uzavtosanoat) + 차종(모델)별 **생산**(stat.uz) + 브랜드별 연간 생산(uzavtosanoat 통계 페이지).
+- **테이블** `uzbekistan_auto_stats` (단일 통합): kind=sales\|production, period_type=month\|quarter\|year\|**ytd**, source_type=uzavtosanoat\|stat-uz.
+  - **company enum 8개**(CHECK): UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors / **Jizzakh Auto** / **Alyans Auto** (`20260601000001`로 확장). UzAuto Motors만 companies 테이블 등록(UZMT, uzauto-pdf), 나머지는 company 컬럼만.
+
+### 판매 — `collect_uzbekistan_sales.py` (uzavtosanoat.uz 보도자료, RU)
+
+- 본문 **용어로 kind 분류**(생산/판매 절대 혼합 금지): `реализовано`·`продано`=sales / `выпущено`·`произведено`·`собрано`=production. 연말 보고가 생산 용어인 경우 있어 연도가 아닌 동사로 판정.
+- 회사 라인 정규식: 구분자 `: – — -` + 각주 `*` + 러시아어 표기(`Завод BYD в Узбекистане`) 허용. 본문 하단 "관련뉴스" 푸터 잘라내 다른 기사 숫자 오염 방지.
+- **YTD 차분**: (kind,year)별 회사 타임라인 → 인접 발표 delta를 구간 월수로 균등 분배(누락월 lumping 제거). 첫 발표 N월이면 1~N월 균등. period_type='month' + 연 누계 'year'.
+- cron `collect-uzbekistan-sales.yml` 매월 20일.
+
+### 생산(차종별) — `collect_uzbekistan_production_models.py` (stat.uz 통계위 뉴스 `news-of-committee`)
+
+- 모델별 생산량을 영문 평문 `{Model} - {N} units;`로 발표(만년 + 월별 1~N월 누계). 텍스트 finditer 파싱(화이트리스트만 — 수입 국가별 섹션 China/Japan 등 제외). 기간: `in YYYY`=만년(last_month=12) / `in January-March YYYY`=YTD.
+- **이미지(인포그래픽) 기사**: 2024 이하·2025 일부는 본문이 그림. 생산 slug(`PROD_SLUG_RE`, 수입/좌석/타이어/등록 제외)인데 텍스트 없으면 article-body 이미지를 **Anthropic 비전**(`submit_production` tool_use, sha256 캐시)으로 추출. `ANTHROPIC_API_KEY` 필요(CI). 키 없으면 이미지 skip(`--no-vision`).
+- 적재: (year)별 YTD 차분 → period_type='month' + 만년(12월 스냅샷)이면 'year'. 모델 매핑: Cobalt/Tracker/Onix/Lacetti-Gentra→Chevrolet, Damas+Special(특수승용)+Labo→Chevrolet 'Damas/Labo', KIA/BYD/Chery/Haval→브랜드, Tank 500→Tank, LADA→LADA.
+- cron `collect-uzbekistan-production.yml` 매월 28일(구 산업 PDF 파서 `collect_uzbekistan_production.py`는 모델 데이터에서 대체됨 — 미참조, `_archive` 이동 대상).
+- **엔진(UzAuto Motors Powertrain) 제외**: 완성차 아니므로 집계·차트·DB에서 완전 제외(2026-06-01, 사용자 지시).
+
+### 차트 (`source.ts`)
+
+- 판매: KPI(만년 vs 만년 + 당해 YTD는 전년 동기 YoY) + 회사별 판매 월/연 stacked + 회사 점유율.
+- 생산: 차종별 연도별 표(`UzbekistanModelYearTable` — 만년 + 최신 YTD + 동기 YoY) + 차종별 연간 grouped + 차종별 월별 추이 stacked + 브랜드별 연간(엔진 제외) + Chevrolet 시계열.
 
 ---
 

@@ -21,6 +21,8 @@ import { useHiddenSeries } from '../common/useHiddenSeries';
 
 interface Props {
   annual: UzbekistanProductionYearPoint[];
+  /** true면 stacked 대신 grouped(나란히) 막대 + 합계 라벨 숨김 — 차종별 당년/전년 비교용. */
+  grouped?: boolean;
 }
 
 function fmtUnitsTick(n: number): string {
@@ -48,7 +50,7 @@ function sortBrandsByTotal(data: UzbekistanProductionYearPoint[]): string[] {
   return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
 }
 
-export default function UzbekistanProductionYearChartInner({ annual }: Props) {
+export default function UzbekistanProductionYearChartInner({ annual, grouped = false }: Props) {
   const height = useChartHeight(240, 280, 320);
   const { isHidden, legendProps } = useHiddenSeries();
 
@@ -107,30 +109,32 @@ export default function UzbekistanProductionYearChartInner({ annual }: Props) {
               key={b}
               dataKey={b}
               name={b}
-              stackId="brand"
+              stackId={grouped ? undefined : 'brand'}
               fill={OEM_COLORS[i % OEM_COLORS.length]}
               isAnimationActive={false}
-              radius={isLast ? [3, 3, 0, 0] : undefined}
+              radius={grouped || isLast ? [3, 3, 0, 0] : undefined}
               hide={isHidden(b)}
             />
           );
         })}
-        <Line
-          type="linear"
-          dataKey="total"
-          stroke="transparent"
-          dot={false}
-          activeDot={false}
-          isAnimationActive={false}
-          legendType="none"
-        >
-          <LabelList
+        {!grouped && (
+          <Line
+            type="linear"
             dataKey="total"
-            position="top"
-            formatter={fmtTotalLabel}
-            style={DATA_LABEL_STYLE}
-          />
-        </Line>
+            stroke="transparent"
+            dot={false}
+            activeDot={false}
+            isAnimationActive={false}
+            legendType="none"
+          >
+            <LabelList
+              dataKey="total"
+              position="top"
+              formatter={fmtTotalLabel}
+              style={DATA_LABEL_STYLE}
+            />
+          </Line>
+        )}
       </ComposedChart>
     </ResponsiveContainer>
   );

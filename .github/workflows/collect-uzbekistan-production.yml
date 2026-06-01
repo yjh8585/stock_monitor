@@ -1,7 +1,8 @@
 name: collect-uzbekistan-production
 
-# 우즈베키스탄 자동차 생산 (stat.uz 산업 보도자료 PDF).
-# stat.uz는 매월 25~26일 1~N월 누계 발표 → cron 매월 28일 03:00 UTC.
+# 우즈베키스탄 차종(모델)별 생산 (stat.uz 통계위 보도자료 news-of-committee).
+# 모델별 생산량을 영문 평문으로 매월 발표(1~N월 누계) + 연말 만년 → cron 매월 28일 03:00 UTC.
+# (구 collect_uzbekistan_production.py 산업 PDF 파서는 모델 데이터에선 대체됨)
 
 on:
   schedule:
@@ -9,17 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       year_from:
-        description: '백필 시작 연도 (default 2024)'
+        description: '백필 시작 연도 (default 2022)'
         type: string
-        default: '2024'
-      year_to:
-        description: '마지막 연도'
+        default: '2022'
+      max_start:
+        description: '목록 페이지네이션 최대 start (default 400)'
         type: string
-        default: ''
-      max_pages:
-        description: 'News list 최대 페이지'
-        type: string
-        default: '15'
+        default: '400'
 
 jobs:
   collect:
@@ -38,9 +35,9 @@ jobs:
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           NEXT_REVALIDATE_URL: ${{ secrets.APP_BASE_URL }}/api/revalidate
           NEXT_REVALIDATE_SECRET: ${{ secrets.CRON_SECRET }}
+          # 인포그래픽(이미지) 기사 비전 추출용 (2024 이하·2025 일부). 없으면 텍스트 기사만.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          ARGS="--year-from ${{ inputs.year_from || '2024' }} --max-pages ${{ inputs.max_pages || '15' }}"
-          if [ -n "${{ inputs.year_to }}" ]; then
-            ARGS="$ARGS --year-to ${{ inputs.year_to }}"
-          fi
-          python scripts/collect_uzbekistan_production.py $ARGS
+          python scripts/collect_uzbekistan_production_models.py \
+            --year-from ${{ inputs.year_from || '2022' }} \
+            --max-start ${{ inputs.max_start || '400' }}

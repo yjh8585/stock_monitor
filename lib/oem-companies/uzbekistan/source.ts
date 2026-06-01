@@ -11,7 +11,7 @@ const SUPABASE_PAGE_SIZE = 1000;
 
 export interface UzbekistanRow {
   kind: 'sales' | 'production';
-  period_type: 'month' | 'quarter' | 'year';
+  period_type: 'month' | 'quarter' | 'year' | 'ytd';
   year_period: string;
   company: string;
   brand: string;
@@ -54,6 +54,12 @@ export interface UzbekistanShareRow {
   total: number;
 }
 
+/** 차종(모델)별 연도별 생산량 표 — 연도 컬럼(만년 또는 1~N월 누계) + 최신연도 YTD + YoY. */
+export interface UzbekistanModelYearTable {
+  columns: { year: string; label: string; isYtd: boolean }[];
+  rows: { model: string; cells: Record<string, number | null>; yoyPct: number | null }[];
+}
+
 /** production KPI — 누적. */
 export interface UzbekistanProductionKpi {
   chevroletLatest: number;
@@ -62,10 +68,6 @@ export interface UzbekistanProductionKpi {
   chevroletYoy: number | null;
   bydLatest: number;
   bydLatestLabel: string;
-  enginesLatest: number;
-  enginesLatestLabel: string;
-  enginesPrev: number;
-  enginesYoy: number | null;
   carTotalLatest: number; // Chevrolet + BYD
 }
 
@@ -88,12 +90,14 @@ export interface UzbekistanPageData {
   productionAnnualByBrand: UzbekistanProductionYearPoint[];
   /** stat.uz 월별 production (모델별 stacked). */
   statUzMonthlyByModel: UzbekistanProductionYearPoint[];
+  /** 차종(모델)별 생산량 — 모델 x축, 당년·전년 동기 grouped. */
+  productionByModel: UzbekistanProductionYearPoint[];
+  /** 차종(모델)별 연도별 생산량 표 (연도 컬럼 + 최신 YTD + YoY). */
+  productionModelYearTable: UzbekistanModelYearTable;
   /** production KPI (Chevrolet/BYD/Engines + YoY). */
   productionKpi: UzbekistanProductionKpi;
   /** Chevrolet production 10년 시계열 (2016~2025). */
   chevroletSeries: UzbekistanBrandSeriesPoint[];
-  /** Engines production 10년 시계열. */
-  enginesSeries: UzbekistanBrandSeriesPoint[];
   /** 자동차 brand share 100% stacked (Chevrolet vs BYD over years). */
   carBrandShare: UzbekistanShareRow[];
   /** 회사별 sales share 100% stacked (annual). */
@@ -213,7 +217,13 @@ function aggregateAnnualByCompany(rows: UzbekistanRow[]): UzbekistanCompanyMonth
 
 function aggregateProductionAnnualByBrand(rows: UzbekistanRow[]): UzbekistanProductionYearPoint[] {
   const years = rows.filter(
-    (r) => r.kind === 'production' && r.period_type === 'year' && r.source_type === 'uzavtosanoat'
+    (r) =>
+      r.kind === 'production' &&
+      r.period_type === 'year' &&
+      r.source_type === 'uzavtosanoat' &&
+      r.company === '' && // 브랜드별 시드만 (회사별 생산 row는 제외)
+      r.brand !== '' &&
+      r.brand !== 'Engines' // 엔진(Powertrain)은 완성차 아님 — 집계 제외 (사용자 지시)
   );
   const byYear = new Map<string, UzbekistanProductionYearPoint>();
   for (const r of years) {
@@ -228,7 +238,7 @@ function aggregateProductionAnnualByBrand(rows: UzbekistanRow[]): UzbekistanProd
   return [...byYear.values()].sort((a, b) => (a.period < b.period ? -1 : 1));
 }
 
-/** stat.uz 월별 production (모델별 stacked, source_type='stat-uz'). */
+/** stat.uz 모델별 월별 생산 (source_type='stat-uz', period_type='month'). YTD 차분 결과. */
 function aggregateStatUzMonthlyByModel(rows: UzbekistanRow[]): UzbekistanProductionYearPoint[] {
   const months = rows.filter(
     (r) => r.kind === 'production' && r.period_type === 'month' && r.source_type === 'stat-uz'
@@ -252,6 +262,130 @@ function aggregateStatUzMonthlyByModel(rows: UzbekistanRow[]): UzbekistanProduct
     p.total += r.units;
   }
   return [...byPeriod.values()].sort((a, b) => (a.period < b.period ? -1 : 1));
+}
+
+const modelKeyOf = (r: UzbekistanRow) =>
+  r.vehicle_model ? `${r.brand} ${r.vehicle_model}` : r.brand;
+
+/**
+ * 차종(모델)별 생산량 — stat.uz 연간(period_type='year') 최근 2개년을 모델 x축으로 grouped.
+ * 만년 데이터가 한 해뿐이면 단일 시리즈. (연말 기사 수집 시 자동으로 다개년 비교)
+ */
+function aggregateProductionByModel(rows: UzbekistanRow[]): UzbekistanProductionYearPoint[] {
+  const years = rows.filter(
+    (r) => r.kind === 'production' && r.period_type === 'year' && r.source_type === 'stat-uz'
+  );
+  if (years.length === 0) return [];
+  const periods = [...new Set(years.map((r) => r.year_period))].sort();
+  const recent = periods.slice(-2);
+  const cur = recent[recent.length - 1];
+  const byModel = new Map<string, UzbekistanProductionYearPoint>();
+  for (const r of years) {
+    if (!recent.includes(r.year_period)) continue;
+    const key = modelKeyOf(r);
+    let p = byModel.get(key);
+    if (!p) {
+      p = { period: key, period_label: key, brands: {}, total: 0 };
+      byModel.set(key, p);
+    }
+    p.brands[r.year_period] = (p.brands[r.year_period] ?? 0) + r.units;
+    if (r.year_period === cur) p.total += r.units;
+  }
+  return [...byModel.values()].sort((a, b) => b.total - a.total);
+}
+
+/**
+ * 차종(모델)별 연도별 생산량 표.
+ * - 만년(period_type='year')이 있는 해 → 만년 컬럼.
+ * - 만년이 없는 당해연도 → 월별(period_type='month') 합으로 YTD 컬럼('1~N월') 구성.
+ * - YoY = 최신 컬럼 vs 직전연도 동기간(최신이 YTD면 직전연도 같은 월수 합과 비교).
+ */
+function aggregateProductionModelYearTable(rows: UzbekistanRow[]): UzbekistanModelYearTable {
+  const annual = rows.filter(
+    (r) => r.kind === 'production' && r.period_type === 'year' && r.source_type === 'stat-uz'
+  );
+  const months = rows.filter(
+    (r) => r.kind === 'production' && r.period_type === 'month' && r.source_type === 'stat-uz'
+  );
+  if (annual.length === 0 && months.length === 0) return { columns: [], rows: [] };
+
+  const annualYears = new Set(annual.map((r) => r.year_period));
+  // 월별: 연도별 최대 월 + (model, year, month) → units
+  const maxMonthByYear = new Map<string, number>();
+  for (const r of months) {
+    const y = r.year_period.slice(0, 4);
+    maxMonthByYear.set(
+      y,
+      Math.max(maxMonthByYear.get(y) ?? 0, parseInt(r.year_period.slice(5), 10))
+    );
+  }
+  // 연도 = 만년 보유연도 ∪ (만년 없는) 월별 보유연도
+  const years = new Set<string>(annualYears);
+  for (const y of maxMonthByYear.keys()) years.add(y);
+  const yearsAsc = [...years].sort();
+
+  const columns = yearsAsc.map((year) => {
+    if (annualYears.has(year)) return { year, label: year, isYtd: false };
+    const mm = maxMonthByYear.get(year) ?? 0;
+    return { year, label: `${year} (1~${mm}월, YTD)`, isYtd: true };
+  });
+
+  // 만년 값: (model → year → units)
+  const cell = new Map<string, Map<string, number>>();
+  for (const r of annual) {
+    const k = modelKeyOf(r);
+    if (!cell.has(k)) cell.set(k, new Map());
+    cell.get(k)!.set(r.year_period, (cell.get(k)!.get(r.year_period) ?? 0) + r.units);
+  }
+  // 월별 누계 (model → year → upToMonth → cumulative). YTD 컬럼 + 동기 YoY용
+  const monthSum = new Map<string, Map<string, number[]>>(); // model → year → [1..12] 월별
+  for (const r of months) {
+    const k = modelKeyOf(r);
+    const y = r.year_period.slice(0, 4);
+    const mm = parseInt(r.year_period.slice(5), 10);
+    if (!monthSum.has(k)) monthSum.set(k, new Map());
+    if (!monthSum.get(k)!.has(y)) monthSum.get(k)!.set(y, new Array(13).fill(0));
+    monthSum.get(k)!.get(y)![mm] += r.units;
+  }
+  const ytdSum = (model: string, year: string, upTo: number): number => {
+    const arr = monthSum.get(model)?.get(year);
+    if (!arr) return 0;
+    let s = 0;
+    for (let i = 1; i <= upTo; i++) s += arr[i];
+    return s;
+  };
+
+  // YTD 컬럼(만년 없는 연도)은 월별 합으로 cell 채움
+  const allModels = new Set<string>([...cell.keys(), ...monthSum.keys()]);
+  for (const m of allModels) {
+    if (!cell.has(m)) cell.set(m, new Map());
+    for (const col of columns) {
+      if (col.isYtd)
+        cell.get(m)!.set(col.year, ytdSum(m, col.year, maxMonthByYear.get(col.year) ?? 0));
+    }
+  }
+
+  const latest = columns[columns.length - 1];
+  const prevCol = columns.length > 1 ? columns[columns.length - 2] : null;
+  const tableRows = [...allModels]
+    .map((model) => {
+      const byYear = cell.get(model)!;
+      const cells: Record<string, number | null> = {};
+      for (const c of columns) cells[c.year] = byYear.has(c.year) ? byYear.get(c.year)! : null;
+      const cur = cells[latest.year];
+      // YoY: 최신이 YTD면 직전연도 동일 월수 합과 비교, 아니면 직전 만년과 비교
+      let prev: number | null = null;
+      if (prevCol) {
+        prev = latest.isYtd
+          ? ytdSum(model, prevCol.year, maxMonthByYear.get(latest.year) ?? 0)
+          : cells[prevCol.year];
+      }
+      const yoyPct = cur != null && prev != null && prev > 0 ? ((cur - prev) / prev) * 100 : null;
+      return { model, cells, yoyPct };
+    })
+    .sort((a, b) => (b.cells[latest.year] ?? 0) - (a.cells[latest.year] ?? 0));
+
+  return { columns, rows: tableRows };
 }
 
 function aggregateBrandYearSeries(
@@ -330,14 +464,12 @@ function aggregateCompanySalesShare(rows: UzbekistanRow[]): UzbekistanShareRow[]
 }
 
 function aggregateProductionKpi(rows: UzbekistanRow[]): UzbekistanProductionKpi {
+  // 엔진(UzAuto Motors Powertrain)은 완성차가 아니므로 집계 제외 (사용자 지시).
   const chev = aggregateBrandYearSeries(rows, 'Chevrolet');
   const byd = aggregateBrandYearSeries(rows, 'BYD');
-  const eng = aggregateBrandYearSeries(rows, 'Engines');
   const lastChev = chev[chev.length - 1];
   const prevChev = chev[chev.length - 2];
   const lastByd = byd[byd.length - 1];
-  const lastEng = eng[eng.length - 1];
-  const prevEng = eng[eng.length - 2];
   return {
     chevroletLatest: lastChev?.units ?? 0,
     chevroletLatestLabel: lastChev?.period_label ?? '',
@@ -345,16 +477,16 @@ function aggregateProductionKpi(rows: UzbekistanRow[]): UzbekistanProductionKpi 
     chevroletYoy: lastChev?.yoy_pct ?? null,
     bydLatest: lastByd?.units ?? 0,
     bydLatestLabel: lastByd?.period_label ?? '',
-    enginesLatest: lastEng?.units ?? 0,
-    enginesLatestLabel: lastEng?.period_label ?? '',
-    enginesPrev: prevEng?.units ?? 0,
-    enginesYoy: lastEng?.yoy_pct ?? null,
     carTotalLatest: (lastChev?.units ?? 0) + (lastByd?.units ?? 0),
   };
 }
 
-function aggregateKpi(rows: UzbekistanRow[]): UzbekistanKpi {
-  const annual = aggregateAnnualByCompany(rows);
+/**
+ * 판매 KPI — 부분연도(YTD)를 만년과 혼동하지 않도록 월별 데이터로 동기간 비교.
+ * - 완전 연도(12개월): 최신·직전 완전연도 합계 + YoY (둘 다 완전할 때만).
+ * - 최신연도가 부분(예: 1~4월)이면 YTD 카드 + 전년 동월(1~4월) YoY.
+ */
+function aggregateKpi(monthly: UzbekistanCompanyMonthlyPoint[]): UzbekistanKpi {
   const empty: UzbekistanKpi = {
     totalLatestYear: 0,
     latestYearLabel: '',
@@ -366,25 +498,62 @@ function aggregateKpi(rows: UzbekistanRow[]): UzbekistanKpi {
     ytdPrev: 0,
     ytdYoyPct: null,
   };
-  if (annual.length === 0) return empty;
-  // 가장 최근 완료 연도 + 직전 연도
-  const completedYears = annual
-    .filter((p) => !p.is_ytd)
-    .sort((a, b) => (a.period < b.period ? 1 : -1));
-  const ytdYear = annual.find((p) => p.is_ytd);
-  const latest = completedYears[0];
-  const prev = completedYears[1];
+  if (monthly.length === 0) return empty;
+
+  const monthsByYear = new Map<number, Set<number>>();
+  const totalByYM = new Map<string, number>(); // 'YYYY-MM' → total
+  for (const p of monthly) {
+    const [yStr, mStr] = p.period.split('-');
+    const y = parseInt(yStr, 10);
+    if (!monthsByYear.has(y)) monthsByYear.set(y, new Set());
+    monthsByYear.get(y)!.add(parseInt(mStr, 10));
+    totalByYM.set(p.period, p.total);
+  }
+  const years = [...monthsByYear.keys()].sort((a, b) => a - b);
+  const yearTotal = (y: number) =>
+    [...(monthsByYear.get(y) ?? [])].reduce(
+      (s, m) => s + (totalByYM.get(`${y}-${String(m).padStart(2, '0')}`) ?? 0),
+      0
+    );
+
+  // 완전 연도(12개월) — 만년 비교용
+  const completeYears = years.filter((y) => (monthsByYear.get(y)?.size ?? 0) >= 12);
+  const latestComplete = completeYears.at(-1) ?? null;
+  const prevComplete = completeYears.length > 1 ? completeYears.at(-2)! : null;
+
+  // YTD — 최신연도가 부분이면 전년 동월 합과 비교
+  const latestYearNum = years.at(-1)!;
+  const latestMonths = [...monthsByYear.get(latestYearNum)!].sort((a, b) => a - b);
+  const isPartial = latestMonths.length < 12;
+  let ytdLatest = 0;
+  let ytdPrev = 0;
+  let ytdLabel = '';
+  let ytdYoyPct: number | null = null;
+  if (isPartial) {
+    ytdLatest = yearTotal(latestYearNum);
+    ytdPrev = latestMonths.reduce(
+      (s, m) => s + (totalByYM.get(`${latestYearNum - 1}-${String(m).padStart(2, '0')}`) ?? 0),
+      0
+    );
+    ytdLabel = `${latestYearNum} 1~${Math.max(...latestMonths)}월`;
+    ytdYoyPct = ytdPrev > 0 ? ((ytdLatest - ytdPrev) / ytdPrev) * 100 : null;
+  }
+
+  const latestTotal = latestComplete != null ? yearTotal(latestComplete) : 0;
+  const prevTotal = prevComplete != null ? yearTotal(prevComplete) : 0;
   return {
-    totalLatestYear: latest?.total ?? 0,
-    latestYearLabel: latest?.period_label ?? '',
-    totalPrevYear: prev?.total ?? 0,
-    prevYearLabel: prev?.period_label ?? '',
+    totalLatestYear: latestTotal,
+    latestYearLabel: latestComplete != null ? String(latestComplete) : '',
+    totalPrevYear: prevTotal,
+    prevYearLabel: prevComplete != null ? String(prevComplete) : '',
     yoyPct:
-      latest && prev && prev.total > 0 ? ((latest.total - prev.total) / prev.total) * 100 : null,
-    ytdLatest: ytdYear?.total ?? 0,
-    ytdLabel: ytdYear?.period_label ?? '',
-    ytdPrev: 0,
-    ytdYoyPct: null,
+      latestComplete != null && prevComplete != null && prevTotal > 0
+        ? ((latestTotal - prevTotal) / prevTotal) * 100
+        : null,
+    ytdLatest,
+    ytdLabel,
+    ytdPrev,
+    ytdYoyPct,
   };
 }
 
@@ -407,14 +576,15 @@ export async function getUzbekistanData(): Promise<UzbekistanPageData> {
   }, null);
 
   return {
-    kpi: aggregateKpi(all),
+    kpi: aggregateKpi(monthlyByCompany),
     monthlyByCompany,
     annualByCompany,
     productionAnnualByBrand,
     statUzMonthlyByModel: aggregateStatUzMonthlyByModel(all),
+    productionByModel: aggregateProductionByModel(all),
+    productionModelYearTable: aggregateProductionModelYearTable(all),
     productionKpi: aggregateProductionKpi(all),
     chevroletSeries: aggregateBrandYearSeries(all, 'Chevrolet'),
-    enginesSeries: aggregateBrandYearSeries(all, 'Engines'),
     carBrandShare: aggregateCarBrandShare(all),
     companySalesShare: aggregateCompanySalesShare(all),
     totalRows: all.length,

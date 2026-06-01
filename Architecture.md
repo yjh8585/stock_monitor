@@ -280,6 +280,22 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 | model_key | model_name | oem_group | region | note_date | label | consumer_view | outlook | rationale | sources_used |
 
+#### `uzbekistan_auto_stats` — 우즈베키스탄 자동차 (`/oem/uzbekistan`)
+
+PK `(kind, period_type, year_period, company, brand, vehicle_model, source_type)`. 마이그레이션 `20260527000004` 생성, `20260601000001` CHECK 확장.
+
+| 컬럼          | 값/제약(CHECK)                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `kind`        | `sales` \| `production`                                                                                                   |
+| `period_type` | `month` \| `quarter` \| `year` \| `ytd` (`ytd` 2026-06-01 추가)                                                          |
+| `year_period` | `YYYY` \| `YYYY-MM`                                                                                                        |
+| `company`     | '' / UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors / Jizzakh Auto / Alyans Auto |
+| `brand`, `vehicle_model`, `units`, `source_type`(uzavtosanoat\|stat-uz), `source_url`, `publish_date`, `collected_at` | |
+
+- **판매**(uzavtosanoat 보도자료): 회사별, 본문 용어로 kind 판정, YTD 차분 → month + year. RLS `USING(true)` 공개 SELECT.
+- **생산**(stat.uz news-of-committee): 차종(모델)별, 텍스트 + 인포그래픽 이미지(Anthropic 비전 OCR) → month + year. 엔진(Powertrain) 제외.
+- 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md) `/oem/uzbekistan`.
+
 ---
 
 ### 7-F. 매크로 · 환율 · 시계열
@@ -431,6 +447,7 @@ UNIQUE: (source, note_date)
 | 한세 종목토론           | collect-naver-board (GHA Node tsx 직접)                           | 30분                   |
 | 한세 분봉               | collect-hansae-intraday (KIS)                                     | 5분                    |
 | OEM                     | collect-oem-model-outlook                                         | 일간                   |
+| OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일 |
 | 보강                    | enrich-company                                                    | 수동                   |
 | Vercel cron 대체 (curl) | cron-sentiment                                                    | 일 1회                 |
 
