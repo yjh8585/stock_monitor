@@ -9,7 +9,7 @@ import type {
 /** 판매량 단위: 백만대(M) / 만대 / 대 자동 변환 */
 export function fmtUnits(n: number | null): string {
   if (n == null) return '—';
-  if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(2)}M`;
+  if (n >= 10_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 10_000) return `${(n / 10_000).toFixed(1)}만`;
   return n.toLocaleString('ko-KR');
 }
