@@ -50,13 +50,15 @@
 
 ## `/oem/kia` — 기아
 
-- **범위**: 차종별 판매 + 해외 공장 5종 + 지역별 수출 10종 (월별, 2021~)
-- **출처**: worldwide.kia.com JSON API(`/api/investors/business-sales-results`) → 엑셀 3종(차종별·해외공장·지역별 수출) Playwright APIRequestContext 다운로드. `collect_kia_sales.py`
+- **범위**: 차종별 판매 + 해외 공장 5종 + 지역별 수출 10종 + 현지판매(retail) (월별, 2021~)
+- **출처**: worldwide.kia.com JSON API(`/api/investors/business-sales-results`) → 엑셀 4종(차종별·해외공장·지역별 수출·현지판매) Playwright APIRequestContext 다운로드. `collect_kia_sales.py`
 - **테이블**:
   - `kia_sales`: region IN ('', '내수', '수출', 'CKD') + factory 5종. **`Aggregate` 모델은 CKD section 합계 행이라 TOP10에서 제외**
   - `kia_export_regions`: 10 region × vehicle_type 8종을 6 카테고리로 normalize
-- **차트**: KPI 4종 + 판매 추이(월/연 토글) + PT mix(EV 8종 매핑) + 해외 공장 5종 stacked + 지역별 수출 10종 stacked + 수출 차종 type mix(승용/RV/상용/특장/CKD 일반/CKD 특장) + 차종 TOP10(전체/국내/내수/수출)
-- **cron**: `collect-kia-sales.yml` — 매월 16일 03:00 UTC(현대 15일과 1일 분산). 마이그레이션 `20260527000001`, `20260527000002`
+  - `kia_retail_sales`: plant × vehicle_model × region(12종 CHECK enum) 현지 retail 판매. period_type month/annual
+- **retail 연도별 양식 차이 (gotcha)**: 2024+는 제목 `현지판매실적`·`Korea`(내수) 컬럼 포함. **2021~2023은 제목 `해외현지판매`**('실적' 글자 없음)·시트명 연도접미사(`Jan21`/`Ma21`=March)·`Korea` 컬럼 없음(해외 전용)·중국 합작법인 별도 컬럼(2021 `DYK(China)` / 2022 `KCN(China)`)을 `China`로 합산. 파서가 양식 자동 흡수(`_KIND_PATTERNS` retail 정규식 / `_RETAIL_MONTH_MAP` 숫자제거+`ma` / region alias / `model_col=total_col-2`). **plant SUM row는 total=0이어도 footer로 처리** — 신규 가동 plant(2025 `HMGICs Plant` 1~5월 등)가 가동 초기 0일 때 header로 오인하면 하위 `CKD` 섹션을 흡수하는 버그가 있었음(수정 완료). **2024 export·retail은 소스 엑셀이 10월까지만 채워진 발표본**(11~12월 빈칸 — 기아 미갱신, 파싱 정상).
+- **차트**: KPI 4종 + 판매 추이(월/연 토글) + PT mix(EV 8종 매핑) + 해외 공장 5종 stacked + 지역별 수출 10종 stacked + 수출 차종 type mix(승용/RV/상용/특장/CKD 일반/CKD 특장) + 차종 TOP10(전체/국내/내수/수출). _retail은 적재만, 차트 미연결._
+- **cron**: `collect-kia-sales.yml` — 매월 16일 03:00 UTC(현대 15일과 1일 분산). 마이그레이션 `20260527000001`, `20260527000002`, `20260527000005`(kia_retail_sales)
 
 ## `/oem/uzbekistan` — 우즈베키스탄 자동차 시장
 

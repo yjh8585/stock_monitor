@@ -20,7 +20,10 @@ import {
   aggregatePtMix,
   aggregateTopModels,
   attachPowertrains,
+  kiaTopPrevYearLabel,
+  listEvModels,
   normalizeKiaVehicleType,
+  partialYearNote,
 } from './aggregate';
 
 function row(opts: {
@@ -206,6 +209,42 @@ describe('aggregateKiaFactoryMix', () => {
       total: 500,
     });
   });
+
+  it('PR 보완분(Overseas (PR) factory + Aggregate (PR) model) 제외 → 2024는 1~10월(2024.10)', () => {
+    const rows: KiaSaleRow[] = [];
+    for (let m = 1; m <= 10; m++) {
+      const p = `2024-${String(m).padStart(2, '0')}`;
+      rows.push(row({ period: p, region: '내수', model: 'A', units: 100 }));
+      rows.push(row({ period: p, factory: 'U.S. Plant', region: '', model: 'A', units: 200 }));
+    }
+    // 11~12월 PR 보완분 — 공장 분해 불가, 제외 대상
+    rows.push(row({ period: '2024-11', region: '내수', model: 'Aggregate (PR)', units: 48000 }));
+    rows.push(
+      row({
+        period: '2024-11',
+        factory: 'Overseas (PR)',
+        region: '',
+        model: 'Aggregate (PR)',
+        units: 200000,
+      })
+    );
+    rows.push(row({ period: '2024-12', region: '내수', model: 'Aggregate (PR)', units: 44000 }));
+    rows.push(
+      row({
+        period: '2024-12',
+        factory: 'Overseas (PR)',
+        region: '',
+        model: 'Aggregate (PR)',
+        units: 200000,
+      })
+    );
+    const out = aggregateKiaFactoryMixAnnual(withPt(rows));
+    expect(out).toHaveLength(1);
+    expect(out[0].period_label).toBe('2024.10');
+    expect(out[0].factories['Overseas (PR)']).toBeUndefined();
+    expect(out[0].factories['Korea Plants']).toBe(1000); // 10개월 × 100
+    expect(out[0].factories['U.S. Plant']).toBe(2000); // 10개월 × 200
+  });
 });
 
 describe('aggregatePtMix', () => {
@@ -311,5 +350,95 @@ describe('aggregateKiaExportTypeMix', () => {
     expect(out[0].CKD_ex).toBe(25); // 20 + 5(KD)
     expect(out[0].CKD_sp).toBe(10);
     expect(out[0].total).toBe(415);
+  });
+});
+
+describe('partialYearNote', () => {
+  it('과거 미완 연도(YYYY.NN)만 누계 안내 문구 생성', () => {
+    const note = partialYearNote([
+      { period_label: '2021', total: 100 },
+      { period_label: '2024.10', total: 1234567 },
+      { period_label: '2026 YTD', total: 50 },
+    ]);
+    expect(note).toBe('⚠ 2024년은 11~12월 미게재로 1~10월까지만 집계 (누계 1,234,567대)');
+  });
+
+  it('완비 연도/진행 연도(YTD)만 있으면 null', () => {
+    expect(partialYearNote([{ period_label: '2023', total: 10 }])).toBeNull();
+    expect(partialYearNote([{ period_label: '2026 YTD', total: 10 }])).toBeNull();
+  });
+
+  it('미완 연도 복수 → · 로 연결', () => {
+    const note = partialYearNote([
+      { period_label: '2023.06', total: 500 },
+      { period_label: '2024.10', total: 1000 },
+    ]);
+    expect(note).toBe(
+      '⚠ 2023년은 7~12월 미게재로 1~6월까지만 집계 (누계 500대) · 2024년은 11~12월 미게재로 1~10월까지만 집계 (누계 1,000대)'
+    );
+  });
+});
+
+describe('kiaTopPrevYearLabel', () => {
+  it('직전 완료연도가 모델 분해 10월까지(11~12월 Aggregate) → 2024.10', () => {
+    const rows: KiaSaleRow[] = [];
+    for (let m = 1; m <= 10; m++) {
+      rows.push(
+        row({ period: `2024-${String(m).padStart(2, '0')}`, model: 'Sportage', units: 100 })
+      );
+    }
+    // 2024 11~12월은 Aggregate 합계 보완(차종 분해 없음) → 제외돼야
+    rows.push(row({ period: '2024-11', region: 'CKD', model: 'Aggregate', units: 5000 }));
+    rows.push(row({ period: '2024-12', region: 'CKD', model: 'Aggregate', units: 5000 }));
+    for (let m = 1; m <= 12; m++) {
+      rows.push(
+        row({ period: `2025-${String(m).padStart(2, '0')}`, model: 'Sportage', units: 100 })
+      );
+    }
+    for (let m = 1; m <= 4; m++) {
+      rows.push(
+        row({ period: `2026-${String(m).padStart(2, '0')}`, model: 'Sportage', units: 100 })
+      );
+    }
+    const out = kiaTopPrevYearLabel(attachPowertrains(rows, []));
+    expect(out).toEqual({ label: '2024.10', lastMonth: 10, partial: true });
+  });
+
+  it('직전 완료연도가 12개월 완비 → YYYY년', () => {
+    const rows: KiaSaleRow[] = [];
+    for (let m = 1; m <= 12; m++) {
+      rows.push(
+        row({ period: `2024-${String(m).padStart(2, '0')}`, model: 'Sportage', units: 100 })
+      );
+    }
+    for (let m = 1; m <= 12; m++) {
+      rows.push(
+        row({ period: `2025-${String(m).padStart(2, '0')}`, model: 'Sportage', units: 100 })
+      );
+    }
+    for (let m = 1; m <= 4; m++) {
+      rows.push(
+        row({ period: `2026-${String(m).padStart(2, '0')}`, model: 'Sportage', units: 100 })
+      );
+    }
+    const out = kiaTopPrevYearLabel(attachPowertrains(rows, []));
+    expect(out.label).toBe('2024년');
+    expect(out.partial).toBe(false);
+  });
+});
+
+describe('listEvModels', () => {
+  it('resolved EV & 판매>0 차종만 (Niro 포함), 정렬', () => {
+    const map = [ptRow('EV6', 'EV'), ptRow('Niro', 'EV'), ptRow('Sportage', 'ICE')];
+    const rows = attachPowertrains(
+      [
+        row({ model: 'EV6', units: 100 }),
+        row({ model: 'Niro', units: 50 }),
+        row({ model: 'Sportage', units: 1000 }),
+        row({ model: 'EV9', units: 0 }), // 판매 0 → 제외
+      ],
+      map
+    );
+    expect(listEvModels(rows)).toEqual(['EV6', 'Niro']);
   });
 });

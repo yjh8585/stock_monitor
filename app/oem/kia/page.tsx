@@ -54,6 +54,7 @@ export default async function KiaPage() {
           monthly={data.monthlyPtMix}
           annual={data.annualPtMix}
           title="PowerTrain Mix (출하 기준 · EV 매핑)"
+          footer={`EV 집계 차종: ${data.evModels.join(' · ')} (vehicle_powertrain_map 기준). PHEV·FCEV는 별도 매핑이 없어 모(母)차종(ICE/HV)에 합산됨.`}
         />
       </div>
 
@@ -62,7 +63,8 @@ export default async function KiaPage() {
         monthly={data.monthlyRetailRegions}
         annual={data.annualRetailRegions}
         title="지역별 판매량 (retail · 12 region, 현지판매실적)"
-        footer="현지판매실적.xlsx · 12 region(Korea/U.S.A/Canada/Mexico/Europe/Eastern Europe/Latin America/Middle East/Africa/Asia Pacific/India/China) × plant. 도매 출하(wholesale)와 달리 실제 소비자 인도 시점 기준. ⚠️ IR이 현지판매실적을 2024년부터 게시 — 2021~2023은 데이터 없음(빈 막대), 도매 출하(kia_sales)는 2021부터 가용."
+        extraNote="· 2021~2023 해외 전용(Korea·Mexico 미포함)"
+        footer="현지판매실적.xlsx · 12 region(Korea/U.S.A/Canada/Mexico/Europe/Eastern Europe/Latin America/Middle East/Africa/Asia Pacific/India/China) × plant. 도매 출하(wholesale)와 달리 실제 소비자 인도 시점 기준."
         hideLabelsOnMonth
       />
 
@@ -85,7 +87,7 @@ export default async function KiaPage() {
         monthly={data.monthlyExportRegions}
         annual={data.annualExportRegions}
         title="한국 출하 → 지역별 수출 (export-by-region)"
-        footer="지역별수출실적.xlsx · 한국 공장에서 수출된 차량의 region 분해 (sales-by-model '수출' Total과 동일 합계) · 2024년은 IR이 1~10월만 게시함 (출처 자체 누락, 11~12월 데이터 없음) · 진행 중 연도는 'YYYY YTD'로 별도 표시"
+        footer="지역별수출실적.xlsx · 한국 공장에서 수출된 차량의 region 분해 (sales-by-model '수출' Total과 동일 합계) · 진행 중 연도는 'YYYY YTD'로 별도 표시"
         hideLabelsOnMonth
       />
 
@@ -103,8 +105,13 @@ export default async function KiaPage() {
         factoryOptions={data.factoryOptions}
         retailPlants={data.retailPlants}
         latestPeriodLabel={data.kpi.latestYearLabel.replace(/\s*실적\s*$/, '')}
-        prevPeriodLabel={data.kpi.prevYearLabel.replace(/\s*실적\s*$/, '')}
+        prevPeriodLabel={data.topModelsPrevLabel}
         ytdPeriodLabel={data.kpi.ytdLabel}
+        prevPeriodPartialNote={
+          data.topModelsPrevPartial
+            ? `${data.topModelsPrevLabel.split('.')[0]}년은 11~12월 데이터 미게재로 차종 TOP10·직전연도 컬럼은 1~${data.topModelsPrevLastMonth}월까지만 집계 (출하량 추이 합계는 12월까지)`
+            : undefined
+        }
       />
     </div>
   );

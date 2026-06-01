@@ -37,6 +37,8 @@ import {
   aggregatePtMixAnnual,
   aggregateTopModels,
   attachPowertrains,
+  kiaTopPrevYearLabel,
+  listEvModels,
   listRetailPlants,
   type KiaDomesticByModelPoint,
   type KiaExportRegionPoint,
@@ -141,6 +143,8 @@ export interface KiaPageData {
   annualSeries: CompanyTimeSeriesPoint[];
   monthlyPtMix: CompanyPtMixPoint[];
   annualPtMix: CompanyPtMixPoint[];
+  /** PT mix에서 EV로 집계되는 차종 목록 (차트 주석용). */
+  evModels: string[];
   /** 해외 공장 5종 stacked (월/연 토글). */
   monthlyFactory: FactoryMixPoint[];
   annualFactory: FactoryMixPoint[];
@@ -156,6 +160,10 @@ export interface KiaPageData {
   topModelsByFactory: Record<string, CompanyTopModelsResult>;
   /** 사용 가능 factory 목록 (드롭다운). 'all' + 'domestic'(한국 공장) + 해외 5개 plant. */
   factoryOptions: string[];
+  /** TOP10 직전 완료연도 컬럼 라벨 ('2024.10' = 11~12월 차종 분해 미게재로 1~10월까지). */
+  topModelsPrevLabel: string;
+  topModelsPrevPartial: boolean;
+  topModelsPrevLastMonth: number;
 
   // ============================================================
   // Retail (kia_retail_sales — 현지판매실적)
@@ -234,6 +242,8 @@ export async function getKiaData(): Promise<KiaPageData> {
     topRetailByPlant[p] = aggregateKiaRetailTopModels(retailRows, 10, p);
   }
 
+  const topPrev = kiaTopPrevYearLabel(withPt);
+  const evModels = listEvModels(withPt);
   return {
     kpi: aggregateKpi(withPt),
     monthlySeries: aggregateMonthlySeries(withPt),
@@ -249,6 +259,10 @@ export async function getKiaData(): Promise<KiaPageData> {
     topModelsAll: topModelsByFactory.all,
     topModelsByFactory,
     factoryOptions: ['all', 'domestic', ...KIA_OVERSEAS_PLANTS],
+    topModelsPrevLabel: topPrev.label,
+    topModelsPrevPartial: topPrev.partial,
+    topModelsPrevLastMonth: topPrev.lastMonth,
+    evModels,
     // retail
     retailKpi: aggregateKiaRetailKpi(retailRows),
     monthlyRetailRegions: aggregateKiaRetailRegions(retailRows, 'month'),
