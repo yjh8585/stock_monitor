@@ -316,7 +316,8 @@ PK `(kind, period_type, year_period, company, brand, vehicle_model, source_type)
 #### `market_series_daily` (26,635행)
 
 | series_code | trade_date | close |  
-인덱스: (series_code, trade_date DESC)
+인덱스: (series_code, trade_date DESC)  
+수집(`collect_market_series.py`): KOSPI·KOSDAQ는 KRX(pykrx `get_index_ohlcv`, `KRX_ID`/`KRX_PW` 로그인 필요 — 야후 `^KS11`/`^KQ11` 당일 지연 회피), 그 외 지수·금/은·국채·원자재는 yfinance(`end`는 exclusive라 +1일 보정), 일부는 FRED. 출처 표기는 `market_series.source`.
 
 #### `macro_outlook_notes` (20행)
 
