@@ -15,8 +15,8 @@ import {
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { OEM_COLORS } from '@/components/oem/helpers';
-import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { OEM_COLORS } from '@/components/charts/palette';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import type { AchievementMonthPoint } from '@/lib/inventory/types';
 
 function fmt(n: number | null | undefined, digits = 0): string {

@@ -29,10 +29,10 @@
 | `chartTheme.ts`              | `components/charts/chartTheme.ts`                     | `TOOLTIP_CONTENT_STYLE`(16px) · `TOOLTIP_CONTENT_STYLE_SM`(14px) — Tooltip 표준 (2026-06-02 신설)                                       | **55개 파일**       |
 | `chart-utils.ts`             | `components/management/chart-utils.ts`                | `sumVisibleStack`, `TOTAL_LABEL_ANCHOR` — **re-export 셰임**(SSOT=chartStyle.ts, 2026-06-02 중복 제거)                                  | 경영관리 누적막대   |
 | `useHiddenSeries()`          | `components/oem-companies/common/useHiddenSeries.tsx` | recharts `<Legend>` 클릭으로 시리즈 hide 토글 + line-through 스타일                                                                     | 누적막대 다수       |
-| `LegendRow`                  | `components/management/plan/PlanAchievementChart.tsx` | 커스텀 가로 범례(rect/line 칩, 클릭 토글). ⚠️ **차트 파일 안에 export됨**                                                               | 경영관리            |
-| `ClickableLegend`            | `components/oem/ClickableLegend.tsx`                  | OEM 색 팔레트 가로 범례(큰 순 강제, 클릭 hide)                                                                                          | OEM 전체            |
-| `OEM_COLORS` (10색)          | `components/oem/helpers.ts`                           | 다중 시리즈 기본 팔레트. 경영관리도 import                                                                                              | OEM·경영관리        |
-| `PT_COLORS` / `PT_ORDER`     | `components/oem/helpers.ts`                           | 파워트레인(ICE/HV/PHEV/EV/FCV) 전동화 그라데이션 색                                                                                     | OEM PowerTrain 차트 |
+| `LegendRow`                  | `components/charts/ChartLegend.tsx`                   | 커스텀 가로 범례(rect/line 칩, 클릭 토글)                                                                                               | 경영관리 8곳        |
+| `ClickableLegend`            | `components/charts/ClickableLegend.tsx`               | 색 팔레트 가로 범례(큰 순 강제, 클릭 hide)                                                                                              | OEM 3곳             |
+| `OEM_COLORS` (10색)          | `components/charts/palette.ts`                        | 다중 시리즈 기본 팔레트(도메인 중립). `oem/helpers`가 re-export                                                                         | OEM·경영관리        |
+| `PT_COLORS` / `PT_ORDER`     | `components/charts/palette.ts`                        | 파워트레인(ICE/HV/PHEV/EV/FCV) 전동화 그라데이션 색                                                                                     | OEM PowerTrain 차트 |
 | `RangeToggle`                | `components/charts/RangeToggle.tsx`                   | 1D/1M/3M/YTD/1Y/5Y 토글(lightweight-charts 전용)                                                                                        | `SeriesChart` 류    |
 | `PlaceholderChart`           | `components/charts/PlaceholderChart.tsx`              | "데이터 수집 준비 중" 자리 카드                                                                                                         | 미구현 시리즈       |
 
@@ -316,23 +316,23 @@ export const CHART_HEIGHT = {
 
 `components/management/chart-utils.ts`(`sumVisibleStack`, `TOTAL_LABEL_ANCHOR`)가 `chartStyle.ts`와 **기능 동일**이라 합쳤다. 제네릭 버전을 `chartStyle.ts`에 두고(`sumVisibleStack<T>`) `chart-utils.ts`는 re-export만 유지 → SSOT 1개. 호출부 코드는 무변경.
 
-### 제안 3 — 범례 컴포넌트 일원화
+### 제안 3 — 범례 컴포넌트 일원화 ✅ 적용(2026-06-02)
 
-현재 범례 구현 **3종**: `LegendRow`(차트 파일 내부), `ClickableLegend`(OEM), `useHiddenSeries`(recharts Legend 래퍼).
+차트 파일·OEM 폴더에 흩어져 있던 범례 컴포넌트를 `components/charts/`로 모았다.
 
-- `LegendRow`를 `components/charts/ChartLegend.tsx`로 **이동**(차트 파일에서 UI 컴포넌트 export 해소).
-- `ClickableLegend`는 `LegendRow`의 색-인덱스 변형이므로 `LegendRow`로 흡수 가능.
+- `LegendRow` → `components/charts/ChartLegend.tsx` 이동(차트 파일에서 UI 컴포넌트 export 해소). 사용 8곳 repoint.
+- `ClickableLegend` → `components/charts/ClickableLegend.tsx` 이동(사용 3곳 repoint). API가 `LegendRow`와 달라(문자열 목록 + 색 자동 인덱싱) 강제 흡수 대신 **co-location**으로 일원화 — 호출부 부담 최소화.
+- `useHiddenSeries`는 recharts `<Legend>` 래퍼로 역할이 달라 그대로 유지.
 
-### 제안 4 — 색 팔레트 위치 이동
+### 제안 4 — 색 팔레트 위치 이동 ✅ 적용(2026-06-02)
 
-`OEM_COLORS`/`PT_COLORS`가 `components/oem/helpers.ts`에 있는데 경영관리에서도 import → 의미상 OEM 종속. `components/charts/palette.ts`(또는 `lib/`)로 올려 도메인 중립화.
+`OEM_COLORS`/`PT_COLORS`/`PT_ORDER`를 `components/charts/palette.ts`로 이동(도메인 중립). `oem/helpers.ts`는 하위호환 re-export만 유지하고, 경영관리 4곳은 `palette`를 직접 import → OEM 종속 제거.
 
-### 제안 5 — recharts 차트 lazy 래퍼 패턴 표준화
+### 제안 5 — recharts 차트 lazy 래퍼 패턴 표준화 ✅ 이미 적용(검증 2026-06-02)
 
-`Xxx.tsx`(서버/Card 래퍼) + `XxxInner.tsx`(`dynamic ssr:false`)가 OEM 회사별엔 적용됐으나 OEM 전체·경영관리엔 부분 적용. 무거운 차트부터 점진 적용 → 초기 번들 축소.
+> **정정**: 초안의 "부분 적용" 진단은 부정확했다. 실제로는 OEM 전체(`OemDashboard`)·경영관리(`PnlDashboard`/`PlanDashboard`/`InventoryDashboard`/`PersonnelDashboard`)·OEM 회사별이 모두 차트를 `dynamic(() => import('./Xxx'), { ssr: false })`로 코드 스플릿하고 있고, viewport 진입 시 1회 마운트하는 `components/common/LazyMount`(IntersectionObserver)까지 갖춰져 있다. **추가 조치 불필요.**
 
-> **권장 우선순위**: 제안 1·2(상수/중복 — 위험 0, 효과 큼) → 제안 3(범례) → 제안 4·5(구조).
-> 모두 **렌더 결과는 동일**(리팩터링)하므로 `npm run check-all` + dev 서버 시각 회귀만 확인하면 됨.
+> **현황(2026-06-02)**: 제안 1~4 적용 완료, 제안 5는 이미 적용 상태. 모두 **렌더 결과 동일**(리팩터링)이라 `npm run check-all` 통과로 검증.
 
 ---
 
@@ -342,7 +342,7 @@ export const CHART_HEIGHT = {
 2. **카테고리 축?** → §4 레시피 복사 + §5 토큰 사용.
 3. 높이는 `useChartHeight` 3-tier 중 선택(직접 px 금지).
 4. 색은 `OEM_COLORS`/`PT_COLORS` 우선, 부족하면 -600 계열 추가.
-5. 그리드·툴팁·데이터 라벨은 §5-D/E + `chartStyle.ts` 상수 사용(리터럴 복붙 금지).
+5. 툴팁은 `chartTheme`(`TOOLTIP_CONTENT_STYLE`), 그리드·데이터 라벨은 `chartStyle` 상수 사용(§5-D/E, 리터럴 복붙 금지).
 6. 범례 상단 중앙 + 토글 필요 시 `useHiddenSeries`/`LegendRow`.
 7. 무거우면 `XxxInner` + `dynamic ssr:false` 래퍼.
 8. 빈 데이터/로딩 상태 처리(§5-G).

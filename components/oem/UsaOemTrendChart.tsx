@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
-import ClickableLegend from './ClickableLegend';
+import ClickableLegend from '@/components/charts/ClickableLegend';
 import { fmtFull, fmtUnits, OEM_COLORS } from './helpers';
 
 export interface UsaOemTimeSeriesData {

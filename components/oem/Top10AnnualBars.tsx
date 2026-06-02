@@ -15,7 +15,7 @@ import {
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
-import ClickableLegend from './ClickableLegend';
+import ClickableLegend from '@/components/charts/ClickableLegend';
 import {
   annualByGroup,
   findLatestYm,

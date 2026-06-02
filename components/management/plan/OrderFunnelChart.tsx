@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { ChartSection } from './_selectors';
-import { LegendRow } from './PlanAchievementChart';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { PlanRow } from '@/lib/plan/types';
