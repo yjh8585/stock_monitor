@@ -16,7 +16,13 @@ import {
 import { OEM_COLORS } from '@/components/oem/helpers';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { UzbekistanCompanyMonthlyPoint } from '@/lib/oem-companies/uzbekistan/source';
-import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '../common/chartStyle';
+import {
+  DATA_LABEL_STYLE,
+  GRID_STROKE_OPACITY,
+  sumVisible,
+  sumVisibleStack,
+  TOTAL_LABEL_ANCHOR,
+} from '../common/chartStyle';
 import { useHiddenSeries } from '../common/useHiddenSeries';
 
 interface Props {
@@ -41,6 +47,13 @@ function fmtTotalLabel(value: unknown): string {
   return n.toLocaleString('ko-KR');
 }
 
+/** YoY 데이터 레이블 — null/비유한값은 빈 문자열. */
+function fmtYoyLabel(v: unknown): string {
+  if (v == null || !Number.isFinite(Number(v))) return '';
+  const n = Number(v);
+  return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
+}
+
 function sortByTotal(data: UzbekistanCompanyMonthlyPoint[]): string[] {
   const totals = new Map<string, number>();
   for (const p of data) {
@@ -53,21 +66,58 @@ function sortByTotal(data: UzbekistanCompanyMonthlyPoint[]): string[] {
 
 export default function UzbekistanCompanyMonthlyChartInner({ monthly, annual }: Props) {
   const [mode, setMode] = useState<ViewMode>('year');
-  const height = useChartHeight(240, 280, 320);
-  const { isHidden, legendProps } = useHiddenSeries();
+  const showLabels = mode === 'year'; // 연간 모드만 합계 라벨 + YoY 라인.
+  // YoY 모드는 막대(하단)+라인(상단) 분리 공간이 필요해 차트를 키운다.
+  const height = useChartHeight(
+    showLabels ? 320 : 240,
+    showLabels ? 360 : 280,
+    showLabels ? 400 : 320
+  );
+  const { hidden, isHidden, legendProps } = useHiddenSeries();
 
   const data = mode === 'year' ? annual : monthly;
-  const showLabels = mode === 'year';
 
   const { companies, chartData } = useMemo(() => {
     const names = sortByTotal(data);
-    const rows = data.map((d) => ({
-      period_label: d.period_label,
-      total: d.total,
-      ...Object.fromEntries(names.map((n) => [n, d.companies[n] ?? 0])),
-    }));
+    const rows = data.map((d) => {
+      const values = Object.fromEntries(names.map((n) => [n, d.companies[n] ?? 0]));
+      const visibleCur = sumVisibleStack(values, names, hidden);
+      let yoy: number | null = null;
+      if (showLabels && d.prev) {
+        const visiblePrev = sumVisible(d.prev, names, hidden);
+        yoy =
+          visiblePrev > 0 && visibleCur != null
+            ? ((visibleCur - visiblePrev) / visiblePrev) * 100
+            : null;
+      }
+      return {
+        period_label: d.period_label,
+        total: d.total,
+        ...values,
+        __anchor: TOTAL_LABEL_ANCHOR,
+        __labelTotal: visibleCur,
+        __yoy: yoy,
+      };
+    });
     return { companies: names, chartData: rows };
-  }, [data]);
+  }, [data, hidden, showLabels]);
+
+  // 막대(좌축)는 하단, YoY 라인(우축)은 상단으로 분리. 토글 시 매 렌더 도메인 재계산.
+  const maxTotal = Math.max(1, ...data.map((d) => d.total));
+  // 막대는 plot 하단 ~43%, YoY 라인은 상단으로 분리(낮은 YoY도 막대 위에 오도록 큰 하단 패딩).
+  const leftDomain: [number, number] | undefined = showLabels
+    ? [0, Math.ceil(maxTotal * 2.3)]
+    : undefined;
+  const yoys = showLabels
+    ? chartData.map((r) => r.__yoy).filter((v): v is number => v != null)
+    : [];
+  const yoyMax = yoys.length ? Math.max(...yoys) : 0;
+  const yoyMin = yoys.length ? Math.min(...yoys) : 0;
+  const yoySpan = Math.max(yoyMax - yoyMin, 10);
+  const rightDomain: [number, number] = [
+    Math.floor(yoyMin - yoySpan * 1.8),
+    Math.ceil(yoyMax + yoySpan * 0.25),
+  ];
 
   return (
     <div>
@@ -122,7 +172,23 @@ export default function UzbekistanCompanyMonthlyChartInner({ monthly, annual }: 
             interval="preserveStartEnd"
             minTickGap={20}
           />
-          <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
+          <YAxis
+            yAxisId="left"
+            tickFormatter={fmtUnitsTick}
+            className="text-sm"
+            width={60}
+            domain={leftDomain}
+          />
+          {showLabels && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tickFormatter={(v) => `${v}%`}
+              className="text-sm"
+              width={50}
+              domain={rightDomain}
+            />
+          )}
           <Tooltip
             cursor={{ fill: 'var(--muted)' }}
             contentStyle={{
@@ -131,6 +197,7 @@ export default function UzbekistanCompanyMonthlyChartInner({ monthly, annual }: 
               fontSize: '15px',
             }}
             formatter={(value, name, item) => {
+              if (name === 'YoY') return [fmtYoyLabel(value) || '—', 'YoY'];
               const v = Number(value ?? 0);
               const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);
               const pct = total > 0 ? (v / total) * 100 : 0;
@@ -151,6 +218,7 @@ export default function UzbekistanCompanyMonthlyChartInner({ monthly, annual }: 
             return (
               <Bar
                 key={c}
+                yAxisId="left"
                 dataKey={c}
                 name={c}
                 stackId="company"
@@ -162,20 +230,42 @@ export default function UzbekistanCompanyMonthlyChartInner({ monthly, annual }: 
             );
           })}
           {showLabels && (
-            <Line
-              type="linear"
-              dataKey="total"
-              stroke="transparent"
-              dot={false}
-              activeDot={false}
+            <Bar
+              yAxisId="left"
+              dataKey="__anchor"
+              stackId="company"
+              fill="transparent"
               isAnimationActive={false}
               legendType="none"
+              tooltipType="none"
             >
               <LabelList
-                dataKey="total"
+                dataKey="__labelTotal"
                 position="top"
                 formatter={fmtTotalLabel}
                 style={DATA_LABEL_STYLE}
+              />
+            </Bar>
+          )}
+          {showLabels && (
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="__yoy"
+              name="YoY"
+              stroke="#dc2626"
+              strokeWidth={2}
+              dot={{ r: 3, fill: '#dc2626' }}
+              connectNulls
+              isAnimationActive={false}
+              hide={isHidden('YoY')}
+            >
+              <LabelList
+                dataKey="__yoy"
+                position="top"
+                offset={10}
+                formatter={fmtYoyLabel}
+                style={{ fill: '#dc2626', fontSize: 12, fontWeight: 700 }}
               />
             </Line>
           )}

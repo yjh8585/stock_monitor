@@ -1,8 +1,10 @@
 import UzbekistanBrandSeriesChart from '@/components/oem-companies/uzbekistan/UzbekistanBrandSeriesChart';
 import UzbekistanCompanyMonthlyChart from '@/components/oem-companies/uzbekistan/UzbekistanCompanyMonthlyChart';
+import UzbekistanModelYearChart from '@/components/oem-companies/uzbekistan/UzbekistanModelYearChart';
 import UzbekistanModelYearTable from '@/components/oem-companies/uzbekistan/UzbekistanModelYearTable';
-import UzbekistanProductionYearChart from '@/components/oem-companies/uzbekistan/UzbekistanProductionYearChart';
+import UzbekistanProductionDimensionChart from '@/components/oem-companies/uzbekistan/UzbekistanProductionDimensionChart';
 import UzbekistanShareChart from '@/components/oem-companies/uzbekistan/UzbekistanShareChart';
+import UzbekistanShareDimensionChart from '@/components/oem-companies/uzbekistan/UzbekistanShareDimensionChart';
 import { getUzbekistanData } from '@/lib/oem-companies/uzbekistan/source';
 
 /**
@@ -97,12 +99,12 @@ export default async function UzbekistanPage() {
         footer="uzavtosanoat.uz 보도자료의 YTD 누계('реализовано'/'продано' = 판매)를 차분해 월별 도출. 중간 보도가 없는 달은 인접 발표의 증분을 구간 월수로 균등 분배(예: 6월 미발표 시 7월 발표분을 6·7월로 분배). 연초 첫 발표가 N월이면 1~N월 균등 분배. 생산('выпущено') 보도는 별도(생산 데이터)로 분리."
       />
 
-      {/* 연간 production (Statistical info) */}
-      {data.productionAnnualByBrand.length > 0 && (
-        <UzbekistanProductionYearChart
-          annual={data.productionAnnualByBrand}
-          title="연간 생산 (uzavtosanoat Statistical Info · brand별)"
-          footer="출처: uzavtosanoat.uz/en/page/statistical_information_and_analysis · 2016~2025 연간. Chevrolet (천대 → 대) / BYD (2024~) / LCV (Light Commercial Vehicles). 엔진(Powertrain)은 완성차가 아니므로 제외."
+      {/* 회사별 판매 점유율 — 판매 차트 바로 아래 (100% stacked) */}
+      {data.companySalesShare.length > 0 && (
+        <UzbekistanShareChart
+          data={data.companySalesShare}
+          title="회사별 판매 점유율 (uzavtosanoat, 100%)"
+          footer="uzavtosanoat.uz 보도자료 YTD 누계 (연 누계). UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors."
         />
       )}
 
@@ -151,24 +153,24 @@ export default async function UzbekistanPage() {
         </div>
       )}
 
-      {/* 자동차 brand share (Chevrolet vs BYD 100%) + 회사 sales share */}
-      {(data.carBrandShare.length > 0 || data.companySalesShare.length > 0) && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {data.carBrandShare.length > 0 && (
-            <UzbekistanShareChart
-              data={data.carBrandShare}
-              title="자동차 brand 점유율 (Chevrolet vs BYD, 100%)"
-              footer="uzavtosanoat.uz Statistical Info 연간 production · BYD 2024 신규 진입 후 점유율 변화."
-            />
-          )}
-          {data.companySalesShare.length > 0 && (
-            <UzbekistanShareChart
-              data={data.companySalesShare}
-              title="회사별 sales 점유율 (uzavtosanoat, 100%)"
-              footer="uzavtosanoat.uz 보도자료 YTD 누계 (연 누계). 6 회사: UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors."
-            />
-          )}
-        </div>
+      {/* 연간 생산 — 차종(stat.uz) 기준, 회사/브랜드 토글 stacked (생산 KPI 카드 아래) */}
+      {(data.productionByBrandYear.length > 0 || data.productionByCompanyYear.length > 0) && (
+        <UzbekistanProductionDimensionChart
+          byBrand={data.productionByBrandYear}
+          byCompany={data.productionByCompanyYear}
+          title="연간 생산 (차종 기준 · 회사/브랜드 토글)"
+          footer="출처: stat.uz 통계위 만년 보도자료(차종별 생산, 2021~2025). 회사 기준: Chevrolet(Damas/Labo=Khorezm Auto, 그 외=UzAuto Motors) / BYD=BYD Uzbekistan Factory / KIA·Chery·Haval=ADM Jizzakh / LADA·Tank=기타. 범례를 끄면 합계가 따라 변동."
+        />
+      )}
+
+      {/* 시장점유율 (생산 기준) — 차종(stat.uz) 기준, 회사/브랜드 토글 100% stacked */}
+      {(data.productionShareByBrand.length > 0 || data.productionShareByCompany.length > 0) && (
+        <UzbekistanShareDimensionChart
+          byBrand={data.productionShareByBrand}
+          byCompany={data.productionShareByCompany}
+          title="시장점유율 (생산 기준)"
+          footer="출처: stat.uz 통계위 만년 보도자료(차종별 생산, 2021~2025) 연도별 100% 정규화. 회사 기준 매핑은 '연간 생산' 차트와 동일."
+        />
       )}
 
       {/* Chevrolet 10년 시계열 (엔진 제외 — 완성차만) */}
@@ -188,24 +190,12 @@ export default async function UzbekistanPage() {
         footer="출처: stat.uz 통계위 보도자료(news-of-committee, 모델별 생산). 만년이 발표된 해(예: 2025)는 연간, 진행 중인 해는 최신 누계(1~N월 YTD). YoY는 동기간 기준. 'Damas/Labo'=Damas+특수승용 합산, 'Tank 500'=GWM. 수입(국가별) 항목은 제외."
       />
 
-      {/* 차종(모델)별 생산량 — 연간 grouped */}
-      {data.productionByModel.length > 0 && (
-        <UzbekistanProductionYearChart
-          annual={data.productionByModel}
-          grouped
-          title="차종별 연간 생산량 (stat.uz · 모델별)"
-          footer="출처: stat.uz 통계위 보도자료. 모델을 x축으로 연간 생산량 비교(만년 발표연도만 — 현재 2025). 추가 연도 만년 기사가 수집되면 자동으로 다개년 grouped 비교로 표시."
-        />
-      )}
-
-      {/* stat.uz 차종별 월별 생산 추이 */}
-      {data.statUzMonthlyByModel.length > 0 && (
-        <UzbekistanProductionYearChart
-          annual={data.statUzMonthlyByModel}
-          title="차종별 월별 생산 추이 (stat.uz · 모델별 stacked)"
-          footer="출처: stat.uz 통계위 보도자료(월별 1~N월 누계 발표)를 차분해 월별 도출. Chevrolet=Cobalt/Damas-Labo/Tracker/Onix, KIA/Chery/Haval/BYD/Tank는 brand 자체. 중간 미발표월은 인접 발표 증분을 균등 분배."
-        />
-      )}
+      {/* 차종별 연간 생산량 — 연도 드롭다운 + 전년 동기 비교 */}
+      <UzbekistanModelYearChart
+        compare={data.productionModelCompare}
+        title="차종별 연간 생산량 (stat.uz · 모델별, 전년 비교)"
+        footer="출처: stat.uz 통계위 보도자료. 드롭다운으로 연도 선택 → 차종별로 당해·전년을 나란히 비교. 최신 연도는 YTD(1~N월)이며 전년도 같은 기간(1~N월)과 비교. 호버 시 YoY 표시."
+      />
     </div>
   );
 }

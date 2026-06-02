@@ -39,6 +39,28 @@ export default function UzbekistanModelYearTable({
               </tr>
             </thead>
             <tbody>
+              {/* 합계 행 — 맨 위 고정 + 음영 강조 */}
+              <tr className="border-b bg-muted/60 font-semibold">
+                <td className="px-2 py-1.5 text-left">합계</td>
+                {data.columns.map((c) => (
+                  <td key={c.year} className="px-2 py-1.5 text-right tabular-nums">
+                    {fmt(data.totals.cells[c.year])}
+                  </td>
+                ))}
+                <td
+                  className={`px-2 py-1.5 text-right tabular-nums ${
+                    data.totals.yoyPct == null
+                      ? 'text-muted-foreground'
+                      : data.totals.yoyPct > 0
+                        ? 'text-emerald-600'
+                        : 'text-rose-600'
+                  }`}
+                >
+                  {data.totals.yoyPct == null
+                    ? '-'
+                    : `${data.totals.yoyPct > 0 ? '+' : ''}${data.totals.yoyPct.toFixed(1)}%`}
+                </td>
+              </tr>
               {data.rows.map((row) => (
                 <tr key={row.model} className="border-b last:border-0">
                   <td className="px-2 py-1.5 text-left font-medium">{row.model}</td>
