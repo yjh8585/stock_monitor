@@ -32,5 +32,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
+          # 코스피/코스닥 지수는 pykrx get_index_ohlcv로 수집 — KRX 로그인 필요.
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+
           NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
           NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
