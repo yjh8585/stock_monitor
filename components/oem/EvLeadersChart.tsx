@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupPtMonth } from '@/lib/types';
 import {
   DATA_LABEL_STYLE,
@@ -93,11 +94,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
             <Tooltip
               formatter={(v) => [fmtFull(Number(v)) + ' 대', 'EV+PHEV']}
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
             />
             <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
               {sales.map((d) => (
@@ -143,11 +140,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
             <Tooltip
               formatter={(v) => [`${Number(v).toFixed(1)}%`, 'EV 비율']}
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
             />
             <Bar dataKey="ratio" radius={[0, 4, 4, 0]}>
               {ratio.map((d) => (

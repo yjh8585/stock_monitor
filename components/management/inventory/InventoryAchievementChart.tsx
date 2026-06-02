@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { OEM_COLORS } from '@/components/oem/helpers';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
@@ -93,11 +94,7 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '16px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
           content={<Tip unitLabel={unitLabel} />}
         />
         <Legend

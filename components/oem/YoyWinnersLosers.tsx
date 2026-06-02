@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { growthPct } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
@@ -90,11 +91,7 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
                 ];
               }}
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
             />
             <Bar dataKey="yoy" radius={[0, 4, 4, 0]}>
               {winners.map((d) => (
@@ -135,11 +132,7 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
                 ];
               }}
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
             />
             <Bar dataKey="yoy" radius={[0, 4, 4, 0]}>
               {losers.map((d) => (

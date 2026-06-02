@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesTypeSegMonth } from '@/lib/types';
 import { fmtFull, fmtUnits } from './helpers';
 
@@ -131,11 +132,7 @@ function ChartCard({ title, data, colors }: { title: string; data: SliceRow[]; c
               const pct = total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
               return [`${fmtFull(n)} 대 (${pct}%)`, String(name)];
             }}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
           />
         </PieChart>
       </ResponsiveContainer>

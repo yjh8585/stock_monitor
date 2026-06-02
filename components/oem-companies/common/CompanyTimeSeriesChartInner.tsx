@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { CompanyTimeSeriesPoint } from '@/lib/types';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY, Y_AXIS_PADDED_DOMAIN } from './chartStyle';
@@ -116,11 +117,7 @@ export default function CompanyTimeSeriesChartInner({ monthly, annual }: Props) 
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               formatter={(value, name, item) => {
                 const label = String(name);
                 if (label === 'YoY') return [fmtYoy(value), label];
@@ -160,11 +157,7 @@ export default function CompanyTimeSeriesChartInner({ monthly, annual }: Props) 
             />
             <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
             <Tooltip
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               formatter={(value, _name, item) => {
                 const yoy = (item?.payload as CompanyTimeSeriesPoint | undefined)?.yoy_pct;
                 const yoyText = yoy == null ? '' : ` (YoY ${fmtYoy(yoy)})`;

@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { OEM_COLORS } from '@/components/oem/helpers';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { HyundaiQuarterlyRegionPoint } from '@/lib/types';
@@ -82,11 +83,7 @@ export default function HyundaiQuarterlyRegionsChartInner({ data }: Props) {
         <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '16px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
           formatter={(value, name, item) => {
             const v = Number(value ?? 0);
             const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);

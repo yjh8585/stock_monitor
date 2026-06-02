@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { GRID_STROKE_OPACITY } from '../common/chartStyle';
 
@@ -69,11 +70,7 @@ export default function UzbekistanModelCompareChartInner({
         <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '14px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE_SM}
           content={({ active, payload, label }) => {
             if (!active || !payload || payload.length === 0) return null;
             const row = payload[0].payload as { __prev: number | null; __cur: number };

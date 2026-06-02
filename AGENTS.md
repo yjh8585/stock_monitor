@@ -18,6 +18,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`AGENTS.md` (이 문서)** — _작업 지침·컨벤션·약속_. 코드 작성·DB 변경·커밋 시 따라야 할 규칙. 누락 시 `.githooks/pre-commit`이 차단.
 - **[`Architecture.md`](./Architecture.md)** — _시스템 구조의 단일 진실 공급원_. 테이블·뷰 컬럼/인덱스/트리거, 라우트 맵, 캐싱·배포·자동화 흐름. DB 스키마·구조 상세는 모두 여기로.
 - **[`docs/oem-collection.md`](./docs/oem-collection.md)** — OEM 회사별 탭(`/oem/*`) 수집 로직·gotcha 상세.
+- **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. 라이브러리 선택·유형별 레시피·스타일 토큰(색/폰트/범례/툴팁)·페이지별 카탈로그. 신규 차트 작성 시 참고.
 
 > AGENTS.md는 "이 약속을 지켜라"만 다룬다. 구조 설명이 길어지면 Architecture.md로 옮기고 여기선 참조한다.
 

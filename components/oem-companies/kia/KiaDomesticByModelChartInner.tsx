@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { OEM_COLORS } from '@/components/oem/helpers';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { KiaDomesticByModelPoint } from '@/lib/oem-companies/kia/aggregate';
@@ -145,11 +146,7 @@ export default function KiaDomesticByModelChartInner({
           <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
           <Tooltip
             cursor={{ fill: 'var(--muted)' }}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '14px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE_SM}
             formatter={(value, name, item) => {
               const v = Number(value ?? 0);
               const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);

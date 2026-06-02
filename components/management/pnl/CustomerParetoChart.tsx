@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -136,11 +137,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               content={<ParetoTooltip />}
             />
             <Legend

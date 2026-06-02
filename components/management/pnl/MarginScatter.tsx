@@ -13,6 +13,7 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -540,11 +541,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
             />
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               content={<BubbleTooltip baseYear={effBase} compareYear={effCompare} />}
             />
             <Scatter name={dimConfig.label} data={chartPoints} fill="#000000" shape="circle">

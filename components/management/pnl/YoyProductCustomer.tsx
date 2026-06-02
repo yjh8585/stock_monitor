@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import BasisToggle from './BasisToggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { aggregateBy, prepareYoYView } from '@/lib/pnl/aggregate';
@@ -384,11 +385,7 @@ function MonthlyTrendChart({
           <XAxis dataKey="month" tick={{ fontSize: 14 }} />
           <YAxis tickFormatter={(v: number) => fmtMillion(v)} tick={{ fontSize: 14 }} width={70} />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             formatter={(v) => `${fmtMillion(Number(v))} 백만원`}
           />
           <Legend
