@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { KgRegionSeriesPoint } from '@/lib/oem-companies/kg-mobility/aggregate';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '../common/chartStyle';
@@ -103,11 +104,7 @@ export default function KgDomesticExportSplitInner({ monthly, annual }: Props) {
           <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
           <Tooltip
             cursor={{ fill: 'var(--muted)' }}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             formatter={(value, name, item) => {
               const v = Number(value ?? 0);
               const total = (item?.payload as KgRegionSeriesPoint | undefined)?.total ?? 0;

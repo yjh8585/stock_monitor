@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import {
   DATA_LABEL_STYLE,
@@ -111,11 +112,7 @@ export default function MarketTrendChart({ groupMonth }: Props) {
             <Tooltip
               formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
               cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
             />
             <Bar dataKey="sales" fill="#2563eb" radius={[3, 3, 0, 0]}>
               <LabelList
@@ -143,11 +140,7 @@ export default function MarketTrendChart({ groupMonth }: Props) {
             <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
             <Tooltip
               formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
             />
             <Area
               type="monotone"

@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { HyundaiAnnualEarningsPoint } from '@/lib/types';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY, Y_AXIS_PADDED_DOMAIN } from '../common/chartStyle';
@@ -77,11 +78,7 @@ export default function HyundaiAnnualEarningsChartInner({ data }: Props) {
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '14px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE_SM}
           formatter={(value, name, item) => {
             if (value == null) return ['—', String(name)];
             const v = Number(value);

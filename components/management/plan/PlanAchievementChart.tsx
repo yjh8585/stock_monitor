@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { OEM_COLORS } from '@/components/oem/helpers';
 import type { AchievementPoint } from '@/lib/plan/types';
@@ -97,11 +98,7 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '16px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
           content={<AchievementTooltip unitLabel={unitLabel} amountDigits={amountDigits} />}
         />
         <Legend

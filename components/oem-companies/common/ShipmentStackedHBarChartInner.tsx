@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { ShipmentStackedRow } from './ShipmentStackedHBarChart';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from './chartStyle';
@@ -90,11 +91,7 @@ export default function ShipmentStackedHBarChartInner({ data }: Props) {
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '14px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE_SM}
           formatter={(value, name, item) => {
             const v = Number(value ?? 0);
             const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);

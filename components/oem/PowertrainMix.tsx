@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupPtMonth, PowerTrain } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { ymLabel, PT_COLORS, PT_ORDER } from './helpers';
@@ -72,11 +73,7 @@ export default function PowertrainMix({ groupPtMonth }: Props) {
           <Tooltip
             formatter={(v, name) => [`${Number(v).toFixed(1)}%`, String(name)]}
             itemSorter={(item) => -(item.value as number)}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
           />
           <Legend
             layout="horizontal"

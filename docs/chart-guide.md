@@ -1,0 +1,350 @@
+# 차트 가이드 (재사용 레퍼런스)
+
+> 이 프로젝트의 모든 차트를 한곳에 정리한 문서. **신규 차트를 만들 때 여기 레시피를 복사**하고, **스타일을 바꿀 때는 여기 표준을 기준**으로 한다.
+> 차트 컴포넌트는 약 60개(`recharts` + `lightweight-charts`). 페이지 책임 매핑은 [`AGENTS.md`], 경영관리 탭 구조는 [`Architecture.md §5-A`] 참고.
+
+---
+
+## 1. 라이브러리 선택 기준
+
+| 용도                                                                        | 라이브러리                         | 대표 컴포넌트                                       |
+| --------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------- |
+| **시계열 가격/지수/환율/매크로** (기간 토글 1D~5Y, 일자 X축, 줌/크로스헤어) | `lightweight-charts` (TradingView) | `SeriesChart`, `MultiSeriesChart`, `Intraday*Chart` |
+| **집계/비교/구성비** (막대·영역·스택·콤보·산점·파레토)                      | `recharts`                         | OEM·경영관리·OEM 회사별 차트 전부                   |
+| **히트맵 등 커스텀 격자**                                                   | 직접 구현(div grid)                | `OemCountryHeatmap`                                 |
+
+원칙:
+
+- **연속 시계열 + 기간 토글이 필요하면 lightweight-charts**, 그 외 카테고리 축(연도·월·회사·제품)은 recharts.
+- recharts는 SSR 비용이 크므로 **`dynamic(() => import('./XxxInner'), { ssr: false })`** 래퍼 패턴을 권장(아래 §6-lazy).
+
+---
+
+## 2. 공통 모듈 인벤토리 (이미 존재 — 먼저 재사용할 것)
+
+| 모듈                         | 위치                                                  | 제공                                                                                                                                    | 사용처              |
+| ---------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `useChartHeight(sm, md, lg)` | `lib/useChartHeight.ts`                               | 화면폭(640/1024 분기)에 따라 높이 반환. resize 리스너 **단일 공유 store**                                                               | recharts 차트 전반  |
+| `chartStyle.ts`              | `components/oem-companies/common/chartStyle.ts`       | `GRID_STROKE_OPACITY`(0.3), `DATA_LABEL_STYLE`(15px/700), `Y_AXIS_PADDED_DOMAIN`, `sumVisibleStack`, `sumVisible`, `TOTAL_LABEL_ANCHOR` | **38개 파일**       |
+| `chartTheme.ts`              | `components/charts/chartTheme.ts`                     | `TOOLTIP_CONTENT_STYLE`(16px) · `TOOLTIP_CONTENT_STYLE_SM`(14px) — Tooltip 표준 (2026-06-02 신설)                                       | **55개 파일**       |
+| `chart-utils.ts`             | `components/management/chart-utils.ts`                | `sumVisibleStack`, `TOTAL_LABEL_ANCHOR` — **re-export 셰임**(SSOT=chartStyle.ts, 2026-06-02 중복 제거)                                  | 경영관리 누적막대   |
+| `useHiddenSeries()`          | `components/oem-companies/common/useHiddenSeries.tsx` | recharts `<Legend>` 클릭으로 시리즈 hide 토글 + line-through 스타일                                                                     | 누적막대 다수       |
+| `LegendRow`                  | `components/management/plan/PlanAchievementChart.tsx` | 커스텀 가로 범례(rect/line 칩, 클릭 토글). ⚠️ **차트 파일 안에 export됨**                                                               | 경영관리            |
+| `ClickableLegend`            | `components/oem/ClickableLegend.tsx`                  | OEM 색 팔레트 가로 범례(큰 순 강제, 클릭 hide)                                                                                          | OEM 전체            |
+| `OEM_COLORS` (10색)          | `components/oem/helpers.ts`                           | 다중 시리즈 기본 팔레트. 경영관리도 import                                                                                              | OEM·경영관리        |
+| `PT_COLORS` / `PT_ORDER`     | `components/oem/helpers.ts`                           | 파워트레인(ICE/HV/PHEV/EV/FCV) 전동화 그라데이션 색                                                                                     | OEM PowerTrain 차트 |
+| `RangeToggle`                | `components/charts/RangeToggle.tsx`                   | 1D/1M/3M/YTD/1Y/5Y 토글(lightweight-charts 전용)                                                                                        | `SeriesChart` 류    |
+| `PlaceholderChart`           | `components/charts/PlaceholderChart.tsx`              | "데이터 수집 준비 중" 자리 카드                                                                                                         | 미구현 시리즈       |
+
+---
+
+## 3. 페이지별 차트 카탈로그
+
+### `/related-stocks`, `/compare`, `/domestic`, `/etc` — 시계열 위주
+
+- `SeriesChart` — 단일 라인 + 기간 토글 + 최근값/등락 헤더 + 단위/출처 footer
+- `MultiSeriesChart` — 다중 라인(동일 단위), `secondaryFor`로 좌측 보조축(가격대 다른 2종목)
+- `compare/MetricCard` — 비교 지표 카드 내 미니 차트
+
+### `/oem` (전체 탭) — `components/oem/`
+
+| 컴포넌트                                                  | 유형                                   |
+| --------------------------------------------------------- | -------------------------------------- |
+| `MarketTrendChart`                                        | 막대(연간)/영역(월간) 토글             |
+| `Top10AnnualBars`                                         | 그룹 막대                              |
+| `Top10MonthlyLines`                                       | 다중 라인                              |
+| `Top30YtdChart`                                           | 가로 막대                              |
+| `CountryTop15`                                            | 가로 막대                              |
+| `OemCountryHeatmap`                                       | 커스텀 히트맵                          |
+| `PowertrainMix`                                           | 100% 스택 영역(`stackOffset="expand"`) |
+| `PowertrainTopOems`, `EvLeadersChart`, `TypeSegmentChart` | 막대/스택                              |
+| `UsaOemTrendChart`, `ModelNorthAmericaCharts`             | 라인/막대                              |
+| `YoyWinnersLosers`                                        | 양방향 막대                            |
+
+### `/oem/<slug>` — `components/oem-companies/`
+
+- **공통**(`common/`): `CompanyTimeSeriesChart`(연 막대/월 영역 토글), `CompanyPowertrainMixChart`, `ShipmentStackedHBarChart`(내수·수출·해외 가로 스택)
+- **회사별**: `hyundai/`, `kia/`, `kg-mobility/`, `stellantis-na/`, `uzbekistan/` — 각각 `Xxx.tsx`(래퍼 Card) + `XxxInner.tsx`(recharts, lazy)
+
+### `/management` — `components/management/`
+
+| 탭        | 차트                                                                                                                       | 유형                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| pnl       | `MarginScatter`                                                                                                            | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피) |
+| pnl       | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                    |
+| pnl       | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                             |
+| plan      | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)          |
+| plan      | `OrderFunnelChart`                                                                                                         | 퍼널                                                  |
+| inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                        |
+| personnel | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                         |
+
+### `/hansae` — `components/hansae/`
+
+- `IntradayCombinedChart` — lightweight-charts v5 **2-pane**(가격 60% / 외국인·기관·개인 수급 40%, 시간축 공유) + 코멘터리
+- `IntradayMiniChart`, `IntradaySupplyChart` — 미니 분봉/수급
+
+### `/stock-popup`, `/stock-prices` — `components/stock-prices/`
+
+- `DualStockCard`, `CrossMarketCard`, `StockPricesDashboard` — 주가 페어 비교
+
+---
+
+## 4. 차트 유형별 표준 레시피 (복사용)
+
+> 아래 스니펫은 **현재 코드베이스의 사실상 표준**을 추출한 것. 색·폰트·툴팁은 §5 표준 토큰을 따른다.
+
+### 4-A. 단일 시계열 라인 (lightweight-charts)
+
+신규로 만들 필요 거의 없음 — **`<SeriesChart>` 그대로 사용**:
+
+```tsx
+<SeriesChart title="원/달러" unit="원" source="한국은행" data={points} initialRange="1y" />
+```
+
+다중 시리즈는 `<MultiSeriesChart series={[{label,color,data}, ...]} secondaryFor={[1]} />`.
+
+### 4-B. 세로 막대 (recharts)
+
+```tsx
+const h = useChartHeight(200, 240, 280);
+<ResponsiveContainer width="100%" height={h}>
+  <BarChart data={data} margin={{ top: 28, right: 20, bottom: 10, left: 10 }}>
+    <CartesianGrid
+      strokeDasharray="3 3"
+      className="stroke-border"
+      strokeOpacity={GRID_STROKE_OPACITY}
+      vertical={false}
+    />
+    <XAxis dataKey="year" tick={{ fontSize: 13 }} />
+    <YAxis
+      tickFormatter={fmtUnits}
+      tick={{ fontSize: 13 }}
+      width={60}
+      domain={Y_AXIS_PADDED_DOMAIN}
+    />
+    <Tooltip cursor={{ fill: 'var(--muted)' }} contentStyle={TOOLTIP_CONTENT_STYLE} />
+    <Bar dataKey="sales" fill={OEM_COLORS[0]} radius={[3, 3, 0, 0]}>
+      <LabelList dataKey="sales" position="top" formatter={fmtUnits} style={DATA_LABEL_STYLE} />
+    </Bar>
+  </BarChart>
+</ResponsiveContainer>;
+```
+
+포인트: `vertical={false}`(세로 그리드선 제거), `radius={[3,3,0,0]}`(상단 라운드), `Y_AXIS_PADDED_DOMAIN`(상단 라벨 잘림 방지).
+
+### 4-C. 영역 차트 / 100% 스택 영역
+
+```tsx
+<AreaChart data={data} margin={{ top: 10, right: 20, bottom: 10, left: 10 }} stackOffset="expand">
+  {/* 100% 비중일 때만 */}
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={OEM_COLORS[0]} stopOpacity={0.4} />
+      <stop offset="100%" stopColor={OEM_COLORS[0]} stopOpacity={0.05} />
+    </linearGradient>
+  </defs>
+  <CartesianGrid
+    strokeDasharray="3 3"
+    className="stroke-border"
+    strokeOpacity={GRID_STROKE_OPACITY}
+  />
+  <XAxis dataKey="label" tick={{ fontSize: 13 }} interval={5} />
+  <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} width={50} />
+  <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} itemSorter={(i) => -(i.value as number)} />
+  <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 14, paddingBottom: 8 }} />
+  <Area
+    type="monotone"
+    dataKey="EV"
+    stackId="1"
+    stroke={PT_COLORS.EV}
+    fill={PT_COLORS.EV}
+    fillOpacity={0.85}
+  />
+</AreaChart>
+```
+
+### 4-D. 누적 막대 + "보이는 시리즈 합계" 라벨 + 범례 토글
+
+가장 많이 쓰이는 경영관리/OEM 패턴. 핵심은 **무한소 앵커 막대**로 토글 연동 합계를 그리는 것:
+
+```tsx
+const { hidden, isHidden, legendProps } = useHiddenSeries();
+const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
+  __total: sumVisibleStack(p, ['office', 'production'], hidden) }));
+// ...
+<Bar dataKey="office" stackId="m" fill={OFFICE_COLOR} hide={isHidden('office')} />
+<Bar dataKey="production" stackId="m" fill={PRODUCTION_COLOR} hide={isHidden('production')} />
+<Bar dataKey="__anchor" stackId="m" fill="transparent" legendType="none" tooltipType="none"
+  isAnimationActive={false}>
+  <LabelList dataKey="__total" position="top"
+    formatter={(v) => (typeof v === 'number' ? fmt(v) : '')} style={DATA_LABEL_STYLE} />
+</Bar>
+```
+
+막대 **내부** 라벨은 `<LabelList content={renderInsideLabel} />` 커스텀 렌더러로 흰색 글씨, 막대 높이 < 40px면 생략(`PersonnelMixChart` 참고).
+
+### 4-E. 가로 누적 막대
+
+`layout="vertical"` + `<XAxis type="number" />` + `<YAxis type="category" />`. 내부 라벨 `position="center"`, 합계 라벨 `position="right"`. `ShipmentStackedHBarChartInner` 참고.
+
+### 4-F. 콤보(막대 + 라인, 이중 Y축)
+
+계획·실적 막대 + 달성율 라인. **이중 축의 0을 어긋나게** 잡아 막대(하단)·라인(상단) 영역 분리:
+
+```tsx
+<YAxis yAxisId="amount" domain={[0, (max) => Math.max(max * 2.5, 1)]} ... />
+<YAxis yAxisId="rate" orientation="right" domain={[-rateMax * 1.5, rateMax * 1.1]} ... />
+```
+
+`PlanAchievementChart` 참고. 범례는 `LegendRow`.
+
+### 4-G. 산점/버블
+
+`ScatterChart` + `ZAxis`(버블 크기). 축은 `axisLine/tickLine={false}`로 숨기고 `ReferenceLine`으로 십자축·격자 직접 그림, `ReferenceArea`로 사분면 음영. 라벨 충돌 회피 알고리즘은 `MarginScatter`의 `assignLabelPositions` 참고.
+
+---
+
+## 5. 스타일 컨벤션 — 현재(as-is) 표준 토큰
+
+> **이 값들이 사실상 합의된 표준이다.** 아래 표대로 쓰면 일관성이 유지된다. (§6에 상수화 제안)
+
+### 5-A. 색상 팔레트
+
+| 토큰               | 값                                                                           | 용도             |
+| ------------------ | ---------------------------------------------------------------------------- | ---------------- |
+| `OEM_COLORS[0..9]` | blue/red/green/amber/purple/cyan/orange/lime/pink/slate -600                 | 다중 시리즈 기본 |
+| `PT_COLORS`        | ICE `#94a3b8` · HV `#fbbf24` · PHEV `#fb923c` · EV `#22c55e` · FCV `#06b6d4` | 파워트레인       |
+| 강조 양수/1사분면  | `#3b82f6` (fillOpacity 0.08)                                                 | 산점             |
+| 강조 음수/3사분면  | `#ef4444` (fillOpacity 0.08)                                                 | 산점             |
+| 달성율 라인        | `#dc2626`                                                                    | 콤보             |
+| 막대 내부 글씨     | `#fff` (어두운 막대) / `var(--foreground)`                                   | 라벨             |
+| 사무/생산          | `#0891b2` / `#f59e0b`                                                        | 인원             |
+| 내수/수출/해외     | `#1e3a5f` / `#22c55e` / `#bbf7d0`                                            | 출하             |
+
+다크모드는 hex 고정색 + `var(--card)/--border/--foreground/--muted` 토큰 혼용으로 대응.
+
+### 5-B. 글자 크기
+
+| 요소                | 크기                                                               | 비고                               |
+| ------------------- | ------------------------------------------------------------------ | ---------------------------------- |
+| 축 tick             | **13~14px** (`tick={{ fontSize: 13 }}` 또는 `className="text-sm"`) | ⚠️ 13/14 혼용                      |
+| 막대 위 데이터 라벨 | **15px / 700** (`DATA_LABEL_STYLE`)                                | 2026-05-27 가독성 위해 13→15 상향  |
+| 막대 내부 라벨      | 13~16px / 600                                                      | 차트별 상이                        |
+| 콤보·인원 라벨      | 16px                                                               | 경영관리                           |
+| 범례                | **14~16px**                                                        | `LegendRow`=16, recharts Legend=14 |
+| 툴팁 본문           | **16px** (`contentStyle.fontSize`)                                 |                                    |
+| footer(단위/출처)   | 10px                                                               | lightweight 카드                   |
+
+### 5-C. 범례 위치
+
+- **표준: 상단 중앙** — `verticalAlign="top"`, `align="center"`, `wrapperStyle={{ paddingBottom: 4~8 }}`.
+- 클릭 토글이 필요하면 `useHiddenSeries().legendProps` 또는 커스텀 `LegendRow`/`ClickableLegend`.
+- lightweight-charts는 범례가 없어 **헤더에 색 점(dot) + 라벨 + 최근값**으로 대체(`MultiSeriesChart`).
+
+### 5-D. 툴팁 (가장 많이 복붙된 값 — 63회 / 42파일)
+
+```ts
+contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', fontSize: '16px' }}
+cursor={{ fill: 'var(--muted)', opacity: 0.3 }}   // 막대
+cursor={{ strokeDasharray: '3 3' }}                // 산점/라인
+```
+
+다항목은 `itemSorter={(i) => -(i.value as number)}`로 큰 값 우선 정렬.
+
+### 5-E. 그리드
+
+```ts
+<CartesianGrid strokeDasharray="3 3" className="stroke-border" strokeOpacity={GRID_STROKE_OPACITY} />
+```
+
+세로 막대는 `vertical={false}`, 가로 막대는 `horizontal={false}`로 데이터 축 방향 선만 남긴다.
+
+### 5-F. margin / 높이
+
+| 항목                   | 표준                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| margin                 | `{ top, right: 20~24, bottom: 10, left: 10 }`. **데이터 라벨 있으면 top 28~48**로 확대 |
+| 높이 — 소형(추이)      | `useChartHeight(200, 240, 280)`                                                        |
+| 높이 — 중형(스택/가로) | `useChartHeight(280, 360, 440)`                                                        |
+| 높이 — 대형(콤보/인원) | `useChartHeight(360, 440, 520)`                                                        |
+| lightweight 기본       | `height = 240` (intraday 360)                                                          |
+
+### 5-G. 컨테이너(카드)
+
+- lightweight 카드: `rounded-xl bg-card p-3 ring-1 ring-foreground/10` + 제목/최근값 헤더 + 단위/출처 footer.
+- recharts 섹션: `rounded-xl bg-card p-4 ring-1 ring-foreground/10` (`MarginScatter`) 또는 shadcn `<Card size="sm">`(OEM 회사별).
+- 빈 데이터: `<div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>`
+
+---
+
+## 6. 통일(to-be) 제안
+
+현재 **값은 거의 일관**되나 **리터럴이 60개 파일에 복붙**돼 있어, 한 곳을 바꾸려면 전부 손대야 한다. 아래는 **값 변경 없이 상수만 추출**하는 저위험 제안(가독성 위해 올린 15/16px는 유지).
+
+### 제안 1 — 공유 테마 모듈 신설 `components/charts/chartTheme.ts` ✅ 툴팁 적용(2026-06-02)
+
+지금 흩어진 토큰을 한 파일로 모으고 기존 `chartStyle.ts`는 여기서 재-export(점진 마이그레이션).
+
+```ts
+export const TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: 'var(--card)',
+  border: '1px solid var(--border)',
+  fontSize: 16,
+} as const;
+export const TOOLTIP_CURSOR_BAR = { fill: 'var(--muted)', opacity: 0.3 } as const;
+export const TOOLTIP_CURSOR_LINE = { strokeDasharray: '3 3' } as const;
+export const AXIS_TICK = { fontSize: 13 } as const; // 13/14 혼용 → 13으로 통일
+export const GRID_PROPS = {
+  strokeDasharray: '3 3',
+  className: 'stroke-border',
+  strokeOpacity: 0.3,
+} as const;
+// DATA_LABEL_STYLE, Y_AXIS_PADDED_DOMAIN, GRID_STROKE_OPACITY 는 chartStyle.ts에서 이동
+export const CHART_HEIGHT = {
+  // useChartHeight 3-tier 표준화
+  sm: [200, 240, 280],
+  md: [280, 360, 440],
+  lg: [360, 440, 520],
+} as const;
+```
+
+효과: 툴팁 스타일 1곳에서 관리(63회 복붙 제거), 축 tick 13/14 혼용 해소.
+
+> **적용 현황(2026-06-02)**: `TOOLTIP_CONTENT_STYLE`(16px) + `TOOLTIP_CONTENT_STYLE_SM`(14px)를 만들어 **55개 파일 이관 완료**(렌더 결과 동일). 비표준이던 uzbekistan 2개 파일의 15px 툴팁도 16px로 정규화해 흡수. 이제 코드베이스에 툴팁 `contentStyle` 인라인 리터럴은 **없음**. 나머지 토큰(`TOOLTIP_CURSOR_*`·`AXIS_TICK`·`GRID_PROPS`·`CHART_HEIGHT`)은 **미적용 — 후속**.
+
+### 제안 2 — 중복 유틸 통합 ✅ 적용(2026-06-02)
+
+`components/management/chart-utils.ts`(`sumVisibleStack`, `TOTAL_LABEL_ANCHOR`)가 `chartStyle.ts`와 **기능 동일**이라 합쳤다. 제네릭 버전을 `chartStyle.ts`에 두고(`sumVisibleStack<T>`) `chart-utils.ts`는 re-export만 유지 → SSOT 1개. 호출부 코드는 무변경.
+
+### 제안 3 — 범례 컴포넌트 일원화
+
+현재 범례 구현 **3종**: `LegendRow`(차트 파일 내부), `ClickableLegend`(OEM), `useHiddenSeries`(recharts Legend 래퍼).
+
+- `LegendRow`를 `components/charts/ChartLegend.tsx`로 **이동**(차트 파일에서 UI 컴포넌트 export 해소).
+- `ClickableLegend`는 `LegendRow`의 색-인덱스 변형이므로 `LegendRow`로 흡수 가능.
+
+### 제안 4 — 색 팔레트 위치 이동
+
+`OEM_COLORS`/`PT_COLORS`가 `components/oem/helpers.ts`에 있는데 경영관리에서도 import → 의미상 OEM 종속. `components/charts/palette.ts`(또는 `lib/`)로 올려 도메인 중립화.
+
+### 제안 5 — recharts 차트 lazy 래퍼 패턴 표준화
+
+`Xxx.tsx`(서버/Card 래퍼) + `XxxInner.tsx`(`dynamic ssr:false`)가 OEM 회사별엔 적용됐으나 OEM 전체·경영관리엔 부분 적용. 무거운 차트부터 점진 적용 → 초기 번들 축소.
+
+> **권장 우선순위**: 제안 1·2(상수/중복 — 위험 0, 효과 큼) → 제안 3(범례) → 제안 4·5(구조).
+> 모두 **렌더 결과는 동일**(리팩터링)하므로 `npm run check-all` + dev 서버 시각 회귀만 확인하면 됨.
+
+---
+
+## 7. 신규 차트 만들 때 체크리스트
+
+1. **시계열+기간토글?** → `SeriesChart`/`MultiSeriesChart` 재사용(거의 새로 안 만듦).
+2. **카테고리 축?** → §4 레시피 복사 + §5 토큰 사용.
+3. 높이는 `useChartHeight` 3-tier 중 선택(직접 px 금지).
+4. 색은 `OEM_COLORS`/`PT_COLORS` 우선, 부족하면 -600 계열 추가.
+5. 그리드·툴팁·데이터 라벨은 §5-D/E + `chartStyle.ts` 상수 사용(리터럴 복붙 금지).
+6. 범례 상단 중앙 + 토글 필요 시 `useHiddenSeries`/`LegendRow`.
+7. 무거우면 `XxxInner` + `dynamic ssr:false` 래퍼.
+8. 빈 데이터/로딩 상태 처리(§5-G).
+9. 다크모드 — hex 고정색 외엔 `var(--card/--border/--foreground/--muted)` 사용.
+10. `npm run check-all` + dev 서버에서 sm/md/lg 폭 모두 확인.

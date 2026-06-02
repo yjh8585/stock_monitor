@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { CompanyPtMixPoint } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '../common/chartStyle';
@@ -162,11 +163,7 @@ export default function StellantisNaPtMixChartInner({ quarterly, annual }: Props
           <Tooltip
             formatter={(v, name) => [`${Number(v).toFixed(1)}%`, String(name)]}
             itemSorter={(item) => -(item.value as number)}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
           />
           <Legend
             layout="horizontal"

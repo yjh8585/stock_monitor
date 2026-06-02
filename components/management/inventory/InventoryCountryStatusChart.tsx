@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { ChartSection } from '@/components/management/plan/_selectors';
 import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
@@ -95,11 +96,7 @@ export default function InventoryCountryStatusChart({ points }: Props) {
           <YAxis tickFormatter={(v: number) => fmt(v, 0)} tick={{ fontSize: 13 }} width={70} />
           <Tooltip
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             content={<CountryTooltip />}
           />
           <Legend

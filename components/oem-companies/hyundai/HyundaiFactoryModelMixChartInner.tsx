@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { OEM_COLORS } from '@/components/oem/helpers';
 import {
   Select,
@@ -160,11 +161,7 @@ export default function HyundaiFactoryModelMixChartInner({ dataByYear, available
           />
           <Tooltip
             cursor={{ fill: 'var(--muted)' }}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '14px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE_SM}
             labelFormatter={(label, payload) => {
               const item = payload?.[0]?.payload as
                 | { factory?: string; factoryLocation?: string }

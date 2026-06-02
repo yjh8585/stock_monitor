@@ -44,15 +44,15 @@ export const Y_AXIS_PADDED_DOMAIN: [number, (dataMax: number) => number] = [
  * - null/undefined/NaN 값은 0으로 무시.
  * - 보이는 시리즈에 숫자가 하나도 없으면 null(=데이터 없음 → 레이블 미표시).
  */
-export function sumVisibleStack(
-  point: Record<string, unknown>,
-  keys: readonly string[],
+export function sumVisibleStack<T>(
+  point: T,
+  keys: ReadonlyArray<keyof T>,
   hidden: ReadonlySet<string>
 ): number | null {
   let sum = 0;
   let hasValue = false;
   for (const key of keys) {
-    if (hidden.has(key)) continue;
+    if (hidden.has(String(key))) continue;
     const v = point[key];
     if (typeof v === 'number' && !Number.isNaN(v)) {
       sum += v;

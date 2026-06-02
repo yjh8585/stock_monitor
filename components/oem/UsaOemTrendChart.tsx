@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import ClickableLegend from './ClickableLegend';
 import { fmtFull, fmtUnits, OEM_COLORS } from './helpers';
@@ -67,11 +68,7 @@ export default function UsaOemTrendChart({ series }: Props) {
               return [`${fmtFull(Number(v))} 대 (${share}%)`, String(name)];
             }}
             itemSorter={(item) => -(item.value as number)}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
           />
           <Legend
             verticalAlign="top"

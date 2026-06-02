@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits, OEM_COLORS } from './helpers';
@@ -47,11 +48,7 @@ export default function CountryTop15({ rows }: Props) {
             return [`${fmtFull(n)} 대 (${pct}%)`, '판매량'];
           }}
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '16px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
         />
         <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
           {data.map((d) => (

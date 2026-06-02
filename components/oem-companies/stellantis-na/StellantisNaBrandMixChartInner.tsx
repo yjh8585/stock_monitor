@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { StellantisNaBrandStackPoint } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '../common/chartStyle';
@@ -121,11 +122,7 @@ export default function StellantisNaBrandMixChartInner({ quarterly, annual }: Pr
             width={50}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             formatter={(value, name, item) => {
               const pct = Number(value ?? 0);
               const key = String(name);

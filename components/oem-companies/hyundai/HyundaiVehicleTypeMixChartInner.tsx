@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { HyundaiVehicleType, HyundaiVehicleTypeMixPoint } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '../common/chartStyle';
@@ -134,11 +135,7 @@ export default function HyundaiVehicleTypeMixChartInner({ monthly, annual }: Pro
           />
           <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} className="text-sm" width={50} />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             formatter={(value, name, item) => {
               const pct = Number(value ?? 0);
               const key = String(name) as HyundaiVehicleType;

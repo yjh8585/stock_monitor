@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import ClickableLegend from './ClickableLegend';
@@ -84,11 +85,7 @@ export default function Top10MonthlyLines({ groupMonth }: Props) {
           <Tooltip
             formatter={(v, name) => [fmtFull(Number(v)) + ' 대', String(name)]}
             itemSorter={(item) => -(item.value as number)}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
           />
           <Legend
             verticalAlign="top"

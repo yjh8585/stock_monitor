@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { ModelMonthlySeries } from '@/lib/types';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
@@ -90,11 +91,7 @@ function ModelChart({ series }: { series: ModelMonthlySeries }) {
               }
               return [`${fmtFull(Number(v))} 대`, '판매량'];
             }}
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: '16px',
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
           />
           <Bar
             yAxisId="left"

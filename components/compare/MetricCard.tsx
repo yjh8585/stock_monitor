@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import {
   FIXED_PRIMARY_NAME,
   type FinancialRow,
@@ -122,11 +123,7 @@ export default function MetricCard({ metric, companies }: Props) {
             formatter={(v) =>
               formatMetricValue(typeof v === 'number' ? v : null, metric.unit, metric.digits)
             }
-            contentStyle={{
-              backgroundColor: 'var(--card)',
-              border: '1px solid var(--border)',
-              fontSize: 16,
-            }}
+            contentStyle={TOOLTIP_CONTENT_STYLE}
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
           />
           <Legend

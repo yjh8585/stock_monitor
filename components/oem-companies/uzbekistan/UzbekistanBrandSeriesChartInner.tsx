@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { UzbekistanBrandSeriesPoint } from '@/lib/oem-companies/uzbekistan/source';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '../common/chartStyle';
@@ -98,11 +99,7 @@ export default function UzbekistanBrandSeriesChartInner({
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '14px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE_SM}
           formatter={(value, name) => {
             if (name === 'YoY') return [fmtYoy(value), 'YoY'];
             return [`${Number(value ?? 0).toLocaleString('ko-KR')} ${unitLabel}`, '생산'];

@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import BasisToggle from './BasisToggle';
 import GroupMultiSelect from '@/components/common/GroupMultiSelect';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -212,11 +213,7 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               content={
                 <YoyTooltip metrics={selectedMetrics} baseYear={effBase} compareYear={effCompare} />
               }

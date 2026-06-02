@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { ChartSection } from './_selectors';
 import { LegendRow } from './PlanAchievementChart';
 import { useChartHeight } from '@/lib/useChartHeight';
@@ -155,11 +156,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
-              contentStyle={{
-                backgroundColor: 'var(--card)',
-                border: '1px solid var(--border)',
-                fontSize: '16px',
-              }}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
               content={<FunnelTooltip />}
             />
             <Legend

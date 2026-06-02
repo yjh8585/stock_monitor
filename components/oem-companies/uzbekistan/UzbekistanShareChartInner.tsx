@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { OEM_COLORS } from '@/components/oem/helpers';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { UzbekistanShareRow } from '@/lib/oem-companies/uzbekistan/source';
@@ -61,11 +62,7 @@ export default function UzbekistanShareChartInner({ data }: Props) {
         <YAxis tickFormatter={(v) => `${v}%`} domain={[0, 100]} className="text-sm" width={50} />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '14px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE_SM}
           formatter={(value, name) => [`${Number(value ?? 0).toFixed(1)}%`, String(name)]}
           itemSorter={(item) => -(item.value as number)}
         />

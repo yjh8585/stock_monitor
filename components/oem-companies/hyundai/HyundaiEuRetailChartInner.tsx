@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { HyundaiEuRetailPoint } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '../common/chartStyle';
@@ -66,11 +67,7 @@ export default function HyundaiEuRetailChartInner({ data }: Props) {
           label={{ value: 'YoY(%)', angle: 90, position: 'insideRight', fontSize: 11 }}
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: 'var(--card)',
-            border: '1px solid var(--border)',
-            fontSize: '14px',
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE_SM}
           formatter={(value, name) => {
             if (value == null) return ['—', String(name)];
             const v = Number(value);
