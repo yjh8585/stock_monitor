@@ -1,6 +1,6 @@
 'use client';
 
-import { OEM_COLORS } from './helpers';
+import { OEM_COLORS } from './palette';
 
 interface Props {
   items: string[];

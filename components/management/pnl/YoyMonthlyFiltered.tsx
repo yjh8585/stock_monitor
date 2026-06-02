@@ -19,7 +19,7 @@ import { useChartHeight } from '@/lib/useChartHeight';
 import { aggregateMonthly } from '@/lib/pnl/aggregate';
 import { METRIC_LABELS, type Basis, type MetricKey, type PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
-import { OEM_COLORS } from '@/components/oem/helpers';
+import { OEM_COLORS } from '@/components/charts/palette';
 
 interface Props {
   monthlyByBasis: EntriesByBasis;

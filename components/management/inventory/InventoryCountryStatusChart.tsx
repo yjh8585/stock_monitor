@@ -15,7 +15,7 @@ import {
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { ChartSection } from '@/components/management/plan/_selectors';
-import { LegendRow } from '@/components/management/plan/PlanAchievementChart';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { CountryStatusPoint } from '@/lib/inventory/types';
 

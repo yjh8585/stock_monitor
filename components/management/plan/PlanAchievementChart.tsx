@@ -15,7 +15,8 @@ import {
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { OEM_COLORS } from '@/components/oem/helpers';
+import { OEM_COLORS } from '@/components/charts/palette';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import type { AchievementPoint } from '@/lib/plan/types';
 
 /** hex → rgba (계획 막대 연한색). */
@@ -171,51 +172,6 @@ export default function PlanAchievementChart({ points, unitLabel, amountDigits =
         </Line>
       </ComposedChart>
     </ResponsiveContainer>
-  );
-}
-
-/** 공통 범례 — 사용자 지정 순서대로 칩(사각형/라인 + 라벨), 클릭으로 시리즈 토글. 폰트 16. */
-export function LegendRow({
-  items,
-  hidden,
-  onToggle,
-}: {
-  items: Array<{ key: string; label: string; shape: 'rect' | 'line'; color: string }>;
-  hidden?: Set<string>;
-  onToggle?: (key: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-base font-medium">
-      {items.map((it) => {
-        const isHidden = hidden?.has(it.key) ?? false;
-        const clickable = !!onToggle;
-        return (
-          <button
-            key={it.key}
-            type="button"
-            onClick={clickable ? () => onToggle?.(it.key) : undefined}
-            disabled={!clickable}
-            className={`inline-flex items-center gap-1.5 transition-opacity ${
-              isHidden ? 'opacity-40 line-through' : ''
-            } ${clickable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-            style={{ color: it.color }}
-            aria-pressed={!isHidden}
-          >
-            {it.shape === 'rect' ? (
-              <span className="inline-block w-4 h-4 rounded-sm" style={{ background: it.color }} />
-            ) : (
-              <span className="inline-block w-5 h-0.5 relative" style={{ background: it.color }}>
-                <span
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-block w-2 h-2 rounded-full"
-                  style={{ background: it.color }}
-                />
-              </span>
-            )}
-            {it.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
