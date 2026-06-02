@@ -70,7 +70,10 @@ export default function UzbekistanShareChartInner({ data }: Props) {
           itemSorter={(item) => -(item.value as number)}
         />
         <Legend
-          wrapperStyle={{ fontSize: '14px', paddingBottom: 8 }}
+          layout="horizontal"
+          verticalAlign="top"
+          align="center"
+          wrapperStyle={{ fontSize: '14px', paddingBottom: 16 }}
           itemSorter={null}
           {...legendProps}
         />

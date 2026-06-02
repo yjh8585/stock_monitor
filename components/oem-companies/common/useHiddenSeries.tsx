@@ -19,6 +19,8 @@ export interface LegendClickPayload {
 }
 
 export interface UseHiddenSeriesResult {
+  /** 현재 숨겨진(hide) 시리즈 키 집합 — 누적막대 합계 동적 계산용. */
+  hidden: ReadonlySet<string>;
   /** 해당 시리즈 키가 hide 상태면 true. */
   isHidden: (key: string) => boolean;
   /** 시리즈 키 토글 (켜져있으면 끄고, 꺼져있으면 켬). */
@@ -79,5 +81,5 @@ export function useHiddenSeries(): UseHiddenSeriesResult {
     [hidden, toggle]
   );
 
-  return { isHidden, toggle, legendProps };
+  return { hidden, isHidden, toggle, legendProps };
 }
