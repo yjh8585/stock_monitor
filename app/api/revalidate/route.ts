@@ -23,6 +23,7 @@ const ALL_TAGS = [
   'exchange_rates_live',
   'exchange_rates',
   'market_series_daily',
+  'market_series_live',
   'market_series',
   'macro_outlook_notes',
   'oem_sales_group_month',

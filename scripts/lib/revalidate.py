@@ -57,6 +57,7 @@ COLUMN_TO_TAGS = {
     # 매크로·시계열
     'market_series': ['market_series'],
     'market_series_daily': ['market_series_daily'],
+    'market_series_live': ['market_series_live'],
     'macro_outlook_notes': ['macro_outlook_notes'],
     # OEM (전체 탭 — MarkLines 글로벌)
     'oem_sales_group_month': ['oem_sales_group_month'],
