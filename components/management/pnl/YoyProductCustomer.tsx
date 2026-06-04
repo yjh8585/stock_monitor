@@ -164,6 +164,13 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
       productSet.add(r.dims.product || '(미분류)');
       customerSet.add(r.dims.customer || '(미분류)');
     }
+    // 주요 제품(PRODUCT_ORDER)은 해당 연도에 매출이 있으면 TOP20과 무관하게 항상 행 표시.
+    // COLUMN은 보이는데 INTERM은 TOP20 밖이라 누락되던 불일치 방지.
+    for (const r of baseAgg) {
+      if (r.revenue > 0 && PRODUCT_ORDER.includes(r.dims.product)) {
+        productSet.add(r.dims.product);
+      }
+    }
     const products = sortProducts(Array.from(productSet));
     const customers = sortCustomers(Array.from(customerSet));
 
