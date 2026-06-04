@@ -100,7 +100,7 @@ export default async function EconomyPage() {
         <h1 className="text-lg font-semibold">경제</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
           미국 국채(30Y/10Y/2Y) · 한국·미국 주가지수 · 금/은 · 비트코인·이더리움 · 미국 경제 전망
-          노트 · 지수·금리 5년 일봉(종가) · 전망 매일 KST 06:30 갱신
+          노트 · 5년 일봉 + 지수 끝점 매시간 라이브(국채 제외) · 전망 매일 KST 06:30 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4 space-y-4">

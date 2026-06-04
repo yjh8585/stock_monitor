@@ -16,7 +16,8 @@ export default async function StockPricesPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">주가 비교</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          국내·해외 종목 2개를 선택해 듀얼 Y축으로 비교 (5년 일봉, 종가 기준) · 매일 KST 06:00 갱신
+          국내·해외 종목 2개를 선택해 듀얼 Y축으로 비교 (5년 일봉, 종가 기준) · 주요 종목 끝점 장중
+          라이브
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">
