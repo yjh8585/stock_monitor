@@ -284,13 +284,13 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 PK `(kind, period_type, year_period, company, brand, vehicle_model, source_type)`. 마이그레이션 `20260527000004` 생성, `20260601000001` CHECK 확장.
 
-| 컬럼          | 값/제약(CHECK)                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `kind`        | `sales` \| `production`                                                                                                   |
-| `period_type` | `month` \| `quarter` \| `year` \| `ytd` (`ytd` 2026-06-01 추가)                                                          |
-| `year_period` | `YYYY` \| `YYYY-MM`                                                                                                        |
-| `company`     | '' / UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors / Jizzakh Auto / Alyans Auto |
-| `brand`, `vehicle_model`, `units`, `source_type`(uzavtosanoat\|stat-uz), `source_url`, `publish_date`, `collected_at` | |
+| 컬럼                                                                                                                  | 값/제약(CHECK)                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `kind`                                                                                                                | `sales` \| `production`                                                                                                        |
+| `period_type`                                                                                                         | `month` \| `quarter` \| `year` \| `ytd` (`ytd` 2026-06-01 추가)                                                                |
+| `year_period`                                                                                                         | `YYYY` \| `YYYY-MM`                                                                                                            |
+| `company`                                                                                                             | '' / UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors / Jizzakh Auto / Alyans Auto |
+| `brand`, `vehicle_model`, `units`, `source_type`(uzavtosanoat\|stat-uz), `source_url`, `publish_date`, `collected_at` |                                                                                                                                |
 
 - **판매**(uzavtosanoat 보도자료): 회사별, 본문 용어로 kind 판정, YTD 차분 → month + year. RLS `USING(true)` 공개 SELECT.
 - **생산**(stat.uz news-of-committee): 차종(모델)별, 텍스트 + 인포그래픽 이미지(Anthropic 비전 OCR) → month + year. 엔진(Powertrain) 제외.
@@ -439,24 +439,24 @@ UNIQUE: (source, note_date)
 
 ### 22개 워크플로 카테고리
 
-| 카테고리                | 워크플로 예시                                                     | 주기                   |
-| ----------------------- | ----------------------------------------------------------------- | ---------------------- |
-| 가격                    | collect-prices, collect-prices-live                               | 매시간 / 5분           |
-| 환율                    | collect-fx, collect-fx-live                                       | 매시간 / 5분           |
-| 재무                    | collect-financials (4 job: listed/dart-audit×8/domestic/snapshot) | 분기 (1/4/7/10월 15일) |
-| 뉴스                    | collect-news                                                      | 4시간                  |
-| 감성                    | analyze-board-sentiment                                           | 일간                   |
-| DART                    | collect-dart-audit (shard 8), collect-dart-labor                  | 분기 / 일간            |
-| 매크로                  | collect-macro-outlook, collect-market-series, collect-market-series-live | 일간 / 주간 / 매시간   |
-| 해운·철강               | collect-shipping, collect-steel-kr                                | 일간                   |
-| 원자재                  | collect-dubai-oil                                                 | 일간                   |
-| 글로벌 스냅샷           | collect-global-snapshot                                           | 일간                   |
-| 한세 종목토론           | collect-naver-board (GHA Node tsx 직접)                           | 30분                   |
-| 한세 분봉               | collect-hansae-intraday (KIS)                                     | 5분                    |
-| OEM                     | collect-oem-model-outlook                                         | 일간                   |
-| OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일 |
-| 보강                    | enrich-company                                                    | 수동                   |
-| Vercel cron 대체 (curl) | cron-sentiment                                                    | 일 1회                 |
+| 카테고리                | 워크플로 예시                                                                                                         | 주기                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 가격                    | collect-prices, collect-prices-live                                                                                   | 매시간 / 5분           |
+| 환율                    | collect-fx, collect-fx-live                                                                                           | 매시간 / 5분           |
+| 재무                    | collect-financials (4 job: listed/dart-audit×8/domestic/snapshot)                                                     | 분기 (1/4/7/10월 15일) |
+| 뉴스                    | collect-news                                                                                                          | 4시간                  |
+| 감성                    | analyze-board-sentiment                                                                                               | 일간                   |
+| DART                    | collect-dart-audit (shard 8), collect-dart-labor                                                                      | 분기 / 일간            |
+| 매크로                  | collect-macro-outlook, collect-market-series, collect-market-series-live                                              | 일간 / 주간 / 매시간   |
+| 해운·철강               | collect-shipping, collect-steel-kr                                                                                    | 일간                   |
+| 원자재                  | collect-dubai-oil                                                                                                     | 일간                   |
+| 글로벌 스냅샷           | collect-global-snapshot                                                                                               | 일간                   |
+| 한세 종목토론           | collect-naver-board (GHA Node tsx 직접)                                                                               | 30분                   |
+| 한세 분봉               | collect-hansae-intraday (KIS)                                                                                         | 5분                    |
+| OEM                     | collect-oem-model-outlook                                                                                             | 일간                   |
+| OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일           |
+| 보강                    | enrich-company                                                                                                        | 수동                   |
+| Vercel cron 대체 (curl) | cron-sentiment                                                                                                        | 일 1회                 |
 
 ### cron-job.org 외부 트리거
 

@@ -48,3 +48,9 @@ data/backups/
 # 보고서·진단 산출물 (data/_* 패턴 밖)
 data/report_*.md
 data/auto_audit_candidates_*.md
+
+# 세션 리포트 산출물 (session-report 스킬, 매 세션 생성)
+session-report-*.html
+
+# superpowers 작업 산출물 (plans/specs — 매 작업 생성)
+docs/superpowers/
