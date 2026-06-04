@@ -72,9 +72,7 @@ export async function getExchangeRateSeries(base: 'USD' | 'EUR' | 'CNY'): Promis
  *
  * cache는 minutes 단위로 짧게 — cron이 매시간이라 5~10분 캐시면 충분.
  */
-export async function getLiveExchangeRate(
-  base: 'USD' | 'EUR' | 'CNY'
-): Promise<LivePoint | null> {
+export async function getLiveExchangeRate(base: 'USD' | 'EUR' | 'CNY'): Promise<LivePoint | null> {
   'use cache';
   cacheLife('minutes');
   cacheTag('exchange_rates_live');
