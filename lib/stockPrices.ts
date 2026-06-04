@@ -6,7 +6,7 @@
 import { cacheLife, cacheTag } from 'next/cache';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import logger from '@/lib/logger';
-import type { SeriesPoint } from '@/lib/series';
+import { appendLivePoint, type SeriesPoint } from '@/lib/series';
 import type { StockCompany } from '@/lib/types';
 
 // PostgREST 1000행 cap 우회 — stock_prices는 1종목 5년치 ~1300행이라 2페이지면 충분.
@@ -50,6 +50,7 @@ export async function getStockPriceSeries(companyId: string): Promise<SeriesPoin
   cacheLife('minutes');
   cacheTag('stock_prices');
   cacheTag('stock_quotes_5min');
+  cacheTag('companies');
   const sb = createSupabaseAnonClient();
 
   const rows: { trade_date: string; close: number }[] = [];
@@ -95,6 +96,21 @@ export async function getStockPriceSeries(companyId: string): Promise<SeriesPoin
     } else if (!lastSeries || lastSeries.time < kstDate) {
       series.push({ time: kstDate, value: price });
     }
+    return series;
+  }
+
+  // 5분봉이 없는 종목(한세 외) — companies.last_price를 fallback 끝점으로 합성.
+  // collect_prices_live가 매시 갱신하는 KR·글로벌 종목이 대상.
+  const { data: company } = await sb
+    .from('companies')
+    .select('last_price,last_updated_at')
+    .eq('id', companyId)
+    .maybeSingle();
+  if (company?.last_price != null && company.last_updated_at) {
+    return appendLivePoint(series, {
+      value: Number(company.last_price),
+      updated_at: company.last_updated_at as string,
+    });
   }
   return series;
 }
