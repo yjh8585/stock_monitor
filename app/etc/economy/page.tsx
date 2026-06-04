@@ -2,9 +2,12 @@ import SeriesChart from '@/components/charts/SeriesChart';
 import MultiSeriesChart from '@/components/charts/MultiSeriesChart';
 import {
   getMarketSeries,
+  getMarketSeriesLive,
+  appendLivePoint,
   getSeriesMetaByCategory,
   getEconomyOutlook,
   type SeriesMeta,
+  type SeriesPoint,
 } from '@/lib/series';
 
 const SINGLE_CODES = ['KOSPI', 'KOSDAQ', 'SPX', 'IXIC', 'GOLD', 'SILVER', 'BTC', 'ETH'] as const;
@@ -25,45 +28,66 @@ const SENTIMENT_STYLE: Record<string, string> = {
 };
 
 export default async function EconomyPage() {
-  const [tnx, irx, tyx, kospi, kosdaq, spx, ixic, gold, silver, btc, eth, metas, outlook] =
-    await Promise.all([
-      getMarketSeries('UST10Y'),
-      getMarketSeries('UST2Y'),
-      getMarketSeries('UST30Y'),
-      getMarketSeries('KOSPI'),
-      getMarketSeries('KOSDAQ'),
-      getMarketSeries('SPX'),
-      getMarketSeries('IXIC'),
-      getMarketSeries('GOLD'),
-      getMarketSeries('SILVER'),
-      getMarketSeries('BTC'),
-      getMarketSeries('ETH'),
-      getSeriesMetaByCategory('economy'),
-      getEconomyOutlook(),
-    ]);
+  const [
+    tnx,
+    irx,
+    tyx,
+    kospi,
+    kosdaq,
+    spx,
+    ixic,
+    gold,
+    silver,
+    btc,
+    eth,
+    metas,
+    outlook,
+    kospiL,
+    kosdaqL,
+    spxL,
+    ixicL,
+    goldL,
+    silverL,
+    btcL,
+    ethL,
+  ] = await Promise.all([
+    getMarketSeries('UST10Y'),
+    getMarketSeries('UST2Y'),
+    getMarketSeries('UST30Y'),
+    getMarketSeries('KOSPI'),
+    getMarketSeries('KOSDAQ'),
+    getMarketSeries('SPX'),
+    getMarketSeries('IXIC'),
+    getMarketSeries('GOLD'),
+    getMarketSeries('SILVER'),
+    getMarketSeries('BTC'),
+    getMarketSeries('ETH'),
+    getSeriesMetaByCategory('economy'),
+    getEconomyOutlook(),
+    getMarketSeriesLive('KOSPI'),
+    getMarketSeriesLive('KOSDAQ'),
+    getMarketSeriesLive('SPX'),
+    getMarketSeriesLive('IXIC'),
+    getMarketSeriesLive('GOLD'),
+    getMarketSeriesLive('SILVER'),
+    getMarketSeriesLive('BTC'),
+    getMarketSeriesLive('ETH'),
+  ]);
 
   const metaOf = (code: string): SeriesMeta | undefined =>
     metas.find((m) => m.series_code === code);
-  const dataOf = (code: (typeof SINGLE_CODES)[number]) => {
-    switch (code) {
-      case 'KOSPI':
-        return kospi;
-      case 'KOSDAQ':
-        return kosdaq;
-      case 'SPX':
-        return spx;
-      case 'IXIC':
-        return ixic;
-      case 'GOLD':
-        return gold;
-      case 'SILVER':
-        return silver;
-      case 'BTC':
-        return btc;
-      case 'ETH':
-        return eth;
-    }
+  // 일봉 끝점에 라이브 현재가를 합성 (국채 제외)
+  const liveByCode: Record<(typeof SINGLE_CODES)[number], SeriesPoint[]> = {
+    KOSPI: appendLivePoint(kospi, kospiL),
+    KOSDAQ: appendLivePoint(kosdaq, kosdaqL),
+    SPX: appendLivePoint(spx, spxL),
+    IXIC: appendLivePoint(ixic, ixicL),
+    GOLD: appendLivePoint(gold, goldL),
+    SILVER: appendLivePoint(silver, silverL),
+    BTC: appendLivePoint(btc, btcL),
+    ETH: appendLivePoint(eth, ethL),
   };
+  const dataOf = (code: (typeof SINGLE_CODES)[number]) => liveByCode[code];
 
   const ust10 = metaOf('UST10Y');
   const ust2 = metaOf('UST2Y');

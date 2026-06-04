@@ -4,6 +4,7 @@ import {
   getExchangeRateSeries,
   getLiveExchangeRate,
   getMarketSeries,
+  getMarketSeriesLive,
   getSeriesMetaByCategory,
   type SeriesMeta,
 } from '@/lib/series';
@@ -17,22 +18,27 @@ const SERIES_COLOR: Record<string, string> = {
 };
 
 export default async function FxPage() {
-  const [usd, eur, cny, dxy, eurusd, metas, usdLive, eurLive, cnyLive] = await Promise.all([
-    getExchangeRateSeries('USD'),
-    getExchangeRateSeries('EUR'),
-    getExchangeRateSeries('CNY'),
-    getMarketSeries('DXY'),
-    getMarketSeries('EURUSD'),
-    getSeriesMetaByCategory('fx_extra'),
-    getLiveExchangeRate('USD'),
-    getLiveExchangeRate('EUR'),
-    getLiveExchangeRate('CNY'),
-  ]);
+  const [usd, eur, cny, dxy, eurusd, metas, usdLive, eurLive, cnyLive, dxyLive, eurusdLive] =
+    await Promise.all([
+      getExchangeRateSeries('USD'),
+      getExchangeRateSeries('EUR'),
+      getExchangeRateSeries('CNY'),
+      getMarketSeries('DXY'),
+      getMarketSeries('EURUSD'),
+      getSeriesMetaByCategory('fx_extra'),
+      getLiveExchangeRate('USD'),
+      getLiveExchangeRate('EUR'),
+      getLiveExchangeRate('CNY'),
+      getMarketSeriesLive('DXY'),
+      getMarketSeriesLive('EURUSD'),
+    ]);
 
   // 차트 끝점만 라이브 가격으로 갱신 (과거 종가는 그대로)
   const usdData = appendLivePoint(usd, usdLive);
   const eurData = appendLivePoint(eur, eurLive);
   const cnyData = appendLivePoint(cny, cnyLive);
+  const dxyData = appendLivePoint(dxy, dxyLive);
+  const eurusdData = appendLivePoint(eurusd, eurusdLive);
 
   const metaOf = (code: string): SeriesMeta | undefined =>
     metas.find((m) => m.series_code === code);
@@ -76,7 +82,7 @@ export default async function FxPage() {
               title={dxyMeta.label}
               unit={dxyMeta.unit}
               source={dxyMeta.source}
-              data={dxy}
+              data={dxyData}
               color={SERIES_COLOR.DXY}
             />
           )}
@@ -85,7 +91,7 @@ export default async function FxPage() {
               title={eurusdMeta.label}
               unit={eurusdMeta.unit}
               source={eurusdMeta.source}
-              data={eurusd}
+              data={eurusdData}
               color={SERIES_COLOR.EURUSD}
             />
           )}
