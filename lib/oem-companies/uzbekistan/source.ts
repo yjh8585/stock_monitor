@@ -128,6 +128,8 @@ export interface UzbekistanPageData {
   productionShareByCompany: UzbekistanShareRow[];
   /** 회사별 sales share 100% stacked (annual). */
   companySalesShare: UzbekistanShareRow[];
+  /** 판매 share — 회사를 브랜드로 묶은 100% stacked (annual). 브랜드 토글용. */
+  salesShareByBrand: UzbekistanShareRow[];
   totalRows: number;
   lastCollectedAt: string | null;
   companies: string[];
@@ -315,6 +317,21 @@ function companyOf(brand: string, vehicleModel: string): string {
   if (brand === 'BYD') return 'BYD Uzbekistan Factory';
   if (brand === 'KIA' || brand === 'Chery' || brand === 'Haval') return 'ADM Jizzakh';
   return '기타';
+}
+
+/**
+ * 판매(uzavtosanoat 회사별) → 브랜드 매핑. 생산 companyOf(2026-06-02 확정)와 정합되게 역방향.
+ * 판매 데이터는 회사 단위라 brand 컬럼이 비어 있어, 회사를 브랜드 그룹으로 묶어 브랜드 차원을 만든다.
+ * - UzAuto Motors·Khorezm Auto → Chevrolet
+ * - BYD Uzbekistan Factory → BYD
+ * - ADM Jizzakh → KIA/Chery/Haval (회사 합산이라 3개 브랜드 분해 불가 — 묶음 표기)
+ * - 그 외(SamAuto·Asaka Motors·Alyans Auto·Jizzakh Auto)는 생산 매핑에 없어 회사명 유지.
+ */
+function brandOfSalesCompany(company: string): string {
+  if (company === 'UzAuto Motors' || company === 'Khorezm Auto') return 'Chevrolet';
+  if (company === 'BYD Uzbekistan Factory') return 'BYD';
+  if (company === 'ADM Jizzakh') return 'KIA/Chery/Haval';
+  return company;
 }
 
 /**
@@ -653,7 +670,10 @@ function aggregateBrandYearSeries(
   });
 }
 
-function aggregateCompanySalesShare(rows: UzbekistanRow[]): UzbekistanShareRow[] {
+function aggregateCompanySalesShare(
+  rows: UzbekistanRow[],
+  dimension: 'company' | 'brand' = 'company'
+): UzbekistanShareRow[] {
   // annual sales row (uzavtosanoat)
   const years = rows.filter(
     (r) => r.kind === 'sales' && r.period_type === 'year' && r.source_type === 'uzavtosanoat'
@@ -661,8 +681,9 @@ function aggregateCompanySalesShare(rows: UzbekistanRow[]): UzbekistanShareRow[]
   const monthsByYear = salesMonthsByYear(rows);
   const byYear = new Map<string, Record<string, number>>();
   for (const r of years) {
+    const key = dimension === 'brand' ? brandOfSalesCompany(r.company) : r.company;
     const cur = byYear.get(r.year_period) ?? {};
-    cur[r.company] = (cur[r.company] ?? 0) + r.units;
+    cur[key] = (cur[key] ?? 0) + r.units;
     byYear.set(r.year_period, cur);
   }
   const sorted = [...byYear.keys()].sort();
@@ -800,7 +821,8 @@ export async function getUzbekistanData(): Promise<UzbekistanPageData> {
     chevroletSeries: aggregateBrandYearSeries(all, 'Chevrolet'),
     productionShareByBrand: aggregateModelShareByYear(all, 'brand'),
     productionShareByCompany: aggregateModelShareByYear(all, 'company'),
-    companySalesShare: aggregateCompanySalesShare(all),
+    companySalesShare: aggregateCompanySalesShare(all, 'company'),
+    salesShareByBrand: aggregateCompanySalesShare(all, 'brand'),
     totalRows: all.length,
     lastCollectedAt,
     companies,

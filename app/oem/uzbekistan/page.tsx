@@ -3,7 +3,6 @@ import UzbekistanCompanyMonthlyChart from '@/components/oem-companies/uzbekistan
 import UzbekistanModelYearChart from '@/components/oem-companies/uzbekistan/UzbekistanModelYearChart';
 import UzbekistanModelYearTable from '@/components/oem-companies/uzbekistan/UzbekistanModelYearTable';
 import UzbekistanProductionDimensionChart from '@/components/oem-companies/uzbekistan/UzbekistanProductionDimensionChart';
-import UzbekistanShareChart from '@/components/oem-companies/uzbekistan/UzbekistanShareChart';
 import UzbekistanShareDimensionChart from '@/components/oem-companies/uzbekistan/UzbekistanShareDimensionChart';
 import { getUzbekistanData } from '@/lib/oem-companies/uzbekistan/source';
 
@@ -99,12 +98,13 @@ export default async function UzbekistanPage() {
         footer="uzavtosanoat.uz 보도자료의 YTD 누계('реализовано'/'продано' = 판매)를 차분해 월별 도출. 중간 보도가 없는 달은 인접 발표의 증분을 구간 월수로 균등 분배(예: 6월 미발표 시 7월 발표분을 6·7월로 분배). 연초 첫 발표가 N월이면 1~N월 균등 분배. 생산('выпущено') 보도는 별도(생산 데이터)로 분리."
       />
 
-      {/* 회사별 판매 점유율 — 판매 차트 바로 아래 (100% stacked) */}
+      {/* 판매 점유율 — 판매 차트 바로 아래 (100% stacked, 회사/브랜드 토글) */}
       {data.companySalesShare.length > 0 && (
-        <UzbekistanShareChart
-          data={data.companySalesShare}
-          title="회사별 판매 점유율 (uzavtosanoat, 100%)"
-          footer="uzavtosanoat.uz 보도자료 YTD 누계 (연 누계). UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors."
+        <UzbekistanShareDimensionChart
+          byBrand={data.salesShareByBrand}
+          byCompany={data.companySalesShare}
+          title="판매 점유율 (uzavtosanoat · 회사/브랜드 토글)"
+          footer="uzavtosanoat.uz 보도자료 YTD 누계(연 누계). 회사 기준: UzAuto Motors / Khorezm Auto / ADM Jizzakh / BYD Uzbekistan Factory / SamAuto / Asaka Motors 등. 브랜드 기준: Chevrolet(UzAuto+Khorezm) / BYD / KIA·Chery·Haval(=ADM Jizzakh, 회사 합산이라 브랜드 분해 불가) / 그 외는 회사명 유지."
         />
       )}
 
