@@ -80,10 +80,11 @@ CREATE POLICY service_write_market_series_live ON market_series_live FOR ALL    
 - `getMarketSeriesLive(seriesCode: string): Promise<LivePoint | null>` 신규 — `'use cache'` + `cacheLife('minutes')` + `cacheTag('market_series_live')`, anon 클라이언트로 `market_series_live`에서 `price,updated_at` `maybeSingle()`.
 - `appendLivePoint`의 live 파라미터 타입을 공용 `LivePoint = { value: number; updated_at: string }`로 일반화. `getLiveExchangeRate` 반환을 `{ rate }` → `{ value }`로 정리(환율 호출부 fx 페이지는 객체를 그대로 전달하므로 **동작 불변**, 필드명만 통일).
 
-### 5.5 개별 종목 라이브 끝점 — `lib/stockPrices.ts` / `app/api/stock-prices`
-- 개별 종목 시계열은 `getStockPriceSeries(id)`(서버) → `/api/stock-prices` → 클라이언트(`DualStockCard`)에서 fetch.
-- **서버(`getStockPriceSeries`)에서** 해당 회사의 `companies.last_price`/`last_updated_at`를 조회해 `appendLivePoint`로 끝점 append 후 반환. 클라이언트 변경 없음.
-- `last_price`가 NULL인 회사(라이브 미수집 종목)는 일봉 그대로.
+### 5.5 개별 종목 라이브 끝점 — `lib/stockPrices.ts`
+- **현황(이미 구현됨)**: `getStockPriceSeries(id)`는 이미 `stock_quotes_5min`의 최신 5분봉을 끝점에 합성한다. 단 이 테이블은 **한세그룹 4종 전용**(한세실업·한세예스24홀딩스·예스24·한세엠케이, 한세 intraday 수집)이라 그 외 종목은 일봉만 표시된다.
+- **확장(본 작업)**: `stock_quotes_5min`이 없는 회사는 `companies.last_price`/`last_updated_at`를 **fallback**으로 끝점 합성. `collect_prices_live`가 매시 갱신하는 KR·글로벌 종목(현재 last_price 보유 ~265사)이 커버된다.
+- **합성 우선순위**: `stock_quotes_5min`(5분봉) > `companies.last_price`(매시) > 일봉 종가. last_price도 NULL인 회사는 일봉 그대로.
+- 서버(`getStockPriceSeries`)에서만 처리, 클라이언트(`DualStockCard`) 변경 없음.
 
 ### 5.6 페이지 수정
 - `app/etc/economy/page.tsx`: `SINGLE_CODES` 8종 각 차트 data에 `appendLivePoint(daily, live)` 적용. 국채 `MultiSeriesChart`는 미적용(제외).
@@ -95,7 +96,7 @@ CREATE POLICY service_write_market_series_live ON market_series_live FOR ALL    
 직전 커밋에서 "일봉(종가)"으로 정정한 문구를, 라이브 적용 항목에 한해 정확히 갱신:
 - economy: "지수·금리 5년 일봉 · **지수 끝점 매시간 라이브**(국채 제외) · 전망 매일 KST 06:30"
 - commodities: "5년 일봉 · **끝점 매시간 라이브**(Dubai 제외) · Dubai 월별"
-- stock-prices: "5년 일봉 종가 · **끝점 매시간 라이브**"
+- stock-prices: 직전 정정("매일 KST 06:00")이 부정확(한세 4종은 이미 5분봉 라이브 합성 중) → "5년 일봉 종가 · **주요 종목 끝점 장중 라이브**"로 재정정
 - fx: DXY·EUR/USD도 라이브 대상이 되었음을 반영
 (최종 문구는 구현 시 간결화.)
 
@@ -108,7 +109,7 @@ CREATE POLICY service_write_market_series_live ON market_series_live FOR ALL    
 
 1. **단위 테스트** — `lib/series.test.ts` 신규: `appendLivePoint` 순수 로직(끝점 추가/동일일자 덮어쓰기/과거 무시/빈 시리즈/null). 일반화된 `{ value }` 시그니처 기준.
 2. **수집 스크립트** — 로컬 1회 실행(또는 `workflow_dispatch`) 후 `market_series_live` 16행 적재 + `updated_at` 최신 확인. (stdout은 행수만, 가격 값 비노출 불필요 — 사외비 아님이지만 간결 로깅.)
-3. **UI** — `npm run dev`로 economy/commodities/fx/stock-prices 차트 끝점이 라이브 값으로 갱신되는지 + 국채는 미변경 확인. 콘솔/네트워크 에러 모니터링.
+3. **UI** — `npm run dev`로 economy/commodities/fx 차트 끝점이 라이브 값으로 갱신 + 국채 미변경 확인. stock-prices는 ① 한세 종목(stock_quotes_5min 5분봉 유지) ② KR/글로벌 종목(last_price fallback 끝점) ③ last_price 없는 종목(일봉 유지) 3케이스 확인. 콘솔/네트워크 에러 모니터링.
 4. `npm run check-all` 통과 (lint/format/typecheck/test).
 
 ## 7. 비범위 (Out of scope)
