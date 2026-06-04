@@ -34,7 +34,7 @@ export interface PersonnelData {
 
 export async function getPersonnelData(): Promise<PersonnelData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('personnel_entries');
   const rows = await fetchPersonnelRows();
   return { rows };

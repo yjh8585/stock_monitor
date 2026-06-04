@@ -34,7 +34,7 @@ export interface InventoryData {
 
 export async function getInventoryData(): Promise<InventoryData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('inventory_entries');
 
   const rows = await fetchInventoryRows();

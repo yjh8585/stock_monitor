@@ -192,7 +192,7 @@ export interface KiaPageData {
 /** 기아 단일 진입점 — 캐시 + 모든 차트 props 한 번에 반환. */
 export async function getKiaData(): Promise<KiaPageData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('oem-kia-sales');
   cacheTag('oem-kia-export-regions');
   cacheTag('oem-kia-retail');

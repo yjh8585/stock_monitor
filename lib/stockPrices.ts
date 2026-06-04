@@ -43,11 +43,12 @@ export async function getActiveStockCompanies(): Promise<StockCompany[]> {
  *
  * 오늘 일봉은 stock_prices 에 장 마감 후에야 들어오므로, 장중에는 stock_quotes_5min
  * 의 가장 최근 가격을 "오늘 일자" 점으로 합성해 차트가 멈춰 보이는 현상을 막는다.
- * 5분 단위 갱신을 위해 cacheLife('minutes') 사용.
+ * stock_prices·stock_quotes_5min 태그를 cron이 무효화하므로 신선도는 무효화가 담당.
+ * cacheLife는 백업 만료용이라 hours면 충분 (minutes는 종목별 캐시라 ISR write 폭증).
  */
 export async function getStockPriceSeries(companyId: string): Promise<SeriesPoint[]> {
   'use cache';
-  cacheLife('minutes');
+  cacheLife('hours');
   cacheTag('stock_prices');
   cacheTag('stock_quotes_5min');
   cacheTag('companies');

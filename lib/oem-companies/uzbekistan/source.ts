@@ -794,7 +794,7 @@ function aggregateKpi(monthly: UzbekistanCompanyMonthlyPoint[]): UzbekistanKpi {
 
 export async function getUzbekistanData(): Promise<UzbekistanPageData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('uzbekistan-auto-stats');
 
   const supabase = createSupabaseAnonClient();

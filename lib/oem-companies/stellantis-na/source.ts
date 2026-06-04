@@ -109,7 +109,7 @@ export interface StellantisNaPageData {
 
 export async function getStellantisNaData(): Promise<StellantisNaPageData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('oem-stellantis-na-sales');
   cacheTag('vehicle-powertrain-map');
 

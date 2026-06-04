@@ -247,7 +247,7 @@ export interface HyundaiPageData {
 
 export async function getHyundaiData(): Promise<HyundaiPageData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('oem-hyundai-sales');
   cacheTag('oem-hyundai-export-regions');
   cacheTag('oem-hyundai-quarterly');
