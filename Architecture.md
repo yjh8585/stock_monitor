@@ -447,7 +447,7 @@ UNIQUE: (source, note_date)
 | 뉴스                    | collect-news                                                      | 4시간                  |
 | 감성                    | analyze-board-sentiment                                           | 일간                   |
 | DART                    | collect-dart-audit (shard 8), collect-dart-labor                  | 분기 / 일간            |
-| 매크로                  | collect-macro-outlook, collect-market-series                      | 일간 / 주간            |
+| 매크로                  | collect-macro-outlook, collect-market-series, collect-market-series-live | 일간 / 주간 / 매시간   |
 | 해운·철강               | collect-shipping, collect-steel-kr                                | 일간                   |
 | 원자재                  | collect-dubai-oil                                                 | 일간                   |
 | 글로벌 스냅샷           | collect-global-snapshot                                           | 일간                   |
