@@ -1,6 +1,14 @@
 import SeriesChart from '@/components/charts/SeriesChart';
 import PlaceholderChart from '@/components/charts/PlaceholderChart';
-import { getMarketSeries, getSeriesMetaByCategory } from '@/lib/series';
+import {
+  getMarketSeries,
+  getMarketSeriesLive,
+  appendLivePoint,
+  getSeriesMetaByCategory,
+} from '@/lib/series';
+
+// 라이브 끝점 대상 (선물·24h) — STEEL_KR(KOMIS)·DUBAI(FRED 월별)는 제외
+const LIVE_CODES = new Set(['ALU', 'COPPER', 'HRC', 'LIT', 'WTI', 'BRENT']);
 
 const ORDER = ['ALU', 'COPPER', 'STEEL_KR', 'HRC', 'LIT', 'WTI', 'BRENT', 'DUBAI'] as const;
 const COLOR: Record<string, string> = {
@@ -19,7 +27,12 @@ export default async function CommoditiesPage() {
     await Promise.all(
       metas
         .filter((m) => m.hasData)
-        .map(async (m) => [m.series_code, await getMarketSeries(m.series_code)] as const)
+        .map(async (m) => {
+          const daily = await getMarketSeries(m.series_code);
+          if (!LIVE_CODES.has(m.series_code)) return [m.series_code, daily] as const;
+          const live = await getMarketSeriesLive(m.series_code);
+          return [m.series_code, appendLivePoint(daily, live)] as const;
+        })
     )
   );
 
