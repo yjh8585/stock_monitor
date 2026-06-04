@@ -93,6 +93,28 @@ export async function getLiveExchangeRate(
   return { value: Number(data.rate), updated_at: data.updated_at as string };
 }
 
+/**
+ * 지수·원자재·코인 라이브 현재가 조회 (market_series_live).
+ * 매시 cron(yfinance fast_info)이 갱신. 차트 끝점 합성용 — cache는 minutes.
+ */
+export async function getMarketSeriesLive(seriesCode: string): Promise<LivePoint | null> {
+  'use cache';
+  cacheLife('minutes');
+  cacheTag('market_series_live');
+  const sb = createSupabaseAnonClient();
+  const { data, error } = await sb
+    .from('market_series_live')
+    .select('price,updated_at')
+    .eq('series_code', seriesCode)
+    .maybeSingle();
+  if (error) {
+    logger.error({ err: error, seriesCode }, 'market_series_live 조회 실패');
+    return null;
+  }
+  if (!data) return null;
+  return { value: Number(data.price), updated_at: data.updated_at as string };
+}
+
 /** market_series_daily에서 특정 series_code의 일봉 시계열 조회 */
 export async function getMarketSeries(seriesCode: string): Promise<SeriesPoint[]> {
   'use cache';
