@@ -319,6 +319,12 @@ PK `(kind, period_type, year_period, company, brand, vehicle_model, source_type)
 인덱스: (series_code, trade_date DESC)  
 수집(`collect_market_series.py`): KOSPI·KOSDAQ는 KRX(pykrx `get_index_ohlcv`, `KRX_ID`/`KRX_PW` 로그인 필요 — 야후 `^KS11`/`^KQ11` 당일 지연 회피), 그 외 지수·금/은·국채·원자재는 yfinance(`end`는 exclusive라 +1일 보정), 일부는 FRED. 출처 표기는 `market_series.source`.
 
+#### `market_series_live` — 지수·원자재 라이브 끝점 (현재가)
+
+| series_code (PK→market_series) | price | updated_at |  
+RLS: `anon_read`(SELECT) + `service_write`(ALL), `market_series_daily`와 동일.  
+수집(`collect_market_series_live.py`, 매일 매시 `collect-market-series-live.yml`): `market_series.yf_symbol`이 있고 국채(UST10Y/UST30Y)가 아닌 16종을 yfinance `fast_info.last_price`로 upsert. 일봉(`market_series_daily`) 차트 끝점을 `appendLivePoint`로 라이브 갱신(환율 `exchange_rates_live` 패턴). 국채는 제외.
+
 #### `macro_outlook_notes` (20행)
 
 | id | note_date | source | summary | sentiment | created_at |  
