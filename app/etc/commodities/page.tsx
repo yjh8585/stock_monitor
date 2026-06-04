@@ -41,7 +41,8 @@ export default async function CommoditiesPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">원자재</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          알루미늄·구리·철강·리튬·WTI·Brent (5년 일봉) · Dubai (월별) · 매일 KST 06:00 갱신
+          알루미늄·구리·철강·리튬·WTI·Brent (5년 일봉 + 끝점 매시간 라이브) · Dubai (월별) · 매일
+          KST 06:00 갱신
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4">
