@@ -103,10 +103,10 @@ async function fetchLatestOutlooks(supabase: AnonClient): Promise<OemModelOutloo
   return out;
 }
 
-/** OEM 페이지 props — 6개 테이블 fetch + 4개 사전 가공. Cache Components 적용 (cacheLife='hours'). */
+/** OEM 페이지 props — 6개 테이블 fetch + 4개 사전 가공. Cache Components 적용 (cacheLife='days', 수집 시 무효화). */
 export async function getOemData() {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('oem_sales_group_month');
   cacheTag('oem_sales_group_pt_month');
   cacheTag('oem_sales_group_country_month');

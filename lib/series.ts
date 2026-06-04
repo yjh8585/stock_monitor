@@ -70,11 +70,12 @@ export async function getExchangeRateSeries(base: 'USD' | 'EUR' | 'CNY'): Promis
  * 일봉(`exchange_rates`)은 종가 기반이라 당일 데이터가 늦게 들어오므로,
  * 차트 끝점만 라이브 값으로 갈아치우기 위한 보조 데이터.
  *
- * cache는 minutes 단위로 짧게 — cron이 매시간이라 5~10분 캐시면 충분.
+ * cron이 매시간 exchange_rates_live 태그를 무효화하므로 신선도는 무효화가 담당.
+ * cacheLife는 백업 만료용이라 hours면 충분 (minutes는 불필요한 ISR write 유발).
  */
 export async function getLiveExchangeRate(base: 'USD' | 'EUR' | 'CNY'): Promise<LivePoint | null> {
   'use cache';
-  cacheLife('minutes');
+  cacheLife('hours');
   cacheTag('exchange_rates_live');
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb
@@ -93,11 +94,12 @@ export async function getLiveExchangeRate(base: 'USD' | 'EUR' | 'CNY'): Promise<
 
 /**
  * 지수·원자재·코인 라이브 현재가 조회 (market_series_live).
- * 매시 cron(yfinance fast_info)이 갱신. 차트 끝점 합성용 — cache는 minutes.
+ * 매시 cron(yfinance fast_info)이 market_series_live 태그를 무효화 → 신선도 보장.
+ * 차트 끝점 합성용 — cacheLife는 백업 만료용이라 hours면 충분.
  */
 export async function getMarketSeriesLive(seriesCode: string): Promise<LivePoint | null> {
   'use cache';
-  cacheLife('minutes');
+  cacheLife('hours');
   cacheTag('market_series_live');
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb

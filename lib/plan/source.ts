@@ -45,7 +45,7 @@ export interface PlanData {
 
 export async function getPlanData(): Promise<PlanData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('pnl_plan');
   cacheTag('pnl_entries');
   cacheTag('exchange_rates_live');

@@ -98,7 +98,7 @@ export interface KgMobilityPageData {
 
 export async function getKgMobilityData(): Promise<KgMobilityPageData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('oem-kg-mobility-sales');
   cacheTag('vehicle-powertrain-map');
 

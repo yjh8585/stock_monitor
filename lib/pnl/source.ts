@@ -55,7 +55,7 @@ async function fetchPnlEntries(): Promise<PnlEntry[]> {
 }
 
 /**
- * 손익 페이지 데이터 — raw fetch + 서버 사전 가공 + 1시간 캐시.
+ * 손익 페이지 데이터 — raw fetch + 서버 사전 가공 + 1일 캐시(sync 시 무효화로 즉시 반영).
  *
  * - 캐시 무효화: scripts/lib/revalidate.py가 `pnl_entries` 태그 갱신.
  * - `preparePnlData`는 pure 함수 — cache hit 시 prepared 객체가 그대로 반환되어
@@ -63,7 +63,7 @@ async function fetchPnlEntries(): Promise<PnlEntry[]> {
  */
 export async function getPreparedPnl(): Promise<PreparedPnlData> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('pnl_entries');
 
   const raw = await fetchPnlEntries();
@@ -71,13 +71,13 @@ export async function getPreparedPnl(): Promise<PreparedPnlData> {
 }
 
 /**
- * `pnl_cost_structure` 전체 fetch + 1시간 캐시.
+ * `pnl_cost_structure` 전체 fetch + 1일 캐시(sync 시 무효화로 즉시 반영).
  *
  * ≤ 수백 행이라 페이지네이션 불필요.
  */
 export async function getCostStructure(): Promise<CostStructureRow[]> {
   'use cache';
-  cacheLife('hours');
+  cacheLife('days');
   cacheTag('pnl_cost_structure');
 
   const { data, error } = await confidentialDb
