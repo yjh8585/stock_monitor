@@ -13,25 +13,22 @@ stock_supply_demand 테이블에 upsert한다.
 - incremental  : 회사별 MAX(trade_date)+1일 ~ 오늘 (기본)
 """
 import argparse
-import os
 import sys
-import time
 from datetime import date, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
 from loguru import logger
 
-# .env를 먼저 로드해 KRX_ID/KRX_PW를 환경에 올린 뒤, pykrx import 직전에 빼둔다.
-# pykrx는 import 시점에 자격증명이 있으면 KRX에 자동 로그인하는데, KRX가 GitHub Actions
-# IP에 간헐적으로 빈 응답을 주면 pykrx login_krx의 resp.json()이 처리되지 않은
-# JSONDecodeError를 던져 import 전체(=수급 수집)가 죽는다. 자동 로그인을 비활성화하고
-# 아래 _ensureKrxLogin에서 재시도·예외 처리로 직접 로그인한다.
+from lib.krx_auth import disable_pykrx_autologin, ensure_krx_login
+
+# .env를 먼저 로드해 KRX_ID/KRX_PW를 환경에 올린 뒤, pykrx import 전에 자동 로그인을 끈다.
+# pykrx의 import-time 자동 로그인은 KRX가 GHA IP에 간헐적으로 빈 응답을 줄 때 import
+# 전체(=수급 수집)를 죽인다(상세는 lib/krx_auth). 수집 직전 ensure_krx_login으로 직접 로그인.
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-_KRX_ID = os.environ.pop('KRX_ID', None)
-_KRX_PW = os.environ.pop('KRX_PW', None)
+disable_pykrx_autologin()
 
 from pykrx import stock as pykrx_stock
 
@@ -124,40 +121,11 @@ def _load_ohlcv_map(ticker: str, start_pykrx: str, end_pykrx: str) -> dict:
   return out
 
 
-def _ensureKrxLogin(attempts: int = 3, delay: int = 3) -> bool:
-  """KRX 로그인을 직접 수행해 pykrx 세션에 주입한다(best-effort).
-
-  pykrx의 import-time 자동 로그인은 KRX가 빈 응답을 줄 때 예외가 import를 통째로
-  중단시키므로 비활성화했다(자격증명을 import 전에 pop). 여기서 재시도·예외 처리로
-  감싸 로그인한다. 수급 수집은 전적으로 KRX에 의존하므로 실패 시 호출부가 조기 종료한다.
-  """
-  krx_id = _KRX_ID or os.getenv('KRX_ID')
-  krx_pw = _KRX_PW or os.getenv('KRX_PW')
-  if not (krx_id and krx_pw):
-    logger.warning("KRX_ID/KRX_PW 미설정 — KRX 수급 수집을 건너뜁니다.")
-    return False
-
-  from pykrx.website.comm import auth
-
-  for attempt in range(1, attempts + 1):
-    try:
-      session = auth.build_krx_session(krx_id, krx_pw)
-    except Exception as e:
-      logger.warning(f"KRX 로그인 시도 {attempt}/{attempts} 예외 — {e}")
-      session = None
-    if session is not None:
-      auth.set_auth_session(session)
-      return True
-    if attempt < attempts:
-      time.sleep(delay)
-
-  return False
-
-
 def collectSupplyDemand(mode: str = 'incremental') -> None:
   today = date.today()
-  if not _ensureKrxLogin():
-    logger.warning("KRX 로그인 실패 — 수급 수집을 건너뜁니다(다음 실행에서 재시도).")
+  # 수급 수집은 전적으로 KRX에 의존하므로 로그인 실패 시 DB 접근 없이 조기 종료한다.
+  if not ensure_krx_login():
+    logger.warning("수급 수집을 건너뜁니다(다음 실행에서 재시도).")
     return
   companies = _load_hansae_companies()
   logger.info(f"수급 수집 모드: {mode}, 종목 {len(companies)}개")
