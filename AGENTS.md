@@ -102,7 +102,7 @@ npm run format          # 자동 포맷
 - `lib/auth/` — 세션·권한·사용자 (`proxy.ts`가 사용). 새 라우트 권한은 `permissions.ts`에 등록.
 - **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만):
   - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.
-  - `lib/pnl/`(사외비), `lib/plan/`(사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX), `lib/inventory/`(사외비 — `inventory_entries` + `aggregate.ts` pure 빌더 8종 vitest 25 tests, USD→억원 환산 `value × fx_rate / 100`), `lib/personnel/`(사외비 — `personnel_entries` + `aggregate.ts` pure 빌더 5종 vitest 14 tests. 시점은 `period_date`(과거=연말, 현재=최신)), `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/` — `source.ts` 패턴
+  - `lib/pnl/`(사외비), `lib/plan/`(사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX), `lib/inventory/`(사외비 — `inventory_entries` + `aggregate.ts` pure 빌더 8종 vitest 25 tests, USD→억원 환산 `value × fx_rate / 100`), `lib/personnel/`(사외비 — `personnel_entries` + `aggregate.ts` pure 빌더 5종 vitest 14 tests. 시점은 `period_date`(과거=연말, 현재=최신)), `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/`, `lib/companies/`(마스터 — `/management/companies`·`/api/companies` 입구, anon client) — `source.ts` 패턴
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure 4종, `aggregate.test.ts`로 단위 테스트)
   - `lib/oem-companies/<slug>/` — OEM 회사별 탭. `source.ts`(`'use cache'`+`cacheTag`+PT map LEFT JOIN) + `aggregate.ts`(pure) + `aggregate.test.ts`. 상세 → `docs/oem-collection.md`
   - `lib/hansae/`, `lib/naver/`, `lib/sentiment/`, `lib/chat/`
@@ -122,7 +122,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용):
 
-- `bootstrap.py`(신규 스크립트 boilerplate `init_script(__file__)`) · `db.py`(**postgrest-py 클라이언트 — 모든 DB 접근 경유**) · `accounts_map.py`(계정과목) · `fx.py`(환율) · `companies.py`+`companies.json`(시드) · `kis_client.py`(KIS API) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `text.py`(LLM 응답 sanitize·거부 패턴 감지 quality gate)
+- `bootstrap.py`(신규 스크립트 boilerplate `init_script(__file__)`) · `db.py`(**postgrest-py 클라이언트 — 모든 DB 접근 경유**) · `accounts_map.py`(계정과목) · `fx.py`(환율) · `companies.py`+`companies.json`(시드) · `kis_client.py`(KIS API) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `text.py`(LLM 응답 sanitize·거부 패턴 감지 quality gate) · `krx_auth.py`(**pykrx import-time 자동 로그인 크래시 방지** — pykrx import 전 `disable_pykrx_autologin()` + 수집 직전 `ensure_krx_login()`. KRX가 GHA IP에 간헐 빈응답 시 import가 죽는 문제 회피)
 - 정적 매핑: `series_sources.py`, `shipping_sources.py`, `market_series.py`, `labor_targets.py`, `macro_targets.py`, `manual_dart_mapping.json`, `marklines_slugs.json`, `groups_seed.json`
 
 ### `supabase/migrations/`
