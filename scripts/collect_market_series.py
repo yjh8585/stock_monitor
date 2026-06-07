@@ -5,7 +5,9 @@ market_series 메타에서 yf_symbol 또는 fred_symbol이 지정된 모든 시�
 환율 USD/EUR/CNY → KRW 5년 히스토리는 collect_fx.py가 exchange_rates에 별도 저장한다.
 """
 import io
+import os
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -14,6 +16,15 @@ import requests
 import yfinance as yf
 from dotenv import load_dotenv
 from loguru import logger
+
+# pykrx는 import 시점에 KRX_ID/KRX_PW가 있으면 KRX에 자동 로그인한다. 그러나 KRX가
+# GitHub Actions IP에 간헐적으로 빈 응답을 주면 pykrx의 login_krx가 resp.json()에서
+# 처리되지 않은 JSONDecodeError를 던져 import 전체가 죽고, KRX와 무관한 yfinance/FRED
+# 수집까지 함께 중단된다. 자동 로그인을 막기 위해 자격증명을 import 전에 빼두고,
+# 아래 _ensureKrxLogin에서 재시도·예외 처리로 직접 로그인한다.
+_KRX_ID = os.environ.pop('KRX_ID', None)
+_KRX_PW = os.environ.pop('KRX_PW', None)
+
 from pykrx import stock as pykrx_stock
 
 load_dotenv(Path(__file__).parent / '.env')
@@ -108,6 +119,37 @@ def _fetchKrxIndexDaily(series_code: str, krx_code: str, start: date, end: date)
   return rows
 
 
+def _ensureKrxLogin(attempts: int = 3, delay: int = 3) -> bool:
+  """KRX 로그인을 직접 수행해 pykrx 세션에 주입한다(best-effort).
+
+  pykrx의 import-time 자동 로그인은 KRX가 빈 응답을 줄 때 예외가 import를 통째로
+  중단시키므로 비활성화했다(자격증명을 import 전에 pop). 여기서 재시도·예외 처리로
+  감싸 로그인하고, 실패하면 코스피/코스닥만 건너뛴다(yfinance/FRED 수집은 영향 없음).
+  """
+  krx_id = _KRX_ID or os.getenv('KRX_ID')
+  krx_pw = _KRX_PW or os.getenv('KRX_PW')
+  if not (krx_id and krx_pw):
+    logger.warning("KRX_ID/KRX_PW 미설정 — 코스피/코스닥 KRX 수집을 건너뜁니다.")
+    return False
+
+  from pykrx.website.comm import auth
+
+  for attempt in range(1, attempts + 1):
+    try:
+      session = auth.build_krx_session(krx_id, krx_pw)
+    except Exception as e:
+      logger.warning(f"KRX 로그인 시도 {attempt}/{attempts} 예외 — {e}")
+      session = None
+    if session is not None:
+      auth.set_auth_session(session)
+      return True
+    if attempt < attempts:
+      time.sleep(delay)
+
+  logger.warning("KRX 로그인 실패 — 코스피/코스닥은 이번 수집에서 건너뜁니다.")
+  return False
+
+
 def collectMarketSeries() -> None:
   """market_series의 yf_symbol/fred_symbol/KRX 지수 시리즈를 수집·upsert한다."""
   end = date.today()
@@ -131,11 +173,17 @@ def collectMarketSeries() -> None:
     logger.warning("market_series 메타에 수집 대상이 없습니다. 시드를 먼저 적용하세요.")
     return
 
+  needs_krx = any(r['series_code'] in KRX_INDEX_CODES for r in collectable)
+  krx_ready = _ensureKrxLogin() if needs_krx else False
+
   total = 0
   for row in collectable:
     code = row['series_code']
     label = row.get('label', '')
     if code in KRX_INDEX_CODES:
+      if not krx_ready:
+        logger.warning(f"{code}: KRX 로그인 불가 — 건너뜀")
+        continue
       krx_code = KRX_INDEX_CODES[code]
       logger.info(f"{code} ({label}) KRX 수집 — {krx_code}")
       try:
