@@ -187,6 +187,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - 공통 모듈 재사용(`db.py`·`accounts_map.py`·`fx.py`). upsert 키·멱등성 확보.
 - **캐시 무효화**: 두 경로 모두 자동 hook. (1) `db.upsert_rows(...)` bulk upsert는 함수 안에서 `revalidate_for_tables` 자동 호출. (2) `WriteSession` — `with WriteSession() as w: w.table('x').update(...).execute()` 블록 종료 시 누적 테이블을 자동 revalidate(`select`는 추적 X, 예외 시에도 호출, silent fail). **신규 mutating 스크립트는 반드시 WriteSession**. 정기 cron 14개 적용 완료, 잔여 일회성은 점진 마이그레이션. 테스트 `scripts/lib/test_db_writesession.py`.
 - Playwright는 시스템 캐시(`PLAYWRIGHT_BROWSERS_PATH`). 프로젝트에 브라우저 다운로드 금지.
+- **LLM 추출 수집기**(`collect_uzauto_financials.py`·현대 분기 IR 등)는 로컬 `scripts/.env`에 `ANTHROPIC_API_KEY`가 없어 **로컬 실행 불가**(키는 GHA Secrets 전용) → 실환경 검증은 `gh workflow run`.
+- **스캔 PDF**(UzAuto IFRS 등)는 `pypdf`/`pdfplumber` 텍스트 추출이 0자 + Read 도구 렌더가 `pdftoppm`(poppler) 미설치로 실패 → venv `pymupdf`(fitz)로 페이지 렌더(`fitz.open(p)[n].get_pixmap(dpi=200).save(png)`)→Read(vision)로 판독.
 - 진단/백업 산출물(`_*.json` 등)은 임시. 커밋 전 정리.
 
 ## PowerShell 환경 메모
