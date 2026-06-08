@@ -11,6 +11,8 @@
 
 매주 월요일 03:00 UTC에 .github/workflows/collect-uzauto-financials.yml 호출.
 재실행 안전(멱등): 변경 없는 PDF는 cache hit → 호출 0.
+소스 측 죽은 링크(HTTP 404/410)는 hard failure가 아니라 source_link_missing으로 집계하고
+워크플로 exit 0을 유지한다(로그·JSON엔 기록). 타임아웃·5xx·연결오류 등은 그대로 실패 처리.
 
 플래그:
   --reprocess-all   cache 무시하고 모든 PDF 재처리.
@@ -349,13 +351,25 @@ def main() -> int:
   company_id = get_uzmt_company_id()
   client = Anthropic(api_key=api_key)
 
-  summary = {'processed': 0, 'cached': 0, 'failed': 0, 'pdfs': []}
+  summary = {'processed': 0, 'cached': 0, 'failed': 0, 'source_link_missing': 0, 'pdfs': []}
 
   with WriteSession() as w:
     for link in links:
       try:
         pdf_bytes, sha, etag = download_pdf(link['url'])
       except Exception as e:
+        # 404/410 = 소스 사이트가 안내한 링크가 깨진 경우(파일이 그 URL에 없음).
+        # 재시도로 해결 불가한 소스 측 문제이므로 hard failure에서 제외(skip)하되 로그·JSON엔 기록.
+        # 타임아웃·5xx·연결오류 등 일시적/인프라 문제는 그대로 hard failure로 둬 다음 실행에 재시도·알림.
+        status_code = getattr(getattr(e, 'response', None), 'status_code', None)
+        if status_code in (404, 410):
+          logger.warning(
+            f"  SOURCE LINK MISSING {link['fiscal_year']} {link['report_type']} "
+            f"(HTTP {status_code}) — 소스가 안내한 링크가 깨짐, skip(hard-fail 아님): {link['url']}"
+          )
+          summary['source_link_missing'] += 1
+          summary['pdfs'].append({**link, 'status': 'source_link_missing', 'http': status_code})
+          continue
         logger.error(f"  DOWNLOAD failed {link['fiscal_year']} {link['report_type']}: {e}")
         summary['failed'] += 1
         summary['pdfs'].append({**link, 'status': 'download_failed', 'error': str(e)})
@@ -414,7 +428,8 @@ def main() -> int:
     json.dump(summary, f, indent=2, ensure_ascii=False)
   logger.info(f"실행 로그: {log_path}")
   logger.success(
-    f"완료: processed={summary['processed']}, cached={summary['cached']}, failed={summary['failed']}"
+    f"완료: processed={summary['processed']}, cached={summary['cached']}, "
+    f"source_link_missing={summary['source_link_missing']}, failed={summary['failed']}"
   )
   return 0 if summary['failed'] == 0 else 1
 
