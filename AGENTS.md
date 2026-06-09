@@ -119,7 +119,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
 - `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동(단 `sync_oem_excel.py`·`import_oem_sales.py`·`sync_pnl_excel.py`·`sync_pnl_plan.py`·`sync_inventory.py`·`sync_personnel.py`는 정기 재실행이라 유지).
-- **사외비 적재 정책** (`sync_pnl_excel.py`, `sync_pnl_plan.py`, `sync_inventory.py`, `sync_personnel.py`): 입력 엑셀은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. **stdout에 금액·인원수 비노출** — `summarize()`/dry-run 출력은 행수·연도·월·null 카운트만. revenue_sum, headcount 등 금액·수치 합계 출력 금지. `sync_inventory.py`는 추가로 4분류합 vs 전체재고 검증(mismatch 행수만 보고, 임계 0.5%). dry-run 안전성 확인 후 본 적재. WriteSession 자동 revalidate(`NEXT_REVALIDATE_URL` — 로컬은 localhost). **로컬 수동 실행은 프로덕션 캐시가 안 비워지므로 `--revalidate-prod` 플래그로 추가 무효화**(`NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET` 사용, 적재 성공 후 1회). `pnl_cost_structure` 포함 5종 테이블은 `lib/revalidate.py` `COLUMN_TO_TAGS`에 매핑(누락 시 무효화 no-op).
+- **사외비 적재 정책** (`sync_pnl_excel.py`, `sync_pnl_plan.py`, `sync_inventory.py`, `sync_personnel.py`): 입력 엑셀은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. **stdout에 금액·인원수 비노출** — `summarize()`/dry-run 출력은 행수·연도·월·null 카운트만. revenue_sum, headcount 등 금액·수치 합계 출력 금지. `sync_inventory.py`는 추가로 4분류합 vs 전체재고 검증(mismatch 행수만 보고, 임계 0.5%). dry-run 안전성 확인 후 본 적재. WriteSession 자동 revalidate(`NEXT_REVALIDATE_URL` — 로컬은 localhost). **로컬 수동 실행은 프로덕션 캐시가 안 비워지므로 `--revalidate-prod` 플래그로 추가 무효화**(`NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET` 사용, 적재 성공 후 1회). `pnl_cost_structure` 포함 5종 테이블은 `lib/revalidate.py` `COLUMN_TO_TAGS`에 매핑(누락 시 무효화 no-op). **엑셀에서 행 삭제·차원(실/부문/공장/제품/거래처) 변경 시 단순 resync로는 옛 PK 행이 DB에 잔존**(sync는 8차원 충돌키 upsert-only, delete 안 함) → 해당 행 DB delete 후 resync 필수(메모리 `project_pnl_dimension_change_resync`).
 - `_*.json` / `_*.log` / `_*.py` — 임시 산출물. 비활성이면 `_archive/` 이동(폴더 `.gitignore`가 새 산출물 자동 무시).
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용):
@@ -189,6 +189,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - Playwright는 시스템 캐시(`PLAYWRIGHT_BROWSERS_PATH`). 프로젝트에 브라우저 다운로드 금지.
 - **LLM 추출 수집기**(`collect_uzauto_financials.py`·현대 분기 IR 등)는 로컬 `scripts/.env`에 `ANTHROPIC_API_KEY`가 없어 **로컬 실행 불가**(키는 GHA Secrets 전용) → 실환경 검증은 `gh workflow run`.
 - **스캔 PDF**(UzAuto IFRS 등)는 `pypdf`/`pdfplumber` 텍스트 추출이 0자 + Read 도구 렌더가 `pdftoppm`(poppler) 미설치로 실패 → venv `pymupdf`(fitz)로 페이지 렌더(`fitz.open(p)[n].get_pixmap(dpi=200).save(png)`)→Read(vision)로 판독.
+- 손익/사외비 엑셀 파싱 디버깅: **openpyxl `read_only=True` 단독 결과를 신뢰하지 말 것**(행/열 인덱싱이 어긋나 부문값이 제품열로 읽히는 오진 관측) → `read_only=False`(`ws.cell`) 또는 sync의 `parse_sheet()` 직접 호출로 교차검증.
 - 진단/백업 산출물(`_*.json` 등)은 임시. 커밋 전 정리.
 
 ## PowerShell 환경 메모
@@ -198,6 +199,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - Codex CLI는 stdin hang 회피로 `"" | codex ... --output-last-message <file>` 패턴(메모리 `reference_codex_cli_powershell.md`).
 - `master`에 백업 봇이 매일 커밋(`chore(backup): daily JSONB snapshot`) → push 거부 시 `git -c rebase.autoStash=true pull --rebase origin master` 후 재push.
 - Bash `grep`이 한글/ANSI 섞인 stdout을 binary로 처리해 결과를 숨김 → `grep -a` 강제(파일 내용 검색은 Grep 도구 사용).
+- venv Python stdout 한글 깨짐 → Bash 도구로 실행 시 `PYTHONIOENCODING=utf-8` 프리픽스(예: `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe ...`).
 
 ## 보안 / 자격증명
 
