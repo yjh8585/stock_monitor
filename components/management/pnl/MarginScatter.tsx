@@ -413,7 +413,7 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h2 className="text-lg font-semibold">
-          9. 매출 YoY × 영업이익률 (버블=매출){' '}
+          10. 매출 YoY × 영업이익률 (버블=매출){' '}
           <span className="text-sm font-normal text-muted-foreground">
             · X·Y=%, 버블=매출 백만원
           </span>

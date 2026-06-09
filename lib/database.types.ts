@@ -1360,6 +1360,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      pnl_fixed_variable: {
+        Row: {
+          account: string;
+          category2: string;
+          category3: string;
+          cost_type: string;
+          period_kind: string;
+          period_month: number;
+          period_year: number;
+          value_mwon: number | null;
+        };
+        Insert: {
+          account: string;
+          category2: string;
+          category3: string;
+          cost_type: string;
+          period_kind: string;
+          period_month?: number;
+          period_year: number;
+          value_mwon?: number | null;
+        };
+        Update: {
+          account?: string;
+          category2?: string;
+          category3?: string;
+          cost_type?: string;
+          period_kind?: string;
+          period_month?: number;
+          period_year?: number;
+          value_mwon?: number | null;
+        };
+        Relationships: [];
+      };
       pnl_plan: {
         Row: {
           basis: string;

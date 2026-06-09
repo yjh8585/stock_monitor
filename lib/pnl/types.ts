@@ -95,6 +95,32 @@ export interface CostStructureRow {
   value_mwon: number | null;
 }
 
+/**
+ * `pnl_fixed_variable.cost_type` 값 집합.
+ * - '고정비'/'변동비': 연도별 비용 금액 행
+ * - '매출': 매출 행(고정/변동 구분 없음, 표 최상단 매출액)
+ * - '변동비율': 기준 변동비율 가정치(period_year=0, value_mwon=0~1 비율)
+ */
+export type CostType = '고정비' | '변동비' | '매출' | '변동비율';
+
+/** `pnl_fixed_variable` 테이블 row — 비용 계정을 고정비/변동비로 분해. */
+export interface FixedVariableRow {
+  period_year: number;
+  /** 'annual' = 연간 합계, 'monthly' = 월별 */
+  period_kind: 'annual' | 'monthly';
+  /** annual=0, monthly=1..12 */
+  period_month: number;
+  cost_type: CostType;
+  /** 매출원가 / 판매관리비 */
+  category2: string;
+  /** 재료비 / 노무비 / 경비 / 판매관리비 / 연구개발비 */
+  category3: string;
+  /** 계정명 (사무·생산직접·감가상각비 등) */
+  account: string;
+  /** 백만원 단위 */
+  value_mwon: number | null;
+}
+
 /** 집계 결과 1행 (차원 + 7개 지표 합계) */
 export interface AggregatedRow {
   /** 차원 값 join 결과 — 단일 차원이면 그 값, 복합 차원이면 "A | B" */

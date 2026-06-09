@@ -87,7 +87,7 @@ export default function CustomerParetoChart({ annualByBasis }: Props) {
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
         <h2 className="text-lg font-semibold">
-          14. 고객 매출 집중도 (파레토){' '}
+          15. 고객 매출 집중도 (파레토){' '}
           <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span>
         </h2>
         <div className="flex items-center gap-2 flex-wrap">

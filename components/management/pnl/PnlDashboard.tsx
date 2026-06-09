@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import CostStructure from './CostStructure';
+import FixedVariableStructure from './FixedVariableStructure';
 import CompanyOverview from './CompanyOverview';
 import DivisionPerformance from './DivisionPerformance';
 import CustomerPerformance from './CustomerPerformance';
@@ -11,7 +12,7 @@ import SilPerformance from './SilPerformance';
 import Forecast2026 from './Forecast2026';
 import LazyMount from '@/components/common/LazyMount';
 import type { PreparedPnlData } from '@/lib/pnl/aggregate';
-import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
+import type { Basis, CostStructureRow, FixedVariableRow, PnlEntry } from '@/lib/pnl/types';
 
 // 무거운 차트 컴포넌트 — recharts 청크를 차트 단위로 lazy 분리.
 // 각 차트는 LazyMount 안에 들어가 viewport 진입 시 청크 download + mount.
@@ -21,11 +22,13 @@ const YoyMonthlyCompare = dynamic(() => import('./YoyMonthlyCompare'), { ssr: fa
 const YoyMonthlyFiltered = dynamic(() => import('./YoyMonthlyFiltered'), { ssr: false });
 const YoyProductCustomer = dynamic(() => import('./YoyProductCustomer'), { ssr: false });
 const CustomerParetoChart = dynamic(() => import('./CustomerParetoChart'), { ssr: false });
+const FixedVariableBep = dynamic(() => import('./FixedVariableBep'), { ssr: false });
 
 interface Props {
   /** 서버에서 preparePnlData 호출 후 derived만 전달 (raw 1k+ 행 직렬화 회피). */
   prepared: PreparedPnlData;
   costStructure: CostStructureRow[];
+  fixedVariable: FixedVariableRow[];
 }
 
 /** basis별로 분리된 PnlEntry 묶음 (성능 최적화용 reference) */
@@ -47,12 +50,16 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  *   CustomerParetoChart)은 `LazyMount`로 감싸
  *   viewport 진입 시 1회 마운트 + recharts 청크 lazy fetch.
  */
-export default function PnlDashboard({ prepared, costStructure }: Props) {
+export default function PnlDashboard({ prepared, costStructure, fixedVariable }: Props) {
   const { annualEntries, annualByBasis, monthlyByBasis } = prepared;
 
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">
       <CostStructure costStructure={costStructure} />
+      <FixedVariableStructure fixedVariable={fixedVariable} />
+      <LazyMount className="min-h-[360px] md:min-h-[460px]">
+        <FixedVariableBep fixedVariable={fixedVariable} />
+      </LazyMount>
       <Forecast2026
         monthlyByBasis={monthlyByBasis}
         annualByBasis={annualByBasis}

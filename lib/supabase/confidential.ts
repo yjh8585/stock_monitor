@@ -32,6 +32,7 @@ import { createSupabaseAdminClient } from './admin';
  * - pnl_plan: 계획 대비 실적 (migration 20260528000001)
  * - inventory_entries: 재고 계획·실적 추이 (migration 20260528000002)
  * - personnel_entries: 인원 추이 (migration 20260528000003)
+ * - pnl_fixed_variable: 전사 고정비/변동비 비용구조 (migration 20260609000001)
  */
 const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -40,6 +41,7 @@ const CONFIDENTIAL_TABLES = [
   'pnl_plan',
   'inventory_entries',
   'personnel_entries',
+  'pnl_fixed_variable',
 ] as const;
 
 /**

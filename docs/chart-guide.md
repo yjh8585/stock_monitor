@@ -68,15 +68,16 @@
 
 ### `/management` — `components/management/`
 
-| 탭        | 차트                                                                                                                       | 유형                                                  |
-| --------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| pnl       | `MarginScatter`                                                                                                            | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피) |
-| pnl       | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                    |
-| pnl       | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                             |
-| plan      | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)          |
-| plan      | `OrderFunnelChart`                                                                                                         | 퍼널                                                  |
-| inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                        |
-| personnel | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                         |
+| 탭        | 차트                                                                                                                       | 유형                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| pnl       | `MarginScatter`                                                                                                            | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피)                     |
+| pnl       | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                                        |
+| pnl       | `FixedVariableBep`                                                                                                         | 콤보(묶은 막대 BEP1·BEP2·매출 + 고정비율 표식 꺾은선, 이중축 오프셋 분리) |
+| pnl       | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                                                 |
+| plan      | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)                              |
+| plan      | `OrderFunnelChart`                                                                                                         | 퍼널                                                                      |
+| inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                                            |
+| personnel | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                                             |
 
 ### `/hansae` — `components/hansae/`
 
