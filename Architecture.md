@@ -89,9 +89,9 @@
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
-탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_plan`·`inventory_entries`·`personnel_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
+탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`inventory_entries`·`personnel_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
 
-- **pnl** — 손익 15섹션: 1~9 기존, 10 이익기여도 TOP7/WORST7(고객·제품), 11·12 전년대비 월별, 13 제품·고객 YoY, 14 수익성 워터폴, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`.
+- **pnl** — 손익 16섹션: 1 전사 비용구조, **2-1 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬, 행 클릭 시 노란 강조 토글(다중)), **2-2 손익분기점(BEP) 분석**(콤보차트: 손익분기점1[고정비/공헌이익률]·손익분기점2[비용합계]·매출 묶은 막대 + 고정비율[고정비/매출] 표식 꺾은선, 보조축 오프셋으로 막대·선 분리), 3 2026 연간 추정, 4~9 전사/부문/고객/제품/고객·제품/실별 실적, 10 수익성 산점(매출 YoY×영업이익률), 11 이익기여도 TOP10/WORST10, 12·13 전년대비 월별, 14 제품·고객 YoY, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
 - **plan** — 계획 대비 실적·달성율 콤보 차트 8종(수주·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 2·3은 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
 - **inventory** — 재고 KPI 5개 + 차트 6종:
   1. 재고 현황(종류) 콤보 — 운영+관리+보상+운송 누적막대 + 회전율 꺾은선(실적만)
@@ -345,6 +345,20 @@ UNIQUE: (source, note_date)
 
 | period_year | period_kind | period_month | kind | category | account | value_mwon |
 **RLS**: 정책 없음 (20260523000002) → service_role 전용.
+
+#### `pnl_fixed_variable` (신규, 20260609000001 + 02) — 고정비/변동비 비용구조 (사외비)
+
+| period_year | period_kind('annual'|'monthly') | period_month | cost_type('고정비'|'변동비'|'매출'|'변동비율') | category2(매출원가/판매관리비) | category3(재료비/노무비/경비/판매관리비/연구개발비) | account(계정명) | value_mwon |
+
+엑셀 '고정비' 시트 적재(`sync_pnl_fixed_variable.py`). cost_type 4종:
+
+- `고정비`/`변동비`: 계정명별 연도 비용 금액(백만원).
+- `매출`: 매출 행(고정/변동 구분 없음). category2/3/account 모두 '매출' 센티넬.
+- `변동비율`: 기준 변동비율 가정치(0~1). `period_year=0`(연도 무관), `value_mwon`에 비율 저장. 고정비율은 UI에서 1−변동비율.
+
+'기타'·'감가상각비' 계정명이 category3 간 중복이라 PK에 category2/category3 포함. `/management/pnl`의 `FixedVariableStructure`(2번 표)가 계정명 레벨로: 매출액 → 비용합계 → 매출원가/판관비 상세 → 영업이익(=매출−비용합계), 연도별 합계·고정비·변동비(매출대비%) + 구분 우측 변동비(%)·고정비(%) 열. `sync`는 시트 매출·파생 영업이익을 DB `pnl_cost_structure`와 대조(정합성, 임계 0.5%, 금액 비노출).
+**인덱스**: (period_year, period_kind, period_month), (category2, category3)
+**RLS**: 정책 없음 (20260609000001) → service_role 전용(`getFixedVariable()` confidentialDb).
 
 #### `chat_audit_log` (신규, 20260523000003) — 챗봇 도구 호출 감사
 

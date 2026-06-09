@@ -13,7 +13,7 @@ interface Props {
 export default function CustomerPerformance({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
-      title="5. 고객별 실적"
+      title="6. 고객별 실적"
       dimensions={[{ key: 'customer', label: '고객' }]}
       annualEntries={annualEntries}
       annualByBasis={annualByBasis}

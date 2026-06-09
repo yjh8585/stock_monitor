@@ -15,7 +15,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import { preparePnlData, type PreparedPnlData } from './aggregate';
-import type { Basis, CostStructureRow, PnlEntry } from './types';
+import type { Basis, CostStructureRow, FixedVariableRow, PnlEntry } from './types';
 
 // PostgREST 기본 max-rows=1000 → range 페이지네이션으로 전체 fetch.
 const SUPABASE_PAGE_SIZE = 1000;
@@ -94,5 +94,32 @@ export async function getCostStructure(): Promise<CostStructureRow[]> {
     ...row,
     period_kind: row.period_kind as 'annual' | 'monthly',
     kind: row.kind as 'actual' | 'plan',
+  }));
+}
+
+/**
+ * `pnl_fixed_variable` 전체 fetch + 1일 캐시(sync 시 무효화로 즉시 반영).
+ *
+ * 비용 계정을 고정비/변동비로 분해한 행. ≤ 수백 행이라 페이지네이션 불필요.
+ */
+export async function getFixedVariable(): Promise<FixedVariableRow[]> {
+  'use cache';
+  cacheLife('days');
+  cacheTag('pnl_fixed_variable');
+
+  const { data, error } = await confidentialDb
+    .from('pnl_fixed_variable')
+    .select('*')
+    .order('period_year', { ascending: true })
+    .order('period_month', { ascending: true });
+  if (error) {
+    logger.error({ err: error }, 'pnl_fixed_variable 조회 실패');
+    throw new Error(`Supabase pnl_fixed_variable 조회 실패: ${error.message}`);
+  }
+  // Row와 FixedVariableRow는 period_kind / cost_type만 narrow union이 필요.
+  return (data ?? []).map((row) => ({
+    ...row,
+    period_kind: row.period_kind as 'annual' | 'monthly',
+    cost_type: row.cost_type as FixedVariableRow['cost_type'],
   }));
 }

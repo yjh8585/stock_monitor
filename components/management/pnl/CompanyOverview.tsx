@@ -69,7 +69,7 @@ export default function CompanyOverview({ annualByBasis }: Props) {
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">
-          3. 전사 실적{' '}
+          4. 전사 실적{' '}
           <span className="text-sm font-normal text-muted-foreground">· 단위 백만원</span>
         </h2>
         <BasisToggle value={basis} onChange={setBasis} />

@@ -43,6 +43,7 @@ const ALL_TAGS = [
   'vehicle-powertrain-map',
   'pnl_entries',
   'pnl_cost_structure',
+  'pnl_fixed_variable',
   'pnl_plan',
   'inventory_entries',
   'personnel_entries',

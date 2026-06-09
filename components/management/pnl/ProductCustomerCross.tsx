@@ -13,7 +13,7 @@ interface Props {
 export default function ProductCustomerCross({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
-      title="7. 고객·제품 실적"
+      title="8. 고객·제품 실적"
       dimensions={[
         { key: 'customer', label: '고객' },
         { key: 'product', label: '제품' },

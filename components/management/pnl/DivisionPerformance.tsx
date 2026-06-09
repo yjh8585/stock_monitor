@@ -13,7 +13,7 @@ interface Props {
 export default function DivisionPerformance({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
-      title="4. 부문 실적"
+      title="5. 부문 실적"
       dimensions={[{ key: 'division', label: '부문' }]}
       annualEntries={annualEntries}
       annualByBasis={annualByBasis}
