@@ -87,6 +87,7 @@ COLUMN_TO_TAGS = {
     'pnl_plan': ['pnl_plan'],
     'inventory_entries': ['inventory_entries'],
     'personnel_entries': ['personnel_entries'],
+    'finance_entries': ['finance_entries'],
 }
 
 

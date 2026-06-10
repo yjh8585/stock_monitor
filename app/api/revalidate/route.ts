@@ -47,6 +47,7 @@ const ALL_TAGS = [
   'pnl_plan',
   'inventory_entries',
   'personnel_entries',
+  'finance_entries',
   'posts',
   'companies',
   'financials',
