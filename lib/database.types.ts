@@ -305,6 +305,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      finance_entries: {
+        Row: {
+          account: string;
+          consolidation: string;
+          period_kind: string;
+          period_month: number;
+          period_year: number;
+          subsidiary: string;
+          value_mwon: number | null;
+        };
+        Insert: {
+          account: string;
+          consolidation: string;
+          period_kind: string;
+          period_month: number;
+          period_year: number;
+          subsidiary: string;
+          value_mwon?: number | null;
+        };
+        Update: {
+          account?: string;
+          consolidation?: string;
+          period_kind?: string;
+          period_month?: number;
+          period_year?: number;
+          subsidiary?: string;
+          value_mwon?: number | null;
+        };
+        Relationships: [];
+      };
       financials: {
         Row: {
           bps: number | null;

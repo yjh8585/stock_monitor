@@ -188,16 +188,26 @@ const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
 
 `layout="vertical"` + `<XAxis type="number" />` + `<YAxis type="category" />`. 내부 라벨 `position="center"`, 합계 라벨 `position="right"`. `ShipmentStackedHBarChartInner` 참고.
 
-### 4-F. 콤보(막대 + 라인, 이중 Y축)
+### 4-F. 콤보(막대 + 라인, 이중 Y축) — ⚠️ 막대·꺾은선 영역 분리 필수
 
-계획·실적 막대 + 달성율 라인. **이중 축의 0을 어긋나게** 잡아 막대(하단)·라인(상단) 영역 분리:
+**규칙(MUST)**: 막대와 꺾은선을 한 차트에 그릴 때는 **반드시 이중 Y축의 0을 서로 어긋나게** 잡아,
+막대는 plot **하단 밴드**, 꺾은선은 **상단 밴드**에 오도록 영역을 분리한다. 두 그래프가 같은 높이대에
+겹치면 데이터 라벨·표식이 충돌해 판독성이 떨어진다. **신규 콤보 차트는 예외 없이** 아래 표준 도메인을 적용한다.
+
+표준 레시피(복사용):
 
 ```tsx
+// 막대(왼쪽 축): 도메인 상한을 max×2.5로 늘려 막대를 plot 하단 ~40%로 압축
 <YAxis yAxisId="amount" domain={[0, (max) => Math.max(max * 2.5, 1)]} ... />
+// 꺾은선(오른쪽 축): 0%를 하단(~58%)에 두도록 음수 하한을 줘 양수 선을 상단에 그린다
 <YAxis yAxisId="rate" orientation="right" domain={[-rateMax * 1.5, rateMax * 1.1]} ... />
 ```
 
-`PlanAchievementChart` 참고. 범례는 `LegendRow`.
+- 비율·달성율 등 **0 이상 단일 부호 선**: `[-max×1.5, max×1.1]`로 음수 하한을 줘 선을 상단으로 민다.
+- 압축 배수(2.5)·상한 여유(1.1)는 라벨 높이에 맞춰 미세조정 가능하나, **두 밴드가 겹치지 않는다**는 원칙은 고정.
+- 막대가 누적(스택)이면 `domain` 상한 기준 max는 **스택 합계**의 최댓값으로 잡는다(개별 시리즈 X).
+- 범례는 `LegendRow`(클릭 토글). 데이터 라벨은 막대 top / 선 marker 위(offset).
+- 적용 차트: `PlanAchievementChart`(달성율), `FixedVariableBep`(BEP·고정비율), `InventoryStatusChart`(회전율), `FinanceLeverageChart`(부채비율).
 
 ### 4-G. 산점/버블
 

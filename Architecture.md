@@ -89,7 +89,7 @@
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
-탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`inventory_entries`·`personnel_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
+탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **finance** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
 
 - **pnl** — 손익 16섹션: 1 전사 비용구조, **2-1 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬, 행 클릭 시 노란 강조 토글(다중)), **2-2 손익분기점(BEP) 분석**(콤보차트: 손익분기점1[고정비/공헌이익률]·손익분기점2[비용합계]·매출 묶은 막대 + 고정비율[고정비/매출] 표식 꺾은선, 보조축 오프셋으로 막대·선 분리), 3 2026 연간 추정, 4~9 전사/부문/고객/제품/고객·제품/실별 실적, 10 수익성 산점(매출 YoY×영업이익률), 11 이익기여도 TOP10/WORST10, 12·13 전년대비 월별, 14 제품·고객 YoY, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
 - **plan** — 계획 대비 실적·달성율 콤보 차트 8종(수주·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 2·3은 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
@@ -109,6 +109,10 @@
   4. 사무·생산 비중 누적막대 2층, 드롭다운[전체·국내+외주·국내·미국·중국·우즈벡]
   5. 인원 수 표(시점 4개 가로 펼침, 국내·국내+외주·해외 소계 + 전체 합계)
   - 사무=임원+사무. 소스 `personnel_entries`. 과거=연말, 현재=최신 시점.
+- **finance** — 재무(대차대조표) 차트 2종:
+  1. 재무 레버리지 콤보 — 자산·부채 묶은 막대 + 부채비율(=부채/자본 ×100) 표식 꺾은선, 이중축 오프셋으로 막대(하단)·선(상단) 분리. 자회사 필터(전체/미국/상숙, 데이터 기반 자동) — 차트1 전용.
+  2. 투하자본·자금조달 표 — 모든 연속 구간 증감(▲파랑/▼빨강). 투하자본 = 순운전자본(채권+재고−채무) + CAPEX(유형+무형), 자금조달 = 현금+증자+차입금. 전체/연결 고정.
+  - 소스 `finance_entries`. 억원=`value_mwon / 100`. 시점은 과거=연말(annual), 당해연도=최신월(YTD).
 - **companies** — 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, INSERT graceful).
 
 **API 라우트 분류**:
@@ -359,6 +363,15 @@ UNIQUE: (source, note_date)
 '기타'·'감가상각비' 계정명이 category3 간 중복이라 PK에 category2/category3 포함. `/management/pnl`의 `FixedVariableStructure`(2번 표)가 계정명 레벨로: 매출액 → 비용합계 → 매출원가/판관비 상세 → 영업이익(=매출−비용합계), 연도별 합계·고정비·변동비(매출대비%) + 구분 우측 변동비(%)·고정비(%) 열. `sync`는 시트 매출·파생 영업이익을 DB `pnl_cost_structure`와 대조(정합성, 임계 0.5%, 금액 비노출).
 **인덱스**: (period_year, period_kind, period_month), (category2, category3)
 **RLS**: 정책 없음 (20260609000001) → service_role 전용(`getFixedVariable()` confidentialDb).
+
+#### `finance_entries` (신규, 20260610000001) — 재무(대차대조표) 추이 (사외비)
+
+| subsidiary | consolidation | period_year | period_kind('annual'|'monthly') | period_month | account | value_mwon |
+
+엑셀 '재무' 시트 적재(`sync_finance.py`). 대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자). 시점 정규화: 과거='연간'/월=12 → annual(month=12, 연말), 당해=월별(monthly, 1~11). UI는 억원(`value_mwon/100`), 과거=연말·당해=최신월(YTD). `/management/finance`가 `FinanceLeverageChart`(자산·부채·부채비율 콤보)+`FinanceCapitalTable`(투하자본·자금조달 증감표)로 렌더.
+**PK**: (subsidiary, consolidation, period_year, period_kind, period_month, account)
+**인덱스**: (subsidiary, period_year, period_kind, period_month)
+**RLS**: 정책 없음 (20260610000001) → service_role 전용(`confidentialDb`).
 
 #### `chat_audit_log` (신규, 20260523000003) — 챗봇 도구 호출 감사
 

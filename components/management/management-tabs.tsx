@@ -11,6 +11,7 @@ const BASE_TABS = [
   { label: '재고', href: '/management/inventory' },
   { label: '생산', href: '/management/production' },
   { label: '인원', href: '/management/personnel' },
+  { label: '재무', href: '/management/finance' },
 ] as const;
 
 /** 관리자에게만 노출되는 탭. */
