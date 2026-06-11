@@ -88,6 +88,7 @@ COLUMN_TO_TAGS = {
     'inventory_entries': ['inventory_entries'],
     'personnel_entries': ['personnel_entries'],
     'finance_entries': ['finance_entries'],
+    'loan_entries': ['loan_entries'],
 }
 
 
