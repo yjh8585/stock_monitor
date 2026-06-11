@@ -115,7 +115,7 @@ export interface FixedVariableRow {
   category2: string;
   /** 재료비 / 노무비 / 경비 / 판매관리비 / 연구개발비 */
   category3: string;
-  /** 계정명 (사무·생산직접·감가상각비 등) */
+  /** 계정명 (사무·생산·감가상각비 등) */
   account: string;
   /** 백만원 단위 */
   value_mwon: number | null;

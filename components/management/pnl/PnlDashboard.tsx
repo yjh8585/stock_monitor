@@ -56,10 +56,10 @@ export default function PnlDashboard({ prepared, costStructure, fixedVariable }:
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-6">
       <CostStructure costStructure={costStructure} />
-      <FixedVariableStructure fixedVariable={fixedVariable} />
       <LazyMount className="min-h-[360px] md:min-h-[460px]">
         <FixedVariableBep fixedVariable={fixedVariable} />
       </LazyMount>
+      <FixedVariableStructure fixedVariable={fixedVariable} />
       <Forecast2026
         monthlyByBasis={monthlyByBasis}
         annualByBasis={annualByBasis}

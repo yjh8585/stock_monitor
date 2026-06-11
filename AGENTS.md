@@ -18,7 +18,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`AGENTS.md` (이 문서)** — _작업 지침·컨벤션·약속_. 코드 작성·DB 변경·커밋 시 따라야 할 규칙. 누락 시 `.githooks/pre-commit`이 차단.
 - **[`Architecture.md`](./Architecture.md)** — _시스템 구조의 단일 진실 공급원_. 테이블·뷰 컬럼/인덱스/트리거, 라우트 맵, 캐싱·배포·자동화 흐름. DB 스키마·구조 상세는 모두 여기로.
 - **[`docs/oem-collection.md`](./docs/oem-collection.md)** — OEM 회사별 탭(`/oem/*`) 수집 로직·gotcha 상세.
-- **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. 라이브러리 선택·유형별 레시피·스타일 토큰(색/폰트/범례/툴팁)·페이지별 카탈로그. 신규 차트 작성 시 참고.
+- **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. 라이브러리 선택·유형별 레시피·스타일 토큰(색/폰트/범례/툴팁)·페이지별 카탈로그. **차트 신규 작성·기존 수정 전 반드시 정독**: 콤보는 §4-F 이중축 영역 분리(막대 `[0,max×2.5]` 하단·선 `[-max×1.5,max×1.1]` 상단)+범례 `LegendRow`(막대 왼→오 → 꺾은선), 경영관리 데이터 레이블 16px(§5). `fontSize`·축 domain·범례 순서 임의 변경 금지.
 
 > AGENTS.md는 "이 약속을 지켜라"만 다룬다. 구조 설명이 길어지면 Architecture.md로 옮기고 여기선 참조한다.
 
@@ -202,6 +202,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - Bash `grep`이 한글/ANSI 섞인 stdout을 binary로 처리해 결과를 숨김 → `grep -a` 강제(파일 내용 검색은 Grep 도구 사용).
 - venv Python stdout 한글 깨짐 → Bash 도구로 실행 시 `PYTHONIOENCODING=utf-8` 프리픽스(예: `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe ...`).
 - **보호 라우트 UI Playwright 검증**: `.env.local` dotenv 로드(`MOBILITY_ID/PW`) + 클릭 후 `wait_for_url(lambda u: '/login' not in u)`(networkidle은 client redirect 전 반환). `LazyMount` 차트(recharts)는 IntersectionObserver라 `mouse.wheel`로 스크롤해야 마운트(`wait_for_selector` 데드락).
+  - **사외비 차트 검증**은 금액 셀 미접근 — 라벨/범례 텍스트만 `evaluate`로 추출(자격증명은 dotenv 환경 로드, stdout 비노출). 픽셀 좌표 측정은 과다 스크롤 시 화면 밖(음수 좌표)으로 오측정 → element `screenshot` 또는 `scrollTo(0,0)` 후 측정.
 
 ## 보안 / 자격증명
 

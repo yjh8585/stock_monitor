@@ -17,7 +17,7 @@ const COST_TREE = [
     label: '매출원가',
     groups: [
       { cat3: '재료비', label: '재료비', accounts: ['재료비'] },
-      { cat3: '노무비', label: '노무비', accounts: ['사무', '생산직접', '생산간접'] },
+      { cat3: '노무비', label: '노무비', accounts: ['사무', '생산'] },
       {
         cat3: '경비',
         label: '경비',
@@ -157,12 +157,17 @@ function buildRowDefs(
     for (const g of node.groups) {
       const accts = g.accounts.filter((a) => !extracted(node.cat2, g.cat3, a));
       if (accts.length === 0) continue; // 그룹 전체가 인건비/상각비로 이동
-      // 계정명을 최신연도 합계(고정+변동) 큰 순으로 내림차순. 동률·무데이터는 원순서 유지(stable sort).
-      accts.sort(
-        (a, b) =>
+      // 계정명을 최신연도 합계(고정+변동) 큰 순으로 내림차순. 단 '기타'는 금액과 무관하게 항상 맨 아래.
+      // 동률·무데이터는 원순서 유지(stable sort).
+      accts.sort((a, b) => {
+        const aEtc = a === '기타';
+        const bEtc = b === '기타';
+        if (aEtc !== bEtc) return aEtc ? 1 : -1;
+        return (
           (totals.get(`${node.cat2}|${g.cat3}|${b}`) ?? 0) -
           (totals.get(`${node.cat2}|${g.cat3}|${a}`) ?? 0)
-      );
+        );
+      });
       const single = accts.length === 1 && accts[0] === g.cat3;
       if (single) {
         const account = accts[0];
@@ -326,7 +331,7 @@ function SegToggle({
 }
 
 /**
- * 2. 전사 고정비·변동비 구조 — 비용 계정을 고정비/변동비로 분해.
+ * 2-2. 전사 고정비·변동비 구조 — 비용 계정을 고정비/변동비로 분해.
  *
  * - 우상단 토글: 기본(분류3까지)/상세(계정명까지), 인건비·상각비(해당 계정을 합쳐 비용 상단 소계로)
  * - 구분 우측에 변동비(%)·고정비(%) 열(기준 변동비율, 계정명 행에만. 고정비% = 1 − 변동비%)
@@ -403,7 +408,7 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold">2-1. 전사 고정비·변동비 구조</h2>
+          <h2 className="text-lg font-semibold">2-2. 전사 고정비·변동비 구조</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             연결 기준 · 단위 백만원 · 합계 = 고정비 + 변동비 · 영업이익 = 매출액 − 비용합계 ·
             변동비(%)는 기준 가정치(고정비% = 1 − 변동비%)
