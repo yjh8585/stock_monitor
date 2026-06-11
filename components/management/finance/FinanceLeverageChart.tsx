@@ -141,7 +141,7 @@ export default function FinanceLeverageChart({ rows }: Props) {
                 dataKey="assets"
                 position="top"
                 formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
-                style={{ fontSize: 13, fill: 'var(--foreground)', fontWeight: 600 }}
+                style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
               />
             </Bar>
             <Bar
@@ -156,7 +156,7 @@ export default function FinanceLeverageChart({ rows }: Props) {
                 dataKey="liabilities"
                 position="top"
                 formatter={(v: unknown) => (typeof v === 'number' ? fmt(v, 0) : '')}
-                style={{ fontSize: 13, fill: 'var(--foreground)', fontWeight: 600 }}
+                style={{ fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 }}
               />
             </Bar>
             <Line
@@ -175,7 +175,7 @@ export default function FinanceLeverageChart({ rows }: Props) {
                 dataKey="debtRatio"
                 position="top"
                 formatter={(v: unknown) => (typeof v === 'number' ? `${fmt(v, 1)}%` : '')}
-                style={{ fontSize: 14, fill: RATIO_COLOR, fontWeight: 600 }}
+                style={{ fontSize: 16, fill: RATIO_COLOR, fontWeight: 600 }}
                 offset={12}
               />
             </Line>
