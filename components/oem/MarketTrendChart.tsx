@@ -15,12 +15,13 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { arrowColor, fmtChange, growthPct } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import {
   DATA_LABEL_STYLE,
   GRID_STROKE_OPACITY,
 } from '@/components/oem-companies/common/chartStyle';
-import { fmtFull, fmtUnits, totalByMonth, ymLabel, ymYear } from './helpers';
+import { findLatestYm, fmtFull, fmtUnits, totalByMonth, ymLabel, ymYear } from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
@@ -28,20 +29,36 @@ interface Props {
 
 type ViewMode = 'year' | 'month';
 
+/** Tooltip: "판매량  1,234,567 대 · YoY ▲5.3%" (전년 동월/동년 대비, YTD 연도는 YoY 생략) */
+function renderSalesTooltip(value: unknown, _name: unknown, item: unknown) {
+  const yoy = (item as { payload?: { yoy?: number | null } })?.payload?.yoy ?? null;
+  return [
+    <span key="sales">
+      {fmtFull(Number(value))} 대
+      {yoy != null && <span className={arrowColor(yoy)}>{` · YoY ${fmtChange(yoy)}`}</span>}
+    </span>,
+    '판매량',
+  ];
+}
+
 /** 글로벌 시장 추이 — 연/월 토글 (기본 연간) */
 export default function MarketTrendChart({ groupMonth }: Props) {
   const [mode, setMode] = useState<ViewMode>('year');
   const h = useChartHeight(200, 240, 280);
 
-  const monthData = useMemo(
-    () =>
-      totalByMonth(groupMonth).map((d) => ({
+  const monthData = useMemo(() => {
+    const totals = totalByMonth(groupMonth);
+    const salesByYm = new Map(totals.map((d) => [d.ym, d.sales]));
+    return totals.map((d) => {
+      const prev = salesByYm.get(d.ym - 100); // 전년 동월 (YYYYMM - 100)
+      return {
         ym: d.ym,
         label: ymLabel(d.ym),
         sales: d.sales,
-      })),
-    [groupMonth]
-  );
+        yoy: prev != null ? growthPct(d.sales, prev) : null,
+      };
+    });
+  }, [groupMonth]);
 
   const yearData = useMemo(() => {
     // 전체 시장 = annualByGroup의 모든 그룹 합계
@@ -50,9 +67,20 @@ export default function MarketTrendChart({ groupMonth }: Props) {
       const y = ymYear(r.year_month);
       yearMap.set(y, (yearMap.get(y) ?? 0) + r.sales);
     }
-    return [...yearMap.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([y, sales]) => ({ year: String(y), sales }));
+    const years = [...yearMap.keys()].sort((a, b) => a - b);
+    const maxYear = years.length ? years[years.length - 1] : 0;
+    // 마지막 연도가 12월 미만(YTD)이면 전년 전체와 비교 시 왜곡 → 해당 연도 YoY 생략
+    const latestYm = findLatestYm(groupMonth, maxYear);
+    const maxYearIsYtd = latestYm != null && latestYm % 100 < 12;
+    return years.map((y) => {
+      const sales = yearMap.get(y)!;
+      const isYtd = y === maxYear && maxYearIsYtd;
+      return {
+        year: String(y),
+        sales,
+        yoy: isYtd ? null : growthPct(sales, yearMap.get(y - 1) ?? null),
+      };
+    });
   }, [groupMonth]);
 
   // 2026년은 YTD라 비교 어려움 → 캡션 안내
@@ -110,7 +138,7 @@ export default function MarketTrendChart({ groupMonth }: Props) {
             <XAxis dataKey="year" className="text-sm" />
             <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
             <Tooltip
-              formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
+              formatter={renderSalesTooltip}
               cursor={{ fill: 'var(--muted)' }}
               contentStyle={TOOLTIP_CONTENT_STYLE}
             />
@@ -138,10 +166,7 @@ export default function MarketTrendChart({ groupMonth }: Props) {
             />
             <XAxis dataKey="label" className="text-sm" tick={{ fontSize: 14 }} interval={5} />
             <YAxis tickFormatter={(v) => fmtUnits(v)} className="text-sm" width={60} />
-            <Tooltip
-              formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
-              contentStyle={TOOLTIP_CONTENT_STYLE}
-            />
+            <Tooltip formatter={renderSalesTooltip} contentStyle={TOOLTIP_CONTENT_STYLE} />
             <Area
               type="monotone"
               dataKey="sales"

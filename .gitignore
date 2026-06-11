@@ -68,9 +68,10 @@ scripts/_marklines_direct_log.json
 .env.local
 .env*.local
 
-# Claude Code 로컬 상태 (사용자 권한 설정 / 스케줄 lock)
+# Claude Code 로컬 상태 (사용자 권한 설정 / 스케줄 lock / 개인 hookify 규칙)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+.claude/hookify.*.local.md
 
 # 로그 / 임시 디렉토리
 *.log

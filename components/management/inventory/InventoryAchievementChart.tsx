@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { OEM_COLORS } from '@/components/charts/palette';
 import { LegendRow } from '@/components/charts/ChartLegend';
@@ -34,6 +35,14 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** 막대 위 값 레이블 — 정수는 그대로, 소수는 첫째 자리까지. */
+function fmtValueLabel(v: unknown): string {
+  if (typeof v !== 'number' || Number.isNaN(v)) return '';
+  return Number.isInteger(v)
+    ? v.toLocaleString('ko-KR')
+    : v.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+}
+
 const BASE = OEM_COLORS[0];
 const PLAN_COLOR = hexToRgba(BASE, 0.4);
 const TARGET_COLOR = '#dc2626';
@@ -41,6 +50,8 @@ const TARGET_COLOR = '#dc2626';
 interface Props {
   points: AchievementMonthPoint[];
   unitLabel?: string;
+  /** 막대 위 값 데이터 레이블 표시 (정수 그대로, 소수 첫째 자리). 미지정 시 목표값 레이블만. */
+  showValueLabels?: boolean;
 }
 
 /**
@@ -48,7 +59,11 @@ interface Props {
  * - 마지막 연도 12월 계획 = 목표값 → 빨간 점선 ReferenceLine + 해당 막대 위 데이터 레이블.
  * - 범례 클릭으로 계획/실적 시리즈 토글.
  */
-export default function InventoryAchievementChart({ points, unitLabel = '억원' }: Props) {
+export default function InventoryAchievementChart({
+  points,
+  unitLabel = '억원',
+  showValueLabels = false,
+}: Props) {
   const h = useChartHeight(360, 440, 520);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const toggle = useCallback((key: string) => {
@@ -95,7 +110,7 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
           contentStyle={TOOLTIP_CONTENT_STYLE}
-          content={<Tip unitLabel={unitLabel} />}
+          content={<Tip unitLabel={unitLabel} precise={showValueLabels} />}
         />
         <Legend
           verticalAlign="top"
@@ -137,7 +152,7 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
           radius={[2, 2, 0, 0]}
           hide={hidden.has('plan')}
         >
-          {targetInfo ? (
+          {targetInfo && !showValueLabels ? (
             <LabelList
               dataKey="plan"
               position="top"
@@ -149,6 +164,14 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
               style={{ fontSize: 16, fill: TARGET_COLOR, fontWeight: 600 }}
             />
           ) : null}
+          {showValueLabels ? (
+            <LabelList
+              dataKey="plan"
+              position="top"
+              formatter={fmtValueLabel}
+              style={{ ...DATA_LABEL_STYLE, fill: 'var(--muted-foreground)' }}
+            />
+          ) : null}
         </Bar>
         <Bar
           dataKey="actual"
@@ -156,7 +179,16 @@ export default function InventoryAchievementChart({ points, unitLabel = '억원'
           fill={BASE}
           radius={[2, 2, 0, 0]}
           hide={hidden.has('actual')}
-        />
+        >
+          {showValueLabels ? (
+            <LabelList
+              dataKey="actual"
+              position="top"
+              formatter={fmtValueLabel}
+              style={DATA_LABEL_STYLE}
+            />
+          ) : null}
+        </Bar>
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -167,14 +199,24 @@ function Tip({
   payload,
   label,
   unitLabel,
+  precise,
 }: {
   active?: boolean;
   payload?: Array<{ payload: AchievementMonthPoint }>;
   label?: string;
   unitLabel: string;
+  /** true면 소수 첫째 자리까지 표시(정수는 그대로). 미지정 시 정수 반올림. */
+  precise?: boolean;
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
+  const fv = (v: number | null) => {
+    if (v === null || Number.isNaN(v)) return '—';
+    if (!precise) return fmt(v, 0);
+    return Number.isInteger(v)
+      ? v.toLocaleString('ko-KR')
+      : v.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+  };
   return (
     <div
       className="rounded-md p-2 text-base"
@@ -182,10 +224,10 @@ function Tip({
     >
       <div className="font-semibold mb-1">{label}</div>
       <div>
-        계획: {fmt(p.plan, 0)} {unitLabel}
+        계획: {fv(p.plan)} {unitLabel}
       </div>
       <div>
-        실적: {fmt(p.actual, 0)} {unitLabel}
+        실적: {fv(p.actual)} {unitLabel}
       </div>
     </div>
   );

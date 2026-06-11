@@ -65,11 +65,14 @@ export default function FinanceCapitalTable({ rows }: Props) {
 function TableRow({ row, periodCount }: { row: CapitalRow; periodCount: number }) {
   const isSection = row.kind === 'section';
   const isTotal = row.kind === 'total';
+  // 자금조달 섹션 시작 → 투하자본 영역과 이중 테두리선으로 명확히 구분
+  const isFinancingStart = row.key === 'financing';
   const rowCls = cn(
     'border-b border-border/60',
     isSection && 'bg-muted/50 font-semibold',
     isTotal && 'border-t-2 border-border bg-muted/30 font-bold',
-    row.kind === 'subtotal' && 'font-semibold'
+    row.kind === 'subtotal' && 'font-semibold',
+    isFinancingStart && 'border-t-4 border-double border-foreground/40'
   );
   const labelPad = row.level === 2 ? 'pl-8' : row.level === 1 ? 'pl-5' : 'pl-2';
   const label = row.subtract ? `${row.label} (차감)` : row.label;

@@ -54,3 +54,31 @@ export interface FinanceDelta {
   abs: number | null;
   pct: number | null;
 }
+
+/* ── 대여금(이인텔리전스) — loan_entries. 단위 = 억원(loan_eok, 환산 없음). ── */
+
+export type LoanKind = '계획' | '실적';
+
+/** loan_entries 테이블 row. */
+export interface LoanRow {
+  period_year: number;
+  period_month: number;
+  kind: LoanKind;
+  loan_eok: number | null;
+}
+
+/** 대여금 KPI 카드 데이터(억원·%). */
+export interface LoanKpis {
+  /** 최신 실적 월 라벨 (예: '2026.07') */
+  latestLabel: string;
+  /** 당월 대여금 = 최신 실적월 값 */
+  currentMonthEok: number | null;
+  /** 누적 대여금 = 전체(2025~) 실적 합 */
+  cumulativeEok: number | null;
+  /** 2026 YTD 실적 누적 (지급율 분자) */
+  ytdActualEok: number | null;
+  /** 2026 동기간 계획 누적 (지급율 분모) */
+  ytdPlanEok: number | null;
+  /** 지급율 = ytdActual / ytdPlan × 100 (%) */
+  paymentRatePct: number | null;
+}

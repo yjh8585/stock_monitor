@@ -898,6 +898,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      loan_entries: {
+        Row: {
+          kind: string;
+          loan_eok: number | null;
+          period_month: number;
+          period_year: number;
+        };
+        Insert: {
+          kind: string;
+          loan_eok?: number | null;
+          period_month: number;
+          period_year: number;
+        };
+        Update: {
+          kind?: string;
+          loan_eok?: number | null;
+          period_month?: number;
+          period_year?: number;
+        };
+        Relationships: [];
+      };
       macro_outlook_notes: {
         Row: {
           created_at: string;

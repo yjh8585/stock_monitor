@@ -8,7 +8,7 @@ import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
-import type { FinanceRow } from './types';
+import type { FinanceRow, LoanRow } from './types';
 
 async function fetchFinanceRows(): Promise<FinanceRow[]> {
   const { data, error } = await confidentialDb
@@ -38,5 +38,35 @@ export async function getFinanceData(): Promise<FinanceData> {
   cacheTag('finance_entries');
 
   const rows = await fetchFinanceRows();
+  return { rows };
+}
+
+async function fetchLoanRows(): Promise<LoanRow[]> {
+  const { data, error } = await confidentialDb
+    .from('loan_entries')
+    .select('*')
+    .order('period_year', { ascending: true })
+    .order('period_month', { ascending: true })
+    .order('kind', { ascending: true });
+  if (error) {
+    logger.error({ err: error }, 'loan_entries 조회 실패');
+    throw new Error(`Supabase loan_entries 조회 실패: ${error.message}`);
+  }
+  return (data ?? []).map((r) => ({
+    ...r,
+    kind: r.kind as LoanRow['kind'],
+  }));
+}
+
+export interface LoanData {
+  rows: LoanRow[];
+}
+
+export async function getLoanData(): Promise<LoanData> {
+  'use cache';
+  cacheLife('days');
+  cacheTag('loan_entries');
+
+  const rows = await fetchLoanRows();
   return { rows };
 }

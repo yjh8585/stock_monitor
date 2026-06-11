@@ -89,7 +89,7 @@
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
-탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **finance** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
+탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **finance** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`·`loan_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
 
 - **pnl** — 손익 16섹션: 1 전사 비용구조, **2-1 손익분기점(BEP) 분석**(콤보차트: 우상단 토글[손익분기점·매출(억원) / 공헌이익률·고정비율(%)] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리[§4-F]·범례 LegendRow. 영업이익률=공헌이익률−고정비율), **2-2 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬['기타'는 맨 아래], 행 클릭 시 노란 강조 토글(다중)), 3 2026 연간 추정, 4~9 전사/부문/고객/제품/고객·제품/실별 실적, 10 수익성 산점(매출 YoY×영업이익률), 11 이익기여도 TOP10/WORST10, 12·13 전년대비 월별, 14 제품·고객 YoY, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
 - **plan** — 계획 대비 실적·달성율 콤보 차트 8종(수주·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 2·3은 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
@@ -112,6 +112,7 @@
 - **finance** — 재무(대차대조표) 차트 2종:
   1. 재무 레버리지 콤보 — 자산·부채 묶은 막대 + 부채비율(=부채/자본 ×100) 표식 꺾은선, 이중축 오프셋으로 막대(하단)·선(상단) 분리. 자회사 필터(전체/미국/상숙, 데이터 기반 자동) — 차트1 전용.
   2. 투하자본·자금조달 표 — 모든 연속 구간 증감(▲파랑/▼빨강). 투하자본 = 순운전자본(채권+재고−채무) + CAPEX(유형+무형), 자금조달 = 현금+증자+차입금. 전체/연결 고정.
+  3. 이인텔리전스 대여금 — KPI 3장(누적/당월/2026 YTD 계획대비 지급율) + 계획 대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적). 소스 `loan_entries`(억원 원본 `loan_eok`).
   - 소스 `finance_entries`. 억원=`value_mwon / 100`. 시점은 과거=연말(annual), 당해연도=최신월(YTD).
 - **companies** — 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, INSERT graceful).
 
@@ -372,6 +373,14 @@ UNIQUE: (source, note_date)
 **PK**: (subsidiary, consolidation, period_year, period_kind, period_month, account)
 **인덱스**: (subsidiary, period_year, period_kind, period_month)
 **RLS**: 정책 없음 (20260610000001) → service_role 전용(`confidentialDb`).
+
+#### `loan_entries` (신규, 20260611000001) — 이인텔리전스 대여금 계획·실적 (사외비)
+
+| period_year | period_month(1~12) | kind('계획'\|'실적') | loan_eok |
+
+엑셀 '이인텔리전스' 시트 적재(`sync_loan.py`). 자회사(이인텔리전스) 대여금. 단위 억원 원본(`loan_eok`, 환산 없음). 공란(미래월·결측월)→null. `/management/finance` 3번 블록: `LoanKpiCards`(누적/당월/2026 YTD 계획대비 지급율) + 계획대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적).
+**PK**: (period_year, period_month, kind)
+**RLS**: 정책 없음 (20260611000001) → service_role 전용(`confidentialDb`).
 
 #### `chat_audit_log` (신규, 20260523000003) — 챗봇 도구 호출 감사
 
