@@ -43,7 +43,16 @@ jobs:
       - name: 장중 분 단위 시세 수집 (KIS, 오늘)
         id: kis_intraday
         if: github.event.schedule == '*/5 0-6 * * 1-5' || github.event_name == 'workflow_dispatch'
-        run: python collect_kis_intraday.py --mode today
+        run: |
+          # 일시적 PostgREST 5xx 등 transient 오류 대비 재시도 (멱등 수집기)
+          attempt=1; max=3
+          until python collect_kis_intraday.py --mode today; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "::error::collect_kis_intraday $max회 모두 실패"; exit 1
+            fi
+            echo "::warning::collect_kis_intraday 시도 $attempt/$max 실패 — $((attempt*30))s 후 재시도"
+            sleep $((attempt*30)); attempt=$((attempt+1))
+          done
 
       # KIS 분봉 실패 시 네이버 fallback (대시보드 단절 방지)
       - name: 장중 분 단위 시세 수집 (네이버 fallback)
@@ -56,13 +65,31 @@ jobs:
       # pykrx는 현재 KRX 응답 변경으로 'Length mismatch' 에러 발생 — 사용 보류
       - name: 장중 잠정 수급 수집 (KIS, 오늘)
         if: always() && (github.event.schedule == '*/5 0-6 * * 1-5' || github.event_name == 'workflow_dispatch')
-        run: python collect_kis_supply.py --mode intraday
+        run: |
+          # 일시적 PostgREST 5xx 등 transient 오류 대비 재시도 (멱등 수집기)
+          attempt=1; max=3
+          until python collect_kis_supply.py --mode intraday; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "::error::collect_kis_supply(intraday) $max회 모두 실패"; exit 1
+            fi
+            echo "::warning::collect_kis_supply(intraday) 시도 $attempt/$max 실패 — $((attempt*30))s 후 재시도"
+            sleep $((attempt*30)); attempt=$((attempt+1))
+          done
 
       # 장 마감 후 일별 수급 확정값 — KIS 1차
       - name: 장마감 후 일별 수급 확정값 수집 (KIS, incremental)
         id: kis_incremental
         if: github.event.schedule == '30 9 * * 1-5' || github.event_name == 'workflow_dispatch'
-        run: python collect_kis_supply.py --mode incremental
+        run: |
+          # 일시적 PostgREST 5xx 등 transient 오류 대비 재시도 (멱등 수집기)
+          attempt=1; max=3
+          until python collect_kis_supply.py --mode incremental; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "::error::collect_kis_supply(incremental) $max회 모두 실패"; exit 1
+            fi
+            echo "::warning::collect_kis_supply(incremental) 시도 $attempt/$max 실패 — $((attempt*30))s 후 재시도"
+            sleep $((attempt*30)); attempt=$((attempt+1))
+          done
 
       # KIS incremental 실패 시 pykrx fallback (pykrx가 회복됐을 때를 위해 유지)
       - name: 장마감 후 일별 수급 확정값 수집 (pykrx fallback)
