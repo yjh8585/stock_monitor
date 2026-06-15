@@ -3,27 +3,28 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { canAccess } from '@/lib/auth/permissions';
+import type { Role } from '@/lib/auth/roles';
 
-/** 모든 인증 사용자에게 노출되는 탭. */
-const BASE_TABS = [
+/** 경영관리 전체 탭. 역할별 접근 가능 여부는 canAccess로 필터링한다. */
+const ALL_TABS = [
   { label: '손익', href: '/management/pnl' },
   { label: '계획', href: '/management/plan' },
   { label: '재고', href: '/management/inventory' },
   { label: '생산', href: '/management/production' },
   { label: '인원', href: '/management/personnel' },
   { label: '재무', href: '/management/finance' },
+  { label: '회사', href: '/management/companies' },
 ] as const;
 
-/** 관리자에게만 노출되는 탭. */
-const ADMIN_TABS = [{ label: '회사', href: '/management/companies' }] as const;
-
 /**
- * 경영관리 탭 네비게이션. isAdmin이 true일 때만 "회사" 탭이 추가된다.
- * usePathname을 쓰므로 client component로 격리 — server인 ManagementLayout에서 prop 전달.
+ * 경영관리 탭 네비게이션.
+ * usePathname을 쓰므로 client component로 격리 — server인 ManagementLayout에서 role 전달.
+ * 탭 노출은 canAccess(role)로 결정: 회사 탭은 admin만, hmobility는 재고·생산·인원만.
  */
-export function ManagementTabs({ isAdmin }: { isAdmin: boolean }) {
+export function ManagementTabs({ role }: { role: Role }) {
   const pathname = usePathname();
-  const tabs = isAdmin ? [...BASE_TABS, ...ADMIN_TABS] : BASE_TABS;
+  const tabs = ALL_TABS.filter((tab) => canAccess(tab.href, role));
 
   return (
     <nav className="mt-3 flex items-center gap-1">

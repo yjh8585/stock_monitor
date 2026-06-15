@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
-import type { Role } from './users';
+import { isRole, type Role } from './roles';
 
 export const SESSION_COOKIE = 'sm_session';
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -33,10 +33,7 @@ export async function decodeSession(
   try {
     const { payload } = await jwtVerify(token, getSecretKey(), { algorithms: ['HS256'] });
     const sub = typeof payload.sub === 'string' ? payload.sub : null;
-    const role =
-      payload.role === 'mobility' || payload.role === 'holdings' || payload.role === 'admin'
-        ? payload.role
-        : null;
+    const role = isRole(payload.role) ? payload.role : null;
     if (!sub || !role) return null;
     return { sub, role };
   } catch {

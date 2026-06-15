@@ -13,6 +13,17 @@ export interface ChatMessage {
 
 export type UserRole = 'admin' | 'editor' | 'viewer' | 'mobility' | string;
 
+/**
+ * 한세그룹(/hansae) 데이터 조회가 차단되는 역할.
+ * /hansae 페이지를 못 보는 역할(mobility·hmobility·guest)은 챗봇에서도 한세 종목 데이터를 막아
+ * UI 권한과 일관성을 유지한다.
+ */
+export const HANSAE_RESTRICTED_ROLES: ReadonlySet<UserRole> = new Set([
+  'mobility',
+  'hmobility',
+  'guest',
+]);
+
 export interface ChatToolCallTrace {
   name: string;
   input: unknown;

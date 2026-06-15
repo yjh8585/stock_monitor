@@ -12,6 +12,7 @@ import {
   getTodayNews,
 } from '@/lib/hansae/data';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { canAccess } from '@/lib/auth/permissions';
 
 // Next.js 16 cacheComponents 하에서는 page 기본이 dynamic이므로
 // `dynamic = 'force-dynamic'` / `revalidate = 0` 옵트인은 불필요(빌드 에러를 유발).
@@ -19,7 +20,7 @@ import { getCurrentUser } from '@/lib/auth/get-current-user';
 
 export default async function HansaePage() {
   const user = await getCurrentUser();
-  if (!user || user.role === 'mobility') {
+  if (!user || !canAccess('/hansae', user.role)) {
     redirect('/');
   }
   return (

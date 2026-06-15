@@ -1,6 +1,7 @@
 import 'server-only';
+import type { Role } from './roles';
 
-export type Role = 'mobility' | 'holdings' | 'admin';
+export type { Role };
 
 export type AuthUser = {
   id: string;
@@ -54,6 +55,30 @@ export function getUsersFromEnv(): AuthUser[] {
     },
   ];
 
+  // 신규 계정(hmobility·guest)은 선택적: 환경변수가 둘 다 있을 때만 추가한다.
+  // 프로덕션(Vercel)에 해당 env가 아직 없어도 기존 3계정 로그인은 깨지지 않는다.
+  const hmobilityId = process.env.HMOBILITY_ID;
+  const hmobilityPw = process.env.HMOBILITY_PW;
+  if (hmobilityId && hmobilityPw) {
+    cachedUsers.push({
+      id: hmobilityId,
+      password: hmobilityPw,
+      role: 'hmobility',
+      displayName: '한세모빌리티(현장)',
+    });
+  }
+
+  const guestId = process.env.GUEST_ID;
+  const guestPw = process.env.GUEST_PW;
+  if (guestId && guestPw) {
+    cachedUsers.push({
+      id: guestId,
+      password: guestPw,
+      role: 'guest',
+      displayName: '게스트',
+    });
+  }
+
   return cachedUsers;
 }
 
@@ -66,6 +91,10 @@ export function getDisplayNameByRole(role: Role): string {
   switch (role) {
     case 'mobility':
       return '한세모빌리티';
+    case 'hmobility':
+      return '한세모빌리티(현장)';
+    case 'guest':
+      return '게스트';
     case 'holdings':
       return '홀딩스';
     case 'admin':
