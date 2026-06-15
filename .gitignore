@@ -9,6 +9,8 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+# 이 프로젝트는 npm 전용(package-lock.json) — 글로벌 pnpm 설정이 만든 stray 락파일 무시(format:check 깨짐 방지)
+pnpm-lock.yaml
 
 # testing
 /coverage
