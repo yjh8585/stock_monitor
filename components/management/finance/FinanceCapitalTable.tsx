@@ -4,6 +4,7 @@ import { Fragment, useMemo } from 'react';
 import { ChartSection } from '@/components/management/plan/_selectors';
 import { buildCapitalTable, computeDelta } from '@/lib/finance/aggregate';
 import type { CapitalRow, FinanceRow } from '@/lib/finance/types';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import { cn } from '@/lib/utils';
 
 function fmt(n: number | null | undefined): string {
@@ -22,6 +23,7 @@ interface Props {
  */
 export default function FinanceCapitalTable({ rows }: Props) {
   const table = useMemo(() => buildCapitalTable(rows, '전체'), [rows]);
+  const { highlighted, rowToggleProps } = useRowHighlight();
 
   if (table.periods.length === 0) {
     return (
@@ -49,7 +51,13 @@ export default function FinanceCapitalTable({ rows }: Props) {
           </thead>
           <tbody>
             {tableRows.map((r) => (
-              <TableRow key={r.key} row={r} periodCount={periods.length} />
+              <TableRow
+                key={r.key}
+                row={r}
+                periodCount={periods.length}
+                isHl={highlighted.has(r.key)}
+                toggleProps={rowToggleProps(r.key, r.label)}
+              />
             ))}
           </tbody>
         </table>
@@ -62,23 +70,35 @@ export default function FinanceCapitalTable({ rows }: Props) {
   );
 }
 
-function TableRow({ row, periodCount }: { row: CapitalRow; periodCount: number }) {
+function TableRow({
+  row,
+  periodCount,
+  isHl,
+  toggleProps,
+}: {
+  row: CapitalRow;
+  periodCount: number;
+  isHl: boolean;
+  toggleProps: ReturnType<ReturnType<typeof useRowHighlight>['rowToggleProps']>;
+}) {
   const isSection = row.kind === 'section';
   const isTotal = row.kind === 'total';
   // 자금조달 섹션 시작 → 투하자본 영역과 이중 테두리선으로 명확히 구분
   const isFinancingStart = row.key === 'financing';
+  // 강조 시 기존 섹션·합계 배경을 노란 음영으로 덮되, 글꼴·테두리는 유지.
   const rowCls = cn(
-    'border-b border-border/60',
-    isSection && 'bg-muted/50 font-semibold',
-    isTotal && 'border-t-2 border-border bg-muted/30 font-bold',
+    'border-b border-border/60 cursor-pointer',
+    isSection && 'font-semibold',
+    isTotal && 'border-t-2 border-border font-bold',
     row.kind === 'subtotal' && 'font-semibold',
-    isFinancingStart && 'border-t-4 border-double border-foreground/40'
+    isFinancingStart && 'border-t-4 border-double border-foreground/40',
+    isHl ? ROW_HIGHLIGHT_CLASS : cn(isSection && 'bg-muted/50', isTotal && 'bg-muted/30')
   );
   const labelPad = row.level === 2 ? 'pl-8' : row.level === 1 ? 'pl-5' : 'pl-2';
   const label = row.subtract ? `${row.label} (차감)` : row.label;
 
   return (
-    <tr className={rowCls}>
+    <tr className={rowCls} {...toggleProps}>
       <td className={cn('py-1.5 pr-2 text-left whitespace-nowrap', labelPad)}>{label}</td>
       {Array.from({ length: periodCount }).map((_, i) => (
         <Fragment key={i}>
