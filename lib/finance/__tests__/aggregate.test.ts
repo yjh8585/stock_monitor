@@ -34,6 +34,7 @@ function dataset(): FinanceRow[] {
     현금성자산: 8000,
     증자: 2000,
     차입: 25000,
+    당기순이익: 5000,
   };
   const monthly2026: Record<string, number> = {
     자산: 120000,
@@ -47,6 +48,7 @@ function dataset(): FinanceRow[] {
     현금성자산: 9000,
     증자: 2000,
     차입: 26000,
+    당기순이익: 7000,
   };
   const rows: FinanceRow[] = [];
   for (const [account, v] of Object.entries(annual2024)) {
@@ -89,7 +91,7 @@ describe('listSubsidiaries', () => {
 describe('buildLeverageSeries', () => {
   it('억원 환산 + 부채비율(부채/자본) + 시점 선택(연말/최신월)', () => {
     const pts = buildLeverageSeries(dataset(), '전체');
-    expect(pts.map((p) => p.periodLabel)).toEqual(['2024', '2026.02']);
+    expect(pts.map((p) => p.periodLabel)).toEqual(['2024.12', '2026.02']);
     expect(pts[0]).toMatchObject({ year: 2024, isYtd: false, assets: 1000, liabilities: 600 });
     expect(pts[0].debtRatio).toBeCloseTo(150, 6); // 600/400*100
     expect(pts[1]).toMatchObject({ year: 2026, isYtd: true, assets: 1200, liabilities: 720 });
@@ -115,7 +117,7 @@ describe('buildCapitalTable', () => {
   const byKey = (k: string): CapitalRow => table.rows.find((r) => r.key === k)!;
 
   it('기간 라벨', () => {
-    expect(table.periods).toEqual(['2024', '2026.02']);
+    expect(table.periods).toEqual(['2024.12', '2026.02']);
   });
   it('순운전자본 = 채권 + 재고 − 채무 (억원)', () => {
     expect(byKey('nwc').values).toEqual([250, 310]); // 200+150-100, 250+180-120
@@ -126,11 +128,28 @@ describe('buildCapitalTable', () => {
   it('투하자본 합계 = 순운전자본 + CAPEX', () => {
     expect(byKey('invested_total').values).toEqual([600, 690]);
   });
-  it('자금조달 합계 = 현금 + 증자 + 차입금', () => {
-    expect(byKey('financing_total').values).toEqual([350, 370]);
+  it('자금조달 합계 = 당기순이익 + 신규증자 + 차입금', () => {
+    // 당기순이익(50/70) + 신규증자(20) + 차입금(250/260)
+    expect(byKey('financing_total').values).toEqual([320, 350]);
+  });
+  it('자금조달 합계 증감 = 당기순이익 + 신규증자 + 차입금증감 (흐름 합산)', () => {
+    // 첫 기간 null, 둘째: 당기순이익 70 + 신규증자 20 + (260−250) = 100
+    expect(byKey('financing_total').deltaValues).toEqual([null, 100]);
+  });
+  it('당기순이익은 흐름 항목(flow)', () => {
+    expect(byKey('netIncome')).toMatchObject({ flow: true, values: [50, 70] });
+  });
+  it('현금(③)은 잔액 한 줄 — 증감은 자동 계산(별도 현금증감 행 없음)', () => {
+    expect(byKey('cash').values).toEqual([80, 90]);
+    expect(table.rows.find((r) => r.key === 'cashDelta')).toBeUndefined();
   });
   it('채무는 차감 플래그 + 자체 값은 양수', () => {
     expect(byKey('payable')).toMatchObject({ subtract: true, values: [100, 120] });
+  });
+  it('신규증자는 흐름 항목(flow) — 증감칸에 당기 신규액 표시', () => {
+    expect(byKey('paidIn').flow).toBe(true);
+    // 다른 상세행은 flow 없음(일반 증감 표시 유지)
+    expect(byKey('cash').flow).toBeUndefined();
   });
   it('섹션 헤더는 값 없음', () => {
     expect(byKey('invested').values).toEqual([null, null]);

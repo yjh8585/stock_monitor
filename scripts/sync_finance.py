@@ -42,10 +42,10 @@ CONFLICT = 'subsidiary,consolidation,period_year,period_kind,period_month,accoun
 HEADER_ROW = 1
 DATA_START = 2
 
-# 1-indexed 컬럼 매핑
-COL = {'year': 1, 'pm': 2, 'cons': 3, 'sub': 4, 'account': 5, 'value': 6}
+# 1-indexed 컬럼 매핑. 6열 '연결재무집계 계정'·8열 '비고'는 보조 정보(참고용) — 미적재.
+COL = {'year': 1, 'pm': 2, 'cons': 3, 'sub': 4, 'account': 5, 'value': 7}
 EXPECTED_HEADERS = {
-  1: '연도', 2: '연간/월', 3: '연결/별도', 4: '자회사', 5: '계정명', 6: '밸류(백만원)',
+  1: '연도', 2: '월', 3: '연결/별도', 4: '자회사', 5: '계정명', 7: '밸류(백만원)',
 }
 BATCH_SIZE = 500
 TOLERANCE_PCT = 0.5  # 자산 == 부채+자본 mismatch 임계
