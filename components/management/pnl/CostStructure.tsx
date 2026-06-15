@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import type { CostStructureRow } from '@/lib/pnl/types';
 
 interface Props {
@@ -110,6 +111,8 @@ function sumAccounts(rows: CostStructureRow[], accounts: readonly string[]): num
  * - 연결 기준만 (별도 비용비율 데이터는 시트에 없음)
  */
 export default function CostStructure({ costStructure }: Props) {
+  const { highlighted, rowToggleProps } = useRowHighlight();
+
   /** 컬럼별 필터링된 row 묶음 + 매출 캐시. 2026 YTD 컬럼은 데이터에서 최대 월 자동 검출. */
   const columns = useMemo(() => {
     return buildColumnDefs(costStructure).map((col) => {
@@ -171,13 +174,18 @@ export default function CostStructure({ costStructure }: Props) {
                   : row.emphasis === 'category'
                     ? 'border-t border-border/60'
                     : '';
-              const rowClass = `${rowBg} ${rowExtra} ${isEmphasized ? 'font-semibold' : ''}`.trim();
+              const isHl = highlighted.has(row.label);
+              const rowClass = `cursor-pointer ${isHl ? ROW_HIGHLIGHT_CLASS : rowBg} ${rowExtra} ${
+                isEmphasized ? 'font-semibold' : ''
+              } ${isHl || isEmphasized ? '' : 'hover:bg-muted/30'}`
+                .replace(/\s+/g, ' ')
+                .trim();
               // sticky 라벨 셀은 자체 배경이 우선해서 행 배경이 가려진다. 명시적으로 동일 톤을 입혀준다.
-              const labelBg = rowBg || 'bg-card';
+              const labelBg = isHl ? ROW_HIGHLIGHT_CLASS : rowBg || 'bg-card';
               const indentStyle = { paddingLeft: `${0.75 + row.depth * 1.25}rem` };
               const isRevenue = row.label === '매출';
               return (
-                <tr key={row.label} className={rowClass}>
+                <tr key={row.label} className={rowClass} {...rowToggleProps(row.label, row.label)}>
                   <td
                     className={`sticky left-0 z-10 ${labelBg} border-r border-border py-2 pr-3 align-middle`}
                     style={indentStyle}

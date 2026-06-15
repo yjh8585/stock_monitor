@@ -1,5 +1,6 @@
 'use client';
 
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import type { TableData } from '@/lib/personnel/types';
 
 /** 숫자 포맷 — null이면 em-dash. */
@@ -17,6 +18,8 @@ interface Props {
  * - 행 type별 강조: detail / subtotal(소계 굵게+배경) / total(전체 합계 강조 배경).
  */
 export default function PersonnelTable({ data }: Props) {
+  const { highlighted, rowToggleProps } = useRowHighlight();
+
   const cellClass = (type: 'detail' | 'subtotal' | 'total') =>
     type === 'total'
       ? 'bg-blue-50 dark:bg-blue-950/40 font-bold'
@@ -82,7 +85,13 @@ export default function PersonnelTable({ data }: Props) {
         </thead>
         <tbody>
           {data.rows.map((r, idx) => (
-            <tr key={idx} className={cellClass(r.type)}>
+            <tr
+              key={idx}
+              className={`cursor-pointer ${
+                highlighted.has(String(idx)) ? ROW_HIGHLIGHT_CLASS : cellClass(r.type)
+              }`}
+              {...rowToggleProps(String(idx), `${r.group} ${r.label}`)}
+            >
               <td
                 className="sticky left-0 z-10 px-3 py-1.5 border-r border-t border-border text-sm whitespace-nowrap"
                 style={{ background: 'inherit' }}

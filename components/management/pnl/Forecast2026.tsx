@@ -5,6 +5,9 @@ import BasisToggle from './BasisToggle';
 import { ytdMonthsOfYear } from '@/lib/pnl/aggregate';
 import type { Basis, CostStructureRow, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
+
+type ToggleProps = ReturnType<ReturnType<typeof useRowHighlight>['rowToggleProps']>;
 
 interface Props {
   /** basis별 월별 원본 — YTD(현재 N월까지) 합산용 */
@@ -146,6 +149,7 @@ interface CostAdjustment {
  */
 export default function Forecast2026({ monthlyByBasis, annualByBasis, costStructure }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
+  const { highlighted, rowToggleProps } = useRowHighlight();
 
   const calc = useMemo(() => {
     // 2025 연간 합계 — period_month=0 (consolidated) 또는 standalone 월별 derive
@@ -379,12 +383,16 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
               rev={calc.annualizedRev}
               op={calc.annualizedOp}
               emphasized
+              isHl={highlighted.has('est-1')}
+              toggleProps={rowToggleProps('est-1', '① YTD 연환산')}
             />
             <Row
               label="② YoY 추세 적용 (매출 YoY를 양 지표에 적용)"
               rev={calc.yoyApplyRev}
               op={calc.yoyApplyOp}
               emphasized
+              isHl={highlighted.has('est-2')}
+              toggleProps={rowToggleProps('est-2', '② YoY 추세 적용')}
             />
             <Row
               label="③ 원타임 보정 추정 (CAGR + 정상 영업이익률)"
@@ -398,8 +406,17 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
                     ? '2023·2024 비용구조 데이터 부족'
                     : undefined
               }
+              isHl={highlighted.has('est-3')}
+              toggleProps={rowToggleProps('est-3', '③ 원타임 보정 추정')}
             />
-            <tr className="border-t-2 border-blue-500/40 dark:border-blue-400/40 bg-blue-100/60 dark:bg-blue-900/40">
+            <tr
+              className={`border-t-2 border-blue-500/40 dark:border-blue-400/40 cursor-pointer ${
+                highlighted.has('est-total')
+                  ? ROW_HIGHLIGHT_CLASS
+                  : 'bg-blue-100/60 dark:bg-blue-900/40'
+              }`}
+              {...rowToggleProps('est-total', '추정치')}
+            >
               <td className="px-3 py-2 font-bold">
                 추정치 ({adjAvailable ? '①·②·③ 평균' : '①·② 평균'})
               </td>
@@ -435,18 +452,29 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
               label="2025 연간 실적"
               rev={calc.actual2025.revenue}
               op={calc.actual2025.op_income}
+              isHl={highlighted.has('evi-actual2025')}
+              toggleProps={rowToggleProps('evi-actual2025', '2025 연간 실적')}
             />
             <Row
               label={`2025 1~${calc.ytdN}월`}
               rev={calc.ytd_2025.revenue}
               op={calc.ytd_2025.op_income}
+              isHl={highlighted.has('evi-ytd2025')}
+              toggleProps={rowToggleProps('evi-ytd2025', `2025 1~${calc.ytdN}월`)}
             />
             <Row
               label={`2026 1~${calc.ytdN}월`}
               rev={calc.ytd_2026.revenue}
               op={calc.ytd_2026.op_income}
+              isHl={highlighted.has('evi-ytd2026')}
+              toggleProps={rowToggleProps('evi-ytd2026', `2026 1~${calc.ytdN}월`)}
             />
-            <tr className="border-t border-border/60 bg-muted/20">
+            <tr
+              className={`border-t border-border/60 cursor-pointer ${
+                highlighted.has('evi-yoy') ? ROW_HIGHLIGHT_CLASS : 'bg-muted/20'
+              }`}
+              {...rowToggleProps('evi-yoy', `1~${calc.ytdN}월 YoY`)}
+            >
               <td className="px-3 py-2 font-medium">1~{calc.ytdN}월 YoY</td>
               <td className={`px-3 py-2 text-right tabular-nums ${neg(calc.yoyRev)}`}>
                 {fmtPct(calc.yoyRev)}
@@ -476,7 +504,13 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
             </thead>
             <tbody>
               {calc.costAdjustments.map((c) => (
-                <tr key={c.label} className="border-b border-border/40">
+                <tr
+                  key={c.label}
+                  className={`border-b border-border/40 cursor-pointer ${
+                    highlighted.has(`ot-${c.label}`) ? ROW_HIGHLIGHT_CLASS : 'hover:bg-muted/30'
+                  }`}
+                  {...rowToggleProps(`ot-${c.label}`, c.label)}
+                >
                   <td className="px-3 py-1.5">{c.label}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{fmtRatio(c.ratio23)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{fmtRatio(c.ratio24)}</td>
@@ -505,7 +539,12 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
                   </td>
                 </tr>
               ))}
-              <tr className="border-t-2 border-border bg-muted/20 font-semibold">
+              <tr
+                className={`border-t-2 border-border font-semibold cursor-pointer ${
+                  highlighted.has('ot-total') ? ROW_HIGHLIGHT_CLASS : 'bg-muted/20'
+                }`}
+                {...rowToggleProps('ot-total', '총 원타임 가산')}
+              >
                 <td className="px-3 py-1.5" colSpan={5}>
                   총 원타임 가산 (영업이익 정상화 보정액)
                 </td>
@@ -521,7 +560,14 @@ export default function Forecast2026({ monthlyByBasis, annualByBasis, costStruct
                   {fmtSignedMillion(calc.totalOneTime)}
                 </td>
               </tr>
-              <tr className="bg-blue-50 dark:bg-blue-950/30 font-semibold">
+              <tr
+                className={`font-semibold cursor-pointer ${
+                  highlighted.has('ot-normalized')
+                    ? ROW_HIGHLIGHT_CLASS
+                    : 'bg-blue-50 dark:bg-blue-950/30'
+                }`}
+                {...rowToggleProps('ot-normalized', '정상화 2025 영업이익')}
+              >
                 <td className="px-3 py-1.5" colSpan={5}>
                   정상화 2025 영업이익 / 영업이익률
                 </td>
@@ -592,16 +638,25 @@ function Row({
   op,
   emphasized,
   note,
+  isHl,
+  toggleProps,
 }: {
   label: string;
   rev: number | null;
   op: number | null;
   emphasized?: boolean;
   note?: string;
+  isHl: boolean;
+  toggleProps: ToggleProps;
 }) {
   const cls = emphasized ? 'font-medium' : '';
   return (
-    <tr className={`border-b border-border/40 ${emphasized ? 'bg-muted/10' : ''}`}>
+    <tr
+      className={`border-b border-border/40 cursor-pointer ${
+        isHl ? ROW_HIGHLIGHT_CLASS : emphasized ? 'bg-muted/10' : 'hover:bg-muted/30'
+      }`}
+      {...toggleProps}
+    >
       <td className={`px-3 py-2 ${cls}`}>
         {label}
         {note && <span className="ml-2 text-xs text-muted-foreground">({note})</span>}

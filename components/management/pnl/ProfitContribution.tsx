@@ -6,6 +6,9 @@ import YearSelect from './YearSelect';
 import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
+
+type ToggleProps = ReturnType<ReturnType<typeof useRowHighlight>['rowToggleProps']>;
 
 interface Props {
   annualEntries: PnlEntry[];
@@ -139,6 +142,7 @@ interface ContribTableProps {
  * 이미지 레이아웃: 고객 | 제품 | 매출 | 영업이익 | 이익률.
  */
 function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: ContribTableProps) {
+  const { highlighted, rowToggleProps } = useRowHighlight();
   return (
     <div className="rounded-md border border-border p-3">
       <div className="font-semibold mb-2">{title}</div>
@@ -154,12 +158,33 @@ function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: Contr
             </tr>
           </thead>
           <tbody>
-            <SummaryRow label1="전사" label2="합계" agg={corp} tone="corp" />
-            <SummaryRow label1={summaryLabel} label2="합계" agg={groupSum} tone="group" />
+            <SummaryRow
+              label1="전사"
+              label2="합계"
+              agg={corp}
+              tone="corp"
+              isHl={highlighted.has('corp')}
+              toggleProps={rowToggleProps('corp', '전사 합계')}
+            />
+            <SummaryRow
+              label1={summaryLabel}
+              label2="합계"
+              agg={groupSum}
+              tone="group"
+              isHl={highlighted.has('group')}
+              toggleProps={rowToggleProps('group', `${summaryLabel} 합계`)}
+            />
             {rows.map((r) => {
               const margin = marginOf(r.revenue, r.op_income);
+              const isHl = highlighted.has(r.key);
               return (
-                <tr key={r.key} className="border-b border-border/50">
+                <tr
+                  key={r.key}
+                  className={`border-b border-border/50 cursor-pointer ${
+                    isHl ? ROW_HIGHLIGHT_CLASS : 'hover:bg-muted/30'
+                  }`}
+                  {...rowToggleProps(r.key, `${r.dims.customer || '—'} ${r.dims.product || '—'}`)}
+                >
                   <td className="py-1.5 px-2">{r.dims.customer || '—'}</td>
                   <td className="py-1.5 px-2">{r.dims.product || '—'}</td>
                   <td className="text-right py-1.5 px-2">{fmt(r.revenue)}</td>
@@ -177,7 +202,14 @@ function ContribTable({ title, summaryLabel, rows, corp, groupSum, rest }: Contr
                 </td>
               </tr>
             ) : (
-              <SummaryRow label1="나머지" label2="합계" agg={rest} tone="rest" />
+              <SummaryRow
+                label1="나머지"
+                label2="합계"
+                agg={rest}
+                tone="rest"
+                isHl={highlighted.has('rest')}
+                toggleProps={rowToggleProps('rest', '나머지 합계')}
+              />
             )}
           </tbody>
         </table>
@@ -191,12 +223,16 @@ function SummaryRow({
   label2,
   agg,
   tone,
+  isHl,
+  toggleProps,
 }: {
   label1: string;
   label2: string;
   agg: SummaryAgg;
   /** 'corp' = 전사 진한 파랑, 'group' = TOP10/WORST10 연한 파랑, 'rest' = 나머지 회색 */
   tone: 'corp' | 'group' | 'rest';
+  isHl: boolean;
+  toggleProps: ToggleProps;
 }) {
   const margin = marginOf(agg.revenue, agg.op_income);
   // 11번 차트(YoyMonthlyCompare)의 blue-600 solid / blue-600 0.45 톤을 표 행 음영에 매핑.
@@ -208,7 +244,10 @@ function SummaryRow({
         : 'bg-slate-200 dark:bg-slate-700/60';
   const textCls = tone === 'rest' ? 'font-medium text-muted-foreground' : 'font-bold';
   return (
-    <tr className={`border-b border-border/50 ${bgCls}`}>
+    <tr
+      className={`border-b border-border/50 cursor-pointer ${isHl ? ROW_HIGHLIGHT_CLASS : bgCls}`}
+      {...toggleProps}
+    >
       <td className={`py-1.5 px-2 ${textCls}`}>{label1}</td>
       <td className={`py-1.5 px-2 ${textCls}`}>{label2}</td>
       <td className={`text-right py-1.5 px-2 ${textCls}`}>{fmt(agg.revenue)}</td>

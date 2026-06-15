@@ -18,6 +18,7 @@ import { aggregateBy, prepareYoYView } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 import { useChartHeight } from '@/lib/useChartHeight';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 
 interface Props {
   /** 연간 derive 후 (집계용) */
@@ -205,6 +206,8 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
 
   // 모달 상태
   const [openCell, setOpenCell] = useState<{ product: string; customer: string } | null>(null);
+  // 행 강조 — 데이터 셀은 모달을 열어야 하므로 좌측 제품명 셀 클릭으로만 토글.
+  const { highlighted, toggle } = useRowHighlight();
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -253,27 +256,42 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p}>
-                    <td
-                      className="sticky left-0 z-[5] bg-card p-2 border-b border-border/50 font-medium whitespace-nowrap"
-                      title={p}
-                    >
-                      {p}
-                    </td>
-                    {customers.map((c) => {
-                      const cell = cellMap.get(`${p}|${c}`);
-                      return (
-                        <HeatCell
-                          key={c}
-                          cell={cell}
-                          maxAbsYoy={maxAbsYoy}
-                          onClick={() => cell && setOpenCell({ product: p, customer: c })}
-                        />
-                      );
-                    })}
-                  </tr>
-                ))}
+                {products.map((p) => {
+                  const isHl = highlighted.has(p);
+                  return (
+                    <tr key={p} className={isHl ? ROW_HIGHLIGHT_CLASS : undefined}>
+                      <td
+                        className={`sticky left-0 z-[5] p-2 border-b border-border/50 font-medium whitespace-nowrap cursor-pointer ${
+                          isHl ? ROW_HIGHLIGHT_CLASS : 'bg-card hover:bg-muted/40'
+                        }`}
+                        title={`${p} — 클릭으로 행 강조 토글`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isHl}
+                        onClick={() => toggle(p)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggle(p);
+                          }
+                        }}
+                      >
+                        {p}
+                      </td>
+                      {customers.map((c) => {
+                        const cell = cellMap.get(`${p}|${c}`);
+                        return (
+                          <HeatCell
+                            key={c}
+                            cell={cell}
+                            maxAbsYoy={maxAbsYoy}
+                            onClick={() => cell && setOpenCell({ product: p, customer: c })}
+                          />
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

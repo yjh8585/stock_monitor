@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import { COMPANY_TYPES, COUNTRIES, DATA_SOURCES } from '@/lib/companies/schemas';
 import type { CompanyListItem } from '@/lib/companies/source';
 
@@ -23,6 +24,7 @@ export function CompanyList({ companies }: Props) {
   const [country, setCountry] = useState<string>('');
   const [dataSource, setDataSource] = useState<string>('');
   const [companyType, setCompanyType] = useState<string>('');
+  const { highlighted, rowToggleProps } = useRowHighlight();
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -102,7 +104,14 @@ export function CompanyList({ companies }: Props) {
           </thead>
           <tbody>
             {filtered.map((c) => (
-              <tr key={c.id} className="border-border hover:bg-muted/30 border-t">
+              <tr
+                key={c.id}
+                className={cn(
+                  'border-border cursor-pointer border-t',
+                  highlighted.has(c.id) ? ROW_HIGHLIGHT_CLASS : 'hover:bg-muted/30'
+                )}
+                {...rowToggleProps(c.id, c.name_kr ?? c.ticker)}
+              >
                 <td className="px-2 py-1 font-mono">{c.ticker}</td>
                 <td className="px-2 py-1">{c.name_kr}</td>
                 <td className="text-muted-foreground px-2 py-1">{c.name}</td>
