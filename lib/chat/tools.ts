@@ -5,18 +5,18 @@
  *   1) 각 도구는 화이트리스트된 정형 인자만 받는다 (LLM 임의 SQL 금지).
  *   2) 실행은 anon Supabase 클라이언트로만 (RLS로 이미 보호된 공개 테이블).
  *   3) LIMIT 강제 (max 50).
- *   4) mobility 역할은 hansae 관련 데이터 차단.
+ *   4) 한세그룹 미접근 역할(mobility·hmobility·guest)은 hansae 관련 데이터 차단.
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
-import type { UserRole } from './types';
+import { HANSAE_RESTRICTED_ROLES, type UserRole } from './types';
 
 const MAX_LIMIT = 50;
 const HANSAE_TICKERS = ['016450', '105630', '069640', '053280'];
 
-function isMobilityRestricted(role: UserRole, ticker?: string | null): boolean {
-  return role === 'mobility' && !!ticker && HANSAE_TICKERS.includes(ticker);
+function isHansaeRestricted(role: UserRole, ticker?: string | null): boolean {
+  return HANSAE_RESTRICTED_ROLES.has(role) && !!ticker && HANSAE_TICKERS.includes(ticker);
 }
 
 // ── Anthropic Tool 정의 (LLM에 노출) ──────────────────────────────────────
@@ -214,8 +214,8 @@ async function runQueryCompanies(input: unknown): Promise<unknown> {
 
 async function runQueryFinancials(input: unknown, role: UserRole): Promise<unknown> {
   const args = QueryFinancialsInput.parse(input);
-  if (isMobilityRestricted(role, args.company_ticker)) {
-    return { error: 'mobility 역할은 한세 그룹 재무 조회 권한 없음' };
+  if (isHansaeRestricted(role, args.company_ticker)) {
+    return { error: '해당 역할은 한세 그룹 재무 조회 권한 없음' };
   }
   const sb = createSupabaseAnonClient();
   const { data: c, error: cErr } = await sb
@@ -247,8 +247,8 @@ async function runQueryFinancials(input: unknown, role: UserRole): Promise<unkno
 
 async function runQueryStockPrices(input: unknown, role: UserRole): Promise<unknown> {
   const args = QueryStockPricesInput.parse(input);
-  if (isMobilityRestricted(role, args.ticker)) {
-    return { error: 'mobility 역할은 한세 그룹 주가 조회 권한 없음' };
+  if (isHansaeRestricted(role, args.ticker)) {
+    return { error: '해당 역할은 한세 그룹 주가 조회 권한 없음' };
   }
   const sb = createSupabaseAnonClient();
   const { data: c } = await sb
@@ -274,8 +274,8 @@ async function runQueryNews(input: unknown, role: UserRole): Promise<unknown> {
   const sb = createSupabaseAnonClient();
   let companyId: string | null = null;
   if (args.ticker) {
-    if (isMobilityRestricted(role, args.ticker)) {
-      return { error: 'mobility 역할은 한세 그룹 뉴스 조회 권한 없음' };
+    if (isHansaeRestricted(role, args.ticker)) {
+      return { error: '해당 역할은 한세 그룹 뉴스 조회 권한 없음' };
     }
     const { data: c } = await sb
       .from('companies')

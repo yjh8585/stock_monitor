@@ -7,7 +7,7 @@
  * 사외비 차단 안내는 sensitive-policy.ts의 BLOCKED_TOPICS에서 자동 inject.
  */
 import { buildBlockedTopicsInstruction } from './sensitive-policy';
-import type { UserRole } from './types';
+import { HANSAE_RESTRICTED_ROLES, type UserRole } from './types';
 
 function buildRoleAndTone(role: UserRole): string {
   return [
@@ -55,15 +55,15 @@ const ROUTE_MAP = `## 페이지 라우트 맵
 - /domestic — 국내 자동차 421개사 + 매크로
 - /oem — OEM 그룹별 판매 + 모델 outlook
 - /parts-top100 — 부품사 TOP100 (글로벌)
-- /hansae — 한세그룹 (mobility 역할은 접근 제한)
+- /hansae — 한세그룹 (mobility·hmobility·guest 역할은 접근 제한)
 - /etc — 해운·철강·환율·매크로·두바이유
 - /reports — 보고서 + YouTube 요약`;
 
-const MOBILITY_RESTRICTION = `\n\n## 권한 제한
-사용자 역할이 'mobility'이면 한세그룹(/hansae) 데이터는 차단됩니다. 한세 관련 질문이면 거절하세요.`;
+const HANSAE_RESTRICTION = `\n\n## 권한 제한
+사용자 역할이 한세그룹 미접근 역할(mobility·hmobility·guest)이면 한세그룹(/hansae) 데이터는 차단됩니다. 한세 관련 질문이면 거절하세요.`;
 
 export function buildSystemPrompt(role: UserRole): string {
   const parts = [buildRoleAndTone(role), DATA_CATALOG, ROUTE_MAP];
-  if (role === 'mobility') parts.push(MOBILITY_RESTRICTION);
+  if (HANSAE_RESTRICTED_ROLES.has(role)) parts.push(HANSAE_RESTRICTION);
   return parts.join('\n\n');
 }
