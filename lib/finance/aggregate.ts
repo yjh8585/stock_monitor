@@ -41,7 +41,8 @@ function selectPeriods(rows: readonly FinanceRow[]): PeriodSel[] {
       year: y,
       kind: 'annual',
       month: annual[0].period_month,
-      label: `${y}`,
+      // 연말 스냅샷이지만 12월 시점임을 명시 (당해연도 최신월 'YYYY.MM'과 일관).
+      label: `${y}.${pad2(annual[0].period_month)}`,
       isYtd: false,
     });
   }
@@ -125,8 +126,10 @@ export function buildLeverageSeries(
  *    │   유형자산 · 무형자산
  *    └ 투하자본 합계 = 순운전자본 + CAPEX
  *   자금조달
- *      현금 · 증자 · 차입금
- *      자금조달 합계 = 현금 + 증자 + 차입금
+ *      당기순이익 · 신규증자 · 차입금  (당기순이익·신규증자는 당기 발생액 = 흐름)
+ *      자금조달 합계 = 당기순이익 + 신규증자 + 차입금
+ *   현금 (신규 섹션)
+ *      현금 — 잔액(값 칸) + 기간 증감(증감 칸)을 한 줄에
  */
 export function buildCapitalTable(rows: readonly FinanceRow[], subsidiary = '전체'): CapitalTable {
   const sub = rows.filter((r) => r.subsidiary === subsidiary);
@@ -140,6 +143,7 @@ export function buildCapitalTable(rows: readonly FinanceRow[], subsidiary = '전
   const tangible = seriesFor(sub, periods, '유형자산');
   const intangible = seriesFor(sub, periods, '무형자산');
   const cash = seriesFor(sub, periods, '현금성자산');
+  const netIncome = seriesFor(sub, periods, '당기순이익');
   const paidIn = seriesFor(sub, periods, '증자');
   const debt = seriesFor(sub, periods, '차입');
 
@@ -167,15 +171,30 @@ export function buildCapitalTable(rows: readonly FinanceRow[], subsidiary = '전
   );
   const financing = combine(
     [
-      { series: cash, sign: 1 },
+      { series: netIncome, sign: 1 },
       { series: paidIn, sign: 1 },
       { series: debt, sign: 1 },
     ],
     n
   );
+  // 자금조달 합계 증감 = 당기순이익 + 신규증자(둘 다 흐름 = 당기 발생액) + 차입금 증감 → 증감열이 세로로 합산.
+  //   = (financing[i] − financing[i−1]) + netIncome[i−1] + paidIn[i−1]  (전기 흐름값을 보정).
+  const financingDelta: (number | null)[] = periods.map((_, i) => {
+    if (i === 0) return null;
+    const cur = financing[i];
+    const prev = financing[i - 1];
+    if (cur === null || prev === null) return null;
+    return cur - prev + (netIncome[i - 1] ?? 0) + (paidIn[i - 1] ?? 0);
+  });
 
   const tableRows: CapitalRow[] = [
-    { key: 'invested', label: '투하자본', level: 0, kind: 'section', values: Array(n).fill(null) },
+    {
+      key: 'invested',
+      label: '① 투하자본',
+      level: 0,
+      kind: 'section',
+      values: Array(n).fill(null),
+    },
     { key: 'nwc', label: '순운전자본', level: 1, kind: 'subtotal', values: nwc },
     { key: 'receivable', label: '채권', level: 2, kind: 'detail', values: receivable },
     { key: 'inventory', label: '재고', level: 2, kind: 'detail', values: inventory },
@@ -184,11 +203,33 @@ export function buildCapitalTable(rows: readonly FinanceRow[], subsidiary = '전
     { key: 'tangible', label: '유형자산', level: 2, kind: 'detail', values: tangible },
     { key: 'intangible', label: '무형자산', level: 2, kind: 'detail', values: intangible },
     { key: 'invested_total', label: '투하자본 합계', level: 0, kind: 'total', values: invested },
-    { key: 'financing', label: '자금조달', level: 0, kind: 'section', values: Array(n).fill(null) },
-    { key: 'cash', label: '현금', level: 1, kind: 'detail', values: cash },
-    { key: 'paidIn', label: '증자', level: 1, kind: 'detail', values: paidIn },
+    {
+      key: 'financing',
+      label: '② 자금조달',
+      level: 0,
+      kind: 'section',
+      values: Array(n).fill(null),
+    },
+    {
+      key: 'netIncome',
+      label: '당기순이익',
+      level: 1,
+      kind: 'detail',
+      flow: true,
+      values: netIncome,
+    },
+    { key: 'paidIn', label: '신규증자', level: 1, kind: 'detail', flow: true, values: paidIn },
     { key: 'debt', label: '차입금', level: 1, kind: 'detail', values: debt },
-    { key: 'financing_total', label: '자금조달 합계', level: 0, kind: 'total', values: financing },
+    {
+      key: 'financing_total',
+      label: '자금조달 합계',
+      level: 0,
+      kind: 'total',
+      deltaValues: financingDelta,
+      values: financing,
+    },
+    // ③ 현금: 잔액(값 칸) + 기간 증감(증감 칸)을 한 줄에.
+    { key: 'cash', label: '③ 현금', level: 0, kind: 'subtotal', values: cash },
   ];
 
   return { periods: periods.map((p) => p.label), rows: tableRows };

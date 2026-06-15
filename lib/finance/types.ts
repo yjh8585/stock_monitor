@@ -38,6 +38,10 @@ export interface CapitalRow {
   kind: 'section' | 'subtotal' | 'total' | 'detail';
   /** 차감 항목(채무) — 라벨에 (차감) 표시, 순운전자본에서 차감 */
   subtract?: boolean;
+  /** 흐름(flow) 항목 — 증감열에 기간 간 차이 대신 당기 신규 발생액(+)을 표시 (신규증자). */
+  flow?: boolean;
+  /** 증감열 값 직접 지정 (자금조달 합계: 흐름 항목을 합산). 미지정 시 curr−prev 자동 계산. */
+  deltaValues?: (number | null)[];
   /** 기간별 값 (periods와 동일 순서, 억원). 섹션 헤더는 전부 null. */
   values: (number | null)[];
 }
