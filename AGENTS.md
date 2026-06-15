@@ -101,7 +101,7 @@ npm run format          # 자동 포맷
 - React 훅: `useChartHeight`, `useIsMobile`
 - `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
   - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — `confidentialDb.from('pnl_entries'|'pnl_cost_structure'|'pnl_fixed_variable'|'pnl_plan'|'chat_audit_log'|'inventory_entries'|'personnel_entries'|'finance_entries'|'loan_entries')...`, TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅)
-- `lib/auth/` — 세션·권한·사용자 (`proxy.ts`가 사용). 새 라우트 권한은 `permissions.ts`에 등록.
+- `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT(server-only 아님 → `proxy.ts`/`session.ts`에서 import 가능). **역할 추가 = `roles.ts` `ROLES` + `users.ts`(env 계정·exhaustive `getDisplayNameByRole`) + `permissions.ts`(`canAccess`·landing 헬퍼) 모두 갱신**(decode 화이트리스트는 `isRole`로 자동 — 누락 시 세션 거부→로그인 무한 `/login`). 계정은 역할별 **distinct env 키**(중복 키는 dotenv가 마지막 값만 채택→로그인 깨짐), 신규 계정은 optional(env 둘 다 있을 때만 추가 → Vercel env 미설정도 기존 로그인 유지). 접근 불가 역할 추가 시 랜딩(`/`·`/management`)은 **role-aware redirect**로(고정 redirect는 무한 루프). 새 라우트 권한은 `permissions.ts`.
 - **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만):
   - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.
   - `lib/pnl/`(사외비 — `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`. `getFixedVariable()`는 고정비/변동비 비용구조 표 `FixedVariableStructure` 소스), `lib/plan/`(사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX), `lib/inventory/`(사외비 — `inventory_entries` + `aggregate.ts` pure 빌더 8종 vitest 25 tests, USD→억원 환산 `value × fx_rate / 100`), `lib/personnel/`(사외비 — `personnel_entries` + `aggregate.ts` pure 빌더 5종 vitest 14 tests. 시점은 `period_date`(과거=연말, 현재=최신)), `lib/finance/`(사외비 — `finance_entries` 대차대조표 + `aggregate.ts` pure 빌더 3종 vitest 17 tests. 억원=`value_mwon/100`, 시점은 과거=연말(annual)·당해=최신월(YTD). + `loan_entries` 대여금(이인텔리전스) — `loan-aggregate.ts` `buildLoanAchievement`/`buildLoanKpis`, 억원 원본 `loan_eok`, 차트는 재고 `InventoryAchievementChart` 재사용), `lib/related-stocks/`, `lib/domestic/`, `lib/parts-top100/`, `lib/companies/`(마스터 — `/management/companies`·`/api/companies` 입구, anon client) — `source.ts` 패턴
@@ -198,11 +198,12 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - 셸은 PowerShell 5.1. `&&` 미지원 → `;` 또는 `if ($?) { ... }`.
 - 기본 인코딩 UTF-16 LE BOM. 외부 도구 입력은 `-Encoding utf8` 명시.
 - Codex CLI는 stdin hang 회피로 `"" | codex ... --output-last-message <file>` 패턴(메모리 `reference_codex_cli_powershell.md`).
-- `master`에 백업 봇이 매일 커밋(`chore(backup): daily JSONB snapshot`) → push 거부 시 `git -c rebase.autoStash=true pull --rebase origin master` 후 재push.
+- `master`에 백업 봇이 매일 커밋(`chore(backup): daily JSONB snapshot`) → push 거부 시 `git -c rebase.autoStash=true pull --rebase origin master` 후 재push. 파이프(`... | tail`)는 앞 명령 exit code를 가림 → `git push` 실패 후 `|| (rebase)` 분기가 안 탐. push는 파이프 없이 실행하거나 종료코드 별도 확인.
 - Bash `grep`이 한글/ANSI 섞인 stdout을 binary로 처리해 결과를 숨김 → `grep -a` 강제(파일 내용 검색은 Grep 도구 사용).
 - venv Python stdout 한글 깨짐 → Bash 도구로 실행 시 `PYTHONIOENCODING=utf-8` 프리픽스(예: `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe ...`).
 - **보호 라우트 UI Playwright 검증**: `.env.local` dotenv 로드(`MOBILITY_ID/PW`) + 클릭 후 `wait_for_url(lambda u: '/login' not in u)`(networkidle은 client redirect 전 반환). `LazyMount` 차트(recharts)는 IntersectionObserver라 `mouse.wheel`로 스크롤해야 마운트(`wait_for_selector` 데드락).
   - **사외비 차트 검증**은 금액 셀 미접근 — 라벨/범례 텍스트만 `evaluate`로 추출(자격증명은 dotenv 환경 로드, stdout 비노출). 픽셀 좌표 측정은 과다 스크롤 시 화면 밖(음수 좌표)으로 오측정 → element `screenshot` 또는 `scrollTo(0,0)` 후 측정. recharts SVG `<text>`는 `inner_text()` 불가(HTMLElement 아님) → `evaluate`로 `textContent`. 스타일·구조 검증은 `getComputedStyle`(fontSize·border 등)·소수점 유무 boolean·요소 개수만 추출(금액값 미출력).
+  - **로그인 계정 검증**: `getUsersFromEnv`는 모듈 레벨 캐시 → `.env.local`(계정) 변경 후 **dev 서버 재시작**(미반영 의심 시 새 포트로 fresh 기동). 로그인 redirect 체인(`/login`→`/`→`/management`→탭)은 200(RSC client redirect)이라 `wait_for_url(...'/login' not in u)`가 중간 `/`에서 조기 종료 → **최종 기대 경로까지** 대기.
 
 ## 보안 / 자격증명
 
