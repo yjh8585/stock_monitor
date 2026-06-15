@@ -98,7 +98,7 @@ npm run format          # 자동 포맷
 도메인 모듈 + 공용 유틸. 각 하위 폴더는 응집된 책임 단위.
 
 - 공용 유틸: `format`, `utils`, `logger`, `types`, `database.types`(Supabase 생성), `series`, `stockPrices`, `compareData`, `customerLogos`, `financialFormatter` 등
-- React 훅: `useChartHeight`, `useIsMobile`
+- React 훅: `useChartHeight`, `useIsMobile`, `useRowHighlight`(표 행 클릭→노란 음영 토글 공용 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. 신규 표 강조는 인라인 재구현 말고 이 훅 재사용; sticky 셀은 행 bg를 명시적으로 덮어야 따라옴)
 - `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
   - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — `confidentialDb.from('pnl_entries'|'pnl_cost_structure'|'pnl_fixed_variable'|'pnl_plan'|'chat_audit_log'|'inventory_entries'|'personnel_entries'|'finance_entries'|'loan_entries')...`, TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅)
 - `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT(server-only 아님 → `proxy.ts`/`session.ts`에서 import 가능). **역할 추가 = `roles.ts` `ROLES` + `users.ts`(env 계정·exhaustive `getDisplayNameByRole`) + `permissions.ts`(`canAccess`·landing 헬퍼) 모두 갱신**(decode 화이트리스트는 `isRole`로 자동 — 누락 시 세션 거부→로그인 무한 `/login`). 계정은 역할별 **distinct env 키**(중복 키는 dotenv가 마지막 값만 채택→로그인 깨짐), 신규 계정은 optional(env 둘 다 있을 때만 추가 → Vercel env 미설정도 기존 로그인 유지). 접근 불가 역할 추가 시 랜딩(`/`·`/management`)은 **role-aware redirect**로(고정 redirect는 무한 루프). 새 라우트 권한은 `permissions.ts`.
