@@ -177,6 +177,7 @@ function InterestRateTooltip({
         {p.isYtd ? <span className="ml-1 text-sm text-muted-foreground">(YTD)</span> : null}
       </div>
       <div className="text-blue-600">차입금: {fmt(p.debt, 0)} 억원</div>
+      <div className="text-foreground">이자비용: {fmt(p.interest, 0)} 억원</div>
       <div className="text-red-600">
         평균이자율: {p.interestRate === null ? '—' : `${fmt(p.interestRate, 2)}%`}
       </div>

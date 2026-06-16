@@ -136,10 +136,10 @@ describe('buildInterestRateSeries', () => {
     const pts = buildInterestRateSeries(dataset(), '전체');
     expect(pts.map((p) => p.periodLabel)).toEqual(['2024.12', '2026.02']);
     // 2024 연간: 경과월 12 → 연율화 계수 1. 이자비용 10 / 차입금 250 × 100 = 4%
-    expect(pts[0]).toMatchObject({ year: 2024, isYtd: false, debt: 250 });
+    expect(pts[0]).toMatchObject({ year: 2024, isYtd: false, debt: 250, interest: 10 });
     expect(pts[0].interestRate).toBeCloseTo(4, 6);
-    // 2026 YTD(2월): 이자비용 12 연율화 ×(12/2)=72 / 차입금 260 × 100
-    expect(pts[1]).toMatchObject({ year: 2026, isYtd: true, debt: 260 });
+    // 2026 YTD(2월): interest는 실제 누계(연율화 전) 12. 평균이자율만 연율화 ×(12/2)=72 / 차입금 260
+    expect(pts[1]).toMatchObject({ year: 2026, isYtd: true, debt: 260, interest: 12 });
     expect(pts[1].interestRate).toBeCloseTo(((12 * (12 / 2)) / 260) * 100, 6);
   });
   it('차입금 0 → 평균이자율 null', () => {
