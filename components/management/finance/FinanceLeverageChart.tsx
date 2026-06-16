@@ -44,6 +44,7 @@ interface Props {
  * - 이중축 영역 분리(chart-guide §4-F): amount [0, max×2.5] → 막대 하단,
  *   ratio [-rMax×1.5, rMax×1.1] → 선 상단. 두 영역이 겹치지 않는다.
  * - 자회사 필터(전체/미국/…)는 데이터 기반 자동 생성 — 이 차트 전용.
+ * - 진행연도 시점은 자산·부채·자본이 온전한 최신월(혼용 방지, buildLeverageSeries 내부).
  */
 export default function FinanceLeverageChart({ rows }: Props) {
   const subs = useMemo(() => listSubsidiaries(rows), [rows]);
