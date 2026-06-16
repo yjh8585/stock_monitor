@@ -49,6 +49,8 @@ export interface InterestRatePoint {
   isYtd: boolean;
   /** 차입금 (억원) */
   debt: number | null;
+  /** 이자비용 (억원, 실제 누계 — 과거=연간, 진행연도 YTD=경과월 누계). 데이터 없으면 null */
+  interest: number | null;
   /** 평균이자율(%) = 연율화 이자비용(×12/경과월) / 차입금 × 100. 둘 중 하나라도 없거나 차입금 0이면 null */
   interestRate: number | null;
 }

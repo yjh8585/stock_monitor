@@ -204,7 +204,7 @@ export function buildInterestRateSeries(
       annualizedInterest !== null && debt !== null && debt !== 0
         ? (annualizedInterest / debt) * 100
         : null;
-    return { periodLabel: p.label, year: p.year, isYtd: p.isYtd, debt, interestRate };
+    return { periodLabel: p.label, year: p.year, isYtd: p.isYtd, debt, interest, interestRate };
   });
 }
 
