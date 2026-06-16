@@ -8,7 +8,9 @@ import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
-import type { FinanceRow, LoanRow } from './types';
+import { getFixedVariable, getPreparedPnl } from '@/lib/pnl/source';
+import { buildPnlDerived } from './pnl-derived';
+import type { FinanceRow, LoanRow, PnlDerivedSeries } from './types';
 
 async function fetchFinanceRows(): Promise<FinanceRow[]> {
   const { data, error } = await confidentialDb
@@ -30,15 +32,24 @@ async function fetchFinanceRows(): Promise<FinanceRow[]> {
 
 export interface FinanceData {
   rows: FinanceRow[];
+  /** 자금조달 표 영업이익·상각비 — 재무엔 없거나 불완전해 pnl(손익)에서 추출(억원). */
+  pnlDerived: PnlDerivedSeries;
 }
 
 export async function getFinanceData(): Promise<FinanceData> {
   'use cache';
   cacheLife('days');
   cacheTag('finance_entries');
+  // 영업이익(pnl_entries)·상각비(pnl_fixed_variable) 의존 → 손익 적재 시에도 무효화
+  cacheTag('pnl_entries');
+  cacheTag('pnl_fixed_variable');
 
-  const rows = await fetchFinanceRows();
-  return { rows };
+  const [rows, prepared, fixedVariable] = await Promise.all([
+    fetchFinanceRows(),
+    getPreparedPnl(),
+    getFixedVariable(),
+  ]);
+  return { rows, pnlDerived: buildPnlDerived(prepared, fixedVariable) };
 }
 
 async function fetchLoanRows(): Promise<LoanRow[]> {

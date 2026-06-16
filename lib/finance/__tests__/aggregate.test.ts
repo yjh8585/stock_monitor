@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildCapitalTable,
+  buildInterestRateSeries,
   buildLeverageSeries,
   computeDelta,
   listSubsidiaries,
 } from '../aggregate';
-import type { CapitalRow, FinanceRow } from '../types';
+import type { CapitalRow, FinanceRow, PnlDerivedSeries } from '../types';
 
 function row(partial: Partial<FinanceRow>): FinanceRow {
   return {
@@ -34,7 +35,8 @@ function dataset(): FinanceRow[] {
     현금성자산: 8000,
     증자: 2000,
     차입: 25000,
-    당기순이익: 5000,
+    '감가상각비(유형+무형)': 3000,
+    이자비용: 1000,
   };
   const monthly2026: Record<string, number> = {
     자산: 120000,
@@ -48,7 +50,8 @@ function dataset(): FinanceRow[] {
     현금성자산: 9000,
     증자: 2000,
     차입: 26000,
-    당기순이익: 7000,
+    '감가상각비(유형+무형)': 4000,
+    이자비용: 1200,
   };
   const rows: FinanceRow[] = [];
   for (const [account, v] of Object.entries(annual2024)) {
@@ -110,10 +113,68 @@ describe('buildLeverageSeries', () => {
     expect(pts).toHaveLength(1);
     expect(pts[0].assets).toBe(9.99);
   });
+  it('온전한 최신월 선택 — 자본이 빠진 5월은 건너뛰고 4월(혼용 방지)', () => {
+    const mk = (m: number, account: string, v: number) =>
+      row({ period_year: 2026, period_kind: 'monthly', period_month: m, account, value_mwon: v });
+    const rows = [
+      mk(4, '자산', 100),
+      mk(4, '부채', 60),
+      mk(4, '자본', 40),
+      // 5월: 자산·부채만(자본 누락) → 불완전 → 4월 선택
+      mk(5, '자산', 200),
+      mk(5, '부채', 120),
+    ];
+    const pts = buildLeverageSeries(rows, '전체');
+    expect(pts).toHaveLength(1);
+    expect(pts[0].periodLabel).toBe('2026.04');
+    expect(pts[0].assets).toBe(1); // 100/100 = 4월 값(5월 아님)
+  });
 });
 
+describe('buildInterestRateSeries', () => {
+  it('차입금(억원) + 평균이자율(연율화 이자비용/차입금) + 시점(연말/최신월)', () => {
+    const pts = buildInterestRateSeries(dataset(), '전체');
+    expect(pts.map((p) => p.periodLabel)).toEqual(['2024.12', '2026.02']);
+    // 2024 연간: 경과월 12 → 연율화 계수 1. 이자비용 10 / 차입금 250 × 100 = 4%
+    expect(pts[0]).toMatchObject({ year: 2024, isYtd: false, debt: 250 });
+    expect(pts[0].interestRate).toBeCloseTo(4, 6);
+    // 2026 YTD(2월): 이자비용 12 연율화 ×(12/2)=72 / 차입금 260 × 100
+    expect(pts[1]).toMatchObject({ year: 2026, isYtd: true, debt: 260 });
+    expect(pts[1].interestRate).toBeCloseTo(((12 * (12 / 2)) / 260) * 100, 6);
+  });
+  it('차입금 0 → 평균이자율 null', () => {
+    const rows = [
+      row({ account: '이자비용', value_mwon: 100 }),
+      row({ account: '차입', value_mwon: 0 }),
+    ];
+    expect(buildInterestRateSeries(rows, '전체')[0].interestRate).toBeNull();
+  });
+  it('이자비용 없으면 평균이자율 null (차입금은 표시)', () => {
+    const pts = buildInterestRateSeries([row({ account: '차입', value_mwon: 25000 })], '전체');
+    expect(pts[0].debt).toBe(250);
+    expect(pts[0].interestRate).toBeNull();
+  });
+});
+
+/**
+ * 손익 파생(억원) fixture — 영업이익(2024 연간 50, 2026 YTD 70), 상각비(손익 2026 YTD 45),
+ * 최신월 2. 상각비 2024(35)는 미사용 검증용(자금조달 표는 과거 연도에 재무 연간 30을 써야 함).
+ */
+const PNL_DERIVED: PnlDerivedSeries = {
+  opIncome: [
+    { year: 2024, eok: 50 },
+    { year: 2026, eok: 70 },
+  ],
+  depreciation: [
+    { year: 2024, eok: 35 },
+    { year: 2026, eok: 45 },
+  ],
+  currentYear: 2026,
+  currentYearLatestMonth: 2,
+};
+
 describe('buildCapitalTable', () => {
-  const table = buildCapitalTable(dataset(), '전체');
+  const table = buildCapitalTable(dataset(), PNL_DERIVED, '전체');
   const byKey = (k: string): CapitalRow => table.rows.find((r) => r.key === k)!;
 
   it('기간 라벨', () => {
@@ -128,36 +189,64 @@ describe('buildCapitalTable', () => {
   it('투하자본 합계 = 순운전자본 + CAPEX', () => {
     expect(byKey('invested_total').values).toEqual([600, 690]);
   });
-  it('자금조달 합계 = 당기순이익 + 신규증자 + 차입금', () => {
-    // 당기순이익(50/70) + 신규증자(20) + 차입금(250/260)
-    expect(byKey('financing_total').values).toEqual([320, 350]);
+  it('영업이익은 pnl opIncome(억원) 그대로, 흐름 항목(flow)', () => {
+    expect(byKey('opIncome')).toMatchObject({ flow: true, values: [50, 70] });
   });
-  it('자금조달 합계 증감 = 당기순이익 + 신규증자 + 차입금증감 (흐름 합산)', () => {
-    // 첫 기간 null, 둘째: 당기순이익 70 + 신규증자 20 + (260−250) = 100
-    expect(byKey('financing_total').deltaValues).toEqual([null, 100]);
+  it('감가상각비 하이브리드 — 과거(연말)=재무 연간 30, 진행연도(YTD)=손익 45', () => {
+    // 2024.12: 재무 annual 3000/100=30 (손익 35 아님). 2026.02 YTD: 손익 45.
+    expect(byKey('depreciation')).toMatchObject({ flow: true, values: [30, 45] });
   });
-  it('당기순이익은 흐름 항목(flow)', () => {
-    expect(byKey('netIncome')).toMatchObject({ flow: true, values: [50, 70] });
+  it('자금조달 합계 = 영업이익 + 감가상각비 + 신규증자 + 차입금', () => {
+    // 2024: 50+30+20+250=350, 2026: 70+45+20+260=395
+    expect(byKey('financing_total').values).toEqual([350, 395]);
   });
-  it('현금(③)은 잔액 한 줄 — 증감은 자동 계산(별도 현금증감 행 없음)', () => {
+  it('자금조달 합계 증감 = 흐름(영업이익+감가상각비+신규증자) + 차입금증감', () => {
+    // 첫 기간 null, 둘째: 영업이익 70 + 감가상각비 45 + 신규증자 20 + (260−250)=10 = 145
+    expect(byKey('financing_total').deltaValues).toEqual([null, 145]);
+  });
+  it('③ 이자비용은 흐름 항목(flow), 음수 표시(억원)', () => {
+    // DB 양수(1000/1200) → 부호 반전해 음수
+    expect(byKey('interest')).toMatchObject({ flow: true, values: [-10, -12] });
+  });
+  it('④ 현금은 잔액 한 줄 — 증감 자동 계산(flow 아님)', () => {
     expect(byKey('cash').values).toEqual([80, 90]);
-    expect(table.rows.find((r) => r.key === 'cashDelta')).toBeUndefined();
+    expect(byKey('cash').flow).toBeUndefined();
   });
   it('채무는 차감 플래그 + 자체 값은 양수', () => {
     expect(byKey('payable')).toMatchObject({ subtract: true, values: [100, 120] });
   });
-  it('신규증자는 흐름 항목(flow) — 증감칸에 당기 신규액 표시', () => {
+  it('신규증자는 흐름 항목(flow)', () => {
     expect(byKey('paidIn').flow).toBe(true);
-    // 다른 상세행은 flow 없음(일반 증감 표시 유지)
-    expect(byKey('cash').flow).toBeUndefined();
   });
   it('섹션 헤더는 값 없음', () => {
     expect(byKey('invested').values).toEqual([null, null]);
   });
+  it('당기순이익 행은 제거됨', () => {
+    expect(table.rows.find((r) => r.key === 'netIncome')).toBeUndefined();
+  });
+  it('pnlDerived 없으면 영업이익 null + 감가상각비는 재무 fallback + 시점 캡 없음', () => {
+    const t = buildCapitalTable(dataset(), undefined, '전체');
+    expect(byKeyOf(t, 'opIncome').values).toEqual([null, null]);
+    // 손익 없으면 YTD도 재무 월간 fallback: 2024 재무 30, 2026 재무 monthly 4000/100=40
+    expect(byKeyOf(t, 'depreciation').values).toEqual([30, 40]);
+    expect(t.periods).toEqual(['2024.12', '2026.02']);
+  });
+  it('진행연도 시점 캡 — currentYearLatestMonth=1이면 2026.01', () => {
+    const capped = buildCapitalTable(
+      dataset(),
+      { ...PNL_DERIVED, currentYearLatestMonth: 1 },
+      '전체'
+    );
+    expect(capped.periods).toEqual(['2024.12', '2026.01']);
+  });
   it('데이터 없으면 빈 표', () => {
-    expect(buildCapitalTable([], '전체')).toEqual({ periods: [], rows: [] });
+    expect(buildCapitalTable([], PNL_DERIVED, '전체')).toEqual({ periods: [], rows: [] });
   });
 });
+
+function byKeyOf(t: ReturnType<typeof buildCapitalTable>, k: string): CapitalRow {
+  return t.rows.find((r) => r.key === k)!;
+}
 
 describe('computeDelta', () => {
   it('증감 + 증감률', () => {

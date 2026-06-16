@@ -28,7 +28,32 @@ export interface LeveragePoint {
   debtRatio: number | null;
 }
 
-/** 차트 2 (투하자본·자금조달) 표의 한 행. */
+/**
+ * 진행연도 표시 시점 캡 — 재무 페이지 모든 차트 공통.
+ *
+ * 재무는 최신월(예 5월)까지 있으나 손익(영업이익·상각비)은 4월까지라, 페이지 전체를
+ * "데이터가 온전히 있는 최근월"(= 손익 최신월)로 통일해 차트 간 시점 불일치를 막는다.
+ * selectPeriods가 진행연도 표시월을 min(재무 최신월, month)로 캡한다.
+ */
+export interface YtdCap {
+  year: number;
+  month: number;
+}
+
+/** 차트 2 (차입금·평균이자율) 시점별 포인트. 단위 = 억원 / %. */
+export interface InterestRatePoint {
+  /** 표시 라벨 ('2023.12' … '2026.05') */
+  periodLabel: string;
+  year: number;
+  /** 당해연도 최신월(YTD) 여부 — 과거 연말이면 false */
+  isYtd: boolean;
+  /** 차입금 (억원) */
+  debt: number | null;
+  /** 평균이자율(%) = 연율화 이자비용(×12/경과월) / 차입금 × 100. 둘 중 하나라도 없거나 차입금 0이면 null */
+  interestRate: number | null;
+}
+
+/** 표 (투하자본·자금조달)의 한 행. */
 export interface CapitalRow {
   key: string;
   label: string;
@@ -51,6 +76,33 @@ export interface CapitalTable {
   /** 기간 라벨 (['2023','2024','2025','2026.05']) */
   periods: string[];
   rows: CapitalRow[];
+}
+
+/** 연도별 값(억원). 과거=연간, 진행연도=YTD 누적. */
+export interface YearEok {
+  year: number;
+  /** 억원. 해당 연도 데이터 없으면 null. */
+  eok: number | null;
+}
+
+/**
+ * 자금조달 표용 손익(PnL) 파생값 — 재무(finance_entries)에 없는 영업이익·상각비를 손익에서 추출.
+ *
+ * - 영업이익: pnl_entries 연결 전사 op_income ÷ 100.
+ * - 상각비: pnl_fixed_variable 상각비 합계(경비 감가상각비+개발비상각 + 연구개발비 감가상각비, 고정+변동) ÷ 100.
+ *   재무의 '감가상각비(유형+무형)'는 불완전 → 캐시플로우 브리지엔 PnL 종합 상각비를 사용.
+ * - 과거 연도: 연간 합계. 진행 연도(currentYear): monthly 1~currentYearLatestMonth 누적(YTD).
+ * 단위는 모두 억원(백만원 ÷ 100). FX 불필요(연결은 KRW 합산).
+ */
+export interface PnlDerivedSeries {
+  /** 연도별 영업이익(억원). */
+  opIncome: YearEok[];
+  /** 연도별 상각비 합계(억원). */
+  depreciation: YearEok[];
+  /** 진행(YTD) 연도 — 예 2026 */
+  currentYear: number;
+  /** 진행 연도 영업이익 최신월(예 4). 0이면 진행연도 데이터 없음 → 시점 캡 안 함. */
+  currentYearLatestMonth: number;
 }
 
 /** 구간 증감(절대값·증감률). */
