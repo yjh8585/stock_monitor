@@ -395,6 +395,8 @@ UNIQUE: (source, note_date)
 
 **인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
 
+> 본문(`content`) **작성 규칙·게시 절차·마크다운 렌더 함정**은 [`report.md`](./report.md) 참고.
+
 ---
 
 ### 7-H. 토큰 · 매핑
