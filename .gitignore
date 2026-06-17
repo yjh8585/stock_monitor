@@ -9,8 +9,9 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-# 이 프로젝트는 npm 전용(package-lock.json) — 글로벌 pnpm 설정이 만든 stray 락파일 무시(format:check 깨짐 방지)
+# 이 프로젝트는 npm 전용(package-lock.json) — 글로벌 pnpm 설정이 만든 stray 파일 무시(format:check 깨짐 방지)
 pnpm-lock.yaml
+pnpm-workspace.yaml
 
 # testing
 /coverage
@@ -93,3 +94,18 @@ scripts/_tmp/
 
 .vercel
 .gstack/
+
+# ── 일회성 산출물 재발 방지 (2026-06-17 대량 정리 후) ──
+# 루트 UI 검증 스크린샷 / 세션 리포트
+/*.png
+/session-report-*.html
+# data 수집 산출물·캐시 (재생성 가능, 추적 안 함)
+data/_*
+data/report_*
+# scripts 수집 실행 로그 / e2e 산출물 (정식 매핑 _marklines_/_top100_ 은 추적 유지)
+scripts/_*_run_*.json
+scripts/_e2e_smoke_report.json
+# 코드 리뷰 입력 임시물 (정식 결과 .md 는 추적)
+review/*.diff
+review/*-full.txt
+review/*-prompt.md
