@@ -20,11 +20,19 @@ export function MermaidBlock({ chart }: Props) {
     void (async () => {
       try {
         const mermaid = (await import('mermaid')).default;
+        // 한글 라벨이 상자 밖으로 잘리는 문제 방지:
+        //  - htmlLabels=true → 라벨을 foreignObject(HTML)로 렌더해 노드가 내용 크기에 맞춰 확장.
+        //  - fontFamily 를 'inherit' 대신 한글 글꼴 포함 구체값으로 고정 → mermaid 의 텍스트 폭
+        //    측정 글꼴과 실제 렌더 글꼴이 일치해 폭이 좁게 계산되지 않음.
+        const fontStack =
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", Pretendard, Roboto, sans-serif';
         mermaid.initialize({
           startOnLoad: false,
           theme: 'default',
           securityLevel: 'loose',
-          fontFamily: 'inherit',
+          fontFamily: fontStack,
+          themeVariables: { fontFamily: fontStack },
+          flowchart: { htmlLabels: true, useMaxWidth: true, padding: 12 },
         });
         const { svg } = await mermaid.render(`mermaid-${id}`, chart);
         if (!cancelled && containerRef.current) {
