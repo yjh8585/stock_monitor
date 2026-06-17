@@ -151,6 +151,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 **유의 사항 (규칙):**
 
 - 수집 스크립트가 끝나면 **반드시 `scripts/lib/revalidate.py`로 태그 무효화**. 안 하면 페이지가 `'use cache'` 결과를 들고 있어 stale.
+- **수집 외 경로의 캐시 무효화**: `posts` 등 `'use cache'` 테이블을 수동(tsx/직접 INSERT)으로 변경하면 `revalidateTag`를 코드에서 못 부름 → `/api/revalidate`(POST `x-revalidate-secret` + `{tags:[...]}`, 프로덕션은 `NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET`) curl 또는 로컬 dev 재시작.
 - 뷰(`related_stocks_view` 등)는 SQL 마이그레이션에 정의. **컬럼 추가 시 뷰부터 수정** → 페이지는 자동 반영.
 - 실패·이상치는 `scripts/_*_log.json`에 기록. `analyze_*.py` 진단 후 `recheck_*.py`/`recollect_*.py`로 재처리.
 
@@ -210,6 +211,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 > 보안 정책 전체 매트릭스는 [`Architecture.md §11`](./Architecture.md) 참고.
 
 - 키·토큰은 `.env.local`/`scripts/.env`/GitHub Actions Secrets에만. **코드·커밋 금지.**
+- **커밋 전 secret 점검**: 일부 일회성·`scripts/_archive/*` 스크립트에 자격증명(Supabase PAT 등) 하드코딩 잔재 존재. untracked 정리·신규 추적 전 `sbp_`/토큰 패턴 grep. master 직접 push라 secret 포함 시 GitHub Push Protection(GH013)이 차단 → 해당 파일 제외 후 재커밋.
 - `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`) 외 라우트는 세션 필수. 새 공개 라우트 신중히.
 - `/api/revalidate*`은 토큰 검증 후 `updateTag()`. SSRF·쿠키 가드 회귀 주의(commit `ea090be`).
 - **사외비 데이터**는 `service_role` 전용. NEXT_PUBLIC anon key는 클라이언트 번들 노출 → RLS `USING(true)`로 노출 금지. 새 사외비 테이블은 RLS enable + 정책 없음(default deny) 유지.
