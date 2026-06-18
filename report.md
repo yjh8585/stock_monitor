@@ -124,7 +124,7 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 유튜브 영상/재생목록을 §2-B(직접 작성)로 보고서화할 때의 검증된 절차. 자동 경로(§2-A)는 단일 영상 1편→1글만 다루므로, **재생목록 종합·고품질·이미지 다수**가 필요하면 이 워크플로(직접 작성)를 쓴다.
 
 1. **영상 목록 수집**: 재생목록 페이지(`youtube.com/playlist?list=<ID>`) HTML에서 `"videoId":"<11자>"`를 추출(중복 제거)하고, 영상 수는 `stats`의 "동영상 N개"로 검증(grep으로 추천영상 1건이 섞일 수 있음). 제목·채널은 oEmbed(`youtube.com/oembed?url=<watch>&format=json`).
-2. **자막 추출**: `youtube-transcript`(node, 프로젝트 설치됨). `ko → en → auto` 폴백. 타임코드(offset)를 함께 저장하면 프레임 캡처 시점 산정에 쓸 수 있다. **자동 생성 자막은 오타가 많으니** 내용 파악용으로만 쓰고, 본문 인용은 다듬는다. 로컬 IP는 봇 차단이 거의 없으나 CI/클라우드 IP는 막힐 수 있다(그때만 yt-dlp 자막/Gemini 폴백).
+2. **자막 추출**: `youtube-transcript`(node, 프로젝트 설치됨). `ko → en → auto` 폴백. 타임코드(offset)를 함께 저장하면 프레임 캡처 시점 산정에 쓸 수 있다. **자동 생성 자막은 오타가 많으니** 내용 파악용으로만 쓰고, 본문 인용은 다듬는다. 로컬 IP는 봇 차단이 거의 없으나 CI/클라우드 IP는 막힐 수 있다(그때만 yt-dlp 자막/Gemini 폴백). **멤버십 전용 영상**은 자막 트랙이 없어 `youtube-transcript`가 'no transcript'(yt-dlp는 'members-only content')로 실패 → 제목·썸네일만 쓰거나 제외.
 3. **본문 작성**: 자막을 정독해 **에이전트가 직접** §3 형식 + **§3-A 분량**으로 작성(자동 요약 API보다 품질·일관성↑). 영상에 없는 배경지식은 `WebSearch`로 보충하되 **"영상에서는 ~", "참고로 ~"로 영상 내용과 구분**.
 4. **이미지 — 영상 프레임 캡처(권장)**: §5 규칙 + 아래.
    - 도구: `yt-dlp`(venv `pip install yt-dlp`) + `ffmpeg`(시스템; winget `Gyan.FFmpeg`). 둘 다 일회성 설치.
