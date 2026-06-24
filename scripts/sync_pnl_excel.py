@@ -39,17 +39,12 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.db import upsert_rows  # noqa: E402
+from lib.management_excel import resolve_excel_path  # noqa: E402
 from lib.revalidate import revalidate_prod_for_tables  # noqa: E402
 
 
 def _latest_excel() -> Path:
-  """참고/손익/ 디렉터리에서 자료정리_월별손익*.xlsx 중 가장 최신(사전순 마지막)을 반환."""
-  base = Path(__file__).resolve().parents[1] / '참고' / '손익'
-  cands = sorted(base.glob('자료정리_월별손익*.xlsx'))
-  if not cands:
-    raise FileNotFoundError(f'손익 엑셀 없음: {base}/자료정리_월별손익*.xlsx')
-  # 날짜 suffix가 사전순 정렬되므로 마지막이 최신. '자료정리_월별손익.xlsx'(suffix 없음)는 가장 앞.
-  return cands[-1]
+  return resolve_excel_path()
 
 
 EXCEL_PATH = _latest_excel()
