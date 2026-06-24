@@ -15,6 +15,7 @@ import argparse
 import os
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -65,12 +66,15 @@ def render_sheet_to_png(xlsx: Path, sheet_name: str, out_png: Path) -> tuple[int
         wb = excel.Workbooks.Open(str(xlsx), ReadOnly=True)
         try:
             ws = wb.Worksheets(sheet_name)
+            ws.Activate()  # 활성 시트로 만들어 엉뚱한 시트 export 방지
             ws.PageSetup.Zoom = False
             ws.PageSetup.FitToPagesWide = 1
             ws.PageSetup.FitToPagesTall = 1
             ws.PageSetup.Orientation = 2  # xlLandscape
             ws.PageSetup.PrintArea = ws.UsedRange.Address
-            wb.ExportAsFixedFormat(0, str(pdf_path))  # 0 = xlTypePDF
+            # 워크시트 단위 export — wb.ExportAsFixedFormat은 활성/전체 시트를 내보내
+            # 대상 시트가 뒤바뀌는 버그가 있어 ws.ExportAsFixedFormat으로 고정.
+            ws.ExportAsFixedFormat(0, str(pdf_path))  # 0 = xlTypePDF
         finally:
             wb.Close(SaveChanges=False)
     finally:
@@ -125,6 +129,9 @@ def main() -> int:
         logger.error('Kor 시트 없음 — 종료')
         return 1
 
+    # 재렌더 시 created_at을 갱신해 페이지의 캐시버스트 토큰(?v=created_at)이 바뀌도록 한다.
+    rendered_at = datetime.now(timezone.utc).isoformat()
+
     rows: list[dict] = []
     with tempfile.TemporaryDirectory() as tmp:
         for sheet_name, iso in kor:
@@ -143,6 +150,7 @@ def main() -> int:
                     'source_file': xlsx.name,
                     'width': w,
                     'height': h,
+                    'created_at': rendered_at,
                 }
             )
 
