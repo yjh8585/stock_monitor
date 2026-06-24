@@ -385,18 +385,18 @@ UNIQUE: (source, note_date)
 
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
-| 컬럼          | 타입     | 설명                                                                                                         |
-| ------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
-| `id`          | uuid PK  | 작업 식별자 (job_id)                                                                                         |
-| `status`      | text     | `uploaded` → `dry_run_running` → `dry_run_ok`/`dry_run_failed` → `applying` → `applied`/`apply_failed`      |
-| `mode`        | text     | `dry-run` / `apply`                                                                                          |
-| `excel_path`  | text     | 버킷 내 경로 (`{YYYY-MM-DD}/{job_id}.xlsx`)                                                                  |
-| `file_name`   | text     | 원본 파일명                                                                                                  |
-| `uploaded_by` | text     | admin 사용자 식별                                                                                            |
-| `summary`     | jsonb    | dry-run/apply 결과 요약 — 행수·연도·mismatch 수 등 **금액 비노출**                                           |
-| `error_msg`   | text     | 실패 시 오류 메시지                                                                                          |
-| `created_at`  | timestamptz | 자동 설정                                                                                                 |
-| `updated_at`  | timestamptz | 트리거 자동 갱신                                                                                          |
+| 컬럼          | 타입        | 설명                                                                                                   |
+| ------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `id`          | uuid PK     | 작업 식별자 (job_id)                                                                                   |
+| `status`      | text        | `uploaded` → `dry_run_running` → `dry_run_ok`/`dry_run_failed` → `applying` → `applied`/`apply_failed` |
+| `mode`        | text        | `dry-run` / `apply`                                                                                    |
+| `excel_path`  | text        | 버킷 내 경로 (`{YYYY-MM-DD}/{job_id}.xlsx`)                                                            |
+| `file_name`   | text        | 원본 파일명                                                                                            |
+| `uploaded_by` | text        | admin 사용자 식별                                                                                      |
+| `summary`     | jsonb       | dry-run/apply 결과 요약 — 행수·연도·mismatch 수 등 **금액 비노출**                                     |
+| `error_msg`   | text        | 실패 시 오류 메시지                                                                                    |
+| `created_at`  | timestamptz | 자동 설정                                                                                              |
+| `updated_at`  | timestamptz | 트리거 자동 갱신                                                                                       |
 
 **인덱스**: created_at DESC  
 **RLS**: 정책 없음 (20260624000001) → anon 차단. `confidentialDb.from('management_uploads')` 전용.  
@@ -561,17 +561,17 @@ python scripts/onboard_company.py --ticker 005380
 
 ## 11. 보안
 
-| 영역              | 정책                                                                                                                                                     |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **세션**          | Supabase Auth (쿠키), `proxy.ts`가 `PUBLIC_PATH_PREFIXES` 외 라우트는 세션 강제                                                                          |
-| **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                   |
-| **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                    |
-| **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                     |
+| 영역              | 정책                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **세션**          | Supabase Auth (쿠키), `proxy.ts`가 `PUBLIC_PATH_PREFIXES` 외 라우트는 세션 강제                                                                                                                                                                                                                                                  |
+| **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                                                                                                                                                                                           |
+| **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                                                                                                                                                                                            |
+| **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                                                                                                                                                                                             |
 | **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `chat_audit_log` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260624). `management-excel` 버킷도 service_role 전용(비공개) |
-| **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
-| **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                 |
-| **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                            |
-| **SQL**           | postgrest 파라미터 바인딩만 (문자열 결합 금지)                                                                                                           |
+| **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록                                                                                                                                                                         |
+| **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                                                                                                                                                                                         |
+| **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                                                                                                                                                                                                    |
+| **SQL**           | postgrest 파라미터 바인딩만 (문자열 결합 금지)                                                                                                                                                                                                                                                                                   |
 
 ## 12. 배포 파이프라인
 
