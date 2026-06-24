@@ -53,6 +53,7 @@ def parse_period(raw_period: Any) -> tuple[str, int] | None:
 
 def main() -> int:
   parser = argparse.ArgumentParser(description='비용비율 시트 → Supabase pnl_cost_structure 적재')
+  parser.add_argument('--dry-run', action='store_true', help='실제 upsert 없이 파싱·요약만')
   parser.add_argument('--revalidate-prod', action='store_true',
                       help='적재 후 프로덕션 캐시도 추가 무효화 (NEXT_REVALIDATE_PROD_URL). '
                            '로컬 수동 실행 시 프로덕션 stale 방지용')
@@ -101,6 +102,9 @@ def main() -> int:
     wb.close()
 
   logger.info(f'적재 대상 {len(rows)}행 (SKIP {skipped})')
+  if args.dry_run:
+    logger.success('dry-run 완료')
+    return 0
   try:
     n = upsert_rows(TABLE, rows, conflict_cols=CONFLICT_COLS)
     logger.success(f'pnl_cost_structure upsert 완료: {n}행')
