@@ -84,7 +84,7 @@ npm run format          # 자동 포맷
 `app/api/`:
 
 - **공개 라우트**: `api/cron/*`, `api/revalidate*` — `proxy.ts`의 `PUBLIC_PATH_PREFIXES`와 반드시 일치.
-- **보호 라우트**(세션 필수): `api/news/search`, `api/stock-prices`, `api/posts/*`, `api/uploads/report`, `api/companies`, `api/chat`, `api/management/upload`, `api/management/upload/[jobId]`.
+- **보호 라우트**(세션 필수): `api/news/search`, `api/stock-prices`, `api/posts/*`, `api/uploads/report`, `api/companies`, `api/chat`, `api/management/upload`, `api/management/upload/[jobId]`, `api/management/upload/[jobId]/apply`.
 - `api/revalidate*`은 SSRF·쿠키 가드 패치 이력(commit `ea090be`). 회귀 주의.
 
 ### `components/`
