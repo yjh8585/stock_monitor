@@ -17,6 +17,25 @@ def test_extract_warnings_picks_mismatch_and_warning_lines():
   assert all('밸류' not in line for line in w)
 
 
+def test_extract_warnings_filters_openpyxl_noise():
+  out = (
+    'site-packages/openpyxl/worksheet/_reader.py:329: UserWarning: '
+    'Data Validation extension is not supported and will be removed\n'
+    'WARNING 정합성 불일치(임계 0.5%): 매출 1개 연도\n'
+  )
+  w = extract_warnings(out)
+  assert len(w) == 1
+  assert '정합성 불일치' in w[0]
+
+
+def test_extract_warnings_strips_ansi_color_codes():
+  out = '\x1b[33m\x1b[1mWARNING\x1b[0m 정합성 불일치: 매출 1개 연도\n'
+  w = extract_warnings(out)
+  assert len(w) == 1
+  assert '\x1b[' not in w[0]
+  assert w[0].startswith('WARNING')
+
+
 def test_build_job_summary_all_ok():
   results = [
     {'name': 'sync_finance', 'exit_code': 0, 'output': 'INFO 검증 OK\n'},

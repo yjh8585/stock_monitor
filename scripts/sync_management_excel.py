@@ -18,6 +18,7 @@ mode=apply   : 각 sync 실제 적재(fail-fast). 마지막에 8종 태그 일�
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -55,14 +56,27 @@ MANAGEMENT_TABLES = [
 
 OUTPUT_TAIL = 2000
 
+# loguru ANSI 색코드 — 캡처 텍스트에 섞여 UI에서 깨져 보이므로 제거.
+_ANSI = re.compile(r'\x1b\[[0-9;]*m')
+# openpyxl import 잡음(데이터 검증 확장 미지원 등) — 실 경고가 아니라 admin 화면에서 제외.
+_NOISE = ('userwarning', 'data validation extension', 'site-packages')
+
+
+def _strip_ansi(s: str) -> str:
+  return _ANSI.sub('', s)
+
 
 def extract_warnings(output: str) -> list[str]:
-  """캡처 출력에서 경고/mismatch 라인만 추출 (금액 비노출 — 원문 그대로)."""
+  """캡처 출력에서 경고/mismatch 라인만 추출 (금액 비노출, ANSI·라이브러리 잡음 제외)."""
   out: list[str] = []
-  for line in output.splitlines():
+  for raw in output.splitlines():
+    line = _strip_ansi(raw).strip()
     low = line.lower()
-    if 'mismatch' in low or 'warning' in low or 'error' in low:
-      out.append(line.strip())
+    if not ('mismatch' in low or 'warning' in low or 'error' in low):
+      continue
+    if any(n in low for n in _NOISE):
+      continue
+    out.append(line)
   return out
 
 
@@ -76,7 +90,7 @@ def build_job_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
       'name': r['name'],
       'exit_code': r['exit_code'],
       'ok': ok,
-      'output': r['output'][-OUTPUT_TAIL:],
+      'output': _strip_ansi(r['output'])[-OUTPUT_TAIL:],
     })
     for w in extract_warnings(r['output']):
       warnings.append(f"{r['name']}: {w}")
