@@ -15,6 +15,7 @@ export interface OrgChartMeta {
   title: string | null;
   width: number | null;
   height: number | null;
+  created_at: string;
 }
 
 export async function getOrgCharts(): Promise<OrgChartMeta[]> {
@@ -24,7 +25,7 @@ export async function getOrgCharts(): Promise<OrgChartMeta[]> {
 
   const { data, error } = await confidentialDb
     .from('org_charts')
-    .select('chart_date, title, width, height')
+    .select('chart_date, title, width, height, created_at')
     .order('chart_date', { ascending: false });
   if (error) {
     logger.error({ err: error }, 'org_charts 조회 실패');
