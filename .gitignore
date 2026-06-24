@@ -110,3 +110,6 @@ scripts/_e2e_smoke_report.json
 review/*.diff
 review/*-full.txt
 review/*-prompt.md
+
+# Playwright MCP 산출물
+.playwright-mcp/
