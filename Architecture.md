@@ -25,7 +25,7 @@
 | 로깅       | Pino                                                                          | 클라이언트 / Loguru: Python              |
 | AI SDK     | `@anthropic-ai/sdk` + `@google/genai`                                         | Claude·Gemini                            |
 | 수집       | Python 3.13 + `postgrest-py` + Playwright + pykrx + yfinance + OpenDartReader | venv                                     |
-| 배포       | Vercel + GitHub Actions (22 워크플로)                                         | Hobby 플랜                               |
+| 배포       | Vercel + GitHub Actions (23 워크플로)                                         | Hobby 플랜                               |
 | Cron       | GitHub Actions schedule + cron-job.org (5분 간격)                             | Vercel cron 미사용 (Hobby 제약)          |
 
 ## 3. 시스템 컨텍스트 다이어그램
@@ -40,7 +40,7 @@
                                   ▼
 ┌──────────────────┐    ┌────────────────────┐    ┌──────────────────┐
 │  GitHub Actions  │ ─▶ │  scripts/*.py      │ ─▶ │  Supabase        │
-│  22 워크플로     │    │  collect / enrich  │    │  PostgreSQL +    │
+│  23 워크플로     │    │  collect / enrich  │    │  PostgreSQL +    │
 │  (cron · manual) │    │  (postgrest-py)    │    │  Auth + Storage  │
 └──────────────────┘    └─────────┬──────────┘    └────────┬─────────┘
                                   │                         │
@@ -475,7 +475,7 @@ UNIQUE: (source, note_date)
 
 ## 10. 자동화 (GitHub Actions + cron-job.org)
 
-### 22개 워크플로 카테고리
+### 23개 워크플로 카테고리
 
 | 카테고리                | 워크플로 예시                                                                                                         | 주기                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
@@ -494,6 +494,7 @@ UNIQUE: (source, note_date)
 | OEM                     | collect-oem-model-outlook                                                                                             | 일간                   |
 | OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일           |
 | 보강                    | enrich-company                                                                                                        | 수동                   |
+| 경영관리 엑셀 업로드    | sync-management (workflow_dispatch — dry-run/apply)                                                                   | 수동                   |
 | Vercel cron 대체 (curl) | cron-sentiment                                                                                                        | 일 1회                 |
 
 ### cron-job.org 외부 트리거
