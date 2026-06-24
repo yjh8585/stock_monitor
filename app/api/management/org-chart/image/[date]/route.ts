@@ -45,7 +45,9 @@ export async function GET(_req: Request, { params }: RouteContext) {
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': 'private, max-age=300',
+      // 사외비 — 브라우저 디스크 캐시 금지(공유 PC에서 권한 변경 후 캐시 노출 방지).
+      // 매 조회마다 서버 권한 게이트를 다시 거치게 한다.
+      'Cache-Control': 'private, no-store',
     },
   });
 }
