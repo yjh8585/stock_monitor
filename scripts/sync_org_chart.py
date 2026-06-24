@@ -67,11 +67,27 @@ def render_sheet_to_png(xlsx: Path, sheet_name: str, out_png: Path) -> tuple[int
         try:
             ws = wb.Worksheets(sheet_name)
             ws.Activate()  # 활성 시트로 만들어 엉뚱한 시트 export 방지
-            ws.PageSetup.Zoom = False
-            ws.PageSetup.FitToPagesWide = 1
-            ws.PageSetup.FitToPagesTall = 1
-            ws.PageSetup.Orientation = 2  # xlLandscape
-            ws.PageSetup.PrintArea = ws.UsedRange.Address
+            # 인쇄 범위 = 셀 UsedRange + 모든 도형(하단 빨간 변경요약 박스 등)을 포함.
+            # UsedRange만 쓰면 셀 밖 도형이 잘린다(빨간 박스 하단 잘림 버그).
+            used = ws.UsedRange
+            last_row = used.Row + used.Rows.Count - 1
+            last_col = used.Column + used.Columns.Count - 1
+            for shp in ws.Shapes:
+                try:
+                    br = shp.BottomRightCell
+                    last_row = max(last_row, br.Row)
+                    last_col = max(last_col, br.Column)
+                except Exception:  # noqa: BLE001 - 일부 도형은 anchor 셀이 없음
+                    pass
+            last_row += 1  # 하단 테두리 잘림 방지용 여유 한 줄
+            ps = ws.PageSetup
+            ps.Zoom = False
+            ps.FitToPagesWide = 1
+            ps.FitToPagesTall = 1
+            ps.Orientation = 2  # xlLandscape
+            for _m in ('LeftMargin', 'RightMargin', 'TopMargin', 'BottomMargin'):
+                setattr(ps, _m, 0)
+            ps.PrintArea = ws.Range(ws.Cells(1, 1), ws.Cells(last_row, last_col)).Address
             # 워크시트 단위 export — wb.ExportAsFixedFormat은 활성/전체 시트를 내보내
             # 대상 시트가 뒤바뀌는 버그가 있어 ws.ExportAsFixedFormat으로 고정.
             ws.ExportAsFixedFormat(0, str(pdf_path))  # 0 = xlTypePDF
