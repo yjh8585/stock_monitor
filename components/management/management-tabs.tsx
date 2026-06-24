@@ -14,6 +14,7 @@ const ALL_TABS = [
   { label: '생산', href: '/management/production' },
   { label: '인원', href: '/management/personnel' },
   { label: '재무', href: '/management/finance' },
+  { label: '조직도', href: '/management/org-chart' },
   { label: '자료 업로드', href: '/management/upload' },
   { label: '회사', href: '/management/companies' },
 ] as const;
