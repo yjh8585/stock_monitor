@@ -59,6 +59,7 @@ npm run format          # 자동 포맷
 - Python 스크립트는 `scripts/venv` 활성화 후 실행. 환경변수는 `scripts/.env`.
 - `npm run check-all`은 **TS/JS 전용**(Python 미포함). Python 변경은 `scripts/venv/Scripts/python.exe -m py_compile <files>` + 순수 로직은 venv로 직접 단위 실행해 검증.
 - 수집 스크립트/워크플로 실환경 검증: `gh workflow run <name>.yml --ref master` → `gh run watch <id> --exit-status` → `gh run view <id> --log`. 간헐 실패는 `gh run list --workflow=<name>.yml`로 이력 확인.
+- 프로덕션 = `stock-monitor-orcin.vercel.app`. **scripts/워크플로 변경은 재배포 불필요**(GHA가 master 체크아웃)지만 **`app/`·`components/` UI 변경은 Vercel 재배포(push→빌드 READY) 후** E2E 검증. 배포 상태는 Vercel MCP `list_deployments`(projectId/teamId = `.vercel/project.json`).
 
 ## 디렉터리 지도
 
@@ -193,6 +194,9 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **LLM 추출 수집기**(`collect_uzauto_financials.py`·현대 분기 IR 등)는 로컬 `scripts/.env`에 `ANTHROPIC_API_KEY`가 없어 **로컬 실행 불가**(키는 GHA Secrets 전용) → 실환경 검증은 `gh workflow run`.
 - **스캔 PDF**(UzAuto IFRS 등)는 `pypdf`/`pdfplumber` 텍스트 추출이 0자 + Read 도구 렌더가 `pdftoppm`(poppler) 미설치로 실패 → venv `pymupdf`(fitz)로 페이지 렌더(`fitz.open(p)[n].get_pixmap(dpi=200).save(png)`)→Read(vision)로 판독.
 - 손익/사외비 엑셀 파싱 디버깅: **openpyxl `read_only=True` 단독 결과를 신뢰하지 말 것**(행/열 인덱싱이 어긋나 부문값이 제품열로 읽히는 오진 관측) → `read_only=False`(`ws.cell`) 또는 sync의 `parse_sheet()` 직접 호출로 교차검증.
+- **경영관리 엑셀 업로드 적재**(`sync_management_excel.py` 오케스트레이터)는 8개 사외비 sync를 subprocess 순차 실행하며 **전부에 `--dry-run` 전달** → 새 사외비 sync 추가 시 반드시 `--dry-run` 지원 + 오케스트레이터 `SCRIPTS` 목록 등록(누락 시 dry-run이 `unrecognized arguments`로 통째 실패). 엑셀 경로는 8개 모두 `MANAGEMENT_EXCEL_PATH` env 우선(`scripts/lib/management_excel.py` `resolve_excel_path`, 없으면 `참고/손익` glob).
+- **업로드 적재 실패 진단**: GHA 로그엔 오케스트레이터 라인만 보임 → 어떤 sync가 왜 실패했는지는 `management_uploads.summary->'scripts'`(Supabase SQL)의 `exit_code`·`output`(각 sync stdout 캡처)으로 확인.
+- **dry-run 정합성 경고는 staleness 아티팩트일 수 있음**: `sync_pnl_fixed_variable`는 업로드 엑셀 '고정비' 시트를 DB `pnl_cost_structure`(적재 전이라 한 업로드 뒤처짐)와 대조 → 진행연도 YTD 월수 차이로 mismatch 경고가 떠도 적재 후 0% reconcile. 경고만(차단 안 함).
 - 진단/백업 산출물(`_*.json` 등)은 임시. 커밋 전 정리.
 
 ## PowerShell 환경 메모
