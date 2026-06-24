@@ -11,6 +11,7 @@ function formatDate(iso: string): string {
 
 export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
   const [selected, setSelected] = useState(charts[0]?.chart_date ?? '');
+  const current = charts.find((c) => c.chart_date === selected);
 
   if (charts.length === 0) {
     return (
@@ -39,13 +40,19 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
             </option>
           ))}
         </select>
+        <span className="text-sm text-muted-foreground">
+          현재 표시: <strong className="text-foreground">{formatDate(selected)}</strong>
+        </span>
       </div>
       <div className="flex-1 overflow-auto rounded-md border border-border bg-white">
-        {selected && (
-          // 인증 프록시 엔드포인트(동적·비공개)라 next/image 대신 img 사용
+        {current && (
+          // 인증 프록시 엔드포인트(동적·비공개)라 next/image 대신 img 사용.
+          // key={selected}로 날짜 변경 시 img 노드를 새로 마운트 → 이전 이미지 고착 방지.
+          // ?v=created_at로 클라이언트/프록시 캐시도 우회(시점별 고유 URL).
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/api/management/org-chart/image/${selected}`}
+            key={selected}
+            src={`/api/management/org-chart/image/${selected}?v=${encodeURIComponent(current.created_at)}`}
             alt={`조직도 ${formatDate(selected)}`}
             className="h-auto w-full min-w-[1000px]"
           />
