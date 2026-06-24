@@ -125,7 +125,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용):
 
-- `bootstrap.py`(신규 스크립트 boilerplate `init_script(__file__)`) · `db.py`(**postgrest-py 클라이언트 — 모든 DB 접근 경유**) · `accounts_map.py`(계정과목) · `fx.py`(환율) · `companies.py`+`companies.json`(시드) · `kis_client.py`(KIS API) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `text.py`(LLM 응답 sanitize·거부 패턴 감지 quality gate) · `krx_auth.py`(**pykrx import-time 자동 로그인 크래시 방지** — pykrx import 전 `disable_pykrx_autologin()` + 수집 직전 `ensure_krx_login()`. KRX가 GHA IP에 간헐 빈응답 시 import가 죽는 문제 회피)
+- `bootstrap.py`(신규 스크립트 boilerplate `init_script(__file__)`) · `db.py`(**postgrest-py 클라이언트 — 모든 DB 접근 경유**) · `accounts_map.py`(계정과목) · `fx.py`(환율) · `companies.py`+`companies.json`(시드) · `kis_client.py`(KIS API) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `text.py`(LLM 응답 sanitize·거부 패턴 감지 quality gate) · `krx_auth.py`(**pykrx import-time 자동 로그인 크래시 방지** — pykrx import 전 `disable_pykrx_autologin()` + 수집 직전 `ensure_krx_login()`. KRX가 GHA IP에 간헐 빈응답 시 import가 죽는 문제 회피) · `management_excel.py`(**월별손익 엑셀 경로 해석** — `MANAGEMENT_EXCEL_PATH` env 우선, 없으면 `참고/손익/자료정리_월별손익*.xlsx` glob 최신. 8개 사외비 sync가 재사용)
 - 정적 매핑: `series_sources.py`, `shipping_sources.py`, `market_series.py`, `labor_targets.py`, `macro_targets.py`, `manual_dart_mapping.json`, `marklines_slugs.json`, `groups_seed.json`
 
 ### `supabase/migrations/`
