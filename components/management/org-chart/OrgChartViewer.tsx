@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { OrgChartMeta } from '@/lib/org-chart/source';
 
@@ -14,6 +14,33 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
   const [expanded, setExpanded] = useState(false);
   const [fitToScreen, setFitToScreen] = useState(false);
   const current = charts.find((c) => c.chart_date === selected);
+
+  // 원본 크기 팝업에서 마우스로 잡고 끌어 이동(grab-to-pan).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pan = useRef({ active: false, startX: 0, startY: 0, left: 0, top: 0 });
+
+  const onPanStart = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    pan.current = {
+      active: true,
+      startX: e.pageX,
+      startY: e.pageY,
+      left: el.scrollLeft,
+      top: el.scrollTop,
+    };
+    el.style.cursor = 'grabbing';
+  };
+  const onPanMove = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el || !pan.current.active) return;
+    el.scrollLeft = pan.current.left - (e.pageX - pan.current.startX);
+    el.scrollTop = pan.current.top - (e.pageY - pan.current.startY);
+  };
+  const onPanEnd = () => {
+    pan.current.active = false;
+    if (scrollRef.current) scrollRef.current.style.cursor = '';
+  };
 
   // 팝업 열림 동안 Esc로 닫기 + 배경 스크롤 잠금.
   useEffect(() => {
@@ -126,17 +153,23 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
           </div>
           {/* 기본은 원본 해상도로 스크롤(작은 글씨도 또렷). '화면 맞춤'은 전체를 한눈에. */}
           <div
+            ref={scrollRef}
             className={
               fitToScreen
                 ? 'flex flex-1 items-center justify-center overflow-hidden p-2'
-                : 'flex-1 overflow-auto p-2'
+                : 'flex-1 cursor-grab select-none overflow-auto p-2'
             }
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={fitToScreen ? undefined : onPanStart}
+            onMouseMove={fitToScreen ? undefined : onPanMove}
+            onMouseUp={onPanEnd}
+            onMouseLeave={onPanEnd}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imgSrc}
               alt={`조직도 ${formatDate(selected)}`}
+              draggable={false}
               className={
                 fitToScreen ? 'max-h-full max-w-full object-contain' : 'max-w-none bg-white'
               }
