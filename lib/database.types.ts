@@ -1333,6 +1333,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      org_charts: {
+        Row: {
+          chart_date: string;
+          created_at: string;
+          height: number | null;
+          image_path: string;
+          source_file: string | null;
+          title: string | null;
+          width: number | null;
+        };
+        Insert: {
+          chart_date: string;
+          created_at?: string;
+          height?: number | null;
+          image_path: string;
+          source_file?: string | null;
+          title?: string | null;
+          width?: number | null;
+        };
+        Update: {
+          chart_date?: string;
+          created_at?: string;
+          height?: number | null;
+          image_path?: string;
+          source_file?: string | null;
+          title?: string | null;
+          width?: number | null;
+        };
+        Relationships: [];
+      };
       personnel_entries: {
         Row: {
           detail: string;
