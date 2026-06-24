@@ -47,6 +47,7 @@ const CONFIDENTIAL_TABLES = [
   'pnl_fixed_variable',
   'finance_entries',
   'loan_entries',
+  'management_uploads',
 ] as const;
 
 /**
