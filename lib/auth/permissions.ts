@@ -56,6 +56,12 @@ export function canAccess(pathname: string, role: Role): boolean {
     return true; // mobility, holdings
   }
 
+  // 조직도 이미지 API — 페이지(/management/org-chart)와 동일 게이트.
+  // canAccess의 /management 분기는 '/api/...' 접두사를 매칭하지 못하므로 명시적으로 처리.
+  if (matchesPath(pathname, '/api/management/org-chart')) {
+    return role !== 'guest' && role !== 'hmobility';
+  }
+
   return true;
 }
 
