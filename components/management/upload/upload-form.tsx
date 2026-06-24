@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import type { UploadStatus } from '@/lib/management/upload-schema';
 
-type ScriptItem = { name: string; ok: boolean; exit_code: number; output: string };
+type ScriptItem = { name: string; ok: boolean; exit_code: number };
 type JobSummary = { ok: boolean; scripts: ScriptItem[]; warnings: string[] } | null;
 type JobView = {
   id: string;
@@ -16,18 +16,29 @@ type JobView = {
   error_msg: string | null;
 };
 
-const POLL_MS = 3000;
-const TERMINAL: UploadStatus[] = ['dry_run_ok', 'dry_run_failed', 'applied', 'apply_failed'];
+/** 폴링 단계 — dry-run 검증 중인지, 적재 중인지에 따라 종료 상태가 다르다. */
+type Phase = 'idle' | 'dry' | 'apply';
 
-/** 단순 상태 폴링 훅 — jobId가 있으면 TERMINAL 상태에 도달할 때까지 주기적으로 GET. */
-function useJobPoller(jobId: string | null, onUpdate: (v: JobView) => void) {
+const POLL_MS = 3000;
+const TERMINAL_DRY: UploadStatus[] = ['dry_run_ok', 'dry_run_failed'];
+const TERMINAL_APPLY: UploadStatus[] = ['applied', 'apply_failed'];
+
+/**
+ * jobId를 phase에 맞는 종료 상태까지 폴링.
+ *
+ * phase가 'dry'→'apply'로 바뀌면 effect가 재실행되어 폴링이 다시 시작된다(같은 jobId).
+ * 종료 상태를 phase별로 구분하므로, 적재 단계에서 dry_run_ok를 종료로 오인해
+ * 폴링이 멈추는 일이 없다.
+ */
+function useJobPoller(jobId: string | null, phase: Phase, onUpdate: (v: JobView) => void) {
   const onUpdateRef = useRef(onUpdate);
   useLayoutEffect(() => {
     onUpdateRef.current = onUpdate;
   });
 
   useEffect(() => {
-    if (!jobId) return;
+    if (!jobId || phase === 'idle') return;
+    const terminal = phase === 'apply' ? TERMINAL_APPLY : TERMINAL_DRY;
 
     let cancelled = false;
     let timerId: ReturnType<typeof setTimeout> | null = null;
@@ -40,7 +51,7 @@ function useJobPoller(jobId: string | null, onUpdate: (v: JobView) => void) {
         if (json.success) {
           const v = json.data as JobView;
           onUpdateRef.current(v);
-          if (!TERMINAL.includes(v.status)) {
+          if (!terminal.includes(v.status)) {
             timerId = setTimeout(tick, POLL_MS);
           }
         } else {
@@ -59,16 +70,17 @@ function useJobPoller(jobId: string | null, onUpdate: (v: JobView) => void) {
       cancelled = true;
       if (timerId) clearTimeout(timerId);
     };
-  }, [jobId]);
+  }, [jobId, phase]);
 }
 
 export function ManagementExcelUploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobView | null>(null);
+  const [phase, setPhase] = useState<Phase>('idle');
   const [busy, setBusy] = useState(false);
 
-  useJobPoller(jobId, (v) => setJob(v));
+  useJobPoller(jobId, phase, (v) => setJob(v));
 
   const onUpload = async () => {
     if (!file) return;
@@ -85,6 +97,7 @@ export function ManagementExcelUploadForm() {
       const id = json.data.job_id as string;
       setJob(null);
       setJobId(id);
+      setPhase('dry');
       toast.success('업로드 완료. dry-run 검증을 시작합니다.');
     } finally {
       setBusy(false);
@@ -93,20 +106,18 @@ export function ManagementExcelUploadForm() {
 
   const onApply = async () => {
     if (!jobId) return;
-    const currentJobId = jobId;
     setBusy(true);
     try {
-      const res = await fetch(`/api/management/upload/${currentJobId}/apply`, { method: 'POST' });
+      const res = await fetch(`/api/management/upload/${jobId}/apply`, { method: 'POST' });
       const json = await res.json();
       if (!res.ok || !json.success) {
         toast.error(json?.error?.message ?? '적재 트리거 실패');
         return;
       }
       toast.success('적재를 시작합니다.');
-      // useJobPoller를 재기동하기 위해 jobId를 초기화했다가 복원
-      setJob(null);
-      setJobId(null);
-      setTimeout(() => setJobId(currentJobId), 0);
+      // 낙관적으로 '적재 중'을 즉시 표시하고, phase 전환으로 폴링을 재시작한다.
+      setJob((j) => (j ? { ...j, status: 'applying' } : j));
+      setPhase('apply');
     } finally {
       setBusy(false);
     }
@@ -131,20 +142,21 @@ export function ManagementExcelUploadForm() {
 
       {inProgress && (
         <p className="text-sm text-muted-foreground">
-          {status === 'applying' ? '적재 중…' : '검증 중…'} (수 분 소요, 자동 갱신)
+          {status === 'applying' || phase === 'apply' ? '적재 중…' : '검증 중…'} (수 분 소요, 자동
+          갱신)
         </p>
       )}
 
       {status === 'dry_run_failed' && (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          <p className="font-medium text-destructive">검증 실패</p>
+          <p className="text-destructive font-medium">검증 실패</p>
           <p className="text-muted-foreground mt-1">{job?.error_msg}</p>
           <ScriptTable summary={job?.summary ?? null} />
         </div>
       )}
 
       {status === 'dry_run_ok' && (
-        <div className="rounded-md border border-border p-3 text-sm space-y-3">
+        <div className="border-border space-y-3 rounded-md border p-3 text-sm">
           <p className="font-medium">검증 완료 — 적재 준비됨</p>
           <WarningList summary={job?.summary ?? null} />
           <ScriptTable summary={job?.summary ?? null} />
@@ -155,7 +167,7 @@ export function ManagementExcelUploadForm() {
       )}
 
       {status === 'applied' && (
-        <div className="rounded-md border border-border p-3 text-sm">
+        <div className="border-border rounded-md border p-3 text-sm">
           <p className="font-medium text-green-600">적재 완료</p>
           <p className="text-muted-foreground mt-1">페이지 데이터가 갱신되었습니다.</p>
         </div>
@@ -163,7 +175,7 @@ export function ManagementExcelUploadForm() {
 
       {status === 'apply_failed' && (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          <p className="font-medium text-destructive">적재 실패</p>
+          <p className="text-destructive font-medium">적재 실패</p>
           <p className="text-muted-foreground mt-1">{job?.error_msg}</p>
           <ScriptTable summary={job?.summary ?? null} />
         </div>
@@ -175,7 +187,7 @@ export function ManagementExcelUploadForm() {
 function WarningList({ summary }: { summary: JobSummary }) {
   if (!summary?.warnings?.length) return null;
   return (
-    <ul className="list-disc pl-5 text-amber-600 text-xs space-y-0.5">
+    <ul className="list-disc pl-5 text-xs text-amber-600 space-y-0.5">
       {summary.warnings.map((w, i) => (
         <li key={i}>{w}</li>
       ))}
@@ -186,16 +198,16 @@ function WarningList({ summary }: { summary: JobSummary }) {
 function ScriptTable({ summary }: { summary: JobSummary }) {
   if (!summary?.scripts?.length) return null;
   return (
-    <table className="w-full text-xs mt-2">
+    <table className="mt-2 w-full text-xs">
       <thead>
-        <tr className="text-left text-muted-foreground">
+        <tr className="text-muted-foreground text-left">
           <th className="py-1">스크립트</th>
           <th className="py-1">결과</th>
         </tr>
       </thead>
       <tbody>
         {summary.scripts.map((s) => (
-          <tr key={s.name} className="border-t border-border/50">
+          <tr key={s.name} className="border-border/50 border-t">
             <td className="py-1">{s.name}</td>
             <td className="py-1">{s.ok ? '✓ OK' : `✗ 실패(${s.exit_code})`}</td>
           </tr>
