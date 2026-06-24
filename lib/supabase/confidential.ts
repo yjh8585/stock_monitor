@@ -35,6 +35,7 @@ import { createSupabaseAdminClient } from './admin';
  * - pnl_fixed_variable: 전사 고정비/변동비 비용구조 (migration 20260609000001)
  * - finance_entries: 재무(대차대조표) 추이 (migration 20260610000001)
  * - loan_entries: 이인텔리전스 자회사 대여금 계획·실적 (migration 20260611000001)
+ * - management_uploads: 경영관리 엑셀 업로드 작업 추적 (migration 20260624000001)
  */
 const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -46,6 +47,7 @@ const CONFIDENTIAL_TABLES = [
   'pnl_fixed_variable',
   'finance_entries',
   'loan_entries',
+  'management_uploads',
 ] as const;
 
 /**

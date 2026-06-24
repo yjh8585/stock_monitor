@@ -1,7 +1,7 @@
 import type { Role } from './roles';
 
 /** admin 전용 페이지 prefix — 비관리자는 proxy.ts에서 `/`로 redirect. */
-const ADMIN_ONLY_PATHS = ['/management/companies'];
+const ADMIN_ONLY_PATHS = ['/management/companies', '/management/upload'];
 
 /** hmobility가 접근 가능한 경영관리 하부 페이지(재고·생산·인원). */
 const HMOBILITY_MANAGEMENT_PATHS = [
