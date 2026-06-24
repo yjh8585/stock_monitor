@@ -115,6 +115,7 @@
   3. 이인텔리전스 대여금 — KPI 3장(누적/당월/2026 YTD 계획대비 지급율) + 계획 대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적). 소스 `loan_entries`(억원 원본 `loan_eok`).
   - 소스 `finance_entries`. 억원=`value_mwon / 100`. 시점은 과거=연말(annual), 당해연도=최신월(YTD).
 - **companies** — 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, INSERT graceful).
+- **upload** (admin 전용) — 월별손익 엑셀(`.xlsx`) 업로드 → `management-excel` 버킷 저장 + `management_uploads` 작업행 INSERT + `sync-management.yml` dry-run dispatch. UI가 `/api/management/upload/[jobId]`를 폴링, 완료 후 admin이 "적재 확정" → apply dispatch → 8 sync 실행 + 8종 태그 일괄 revalidate. 소스 `management_uploads`(사외비, §7-G). admin 역할만 접근(`permissions.ts`).
 
 **API 라우트 분류**:
 
@@ -382,6 +383,30 @@ UNIQUE: (source, note_date)
 **PK**: (period_year, period_month, kind)
 **RLS**: 정책 없음 (20260611000001) → service_role 전용(`confidentialDb`).
 
+#### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
+
+| 컬럼          | 타입     | 설명                                                                                                         |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`          | uuid PK  | 작업 식별자 (job_id)                                                                                         |
+| `status`      | text     | `uploaded` → `dry_run_running` → `dry_run_ok`/`dry_run_failed` → `applying` → `applied`/`apply_failed`      |
+| `mode`        | text     | `dry-run` / `apply`                                                                                          |
+| `excel_path`  | text     | 버킷 내 경로 (`{YYYY-MM-DD}/{job_id}.xlsx`)                                                                  |
+| `file_name`   | text     | 원본 파일명                                                                                                  |
+| `uploaded_by` | text     | admin 사용자 식별                                                                                            |
+| `summary`     | jsonb    | dry-run/apply 결과 요약 — 행수·연도·mismatch 수 등 **금액 비노출**                                           |
+| `error_msg`   | text     | 실패 시 오류 메시지                                                                                          |
+| `created_at`  | timestamptz | 자동 설정                                                                                                 |
+| `updated_at`  | timestamptz | 트리거 자동 갱신                                                                                          |
+
+**인덱스**: created_at DESC  
+**RLS**: 정책 없음 (20260624000001) → anon 차단. `confidentialDb.from('management_uploads')` 전용.  
+**상태 머신**: `uploaded`(업로드 직후) → `dry_run_running`(GHA 실행 중) → `dry_run_ok`(정상)/`dry_run_failed`(오류) → `applying`(admin 확정 후) → `applied`(성공)/`apply_failed`(오류).
+
+**버킷 `management-excel`** (비공개, public=false, 정책 없음 → service_role 전용):  
+업로드 경로 `{YYYY-MM-DD}/{job_id}.xlsx`. GHA runner가 Supabase Storage API로 다운로드(`SUPABASE_URL`+`SUPABASE_SERVICE_ROLE_KEY`).
+
+---
+
 #### `chat_audit_log` (신규, 20260523000003) — 챗봇 도구 호출 감사
 
 | id(bigserial) | user_id | user_role | tool_name | input_json(jsonb) | row_count | is_error | error_msg | created_at |
@@ -450,6 +475,31 @@ UNIQUE: (source, note_date)
             (토큰 검증 + SSRF·쿠키 가드)
 ```
 
+**경영관리 엑셀 업로드 흐름** (admin 전용):
+
+```
+admin /management/upload
+   ↓ POST /api/management/upload (.xlsx)
+Supabase Storage management-excel 버킷 저장
+   + management_uploads 작업행 INSERT (status=uploaded)
+   ↓ GitHub workflow_dispatch (sync-management.yml, mode=dry-run)
+GHA runner: sync_management_excel.py
+   → 버킷에서 엑셀 다운로드
+   → 8개 sync 스크립트 --dry-run 순차 실행 (정합성 검증 포함)
+   → management_uploads.summary 갱신 (행수·연도·mismatch 수, 금액 비노출)
+   → status = dry_run_ok / dry_run_failed
+   ↓ UI 폴링 GET /api/management/upload/[jobId]
+admin 결과 확인 → "적재 확정" 클릭
+   ↓ POST /api/management/upload/[jobId]/apply
+GitHub workflow_dispatch (mode=apply)
+GHA runner: sync_management_excel.py (apply)
+   → 8개 sync 실제 적재 (upsert)
+   → 8종 태그 일괄 revalidate (revalidate.py)
+   → status = applied / apply_failed
+```
+
+엔드투엔드 소요시간 약 6~10분(GHA 러너 부팅 + 의존성 설치 + 8 sync × 2 사이클). 엑셀 행 삭제·차원 변경은 이 흐름으로도 옛 PK가 잔존하므로 `project_pnl_dimension_change_resync` 절차 병행.
+
 **핵심 약속**:
 
 - 수집 스크립트가 끝나면 **반드시 `scripts/lib/revalidate.py`로 태그 무효화**. 안 하면 페이지가 `'use cache'` 결과를 stale 유지.
@@ -517,7 +567,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                   |
 | **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                    |
 | **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                     |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `chat_audit_log` 은 RLS 정책 없음 → anon 차단. server 컴포넌트에서 admin client만 접근 (20260523)                   |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `chat_audit_log` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260624). `management-excel` 버킷도 service_role 전용(비공개) |
 | **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                 |
 | **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                            |
