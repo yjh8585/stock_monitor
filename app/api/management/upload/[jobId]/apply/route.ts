@@ -51,6 +51,12 @@ export async function POST(_req: Request, { params }: RouteContext) {
     });
   }
 
-  await confidentialDb.from('management_uploads').update({ status: 'applying' }).eq('id', jobId);
+  // dry_run_ok일 때만 applying으로 전이. GHA 오케스트레이터가 먼저 applied/apply_failed로
+  // 옮겼다면 이 update는 no-op이 되어 status를 되돌리지 않는다(폴링 영구 고착 방지).
+  await confidentialDb
+    .from('management_uploads')
+    .update({ status: 'applying' })
+    .eq('id', jobId)
+    .eq('status', 'dry_run_ok');
   return NextResponse.json(ok({ job_id: jobId }));
 }

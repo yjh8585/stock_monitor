@@ -29,5 +29,27 @@ export async function GET(_req: Request, { params }: RouteContext) {
   if (!data)
     return NextResponse.json(fail('NOT_FOUND', '작업을 찾을 수 없습니다.'), { status: 404 });
 
-  return NextResponse.json(ok(data));
+  // summary의 스크립트별 raw stdout(output)은 UI가 렌더하지 않으므로 응답에서 제거 —
+  // 노출면 최소화(name/ok/exit_code + warnings만 내려보낸다).
+  return NextResponse.json(ok({ ...data, summary: sanitizeSummary(data.summary) }));
+}
+
+/** summary JSONB에서 스크립트별 raw output을 떼어낸다(금액 비노출 강화). */
+function sanitizeSummary(summary: unknown): unknown {
+  if (!summary || typeof summary !== 'object') return summary;
+  const s = summary as {
+    ok?: unknown;
+    warnings?: unknown;
+    scripts?: Array<{ name?: unknown; ok?: unknown; exit_code?: unknown }>;
+  };
+  if (!Array.isArray(s.scripts)) return summary;
+  return {
+    ok: s.ok,
+    warnings: s.warnings,
+    scripts: s.scripts.map((item) => ({
+      name: item?.name,
+      ok: item?.ok,
+      exit_code: item?.exit_code,
+    })),
+  };
 }
