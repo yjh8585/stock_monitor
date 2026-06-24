@@ -27,6 +27,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 sys.path.insert(0, str(Path(__file__).parent))
 from lib.db import WriteSession  # noqa: E402
+from lib.management_excel import resolve_excel_path  # noqa: E402
 from lib.revalidate import revalidate_prod_for_tables  # noqa: E402
 
 SHEET_PLAN = '계획'
@@ -53,12 +54,7 @@ BATCH_SIZE = 500
 
 
 def _latest_excel() -> Path:
-  """참고/손익/ 디렉터리에서 자료정리_월별손익*.xlsx 중 가장 최신(사전순 마지막)을 반환."""
-  base = Path(__file__).resolve().parents[1] / '참고' / '손익'
-  cands = sorted(base.glob('자료정리_월별손익*.xlsx'))
-  if not cands:
-    raise FileNotFoundError(f'손익 엑셀 없음: {base}')
-  return cands[-1]
+  return resolve_excel_path()
 
 
 def _num(v: Any) -> float | None:
