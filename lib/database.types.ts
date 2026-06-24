@@ -919,6 +919,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      management_uploads: {
+        Row: {
+          created_at: string;
+          error_msg: string | null;
+          excel_path: string;
+          file_name: string;
+          id: string;
+          mode: string | null;
+          status: string;
+          summary: Json | null;
+          updated_at: string;
+          uploaded_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          error_msg?: string | null;
+          excel_path: string;
+          file_name: string;
+          id?: string;
+          mode?: string | null;
+          status?: string;
+          summary?: Json | null;
+          updated_at?: string;
+          uploaded_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          error_msg?: string | null;
+          excel_path?: string;
+          file_name?: string;
+          id?: string;
+          mode?: string | null;
+          status?: string;
+          summary?: Json | null;
+          updated_at?: string;
+          uploaded_by?: string | null;
+        };
+        Relationships: [];
+      };
       macro_outlook_notes: {
         Row: {
           created_at: string;
