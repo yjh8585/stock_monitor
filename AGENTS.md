@@ -194,6 +194,9 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **LLM 추출 수집기**(`collect_uzauto_financials.py`·현대 분기 IR 등)는 로컬 `scripts/.env`에 `ANTHROPIC_API_KEY`가 없어 **로컬 실행 불가**(키는 GHA Secrets 전용) → 실환경 검증은 `gh workflow run`.
 - **스캔 PDF**(UzAuto IFRS 등)는 `pypdf`/`pdfplumber` 텍스트 추출이 0자 + Read 도구 렌더가 `pdftoppm`(poppler) 미설치로 실패 → venv `pymupdf`(fitz)로 페이지 렌더(`fitz.open(p)[n].get_pixmap(dpi=200).save(png)`)→Read(vision)로 판독.
 - 손익/사외비 엑셀 파싱 디버깅: **openpyxl `read_only=True` 단독 결과를 신뢰하지 말 것**(행/열 인덱싱이 어긋나 부문값이 제품열로 읽히는 오진 관측) → `read_only=False`(`ws.cell`) 또는 sync의 `parse_sheet()` 직접 호출로 교차검증.
+- **Excel COM 시트→이미지 렌더**(win32com): `wb.ExportAsFixedFormat`은 활성/전체 시트를 내보내 **대상 시트가 뒤바뀐다** → `ws.Activate()` + **`ws.ExportAsFixedFormat`(워크시트 단위)** 사용. PrintArea를 `UsedRange`로만 잡으면 셀 밖 도형(변경요약 박스 등)이 잘림 → 도형(`ws.Shapes[].BottomRightCell`)까지 포함해 범위 설정 + 여백 0.
+- **렌더 산출물 검증은 실제로 열어볼 것**: 이미지/PDF는 "픽셀 해시가 다르다"만 보면 _내용 뒤바뀜_을 못 잡는다(조직도 시트 swap 버그를 이 함정으로 놓침) → Read(vision)로 제목·구조·매핑을 눈으로 확인. 사외비면 제목/구조만 보고 실명 비전사.
+- **Storage REST 업로드 인증**: 이 프로젝트 `SUPABASE_SERVICE_ROLE_KEY`는 신형 `sb_secret_...` 키 → `Authorization: Bearer` 외 **`apikey` 헤더도 필요**(JS admin client는 무관, Python `requests` 직접 업로드 시 주의).
 - **경영관리 엑셀 업로드 적재**(`sync_management_excel.py` 오케스트레이터)는 8개 사외비 sync를 subprocess 순차 실행하며 **전부에 `--dry-run` 전달** → 새 사외비 sync 추가 시 반드시 `--dry-run` 지원 + 오케스트레이터 `SCRIPTS` 목록 등록(누락 시 dry-run이 `unrecognized arguments`로 통째 실패). 엑셀 경로는 8개 모두 `MANAGEMENT_EXCEL_PATH` env 우선(`scripts/lib/management_excel.py` `resolve_excel_path`, 없으면 `참고/손익` glob).
 - **업로드 적재 실패 진단**: GHA 로그엔 오케스트레이터 라인만 보임 → 어떤 sync가 왜 실패했는지는 `management_uploads.summary->'scripts'`(Supabase SQL)의 `exit_code`·`output`(각 sync stdout 캡처)으로 확인.
 - **dry-run 정합성 경고는 staleness 아티팩트일 수 있음**: `sync_pnl_fixed_variable`는 업로드 엑셀 '고정비' 시트를 DB `pnl_cost_structure`(적재 전이라 한 업로드 뒤처짐)와 대조 → 진행연도 YTD 월수 차이로 mismatch 경고가 떠도 적재 후 0% reconcile. 경고만(차단 안 함).
