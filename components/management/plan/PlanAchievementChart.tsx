@@ -190,6 +190,8 @@ function AchievementTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
+  // 영업이익 차트에서만 마진 필드가 부여된다(그 외 undefined → 행 미표시).
+  const hasMargin = p.marginPlan !== undefined || p.marginActual !== undefined;
   return (
     <div
       className="rounded-md p-2 text-base"
@@ -205,6 +207,12 @@ function AchievementTooltip({
       <div className={p.rate != null && p.rate < 100 ? 'text-red-500' : 'text-emerald-600'}>
         달성율: {p.rate == null ? '—' : `${fmt(p.rate, 1)}%`}
       </div>
+      {hasMargin ? (
+        <div className="mt-1 border-t border-border pt-1 text-muted-foreground">
+          <div>계획 영업이익률: {p.marginPlan == null ? '—' : `${fmt(p.marginPlan, 1)}%`}</div>
+          <div>실적 영업이익률: {p.marginActual == null ? '—' : `${fmt(p.marginActual, 1)}%`}</div>
+        </div>
+      ) : null}
     </div>
   );
 }
