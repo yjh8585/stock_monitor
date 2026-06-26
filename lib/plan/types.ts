@@ -28,4 +28,8 @@ export interface AchievementPoint {
   actual: number | null;
   /** 달성율 % = actual/plan*100. plan 0/null이면 null */
   rate: number | null;
+  /** 계획 영업이익률 % = 영업이익계획/매출계획*100. 영업이익 차트에서만 부여(그 외 undefined) */
+  marginPlan?: number | null;
+  /** 실적 영업이익률 % = 영업이익실적/매출실적*100. 영업이익 차트에서만 부여(그 외 undefined) */
+  marginActual?: number | null;
 }

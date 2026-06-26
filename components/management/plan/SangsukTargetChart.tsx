@@ -3,17 +3,19 @@
 import { useMemo, useState } from 'react';
 import PlanAchievementChart from './PlanAchievementChart';
 import { ChartSection, ToggleGroup, pick } from './_selectors';
-import { buildAchievement } from '@/lib/plan/aggregate';
+import { attachMargin, buildAchievement } from '@/lib/plan/aggregate';
 import type { PlanRow } from '@/lib/plan/types';
 
 type Item = '매출' | '영업이익';
 
 export default function SangsukTargetChart({ rows }: { rows: PlanRow[] }) {
   const [item, setItem] = useState<Item>('매출');
-  const points = useMemo(
-    () => buildAchievement(pick(rows, '상숙', item, 'consolidated'), { unit: '억원' }),
-    [rows, item]
-  );
+  const points = useMemo(() => {
+    const base = buildAchievement(pick(rows, '상숙', item, 'consolidated'), { unit: '억원' });
+    if (item !== '영업이익') return base;
+    const rev = buildAchievement(pick(rows, '상숙', '매출', 'consolidated'), { unit: '억원' });
+    return attachMargin(base, rev);
+  }, [rows, item]);
   return (
     <ChartSection
       title="6. 상숙법인 목표 달성"

@@ -105,6 +105,30 @@ export function fillCancelExcluded(
   });
 }
 
+/**
+ * 영업이익 포인트에 매출 포인트로 영업이익률(%)을 부여 — 연도 매칭.
+ * 영업이익률 = 영업이익/매출*100. 매출이 null/0이면 해당 마진 null.
+ * 단위 환산(USD↔억원)에 불변이므로 동일 단위 쌍이면 어느 통화에서 호출해도 동일.
+ */
+export function attachMargin(
+  opPoints: readonly AchievementPoint[],
+  revPoints: readonly AchievementPoint[]
+): AchievementPoint[] {
+  const revByYear = new Map(revPoints.map((p) => [p.year, p]));
+  return opPoints.map((op) => {
+    const rev = revByYear.get(op.year);
+    const marginPlan =
+      rev && rev.plan && rev.plan !== 0 && op.plan !== null
+        ? round((op.plan / rev.plan) * 100)
+        : null;
+    const marginActual =
+      rev && rev.actual && rev.actual !== 0 && op.actual !== null
+        ? round((op.actual / rev.actual) * 100)
+        : null;
+    return { ...op, marginPlan, marginActual };
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // 전사 손익 (매출/영업이익) — pnl_entries actual 우선 + pnl_plan fallback
 // ─────────────────────────────────────────────────────────────────────
