@@ -5,6 +5,9 @@
  * 도구 실행 → 다음 iteration. AsyncGenerator로 이벤트를 점진 yield하여 UI 실시간 갱신.
  *
  * 무한 루프 방지: MAX_ITERATIONS = 5.
+ *
+ * 프롬프트 캐싱: system+tools(system 블록 breakpoint) + 누적 대화 히스토리
+ * (withHistoryCache, 마지막 블록 breakpoint)를 캐시해 도구루프·멀티턴 재호출 시 input 비용 절감.
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient } from '@/lib/reports/anthropic';
@@ -25,6 +28,36 @@ function previewResult(result: unknown): string {
   } catch {
     return String(result);
   }
+}
+
+/**
+ * 대화 히스토리 마지막 메시지의 마지막 블록에 cache_control을 걸어
+ * 누적되는 messages(이전 turn + 도구 결과)도 캐시 prefix로 재사용한다.
+ *
+ * - system 블록(별도 breakpoint)은 tools+system을 캐시 → 이 함수는 그 뒤의 messages를 캐시.
+ * - 매 호출마다 새 배열을 만들어 마지막 블록 1개에만 걸므로 breakpoint는 항상 2개(system+history)로 한도 4 이내.
+ * - 도구루프 iteration / 멀티턴 재호출 시 직전 prefix를 cache_read로 재사용해 input 비용 절감.
+ * - msgs는 변형하지 않는다(다음 iteration이 깨끗한 배열로 다시 마킹).
+ */
+function withHistoryCache(
+  msgs: Anthropic.Messages.MessageParam[]
+): Anthropic.Messages.MessageParam[] {
+  if (msgs.length === 0) return msgs;
+  const out = msgs.slice();
+  const last = out[out.length - 1];
+  const cc = { type: 'ephemeral' as const };
+  let newContent: Anthropic.Messages.ContentBlockParam[];
+  if (typeof last.content === 'string') {
+    newContent = [{ type: 'text', text: last.content, cache_control: cc }];
+  } else {
+    newContent = last.content.map((b, i) =>
+      i === last.content.length - 1
+        ? ({ ...b, cache_control: cc } as Anthropic.Messages.ContentBlockParam)
+        : b
+    );
+  }
+  out[out.length - 1] = { ...last, content: newContent };
+  return out;
 }
 
 /**
@@ -60,7 +93,7 @@ export async function* streamChatLoop(
         },
       ],
       tools: CHAT_TOOLS,
-      messages: msgs,
+      messages: withHistoryCache(msgs),
     });
 
     // 스트림 이벤트 순회 — text_delta만 즉시 yield, 도구 정보는 finalMessage에서 정리
