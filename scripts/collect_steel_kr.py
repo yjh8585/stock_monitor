@@ -10,6 +10,7 @@
 - 적재 후 market_series.label / unit / source 모두 실제 값으로 갱신.
 """
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -33,6 +34,10 @@ from lib.series_sources import (
   USER_AGENT,
 )
 
+# KOMIS가 GHA IP에 간헐 지연/빈응답 → 지수 백오프 재시도
+MAX_FETCH_ATTEMPTS = 3
+RETRY_BACKOFF_SEC = 10
+
 
 def _normalizeNumber(raw: str) -> float | None:
   """쉼표 제거 후 float 변환. 실패 시 None."""
@@ -54,7 +59,7 @@ def fetchKomisIronOre(request_ctx: APIRequestContext, years: int) -> list[dict]:
 
   # 1) GET 으로 세션 쿠키 확보
   try:
-    request_ctx.get(KOMIS_PAGE_URL, headers={'Referer': KOMIS_PAGE_URL}, timeout=30000)
+    request_ctx.get(KOMIS_PAGE_URL, headers={'Referer': KOMIS_PAGE_URL}, timeout=60000)
   except Exception as e:
     logger.error(f"KOMIS: 페이지 GET 실패 — {e}")
     return []
@@ -155,7 +160,17 @@ def collectSteelKr() -> None:
       extra_http_headers={'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8'},
     )
     logger.info(f"STEEL_KR(KOMIS Iron Ore) 수집 시작 (백필 {BACKFILL_YEARS}년)")
-    rows = fetchKomisIronOre(request_ctx, BACKFILL_YEARS)
+    rows: list[dict] = []
+    for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
+      rows = fetchKomisIronOre(request_ctx, BACKFILL_YEARS)
+      if rows:
+        break
+      if attempt < MAX_FETCH_ATTEMPTS:
+        wait = RETRY_BACKOFF_SEC * attempt
+        logger.warning(
+          f"KOMIS: 응답 없음 — {wait}s 후 재시도 ({attempt}/{MAX_FETCH_ATTEMPTS})"
+        )
+        time.sleep(wait)
     request_ctx.dispose()
 
   if not rows:
