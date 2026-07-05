@@ -29,29 +29,52 @@ import {
 } from './aggregate';
 
 const SUPABASE_PAGE_SIZE = 1000;
+// 나머지 페이지 병렬 fetch 상한 (Supabase 커넥션 보호 + 프리렌더 타임아웃 여유)
+const FETCH_CONCURRENCY = 8;
 
 type AnonClient = ReturnType<typeof createSupabaseAnonClient>;
 
-/** Supabase 한 번 select에 max 1000행 → range 페이지네이션 + 실패 시 throw. */
+/**
+ * Supabase 한 번 select에 max 1000행. 첫 페이지에서 총행수(count)를 얻고
+ * 나머지 페이지를 배치 병렬로 fetch → 대용량 테이블의 순차 왕복 지연 제거.
+ * 실패 시 throw. (aggregate는 키 그룹화라 페이지 순서 무관)
+ */
 async function fetchAll<TName extends keyof Database['public']['Tables']>(
   supabase: AnonClient,
   table: TName
 ): Promise<TableRow<TName>[]> {
-  const all: TableRow<TName>[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .range(from, from + SUPABASE_PAGE_SIZE - 1);
-    if (error) {
-      logger.error({ err: error, table }, `${table} 조회 실패`);
-      throw new Error(`Supabase ${table} 조회 실패: ${error.message}`);
+  const first = await supabase
+    .from(table)
+    .select('*', { count: 'exact' })
+    .range(0, SUPABASE_PAGE_SIZE - 1);
+  if (first.error) {
+    logger.error({ err: first.error, table }, `${table} 조회 실패`);
+    throw new Error(`Supabase ${table} 조회 실패: ${first.error.message}`);
+  }
+  const all = (first.data ?? []) as unknown as TableRow<TName>[];
+  const total = first.count ?? all.length;
+  if (total <= SUPABASE_PAGE_SIZE) return all;
+
+  const pageCount = Math.ceil(total / SUPABASE_PAGE_SIZE);
+  for (let start = 1; start < pageCount; start += FETCH_CONCURRENCY) {
+    const batch = [];
+    for (let page = start; page < Math.min(start + FETCH_CONCURRENCY, pageCount); page++) {
+      const offset = page * SUPABASE_PAGE_SIZE;
+      batch.push(
+        supabase
+          .from(table)
+          .select('*')
+          .range(offset, offset + SUPABASE_PAGE_SIZE - 1)
+      );
     }
-    if (!data || data.length === 0) break;
-    all.push(...(data as unknown as TableRow<TName>[]));
-    if (data.length < SUPABASE_PAGE_SIZE) break;
-    from += SUPABASE_PAGE_SIZE;
+    const results = await Promise.all(batch);
+    for (const { data, error } of results) {
+      if (error) {
+        logger.error({ err: error, table }, `${table} 조회 실패`);
+        throw new Error(`Supabase ${table} 조회 실패: ${error.message}`);
+      }
+      all.push(...((data ?? []) as unknown as TableRow<TName>[]));
+    }
   }
   return all;
 }
