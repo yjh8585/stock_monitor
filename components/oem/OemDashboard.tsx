@@ -90,10 +90,11 @@ interface Props {
   usaOemSeries: UsaOemTimeSeriesData;
   naModelSeries: ModelMonthlySeries[];
   otherModelSeries: ModelMonthlySeries[];
-  outlooks: OemModelOutlook[];
+  naOutlooks: OemModelOutlook[];
+  otherOutlooks: OemModelOutlook[];
 }
 
-/** 13개 차트 섹션을 위→아래 순차로 배치 (+ 북미 차종 콤보 차트/AI 평가 카드) */
+/** 13개 차트 섹션을 위→아래 순차로 배치 (+ 북미/기타 차종 콤보 차트·AI 평가 카드) */
 export default function OemDashboard({
   groupMonth,
   groupPtMonth,
@@ -103,7 +104,8 @@ export default function OemDashboard({
   usaOemSeries,
   naModelSeries,
   otherModelSeries,
-  outlooks,
+  naOutlooks,
+  otherOutlooks,
 }: Props) {
   const latestMonth2026 = useMemo(() => {
     const ym = findLatestYm(groupMonth, YTD_YEAR);
@@ -183,6 +185,13 @@ export default function OemDashboard({
       </Section>
 
       <Section
+        title="북미 핵심 차종 — AI 시장 평가"
+        subtitle="북미(미국) 시장 관점 · Claude Haiku 4.5 종합 판단 (주 1회 자동 갱신)"
+      >
+        <ModelOutlookCards outlooks={naOutlooks} />
+      </Section>
+
+      <Section
         title="기타 핵심 차종 월별 판매 추이"
         subtitle="글로벌 전 국가 합산 · 막대=판매량 / 라인=YoY %"
       >
@@ -198,10 +207,10 @@ export default function OemDashboard({
       </Section>
 
       <Section
-        title="북미 핵심 차종 — AI 시장 평가"
-        subtitle="Claude Haiku 4.5 종합 판단 (주 1회 자동 갱신)"
+        title="기타 핵심 차종 — AI 시장 평가"
+        subtitle="글로벌 시장 관점 · Claude Haiku 4.5 종합 판단 (주 1회 자동 갱신)"
       >
-        <ModelOutlookCards outlooks={outlooks} />
+        <ModelOutlookCards outlooks={otherOutlooks} />
       </Section>
     </div>
   );

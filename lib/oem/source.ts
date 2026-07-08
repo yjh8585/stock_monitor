@@ -30,6 +30,9 @@ import {
   OTHER_MODEL_TARGETS,
 } from './aggregate';
 
+/** 기타 핵심 차종 AI 평가 카드 model_key 집합 (북미/기타 outlook 분리 기준). */
+const OTHER_OUTLOOK_KEYS = new Set(OTHER_MODEL_TARGETS.map((t) => t.key));
+
 const SUPABASE_PAGE_SIZE = 1000;
 // 나머지 페이지 병렬 fetch 상한 (Supabase 커넥션 보호 + 프리렌더 타임아웃 여유)
 const FETCH_CONCURRENCY = 8;
@@ -192,6 +195,10 @@ export async function getOemData() {
   const otherModelSeries = aggregateOtherModelSeries(otherModelRows);
   const oemGroupCount = new Set(groupMonth.map((r) => r.oem_group)).size;
 
+  // AI 평가 카드는 북미/기타 섹션이 분리 노출 — model_key 집합으로 나눈다.
+  const otherOutlooks = outlooks.filter((o) => OTHER_OUTLOOK_KEYS.has(o.model_key));
+  const naOutlooks = outlooks.filter((o) => !OTHER_OUTLOOK_KEYS.has(o.model_key));
+
   return {
     groupMonth,
     groupPtMonth,
@@ -201,7 +208,8 @@ export async function getOemData() {
     usaOemSeries,
     naModelSeries,
     otherModelSeries,
-    outlooks,
+    naOutlooks,
+    otherOutlooks,
     oemGroupCount,
   };
 }

@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""북미 핵심 차종 5종의 소비자 평가·판매전망을 Claude로 종합해 oem_model_outlook에 적재.
+"""북미·기타 핵심 차종의 소비자 평가·판매전망을 Claude로 종합해 oem_model_outlook에 적재.
 
 차종(모델별 최근 뉴스 헤드라인 + 모회사 ticker 헤드라인 + 8-K 미사용) → Haiku 4.5 → JSON.
+
+- 북미 5종(region='North America'): 북미(미국) 시장 관점 평가.
+- 기타 5종(region='Global'): 글로벌 시장 관점 평가. 아반떼는 차트와 동일하게 중국 외/중국 분리.
+  두 그룹은 각 `market_context`(평가 기준 시장)만 다르고 나머지 파이프라인은 공유.
 
 매주 월요일 06:30 KST에 .github/workflows/collect-oem-model-outlook.yml가 호출.
 중복 실행은 (model_key, note_date) PK upsert로 안전 (멱등).
 
 연간 비용 (Claude Haiku 4.5):
-  - 5개 차종 × 주 1회 × 52주 = 260 호출
+  - 10개 차종 × 주 1회 × 52주 = 520 호출
   - 1회당 입력 ~2K tokens × $1/M + 출력 ~500 tokens × $5/M ≈ $0.0045
-  - 연간 ≈ $1.2 (약 1,600원)
+  - 연간 ≈ $2.4 (약 3,200원)
 """
 import json
 import os
@@ -32,13 +36,17 @@ ANTHROPIC_MODEL = os.environ.get('OEM_MODEL_OUTLOOK_MODEL', 'claude-haiku-4-5-20
 NEWS_LIMIT = 8
 KST = timezone(timedelta(hours=9))
 
-# 사용자 지정 5개 차종 (app/oem/page.tsx의 NA_MODEL_TARGETS와 일치)
-MODELS = [
+# 북미 5개 차종 (lib/oem/aggregate.ts의 NA_MODEL_TARGETS와 model_key 일치)
+# region='North America', market_context='북미(미국) 시장'.
+NA_MARKET = '북미(미국) 시장'
+NA_MODELS = [
   {
     'key': 'grand_cherokee',
     'name': 'Jeep Grand Cherokee',
     'oem_group': 'Stellantis',
     'parent_ticker': 'STLA',
+    'region': 'North America',
+    'market_context': NA_MARKET,
     'search_terms': ['Jeep Grand Cherokee', 'Grand Cherokee SUV'],
   },
   {
@@ -46,6 +54,8 @@ MODELS = [
     'name': 'Ram Pickup (1500/2500/3500)',
     'oem_group': 'Stellantis',
     'parent_ticker': 'STLA',
+    'region': 'North America',
+    'market_context': NA_MARKET,
     'search_terms': ['Ram 1500', 'Ram pickup truck'],
   },
   {
@@ -53,6 +63,8 @@ MODELS = [
     'name': 'Chrysler Pacifica',
     'oem_group': 'Stellantis',
     'parent_ticker': 'STLA',
+    'region': 'North America',
+    'market_context': NA_MARKET,
     'search_terms': ['Chrysler Pacifica', 'Pacifica minivan'],
   },
   {
@@ -60,6 +72,8 @@ MODELS = [
     'name': 'Rivian R1T / R1S',
     'oem_group': 'Rivian',
     'parent_ticker': 'RIVN',
+    'region': 'North America',
+    'market_context': NA_MARKET,
     'search_terms': ['Rivian R1T', 'Rivian R1S'],
   },
   {
@@ -67,9 +81,64 @@ MODELS = [
     'name': 'Volkswagen Atlas',
     'oem_group': 'Volkswagen',
     'parent_ticker': 'VWAGY',
+    'region': 'North America',
+    'market_context': NA_MARKET,
     'search_terms': ['VW Atlas', 'Volkswagen Atlas SUV'],
   },
 ]
+
+# 기타 5개 차종 (lib/oem/aggregate.ts의 OTHER_MODEL_TARGETS와 model_key 일치)
+# region='Global', 글로벌 시장 관점. 아반떼는 차트와 동일하게 중국 외/중국 2장으로 분리하며
+# 각 카드의 평가 기준 시장(market_context)을 달리해 두 카드가 겹치지 않게 한다.
+OTHER_MODELS = [
+  {
+    'key': 'porsche_911',
+    'name': 'Porsche 911',
+    'oem_group': 'VW Group (Porsche)',
+    'parent_ticker': 'POAHY',
+    'region': 'Global',
+    'market_context': '글로벌(전 세계) 시장',
+    'search_terms': ['Porsche 911', 'Porsche 911 sports car'],
+  },
+  {
+    'key': 'seltos',
+    'name': 'Kia Seltos (셀토스)',
+    'oem_group': 'Hyundai Kia',
+    'parent_ticker': '000270.KS',
+    'region': 'Global',
+    'market_context': '글로벌(전 세계) 시장',
+    'search_terms': ['Kia Seltos', 'Seltos SUV'],
+  },
+  {
+    'key': 'avante_ex_china',
+    'name': 'Hyundai Avante/Elantra (중국 외)',
+    'oem_group': 'Hyundai Kia',
+    'parent_ticker': '005380.KS',
+    'region': 'Global',
+    'market_context': '글로벌 시장(중국 제외 — 한국·미국·인도 등)',
+    'search_terms': ['Hyundai Elantra', 'Hyundai Avante'],
+  },
+  {
+    'key': 'avante_china',
+    'name': 'Hyundai Avante/Elantra (중국)',
+    'oem_group': 'Hyundai Kia',
+    'parent_ticker': '005380.KS',
+    'region': 'Global',
+    'market_context': '중국 시장',
+    'search_terms': ['Hyundai Elantra China', 'Beijing Hyundai Elantra'],
+  },
+  {
+    'key': 'niro',
+    'name': 'Kia Niro (니로)',
+    'oem_group': 'Hyundai Kia',
+    'parent_ticker': '000270.KS',
+    'region': 'Global',
+    'market_context': '글로벌(전 세계) 시장',
+    'search_terms': ['Kia Niro', 'Kia Niro hybrid EV'],
+  },
+]
+
+MODELS = NA_MODELS + OTHER_MODELS
 
 
 def _fetchYfNews(ticker: str) -> list[dict]:
@@ -117,10 +186,11 @@ def _buildDigest(model: dict, news: list[dict]) -> str:
 
 
 def _evaluateModel(client: Anthropic, model: dict, digest: str) -> dict | None:
-  """차종 1개의 평가 JSON을 생성한다."""
-  prompt = f"""당신은 북미 자동차 시장 애널리스트입니다. 아래는 특정 차종과 그 제조사의 최근 뉴스 헤드라인입니다.
+  """차종 1개의 평가 JSON을 생성한다. 평가 기준 시장은 model['market_context']."""
+  market = model['market_context']
+  prompt = f"""당신은 자동차 시장 애널리스트입니다. 아래는 특정 차종과 그 제조사의 최근 뉴스 헤드라인입니다.
 
-이 정보와 당신이 알고 있는 일반적인 시장 지식을 종합해 **북미(미국) 시장에서 이 차종에 대한 평가**를 한국어로 작성하세요.
+이 정보와 당신이 알고 있는 일반적인 시장 지식을 종합해 **{market}에서 이 차종에 대한 평가**를 한국어로 작성하세요.
 
 ## 응답 형식 (반드시 JSON. 코드펜스 금지)
 
@@ -199,7 +269,7 @@ def collectOemModelOutlook() -> int:
       'model_key': model['key'],
       'model_name': model['name'],
       'oem_group': model['oem_group'],
-      'region': 'North America',
+      'region': model['region'],
       'note_date': today,
       'label': result['label'],
       'consumer_view': result['consumer_view'],
