@@ -84,6 +84,10 @@ async function fetchAll<TName extends keyof Database['public']['Tables']>(
 /**
  * model_country_month 중 지정 모델만 fetch. `country` 지정 시 해당 국가로 추가 필터,
  * 미지정 시 전 국가. 모델 집합이 작아 필터 조건으로 가볍다.
+ *
+ * `.range()` 페이지네이션은 반드시 **결정적 전체 정렬**과 함께 써야 한다. `.in()` 필터는
+ * 인덱스 스캔을 타서 ORDER BY 없이는 페이지 경계에서 순서가 흔들려 행이 누락·중복된다
+ * (전 국가 fetch가 1000행을 넘길 때 특정 연도가 통째로 빠지는 증상). PK 4컬럼으로 정렬해 고정.
  */
 async function fetchModelRows(
   supabase: AnonClient,
@@ -93,7 +97,14 @@ async function fetchModelRows(
   const out: OemSalesModelCountryMonth[] = [];
   let from = 0;
   while (true) {
-    let query = supabase.from('oem_sales_model_country_month').select('*').in('model', models);
+    let query = supabase
+      .from('oem_sales_model_country_month')
+      .select('*')
+      .in('model', models)
+      .order('oem_group')
+      .order('country')
+      .order('model')
+      .order('year_month');
     if (country) query = query.eq('country', country);
     const { data, error } = await query.range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
