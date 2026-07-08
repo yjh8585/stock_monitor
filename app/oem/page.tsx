@@ -24,6 +24,7 @@ export default async function OemPage() {
         oemCountryMatrix={data.oemCountryMatrix}
         usaOemSeries={data.usaOemSeries}
         naModelSeries={data.naModelSeries}
+        otherModelSeries={data.otherModelSeries}
         outlooks={data.outlooks}
       />
     </>

@@ -26,12 +26,16 @@ export const HEATMAP_FORCED_COUNTRIES = ['Korea'];
 export const NA_COUNTRY = 'USA';
 /** pre-production 소량(1~2대) 기간이 YoY 기준월이 되면 수천% 이상치 → 최소 임계값 적용 */
 export const MIN_YOY_PREV_SALES = 10;
-export const NA_MODEL_TARGETS: {
+
+/** 콤보 차트 한 개(모델 그룹) 정의. models는 합산 대상 원본 모델명들. */
+export interface ModelTarget {
   key: string;
   label: string;
   oemGroup: string;
   models: string[];
-}[] = [
+}
+
+export const NA_MODEL_TARGETS: ModelTarget[] = [
   {
     key: 'grand_cherokee',
     label: 'Grand Cherokee',
@@ -61,6 +65,43 @@ export const NA_MODEL_TARGETS: {
     label: 'VW Atlas',
     oemGroup: 'VW Group',
     models: ['VW Atlas'],
+  },
+];
+
+/**
+ * 기타 핵심 차종 — 전 국가(글로벌) 합산 대상.
+ * 아반떼/엘란트라는 DB에 중국 전용 변형이 별도 모델명으로 존재해 '중국 외'/'중국' 2개로 분리한다.
+ */
+export const OTHER_MODEL_TARGETS: ModelTarget[] = [
+  {
+    key: 'porsche_911',
+    label: 'Porsche 911',
+    oemGroup: 'VW Group (Porsche)',
+    models: ['Porsche 911'],
+  },
+  {
+    key: 'seltos',
+    label: 'Seltos (셀토스)',
+    oemGroup: 'Hyundai Kia',
+    models: ['SELTOS'],
+  },
+  {
+    key: 'avante_ex_china',
+    label: 'Avante/Elantra (중국 외)',
+    oemGroup: 'Hyundai Kia',
+    models: ['Avante (Elantra)', 'Avante'],
+  },
+  {
+    key: 'avante_china',
+    label: 'Avante/Elantra (중국)',
+    oemGroup: 'Hyundai Kia',
+    models: ['Elantra/Yuedong/Langdong/Elantra 2016', 'Elantra Yuedong'],
+  },
+  {
+    key: 'niro',
+    label: 'Niro (니로)',
+    oemGroup: 'Hyundai Kia',
+    models: ['NIRO'],
   },
 ];
 
@@ -116,17 +157,22 @@ export function aggregateOemCountryMatrix(rows: OemSalesGroupCountryMonth[]): {
 }
 
 /**
- * 5개 모델 그룹별 월별 시리즈 + YoY 가공.
+ * 모델 그룹별 월별 시리즈 + YoY 가공 (공통 빌더).
  *
+ * `countryFilter`가 주어지면 해당 국가만, `null`이면 전 국가 합산.
  * 빈 월은 0으로 채우고, 전년동월(prevYm = ym - 100) 매출이 임계값 이상일 때만 YoY 계산.
  */
-export function aggregateModelSeries(rows: OemSalesModelCountryMonth[]): ModelMonthlySeries[] {
+function buildModelSeries(
+  rows: OemSalesModelCountryMonth[],
+  targets: ModelTarget[],
+  countryFilter: string | null
+): ModelMonthlySeries[] {
   const result: ModelMonthlySeries[] = [];
-  for (const target of NA_MODEL_TARGETS) {
+  for (const target of targets) {
     const modelSet = new Set(target.models);
     const ymMap = new Map<number, number>();
     for (const r of rows) {
-      if (r.country !== NA_COUNTRY) continue;
+      if (countryFilter !== null && r.country !== countryFilter) continue;
       if (!modelSet.has(r.model)) continue;
       ymMap.set(r.year_month, (ymMap.get(r.year_month) ?? 0) + r.sales);
     }
@@ -148,6 +194,16 @@ export function aggregateModelSeries(rows: OemSalesModelCountryMonth[]): ModelMo
     result.push({ key: target.key, label: target.label, oemGroup: target.oemGroup, data });
   }
   return result;
+}
+
+/** 북미 핵심 차종 5종 — USA 시장만 합산. */
+export function aggregateModelSeries(rows: OemSalesModelCountryMonth[]): ModelMonthlySeries[] {
+  return buildModelSeries(rows, NA_MODEL_TARGETS, NA_COUNTRY);
+}
+
+/** 기타 핵심 차종 5종 — 전 국가(글로벌) 합산. */
+export function aggregateOtherModelSeries(rows: OemSalesModelCountryMonth[]): ModelMonthlySeries[] {
+  return buildModelSeries(rows, OTHER_MODEL_TARGETS, null);
 }
 
 /**

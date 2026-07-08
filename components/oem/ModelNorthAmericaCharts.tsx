@@ -20,24 +20,33 @@ import { fmtFull, fmtUnits } from './helpers';
 
 interface Props {
   series: ModelMonthlySeries[];
+  /** 상단 대상 설명 문구. 미지정 시 북미 차종 기본 문구. */
+  caption?: React.ReactNode;
 }
 
-/** 북미 핵심 차종 5종 — 월별 판매량(막대) + YoY %(선) 콤보 차트 5개 그리드 */
-export default function ModelNorthAmericaCharts({ series }: Props) {
+const DEFAULT_CAPTION = (
+  <>
+    대상: 미국(USA) 시장 · Stellantis(Grand Cherokee·Pacifica·Ram P/U) / Rivian(R1T+R1S) /
+    Volkswagen(Atlas)
+  </>
+);
+
+/**
+ * 핵심 차종 월별 판매량(막대) + YoY %(선) 콤보 차트 그리드.
+ * 북미 핵심 차종·기타 핵심 차종 두 섹션이 동일 차트 유형을 공유한다 (caption만 다름).
+ */
+export default function ModelNorthAmericaCharts({ series, caption }: Props) {
   if (series.length === 0) {
     return (
       <div className="text-sm text-muted-foreground py-12 text-center">
-        북미 차종 데이터 없음. <code>oem_sales_model_country_month</code> 적재가 필요합니다.
+        차종 데이터 없음. <code>oem_sales_model_country_month</code> 적재가 필요합니다.
       </div>
     );
   }
 
   return (
     <div>
-      <div className="text-[11px] text-muted-foreground mb-3">
-        대상: 미국(USA) 시장 · Stellantis(Grand Cherokee·Pacifica·Ram P/U) / Rivian(R1T+R1S) /
-        Volkswagen(Atlas)
-      </div>
+      <div className="text-[11px] text-muted-foreground mb-3">{caption ?? DEFAULT_CAPTION}</div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {series.map((s) => (
           <ModelChart key={s.key} series={s} />

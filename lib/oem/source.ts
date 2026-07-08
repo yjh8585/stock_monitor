@@ -23,9 +23,11 @@ import {
   aggregateCountryTop15,
   aggregateModelSeries,
   aggregateOemCountryMatrix,
+  aggregateOtherModelSeries,
   aggregateUsaOemSeries,
   NA_COUNTRY,
   NA_MODEL_TARGETS,
+  OTHER_MODEL_TARGETS,
 } from './aggregate';
 
 const SUPABASE_PAGE_SIZE = 1000;
@@ -79,18 +81,21 @@ async function fetchAll<TName extends keyof Database['public']['Tables']>(
   return all;
 }
 
-/** model_country_month 중 USA + 대상 모델만 fetch (전체 적재량 크면 필터 조건으로 가벼움). */
-async function fetchNaModelRows(supabase: AnonClient): Promise<OemSalesModelCountryMonth[]> {
-  const allTargetModels = NA_MODEL_TARGETS.flatMap((t) => t.models);
+/**
+ * model_country_month 중 지정 모델만 fetch. `country` 지정 시 해당 국가로 추가 필터,
+ * 미지정 시 전 국가. 모델 집합이 작아 필터 조건으로 가볍다.
+ */
+async function fetchModelRows(
+  supabase: AnonClient,
+  models: string[],
+  country?: string
+): Promise<OemSalesModelCountryMonth[]> {
   const out: OemSalesModelCountryMonth[] = [];
   let from = 0;
   while (true) {
-    const { data, error } = await supabase
-      .from('oem_sales_model_country_month')
-      .select('*')
-      .eq('country', NA_COUNTRY)
-      .in('model', allTargetModels)
-      .range(from, from + SUPABASE_PAGE_SIZE - 1);
+    let query = supabase.from('oem_sales_model_country_month').select('*').in('model', models);
+    if (country) query = query.eq('country', country);
+    const { data, error } = await query.range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'oem_sales_model_country_month 조회 실패');
       // 테이블 미적재 단계 가능 — 빈 배열로 graceful fallback
@@ -144,13 +149,22 @@ export async function getOemData() {
     groupCountryMonthRaw,
     typeSegMonthRaw,
     modelRows,
+    otherModelRows,
     outlooks,
   ] = await Promise.all([
     fetchAll(supabase, 'oem_sales_group_month'),
     fetchAll(supabase, 'oem_sales_group_pt_month'),
     fetchAll(supabase, 'oem_sales_group_country_month'),
     fetchAll(supabase, 'oem_sales_type_seg_month'),
-    fetchNaModelRows(supabase),
+    fetchModelRows(
+      supabase,
+      NA_MODEL_TARGETS.flatMap((t) => t.models),
+      NA_COUNTRY
+    ),
+    fetchModelRows(
+      supabase,
+      OTHER_MODEL_TARGETS.flatMap((t) => t.models)
+    ),
     fetchLatestOutlooks(supabase),
   ]);
 
@@ -164,6 +178,7 @@ export async function getOemData() {
   const oemCountryMatrix = aggregateOemCountryMatrix(groupCountryMonth);
   const usaOemSeries = aggregateUsaOemSeries(groupCountryMonth);
   const naModelSeries = aggregateModelSeries(modelRows);
+  const otherModelSeries = aggregateOtherModelSeries(otherModelRows);
   const oemGroupCount = new Set(groupMonth.map((r) => r.oem_group)).size;
 
   return {
@@ -174,6 +189,7 @@ export async function getOemData() {
     oemCountryMatrix,
     usaOemSeries,
     naModelSeries,
+    otherModelSeries,
     outlooks,
     oemGroupCount,
   };
