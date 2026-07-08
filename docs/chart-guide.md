@@ -48,18 +48,18 @@
 
 ### `/oem` (전체 탭) — `components/oem/`
 
-| 컴포넌트                                                  | 유형                                   |
-| --------------------------------------------------------- | -------------------------------------- |
-| `MarketTrendChart`                                        | 막대(연간)/영역(월간) 토글             |
-| `Top10AnnualBars`                                         | 그룹 막대                              |
-| `Top10MonthlyLines`                                       | 다중 라인                              |
-| `Top30YtdChart`                                           | 가로 막대                              |
-| `CountryTop15`                                            | 가로 막대                              |
-| `OemCountryHeatmap`                                       | 커스텀 히트맵                          |
-| `PowertrainMix`                                           | 100% 스택 영역(`stackOffset="expand"`) |
-| `PowertrainTopOems`, `EvLeadersChart`, `TypeSegmentChart` | 막대/스택                              |
-| `UsaOemTrendChart`, `ModelNorthAmericaCharts`             | 라인/막대                              |
-| `YoyWinnersLosers`                                        | 양방향 막대                            |
+| 컴포넌트                                                  | 유형                                                                                                                                               |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MarketTrendChart`                                        | 막대(연간)/영역(월간) 토글                                                                                                                         |
+| `Top10AnnualBars`                                         | 그룹 막대                                                                                                                                          |
+| `Top10MonthlyLines`                                       | 다중 라인                                                                                                                                          |
+| `Top30YtdChart`                                           | 가로 막대                                                                                                                                          |
+| `CountryTop15`                                            | 가로 막대                                                                                                                                          |
+| `OemCountryHeatmap`                                       | 커스텀 히트맵                                                                                                                                      |
+| `PowertrainMix`                                           | 100% 스택 영역(`stackOffset="expand"`)                                                                                                             |
+| `PowertrainTopOems`, `EvLeadersChart`, `TypeSegmentChart` | 막대/스택                                                                                                                                          |
+| `UsaOemTrendChart`, `ModelNorthAmericaCharts`             | 라인/막대(콤보: 막대=판매량 + 선=YoY). `ModelNorthAmericaCharts`는 북미 핵심 차종(USA)·기타 핵심 차종(글로벌 합산) 2섹션을 `caption` prop으로 공유 |
+| `YoyWinnersLosers`                                        | 양방향 막대                                                                                                                                        |
 
 ### `/oem/<slug>` — `components/oem-companies/`
 
