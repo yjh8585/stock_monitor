@@ -61,6 +61,8 @@
 | `UsaOemTrendChart`, `ModelNorthAmericaCharts`             | 라인/막대(콤보: 막대=판매량 + 선=YoY). `ModelNorthAmericaCharts`는 북미 핵심 차종(USA)·기타 핵심 차종(글로벌 합산) 2섹션을 `caption` prop으로 공유 |
 | `YoyWinnersLosers`                                        | 양방향 막대                                                                                                                                        |
 
+> ⚠️ 콤보 차트 `XAxis interval={11}`은 **월이 12개씩 연속**임을 가정. 시리즈에 결측월/중간 출시가 있으면 연도 틱 라벨이 어긋남(집계는 결측월 zero-fill 안 함 — 존재 월만 정렬). 다중 페이지 fetch로 행이 누락돼도 같은 증상 → `lib/oem/source.ts` 정렬 규칙 참고.
+
 ### `/oem/<slug>` — `components/oem-companies/`
 
 - **공통**(`common/`): `CompanyTimeSeriesChart`(연 막대/월 영역 토글), `CompanyPowertrainMixChart`, `ShipmentStackedHBarChart`(내수·수출·해외 가로 스택)
