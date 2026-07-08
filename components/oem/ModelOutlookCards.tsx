@@ -25,7 +25,7 @@ const LABEL_STYLES: Record<OemModelOutlook['label'], { bg: string; dot: string; 
   },
 };
 
-/** 북미 핵심 차종 — AI(Claude Haiku 4.5) 평가 카드 (주 1회 갱신) */
+/** 핵심 차종 — AI(Claude Haiku 4.5) 평가 카드 (주 1회 갱신). 북미·기타 섹션이 공유. */
 export default function ModelOutlookCards({ outlooks }: Props) {
   if (outlooks.length === 0) {
     return (
