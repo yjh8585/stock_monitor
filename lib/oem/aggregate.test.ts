@@ -10,6 +10,7 @@ import {
   aggregateCountryTop15,
   aggregateModelSeries,
   aggregateOemCountryMatrix,
+  aggregateOtherModelSeries,
   aggregateUsaOemSeries,
   HEATMAP_FORCED_COUNTRIES,
   YEAR_2025_END,
@@ -200,6 +201,51 @@ describe('aggregateModelSeries', () => {
     ]);
     const ram = result.find((r) => r.key === 'ram_truck')!;
     expect(ram.data.map((d) => d.ym)).toEqual([202501, 202502, 202503]);
+  });
+});
+
+describe('aggregateOtherModelSeries', () => {
+  it('OTHER_MODEL_TARGETS 5개 모두 포함 (포르쉐911·셀토스·아반떼중국외·아반떼중국·니로)', () => {
+    const result = aggregateOtherModelSeries([]);
+    expect(result.map((r) => r.key)).toEqual([
+      'porsche_911',
+      'seltos',
+      'avante_ex_china',
+      'avante_china',
+      'niro',
+    ]);
+    for (const r of result) expect(r.data).toEqual([]);
+  });
+
+  it('전 국가 합산 — country 필터 없이 모든 나라 매출 합산', () => {
+    const result = aggregateOtherModelSeries([
+      mcm('Porsche 911', 'USA', 202501, 100),
+      mcm('Porsche 911', 'Germany', 202501, 200),
+      mcm('Porsche 911', 'Korea', 202501, 50),
+    ]);
+    const p911 = result.find((r) => r.key === 'porsche_911')!;
+    expect(p911.data).toHaveLength(1);
+    expect(p911.data[0].sales).toBe(350);
+  });
+
+  it('아반떼 중국 외 = Avante (Elantra) + Avante(한국), 중국 변형은 제외', () => {
+    const result = aggregateOtherModelSeries([
+      mcm('Avante (Elantra)', 'USA', 202501, 300),
+      mcm('Avante', 'Korea', 202501, 100),
+      mcm('Elantra Yuedong', 'China', 202501, 999), // 중국 변형 → 제외
+    ]);
+    const exChina = result.find((r) => r.key === 'avante_ex_china')!;
+    expect(exChina.data[0].sales).toBe(400);
+  });
+
+  it('아반떼 중국 = 중국 전용 변형 2종 합산', () => {
+    const result = aggregateOtherModelSeries([
+      mcm('Elantra/Yuedong/Langdong/Elantra 2016', 'China', 202501, 600),
+      mcm('Elantra Yuedong', 'China', 202501, 120),
+      mcm('Avante (Elantra)', 'USA', 202501, 999), // 중국 외 → 제외
+    ]);
+    const china = result.find((r) => r.key === 'avante_china')!;
+    expect(china.data[0].sales).toBe(720);
   });
 });
 

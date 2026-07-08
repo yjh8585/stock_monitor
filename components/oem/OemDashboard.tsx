@@ -89,6 +89,7 @@ interface Props {
   oemCountryMatrix: OemCountryMatrix;
   usaOemSeries: UsaOemTimeSeriesData;
   naModelSeries: ModelMonthlySeries[];
+  otherModelSeries: ModelMonthlySeries[];
   outlooks: OemModelOutlook[];
 }
 
@@ -101,6 +102,7 @@ export default function OemDashboard({
   oemCountryMatrix,
   usaOemSeries,
   naModelSeries,
+  otherModelSeries,
   outlooks,
 }: Props) {
   const latestMonth2026 = useMemo(() => {
@@ -178,6 +180,21 @@ export default function OemDashboard({
 
       <Section title="북미 핵심 차종 월별 판매 추이" subtitle="USA · 막대=판매량 / 라인=YoY %">
         <ModelNorthAmericaCharts series={naModelSeries} />
+      </Section>
+
+      <Section
+        title="기타 핵심 차종 월별 판매 추이"
+        subtitle="글로벌 전 국가 합산 · 막대=판매량 / 라인=YoY %"
+      >
+        <ModelNorthAmericaCharts
+          series={otherModelSeries}
+          caption={
+            <>
+              대상: 글로벌 전 국가 합산 · Porsche(911) / Hyundai·Kia(셀토스·아반떼·니로) · 아반떼는
+              중국 외/중국 분리
+            </>
+          }
+        />
       </Section>
 
       <Section
