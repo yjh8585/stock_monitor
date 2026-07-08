@@ -1,0 +1,13 @@
+{
+  "backup_date_kst": "2026-07-09",
+  "generated_at_utc": "2026-07-08T18:24:27.128679+00:00",
+  "tables": {
+    "companies": 570,
+    "financials": 4172,
+    "news": 22094,
+    "company_pages": 587,
+    "pnl_entries": 4310,
+    "market_series_daily": 27393
+  },
+  "total_compressed_bytes": 5221095
+}
