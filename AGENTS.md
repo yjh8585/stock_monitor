@@ -145,7 +145,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 ### 루트 설정
 
-- `proxy.ts`(라우트 미들웨어, 구 middleware) / `next.config.ts`(`cacheComponents`+`staleTimes`+`serverExternalPackages`) / `vercel.json`(배포, vercel.ts로 옮기지 말 것) / `.claude/agents/`(서브 에이전트 4종) / `.mcp.json`(MCP 서버)
+- `proxy.ts`(라우트 미들웨어, 구 middleware) / `next.config.ts`(`cacheComponents`+`staleTimes`+`serverExternalPackages`) / `vercel.json`(배포, vercel.ts로 옮기지 말 것 — `ignoreCommand`로 `data/backups`-only 일일 백업 봇 커밋의 프로덕션 배포를 스킵: 배포마다 ISR 캐시가 배포 단위로 리셋돼 전 라우트가 dedup 없이 full-payload 재기록되는 baseline write를 제거) / `.claude/agents/`(서브 에이전트 4종) / `.mcp.json`(MCP 서버)
 
 ## 데이터 흐름
 
