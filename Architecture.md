@@ -283,6 +283,17 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 | `oem_sales_group_pt_month`      | (oem_group, powertrain, year_month)     | 14,878  | (powertrain, year_month), year_month       |
 | `oem_sales_type_seg_month`      | (vehicle_type, segment, year_month)     | 13,394  | year_month                                 |
 
+#### `/oem` 프리렌더 집계 뷰 (마이그레이션 `20260714000001`)
+
+`oem_sales_group_country_month`(약 12만 행)를 앱에서 전량 fetch·집계하면 빌드 프리렌더가 statement/USE_CACHE timeout(백업 커밋 배포 간헐 ERROR) → 무거운 SUM을 DB로 이관. 순수 SUM 재집계라 값은 원본과 동일(전역 합계 항등 검증됨).
+
+| 뷰                             | 정의                                                              | 행 수  | 용도                          |
+| ------------------------------ | ----------------------------------------------------------------- | ------ | ----------------------------- |
+| `oem_sales_country_group_year` | `year(=ym/100) × oem_group × country` → SUM(sales)::bigint         | ~1.2만 | 국가 TOP15 / OEM×국가 매트릭스 |
+| `oem_sales_usa_group_month`    | `country='USA'` 한정 `oem_group × year_month` → SUM(sales)::bigint | ~1.8천 | 미국 TOP10 OEM 월별 시계열     |
+
+- `lib/oem/source.ts`가 뷰1은 `TARGET_YEAR`만, 뷰2는 전체 기간 fetch. `cacheTag`는 원본 `oem_sales_group_country_month` 유지(뷰는 실시간 반영이라 수집 시 원본 무효화로 자동 갱신).
+
 #### `oem_model_outlook` (10행) — 모델 outlook 노트
 
 | model_key | model_name | oem_group | region | note_date | label | consumer_view | outlook | rationale | sources_used |

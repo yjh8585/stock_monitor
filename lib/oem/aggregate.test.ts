@@ -1,11 +1,14 @@
 /**
- * OEM 사전 가공 4종 단위 테스트 — pure 함수, mocking 없음.
+ * OEM 사전 가공 단위 테스트 — pure 함수, mocking 없음.
  *
  * fixture는 각 테스트 안에 inline (재사용 안 함). OEM 이름은 괄호·슬래시 없이
  * 단순하게 — shortenOemName이 identity가 되도록.
+ *
+ * country×month 집계 3종은 DB 집계 뷰(oem_sales_country_group_year·
+ * oem_sales_usa_group_month) 입력을 받는다 — cgy/ugm 헬퍼로 뷰 행을 구성한다.
  */
 import { describe, expect, it } from 'vitest';
-import type { OemSalesGroupCountryMonth, OemSalesModelCountryMonth } from '@/lib/types';
+import type { OemCountryGroupYear, OemSalesModelCountryMonth, OemUsaGroupMonth } from '@/lib/types';
 import {
   aggregateCountryTop15,
   aggregateModelSeries,
@@ -13,18 +16,17 @@ import {
   aggregateOtherModelSeries,
   aggregateUsaOemSeries,
   HEATMAP_FORCED_COUNTRIES,
-  YEAR_2025_END,
-  YEAR_2025_START,
+  TARGET_YEAR,
 } from './aggregate';
 
-/** GCM(GroupCountryMonth) row — 필요한 4개 필드만 (테이블의 다른 컬럼은 무시). */
-function gcm(
-  oem_group: string,
-  country: string,
-  year_month: number,
-  sales: number
-): OemSalesGroupCountryMonth {
-  return { oem_group, country, year_month, sales } as OemSalesGroupCountryMonth;
+/** oem_sales_country_group_year 뷰 행 (연·OEM·국가 사전 집계). */
+function cgy(oem_group: string, country: string, year: number, sales: number): OemCountryGroupYear {
+  return { oem_group, country, year, sales };
+}
+
+/** oem_sales_usa_group_month 뷰 행 (USA OEM·월별 사전 집계). */
+function ugm(oem_group: string, year_month: number, sales: number): OemUsaGroupMonth {
+  return { oem_group, year_month, sales };
 }
 
 function mcm(
@@ -37,21 +39,21 @@ function mcm(
 }
 
 describe('aggregateCountryTop15', () => {
-  it('2025년 윈도우 밖 rows 무시', () => {
+  it('TARGET_YEAR 밖 rows 무시', () => {
     const result = aggregateCountryTop15([
-      gcm('Toyota Group', 'Japan', 202412, 100), // 2024 → 무시
-      gcm('Toyota Group', 'Japan', 202501, 50),
-      gcm('Toyota Group', 'Japan', YEAR_2025_END + 1, 999), // 2026 → 무시
+      cgy('Toyota Group', 'Japan', TARGET_YEAR - 1, 100), // 전년 → 무시
+      cgy('Toyota Group', 'Japan', TARGET_YEAR, 50),
+      cgy('Toyota Group', 'Japan', TARGET_YEAR + 1, 999), // 익년 → 무시
     ]);
     expect(result).toEqual([{ name: 'Japan', sales: 50 }]);
   });
 
   it('country별 합계 + sales 내림차순 정렬', () => {
     const result = aggregateCountryTop15([
-      gcm('A', 'USA', 202503, 100),
-      gcm('A', 'USA', 202504, 200),
-      gcm('B', 'Japan', 202505, 500),
-      gcm('C', 'Korea', 202506, 50),
+      cgy('A', 'USA', TARGET_YEAR, 100),
+      cgy('B', 'USA', TARGET_YEAR, 200),
+      cgy('B', 'Japan', TARGET_YEAR, 500),
+      cgy('C', 'Korea', TARGET_YEAR, 50),
     ]);
     expect(result).toEqual([
       { name: 'Japan', sales: 500 },
@@ -61,9 +63,9 @@ describe('aggregateCountryTop15', () => {
   });
 
   it('TOP15 슬라이스 — 16개 country 입력 시 15개만', () => {
-    const rows: OemSalesGroupCountryMonth[] = [];
+    const rows: OemCountryGroupYear[] = [];
     for (let i = 0; i < 16; i++) {
-      rows.push(gcm('A', `C${i}`, YEAR_2025_START, 100 - i)); // C0=100, C1=99, ..., C15=85
+      rows.push(cgy('A', `C${i}`, TARGET_YEAR, 100 - i)); // C0=100, C1=99, ..., C15=85
     }
     const result = aggregateCountryTop15(rows);
     expect(result).toHaveLength(15);
@@ -79,13 +81,13 @@ describe('aggregateCountryTop15', () => {
 describe('aggregateOemCountryMatrix', () => {
   it('TOP10 OEM × TOP10 Country 매트릭스 + Korea 강제 포함', () => {
     // 12 OEM × 11 country (TOP10 + Korea(작은 매출이지만 강제))
-    const rows: OemSalesGroupCountryMonth[] = [];
+    const rows: OemCountryGroupYear[] = [];
     for (let oi = 0; oi < 12; oi++) {
       const oem = `OEM${String(oi).padStart(2, '0')}`;
       for (let ci = 0; ci < 11; ci++) {
         const country = ci === 10 ? 'Korea' : `C${ci}`;
         const sales = ci === 10 ? 1 : (12 - oi) * (11 - ci) * 100; // OEM00이 최대, C0이 최대
-        rows.push(gcm(oem, country, YEAR_2025_START, sales));
+        rows.push(cgy(oem, country, TARGET_YEAR, sales));
       }
     }
     const { oems, countries, matrix } = aggregateOemCountryMatrix(rows);
@@ -106,22 +108,22 @@ describe('aggregateOemCountryMatrix', () => {
   });
 
   it('Korea가 TOP10 안에 이미 있으면 중복 추가 안 함', () => {
-    const rows: OemSalesGroupCountryMonth[] = [
-      gcm('A', 'Korea', YEAR_2025_START, 9999),
-      gcm('A', 'USA', YEAR_2025_START, 100),
+    const rows: OemCountryGroupYear[] = [
+      cgy('A', 'Korea', TARGET_YEAR, 9999),
+      cgy('A', 'USA', TARGET_YEAR, 100),
     ];
     const { countries } = aggregateOemCountryMatrix(rows);
     expect(countries.filter((c) => c === 'Korea')).toHaveLength(1);
   });
 
-  it('2025년 윈도우 밖 무시', () => {
-    const rows: OemSalesGroupCountryMonth[] = [
-      gcm('A', 'USA', 202412, 999),
-      gcm('A', 'USA', 202501, 100),
+  it('TARGET_YEAR 밖 무시', () => {
+    const rows: OemCountryGroupYear[] = [
+      cgy('A', 'USA', TARGET_YEAR - 1, 999),
+      cgy('A', 'USA', TARGET_YEAR, 100),
     ];
     const { oems, matrix } = aggregateOemCountryMatrix(rows);
     expect(oems).toEqual(['A']);
-    // 첫 셀(A,USA) = 100. 2024년 무시.
+    // 첫 셀(A,USA) = 100. 전년 무시.
     expect(matrix[0][0]).toBe(100);
   });
 
@@ -250,19 +252,16 @@ describe('aggregateOtherModelSeries', () => {
 });
 
 describe('aggregateUsaOemSeries', () => {
-  it('USA 외 country 무시', () => {
-    const { brands, data } = aggregateUsaOemSeries([
-      gcm('Toyota Group', 'Japan', 202501, 9999),
-      gcm('Toyota Group', 'USA', 202501, 100),
-    ]);
+  it('단일 OEM — usaTotal 집계 (뷰가 USA만 제공)', () => {
+    const { brands, data } = aggregateUsaOemSeries([ugm('Toyota Group', 202501, 100)]);
     expect(brands).toEqual(['Toyota Group']);
     expect(data[0].usaTotal).toBe(100);
   });
 
   it('TOP10 brand 선정 — 전체 기간 USA 합계 기준', () => {
-    const rows: OemSalesGroupCountryMonth[] = [];
+    const rows: OemUsaGroupMonth[] = [];
     for (let oi = 0; oi < 12; oi++) {
-      rows.push(gcm(`OEM${String(oi).padStart(2, '0')}`, 'USA', 202501, (12 - oi) * 100));
+      rows.push(ugm(`OEM${String(oi).padStart(2, '0')}`, 202501, (12 - oi) * 100));
     }
     const { brands, data } = aggregateUsaOemSeries(rows);
     expect(brands).toHaveLength(10);
@@ -275,9 +274,9 @@ describe('aggregateUsaOemSeries', () => {
 
   it('시간순 정렬 + 누락 brand는 0으로 채움', () => {
     const { data } = aggregateUsaOemSeries([
-      gcm('A', 'USA', 202503, 30),
-      gcm('A', 'USA', 202501, 10),
-      gcm('B', 'USA', 202502, 20), // 'B'는 202502만 존재
+      ugm('A', 202503, 30),
+      ugm('A', 202501, 10),
+      ugm('B', 202502, 20), // 'B'는 202502만 존재
     ]);
     expect(data.map((d) => d.ym)).toEqual([202501, 202502, 202503]);
     // brand B는 202501·202503에서 0으로 채워야
@@ -287,7 +286,7 @@ describe('aggregateUsaOemSeries', () => {
   });
 
   it('ymLabel 포함', () => {
-    const { data } = aggregateUsaOemSeries([gcm('A', 'USA', 202501, 100)]);
+    const { data } = aggregateUsaOemSeries([ugm('A', 202501, 100)]);
     expect(data[0].ymLabel).toBe('2025.01');
   });
 

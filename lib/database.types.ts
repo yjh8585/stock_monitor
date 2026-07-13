@@ -2092,6 +2092,23 @@ export type Database = {
         };
         Relationships: [];
       };
+      oem_sales_country_group_year: {
+        Row: {
+          country: string | null;
+          oem_group: string | null;
+          sales: number | null;
+          year: number | null;
+        };
+        Relationships: [];
+      };
+      oem_sales_usa_group_month: {
+        Row: {
+          oem_group: string | null;
+          sales: number | null;
+          year_month: number | null;
+        };
+        Relationships: [];
+      };
       parts_top100_stocks_view: {
         Row: {
           business_summary: string | null;

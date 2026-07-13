@@ -11,14 +11,15 @@ import { ymLabel as ymLabelFn, shortenOemName } from '@/components/oem/helpers';
 import type { UsaOemTimeSeriesData } from '@/components/oem/UsaOemTrendChart';
 import type {
   ModelMonthlySeries,
-  OemSalesGroupCountryMonth,
+  OemCountryGroupYear,
   OemSalesModelCountryMonth,
+  OemUsaGroupMonth,
 } from '@/lib/types';
 
 export const COUNTRY_TOP_N = 15;
 export const HEATMAP_TOP_N = 10;
-export const YEAR_2025_START = 202501;
-export const YEAR_2025_END = 202512;
+/** 대시보드 국가 TOP15·OEM×국가 매트릭스 집계 대상 연도. */
+export const TARGET_YEAR = 2025;
 /** 매트릭스 강제 포함 국가 (TOP10 누락 시에도 컬럼 표시) */
 export const HEATMAP_FORCED_COUNTRIES = ['Korea'];
 
@@ -105,13 +106,13 @@ export const OTHER_MODEL_TARGETS: ModelTarget[] = [
   },
 ];
 
-/** 2025년 Country별 합계 TOP15. */
+/** TARGET_YEAR Country별 합계 TOP15. 입력은 oem_sales_country_group_year 뷰 행(연 사전 집계). */
 export function aggregateCountryTop15(
-  rows: OemSalesGroupCountryMonth[]
+  rows: OemCountryGroupYear[]
 ): { name: string; sales: number }[] {
   const m = new Map<string, number>();
   for (const r of rows) {
-    if (r.year_month < YEAR_2025_START || r.year_month > YEAR_2025_END) continue;
+    if (r.year !== TARGET_YEAR) continue;
     m.set(r.country, (m.get(r.country) ?? 0) + r.sales);
   }
   return [...m.entries()]
@@ -120,8 +121,8 @@ export function aggregateCountryTop15(
     .map(([name, sales]) => ({ name, sales }));
 }
 
-/** TOP10 OEM × TOP10 Country 매트릭스 (2025) + Korea 강제 포함. */
-export function aggregateOemCountryMatrix(rows: OemSalesGroupCountryMonth[]): {
+/** TOP10 OEM × TOP10 Country 매트릭스 (TARGET_YEAR) + Korea 강제 포함. 입력은 연 사전 집계 뷰 행. */
+export function aggregateOemCountryMatrix(rows: OemCountryGroupYear[]): {
   oems: string[];
   countries: string[];
   matrix: number[][];
@@ -129,7 +130,7 @@ export function aggregateOemCountryMatrix(rows: OemSalesGroupCountryMonth[]): {
   const oemTotal = new Map<string, number>();
   const countryTotal = new Map<string, number>();
   for (const r of rows) {
-    if (r.year_month < YEAR_2025_START || r.year_month > YEAR_2025_END) continue;
+    if (r.year !== TARGET_YEAR) continue;
     oemTotal.set(r.oem_group, (oemTotal.get(r.oem_group) ?? 0) + r.sales);
     countryTotal.set(r.country, (countryTotal.get(r.country) ?? 0) + r.sales);
   }
@@ -147,7 +148,7 @@ export function aggregateOemCountryMatrix(rows: OemSalesGroupCountryMonth[]): {
   const countrySet = new Set(countries);
   const cell = new Map<string, number>();
   for (const r of rows) {
-    if (r.year_month < YEAR_2025_START || r.year_month > YEAR_2025_END) continue;
+    if (r.year !== TARGET_YEAR) continue;
     if (!oemSet.has(r.oem_group) || !countrySet.has(r.country)) continue;
     const k = `${r.oem_group}|${r.country}`;
     cell.set(k, (cell.get(k) ?? 0) + r.sales);
@@ -209,13 +210,12 @@ export function aggregateOtherModelSeries(rows: OemSalesModelCountryMonth[]): Mo
 /**
  * 미국 시장 TOP10 OEM 월별 시계열 — 전체 기간 USA 합계 기준 TOP10 선정.
  *
+ * 입력은 oem_sales_usa_group_month 뷰 행(이미 USA만·OEM×월 사전 집계)이라 country 필터 불필요.
  * 누락 brand는 0으로 채워 차트가 흔들리지 않게 한다.
  */
-export function aggregateUsaOemSeries(rows: OemSalesGroupCountryMonth[]): UsaOemTimeSeriesData {
-  const usaRows = rows.filter((r) => r.country === 'USA');
-
+export function aggregateUsaOemSeries(rows: OemUsaGroupMonth[]): UsaOemTimeSeriesData {
   const totalByBrand = new Map<string, number>();
-  for (const r of usaRows)
+  for (const r of rows)
     totalByBrand.set(r.oem_group, (totalByBrand.get(r.oem_group) ?? 0) + r.sales);
   const top10Full = [...totalByBrand.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -226,7 +226,7 @@ export function aggregateUsaOemSeries(rows: OemSalesGroupCountryMonth[]): UsaOem
   const brands = top10Full.map((g) => labelMap.get(g)!);
 
   const byYm = new Map<number, Record<string, number | string>>();
-  for (const r of usaRows) {
+  for (const r of rows) {
     if (!byYm.has(r.year_month))
       byYm.set(r.year_month, {
         ym: r.year_month,
