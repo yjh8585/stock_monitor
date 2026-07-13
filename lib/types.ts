@@ -257,6 +257,21 @@ export interface OemSalesGroupCountryMonth {
   sales: number;
 }
 
+/** oem_sales_country_group_year 뷰 한 행 (연·OEM·국가 사전 집계 — 국가 TOP15/매트릭스용). */
+export interface OemCountryGroupYear {
+  year: number;
+  oem_group: string;
+  country: string;
+  sales: number;
+}
+
+/** oem_sales_usa_group_month 뷰 한 행 (USA OEM·월별 사전 집계 — 미국 TOP10 시계열용). */
+export interface OemUsaGroupMonth {
+  oem_group: string;
+  year_month: number;
+  sales: number;
+}
+
 /** oem_sales_type_seg_month 한 행 */
 export interface OemSalesTypeSegMonth {
   vehicle_type: string;

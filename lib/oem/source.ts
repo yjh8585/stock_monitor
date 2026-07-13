@@ -12,12 +12,13 @@ import logger from '@/lib/logger';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import type { Database, TableRow } from '@/lib/database.types';
 import type {
+  OemCountryGroupYear,
   OemModelOutlook,
-  OemSalesGroupCountryMonth,
   OemSalesGroupMonth,
   OemSalesGroupPtMonth,
   OemSalesModelCountryMonth,
   OemSalesTypeSegMonth,
+  OemUsaGroupMonth,
 } from '@/lib/types';
 import {
   aggregateCountryTop15,
@@ -28,6 +29,7 @@ import {
   NA_COUNTRY,
   NA_MODEL_TARGETS,
   OTHER_MODEL_TARGETS,
+  TARGET_YEAR,
 } from './aggregate';
 
 /** 기타 핵심 차종 AI 평가 카드 model_key 집합 (북미/기타 outlook 분리 기준). */
@@ -123,6 +125,63 @@ async function fetchModelRows(
   return out;
 }
 
+/**
+ * oem_sales_country_group_year 뷰 — 지정 연도만 fetch (국가 TOP15/매트릭스용).
+ * DB가 연·OEM·국가로 사전 집계한 소량(연 ~2천 행)만 받아 프리렌더 부담을 제거한다.
+ * `.range()` 다중 페이지는 결정적 정렬 필수 → 뷰 유니크 키(oem_group, country)로 정렬.
+ */
+async function fetchCountryGroupYear(
+  supabase: AnonClient,
+  year: number
+): Promise<OemCountryGroupYear[]> {
+  const out: OemCountryGroupYear[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('oem_sales_country_group_year')
+      .select('*')
+      .eq('year', year)
+      .order('oem_group')
+      .order('country')
+      .range(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) {
+      logger.error({ err: error }, 'oem_sales_country_group_year 조회 실패');
+      throw new Error(`Supabase oem_sales_country_group_year 조회 실패: ${error.message}`);
+    }
+    if (!data || data.length === 0) break;
+    out.push(...(data as unknown as OemCountryGroupYear[]));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return out;
+}
+
+/**
+ * oem_sales_usa_group_month 뷰 — 전체 기간 fetch (미국 TOP10 OEM 월별 시계열용).
+ * USA만·OEM×월 사전 집계라 ~2천 행. 정렬(oem_group, year_month)로 결정적 페이지네이션.
+ */
+async function fetchUsaGroupMonth(supabase: AnonClient): Promise<OemUsaGroupMonth[]> {
+  const out: OemUsaGroupMonth[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('oem_sales_usa_group_month')
+      .select('*')
+      .order('oem_group')
+      .order('year_month')
+      .range(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) {
+      logger.error({ err: error }, 'oem_sales_usa_group_month 조회 실패');
+      throw new Error(`Supabase oem_sales_usa_group_month 조회 실패: ${error.message}`);
+    }
+    if (!data || data.length === 0) break;
+    out.push(...(data as unknown as OemUsaGroupMonth[]));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return out;
+}
+
 /** AI 평가 카드 최신본 — 모델별 최근 1건씩 fetch. */
 async function fetchLatestOutlooks(supabase: AnonClient): Promise<OemModelOutlook[]> {
   const { data, error } = await supabase
@@ -160,7 +219,8 @@ export async function getOemData() {
   const [
     groupMonthRaw,
     groupPtMonthRaw,
-    groupCountryMonthRaw,
+    countryGroupYearRows,
+    usaGroupMonthRows,
     typeSegMonthRaw,
     modelRows,
     otherModelRows,
@@ -168,7 +228,8 @@ export async function getOemData() {
   ] = await Promise.all([
     fetchAll(supabase, 'oem_sales_group_month'),
     fetchAll(supabase, 'oem_sales_group_pt_month'),
-    fetchAll(supabase, 'oem_sales_group_country_month'),
+    fetchCountryGroupYear(supabase, TARGET_YEAR),
+    fetchUsaGroupMonth(supabase),
     fetchAll(supabase, 'oem_sales_type_seg_month'),
     fetchModelRows(
       supabase,
@@ -184,13 +245,13 @@ export async function getOemData() {
 
   const groupMonth: OemSalesGroupMonth[] = groupMonthRaw;
   const groupPtMonth: OemSalesGroupPtMonth[] = groupPtMonthRaw;
-  const groupCountryMonth: OemSalesGroupCountryMonth[] = groupCountryMonthRaw;
   const typeSegMonth: OemSalesTypeSegMonth[] = typeSegMonthRaw;
 
-  // 117K 행 groupCountryMonth → 서버에서 작은 props 사전 가공 후 client 전달
-  const countryTop15 = aggregateCountryTop15(groupCountryMonth);
-  const oemCountryMatrix = aggregateOemCountryMatrix(groupCountryMonth);
-  const usaOemSeries = aggregateUsaOemSeries(groupCountryMonth);
+  // 대용량 country×month(약 12만 행)는 DB 집계 뷰(oem_sales_country_group_year·
+  // oem_sales_usa_group_month)로 사전 집계 → 여기선 작은 props로 마무리 가공.
+  const countryTop15 = aggregateCountryTop15(countryGroupYearRows);
+  const oemCountryMatrix = aggregateOemCountryMatrix(countryGroupYearRows);
+  const usaOemSeries = aggregateUsaOemSeries(usaGroupMonthRows);
   const naModelSeries = aggregateModelSeries(modelRows);
   const otherModelSeries = aggregateOtherModelSeries(otherModelRows);
   const oemGroupCount = new Set(groupMonth.map((r) => r.oem_group)).size;
