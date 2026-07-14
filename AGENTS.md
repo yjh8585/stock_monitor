@@ -59,7 +59,7 @@ npm run format          # 자동 포맷
 - Python 스크립트는 `scripts/venv` 활성화 후 실행. 환경변수는 `scripts/.env`.
 - `npm run check-all`은 **TS/JS 전용**(Python 미포함). Python 변경은 `scripts/venv/Scripts/python.exe -m py_compile <files>` + 순수 로직은 venv로 직접 단위 실행해 검증.
 - 수집 스크립트/워크플로 실환경 검증: `gh workflow run <name>.yml --ref master` → `gh run watch <id> --exit-status` → `gh run view <id> --log`. 간헐 실패는 `gh run list --workflow=<name>.yml`로 이력 확인.
-- 프로덕션 = `stock-monitor-orcin.vercel.app`. **scripts/워크플로 변경은 재배포 불필요**(GHA가 master 체크아웃)지만 **`app/`·`components/` UI 변경은 Vercel 재배포(push→빌드 READY) 후** E2E 검증. 배포 상태는 Vercel MCP `list_deployments`(projectId/teamId = `.vercel/project.json`).
+- 프로덕션 = `stock-monitor-orcin.vercel.app`. **scripts/워크플로 변경은 재배포 불필요**(GHA가 master 체크아웃)지만 **`app/`·`components/` UI 변경은 Vercel 재배포(push→빌드 READY) 후** E2E 검증. 배포 상태는 Vercel MCP `list_deployments`(projectId/teamId = `.vercel/project.json`). Vercel MCP엔 **usage/과금 조회 도구 없음** → ISR Writes·Bandwidth 등 사용량 수치는 대시보드 Usage 탭에서 확인.
 
 ## 디렉터리 지도
 
@@ -104,6 +104,7 @@ npm run format          # 자동 포맷
 - `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
   - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — `confidentialDb.from('pnl_entries'|'pnl_cost_structure'|'pnl_fixed_variable'|'pnl_plan'|'chat_audit_log'|'inventory_entries'|'personnel_entries'|'finance_entries'|'loan_entries'|'management_uploads'|'org_charts')...`, TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅)
   - **`.range()` 페이지네이션은 결정적 정렬 필수**: 1000행 초과 다중 페이지 fetch는 반드시 `.order()`(가급적 PK 전체) 동반. `.in()`/필터는 인덱스 스캔이라 정렬 없으면 페이지 경계에서 행 **누락·중복**(예: `lib/oem/source.ts` `fetchModelRows` 전 국가 fetch가 특정 연도 통째 누락 → 차트 near-zero). WHERE 없는 `fetchAll`은 seq-scan이라 안정. 증상: 연간 합계는 정상인데 차트만 특정 구간 낮음 → 집계 아닌 fetch 의심.
+  - **집계 뷰 `SUM`은 `numeric`→문자열**: `SUM(int/bigint)`은 Postgres에서 `numeric`이라 PostgREST(@supabase/supabase-js)가 **문자열로 직렬화** → JS 산술이 깨짐. 뷰 정의에서 `SUM(x)::bigint`(값 범위 맞으면 `::int`)로 캐스팅해 number 반환(예 `oem_sales_country_group_year`). 개별 int 컬럼은 number로 옴 — `SUM`/`AVG` 등 집계만 해당.
 - `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT(server-only 아님 → `proxy.ts`/`session.ts`에서 import 가능). **역할 추가 = `roles.ts` `ROLES` + `users.ts`(env 계정·exhaustive `getDisplayNameByRole`) + `permissions.ts`(`canAccess`·landing 헬퍼) 모두 갱신**(decode 화이트리스트는 `isRole`로 자동 — 누락 시 세션 거부→로그인 무한 `/login`). 계정은 역할별 **distinct env 키**(중복 키는 dotenv가 마지막 값만 채택→로그인 깨짐), 신규 계정은 optional(env 둘 다 있을 때만 추가 → Vercel env 미설정도 기존 로그인 유지). 접근 불가 역할 추가 시 랜딩(`/`·`/management`)은 **role-aware redirect**로(고정 redirect는 무한 루프). 새 라우트 권한은 `permissions.ts`.
 - **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만):
   - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.
