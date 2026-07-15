@@ -10,6 +10,7 @@ import type { Role } from '@/lib/auth/roles';
 const ALL_TABS = [
   { label: '손익', href: '/management/pnl' },
   { label: '계획', href: '/management/plan' },
+  { label: '스텔란티스', href: '/management/stellantis' },
   { label: '재고', href: '/management/inventory' },
   { label: '생산', href: '/management/production' },
   { label: '인원', href: '/management/personnel' },

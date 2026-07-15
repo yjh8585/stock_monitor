@@ -74,9 +74,12 @@ COLUMN_TO_TAGS = {
     'kia_sales': ['oem-kia-sales'],
     'kia_export_regions': ['oem-kia-export-regions'],
     'stellantis_na_sales': ['oem-stellantis-na-sales'],
+    'stellantis_shipments': ['stellantis-shipments'],
     'kia_retail_sales': ['oem-kia-retail'],
     'uzbekistan_auto_stats': ['uzbekistan-auto-stats'],
     'vehicle_powertrain_map': ['vehicle-powertrain-map'],
+    # Cox Automotive 브랜드별 신차 재고일수 (공개 데이터)
+    'cox_brand_inventory': ['cox-brand-inventory'],
     # 보고서·뉴스
     'posts': ['posts'],
     'news': ['posts'],
