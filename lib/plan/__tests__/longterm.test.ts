@@ -27,18 +27,19 @@ function row(
   };
 }
 
+// 값은 DB와 같은 **백만원**. 화면/포인트는 억원(÷100)이라 기대값은 1/100.
 const ROWS: LongtermRow[] = [
   // 2026.2Q — 3계열 모두 값 있음
-  row(2, '수주 Volume', 2027, 100),
-  row(2, '수주 Volume', 2028, 110),
-  row(2, '고객 EDI 100%', 2027, 90),
-  row(2, '고객 EDI 100%', 2028, 95),
-  row(2, '한세 전망', 2027, 80),
-  row(2, '한세 전망', 2028, 85),
+  row(2, '수주 Volume', 2027, 100_000),
+  row(2, '수주 Volume', 2028, 110_000),
+  row(2, '고객 EDI 100%', 2027, 90_000),
+  row(2, '고객 EDI 100%', 2028, 95_000),
+  row(2, '한세 전망', 2027, 80_000),
+  row(2, '한세 전망', 2028, 85_000),
   // 2026.1Q — 고객 EDI 100%는 전부 null
-  row(1, '수주 Volume', 2027, 70),
+  row(1, '수주 Volume', 2027, 70_000),
   row(1, '고객 EDI 100%', 2027, null),
-  row(1, '한세 전망', 2027, 60),
+  row(1, '한세 전망', 2027, 60_123), // 나눠떨어지지 않는 값 — 반올림 확인용
 ];
 
 describe('basisKey', () => {
@@ -76,17 +77,22 @@ describe('activeSeries', () => {
 });
 
 describe('buildLongtermPoints', () => {
-  it('연도 오름차순으로 계열 값을 모은다', () => {
+  it('연도 오름차순으로 계열 값을 모으고 백만원→억원(÷100) 환산한다', () => {
     expect(buildLongtermPoints(ROWS, '2026.2Q')).toEqual([
-      { year: 2027, '수주 Volume': 100, '고객 EDI 100%': 90, '한세 전망': 80 },
-      { year: 2028, '수주 Volume': 110, '고객 EDI 100%': 95, '한세 전망': 85 },
+      { year: 2027, '수주 Volume': 1000, '고객 EDI 100%': 900, '한세 전망': 800 },
+      { year: 2028, '수주 Volume': 1100, '고객 EDI 100%': 950, '한세 전망': 850 },
     ]);
   });
 
-  it('null 값은 null로 유지한다', () => {
+  it('null 값은 null로 유지하고, 나눠떨어지지 않으면 소수 2자리로 반올림한다', () => {
     expect(buildLongtermPoints(ROWS, '2026.1Q')).toEqual([
-      { year: 2027, '수주 Volume': 70, '고객 EDI 100%': null, '한세 전망': 60 },
+      { year: 2027, '수주 Volume': 700, '고객 EDI 100%': null, '한세 전망': 601.23 },
     ]);
+  });
+
+  it('부동소수 잔재를 남기지 않는다', () => {
+    const rows: LongtermRow[] = [row(2, '한세 전망', 2027, 3)];
+    expect(buildLongtermPoints(rows, '2026.2Q')[0]['한세 전망']).toBe(0.03);
   });
 
   it('없는 기준이면 빈 배열', () => {

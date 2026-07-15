@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { ChartSection } from '@/components/management/plan/_selectors';
 import { LegendRow } from '@/components/charts/ChartLegend';
@@ -34,11 +35,12 @@ function pctOf(part: number | null | undefined, total: number | null | undefined
   return `${((part / total) * 100).toFixed(1)}%`;
 }
 
+// 막대는 파란 계열 음영(MGMT_BAR_COLORS), 회전율 라인만 대비색 유지 — palette.ts 주석 참고.
 const COLORS = {
-  operating: '#2563eb',
-  management: '#16a34a',
-  compensation: '#ea580c',
-  transport: '#7c3aed',
+  operating: MGMT_BAR_COLORS[0],
+  management: MGMT_BAR_COLORS[1],
+  compensation: MGMT_BAR_COLORS[2],
+  transport: MGMT_BAR_COLORS[3],
   turnover: '#dc2626',
 };
 

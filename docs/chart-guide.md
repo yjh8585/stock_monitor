@@ -70,17 +70,17 @@
 
 ### `/management` — `components/management/`
 
-| 탭        | 차트                                                                                                                       | 유형                                                                                                                     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| pnl       | `MarginScatter`                                                                                                            | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피)                                                                    |
-| pnl       | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                                                                                       |
-| pnl       | `FixedVariableBep`                                                                                                         | 콤보(토글: 손익분기점·매출[억원] / 공헌이익률·고정비율[%] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리)          |
-| pnl       | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                                                                                                |
-| plan      | `LongtermRevenueChart`                                                                                                     | 세로 그룹 막대 3계열 + 기준 드롭다운(값 전무 계열 자동 제외, 범례 `LegendRow`로 순서 고정, 라벨 `MGMT_DATA_LABEL_STYLE`) |
-| plan      | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)                                                                             |
-| plan      | `OrderFunnelChart`                                                                                                         | 퍼널                                                                                                                     |
-| inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                                                                                           |
-| personnel | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                                                                                            |
+| 탭        | 차트                                                                                                                       | 유형                                                                                                                                                                                   |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pnl       | `MarginScatter`                                                                                                            | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피)                                                                                                                                  |
+| pnl       | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                                                                                                                                                     |
+| pnl       | `FixedVariableBep`                                                                                                         | 콤보(토글: 손익분기점·매출[억원] / 공헌이익률·고정비율[%] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리)                                                                        |
+| pnl       | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                                                                                                                                                              |
+| plan      | `LongtermRevenueChart`                                                                                                     | 세로 그룹 막대 3계열(억원) + 기준 드롭다운. 값 전무 계열 자동 제외, 범례 `LegendRow`+`useHiddenSeries` 토글(기본 '한세 전망'만 ON), 색 `MGMT_BAR_COLORS`, 라벨 `MGMT_DATA_LABEL_STYLE` |
+| plan      | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)                                                                                                                                           |
+| plan      | `OrderFunnelChart`                                                                                                         | 퍼널                                                                                                                                                                                   |
+| inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                                                                                                                                                         |
+| personnel | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                                                                                                                                                          |
 
 ### `/hansae` — `components/hansae/`
 
@@ -224,18 +224,29 @@ const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
 
 ### 5-A. 색상 팔레트
 
-| 토큰               | 값                                                                           | 용도             |
-| ------------------ | ---------------------------------------------------------------------------- | ---------------- |
-| `OEM_COLORS[0..9]` | blue/red/green/amber/purple/cyan/orange/lime/pink/slate -600                 | 다중 시리즈 기본 |
-| `PT_COLORS`        | ICE `#94a3b8` · HV `#fbbf24` · PHEV `#fb923c` · EV `#22c55e` · FCV `#06b6d4` | 파워트레인       |
-| 강조 양수/1사분면  | `#3b82f6` (fillOpacity 0.08)                                                 | 산점             |
-| 강조 음수/3사분면  | `#ef4444` (fillOpacity 0.08)                                                 | 산점             |
-| 달성율 라인        | `#dc2626`                                                                    | 콤보             |
-| 막대 내부 글씨     | `#fff` (어두운 막대) / `var(--foreground)`                                   | 라벨             |
-| 사무/생산          | `#0891b2` / `#f59e0b`                                                        | 인원             |
-| 내수/수출/해외     | `#1e3a5f` / `#22c55e` / `#bbf7d0`                                            | 출하             |
+| 토큰                    | 값                                                                                                                          | 용도                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `OEM_COLORS[0..9]`      | blue/red/green/amber/purple/cyan/orange/lime/pink/slate -600                                                                | 다중 시리즈 기본 (OEM·기타 페이지)                                              |
+| `MGMT_BAR_COLORS[0..5]` | blue-900 `#1e3a8a` / blue-600 `#2563eb` / blue-400 `#60a5fa` / blue-200 `#bfdbfe` / cyan-700 `#0e7490` / cyan-300 `#67e8f9` | **경영관리 막대 전용 — 파란 계열 음영**(사용자 지시 2026-07-15). 아래 규칙 참고 |
+| `PT_COLORS`             | ICE `#94a3b8` · HV `#fbbf24` · PHEV `#fb923c` · EV `#22c55e` · FCV `#06b6d4`                                                | 파워트레인                                                                      |
+| 강조 양수/1사분면       | `#3b82f6` (fillOpacity 0.08)                                                                                                | 산점                                                                            |
+| 강조 음수/3사분면       | `#ef4444` (fillOpacity 0.08)                                                                                                | 산점                                                                            |
+| 달성율 라인             | `#dc2626`                                                                                                                   | 콤보                                                                            |
+| 막대 내부 글씨          | `#fff` (어두운 막대) / `var(--foreground)`                                                                                  | 라벨                                                                            |
+| 사무/생산               | `#0891b2` / `#f59e0b`                                                                                                       | 인원                                                                            |
+| 내수/수출/해외          | `#1e3a5f` / `#22c55e` / `#bbf7d0`                                                                                           | 출하                                                                            |
 
 다크모드는 hex 고정색 + `var(--card)/--border/--foreground/--muted` 토큰 혼용으로 대응.
+
+**⚠️ 경영관리(`/management`) 색 규칙 — 신규/수정 차트는 반드시 준수**
+
+- **막대는 `MGMT_BAR_COLORS`만 쓴다.** 시리즈 수만큼 `[0]`부터 순서대로. 초록·주황·보라·분홍·황색을
+  임의로 쓰지 말 것(2026-07-15 이전엔 섞여 있어 페이지에서 몇몇 차트만 튀었고, 일괄 교체함).
+  2계열이면 `[0]`+`[2]`처럼 벌려 쓰면 대비가 좋다.
+- **비율/달성율 꺾은선은 `#dc2626`(빨강)** — 파란 막대와 대비되어야 하므로 이 컨벤션은 유지한다.
+- **중립·잔여 항목**(연기∙중단∙취소, residual 등)은 회색(`#9ca3af`) 허용.
+- 6계열을 넘기면 색으로 구분하지 말고 **차트를 쪼갤지 먼저 검토**한다.
+- 계획·실적 대비(`PlanAchievementChart` 등)는 같은 파랑의 **투명도 변형**(계획 40%)을 쓴다 — 이미 적용됨.
 
 ### 5-B. 글자 크기
 
