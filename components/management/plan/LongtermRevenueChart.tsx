@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OEM_COLORS } from '@/components/charts/palette';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import {
   GRID_STROKE_OPACITY,
@@ -109,10 +110,21 @@ export default function LongtermRevenueChart({ rows }: { rows: LongtermRow[] }) 
             labelFormatter={(v: unknown) => `${v}년`}
             formatter={(value: unknown) => (typeof value === 'number' ? fmt(value) : '—')}
           />
+          {/* LegendRow로 순서를 직접 통제한다 — recharts 기본 범례는 데이터 키 순서
+              (= source.ts의 series 가나다 정렬)를 따라가 막대 왼→오와 어긋난다(chart-guide §4-F). */}
           <Legend
             verticalAlign="top"
-            align="center"
-            wrapperStyle={{ paddingBottom: 8, fontSize: 14 }}
+            wrapperStyle={{ paddingBottom: 8 }}
+            content={() => (
+              <LegendRow
+                items={series.map((s, i) => ({
+                  key: s,
+                  label: s,
+                  shape: 'rect' as const,
+                  color: OEM_COLORS[i],
+                }))}
+              />
+            )}
           />
           {series.map((s, i) => (
             <Bar key={s} dataKey={s} name={s} fill={OEM_COLORS[i]} radius={[3, 3, 0, 0]}>
