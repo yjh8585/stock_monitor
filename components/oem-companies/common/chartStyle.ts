@@ -21,6 +21,18 @@ export const DATA_LABEL_STYLE = {
 } as const;
 
 /**
+ * 경영관리 차트 막대 위 데이터 라벨 (16px / 500).
+ * OEM 차트(DATA_LABEL_STYLE, 15px/700)와 크기가 다르다 — docs/chart-guide.md §5-B
+ * "콤보·인원 라벨 16px(경영관리)" 규칙. 기존 PlanAchievementChart는 동일 값을 리터럴로
+ * 갖고 있으나 이번 변경 범위 밖이라 손대지 않는다(신규 차트만 이 상수를 쓴다).
+ */
+export const MGMT_DATA_LABEL_STYLE = {
+  fill: 'var(--foreground)',
+  fontSize: 16,
+  fontWeight: 500,
+} as const;
+
+/**
  * Y축 domain — dataMax × 1.1 자동 padding.
  * 막대 위 LabelList(position='top') 라벨이 차트 밖으로 벗어나지 않도록 보장.
  * recharts: `domain={[0, (dataMax) => Math.ceil(dataMax * 1.1)]}` 와 동치.
