@@ -89,12 +89,18 @@
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
-탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **finance** / **org-chart** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`longterm_revenue_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`·`loan_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
+탭: **pnl** / **plan** / **stellantis** / **inventory** / **production** / **personnel** / **finance** / **org-chart** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`longterm_revenue_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`·`loan_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
 
 - **pnl** — 손익 16섹션: 1 전사 비용구조, **2-1 손익분기점(BEP) 분석**(콤보차트: 우상단 토글[손익분기점·매출(억원) / 공헌이익률·고정비율(%)] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리[§4-F]·범례 LegendRow. 영업이익률=공헌이익률−고정비율), **2-2 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬['기타'는 맨 아래], 행 클릭 시 노란 강조 토글(다중)), 3 2026 연간 추정, 4~9 전사/부문/고객/제품/고객·제품/실별 실적, 10 수익성 산점(매출 YoY×영업이익률), 11 이익기여도 TOP10/WORST10, 12·13 전년대비 월별, 14 제품·고객 YoY, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
 - **plan** — 차트 10종.
   1. **중장기 매출 전망**(`LongtermRevenueChart`) — 2027~2031 연도별 세로 그룹 막대 3계열(수주 Volume·고객 EDI 100%·한세 전망) + 데이터 기준 드롭다운(2026.1Q/2026.2Q, 기본=최신). 단위 **억원**(DB `value_mwon`은 엑셀 원본 백만원, `buildLongtermPoints()`가 ÷100 환산 — 재무 탭과 같은 규칙). 환율 기준은 엑셀 원문 문구를 차트 상단에 표기. 값이 전무한 계열은 막대·범례 모두 생략(2026.1Q의 '고객 EDI 100%'=엑셀 N/A). 범례 클릭으로 계열 on/off(`useHiddenSeries`), **기본은 '한세 전망'만 켜짐**. 범례는 `LegendRow`로 순서 고정(recharts 기본 범례는 데이터 키 가나다순을 따라가 막대 왼→오와 어긋남). 소스 `longterm_revenue_plan`(§7-G), 적재 `sync_longterm_revenue.py`.
   2. ~10. 계획 대비 실적·달성율 콤보 차트 9종(수주·입찰 성공율·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 4·5는 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
+- **stellantis** — 주거래처 스텔란티스 북미 매출 전망. 항등식 **출하 − 소매 = 딜러 재고 증감**. 진단 카드 4장(재고 상태 3색 + 판정 근거 전문 · 출하 vs 소매 갭 · 탐지 시차[r·n 동반] · 다음 분기 전망) + 차트 4종:
+  1. 북미 출하·소매 막대 + 재고 증감 꺾은선 콤보 — **선이 음수(재고 소진) 가능**해 §4-F 공식을 일반화한 domain + 0선 `ReferenceLine`(chart-guide §4-F). 차분 도출 분기(Q2·Q4)는 빗금 막대
+  2. 자사 매출(억원) 막대 + 스텔란티스 북미 소매(대) 꺾은선 — 탐지 시차만큼 밀어 정렬, 결측 구간은 선 미연결
+  3. 대당 매출 원단위(자사 매출 ÷ 북미 출하) 라인 + 평균선 — 4번 전망의 전제(CV로 안정성 표시)
+  4. 매출 전망 막대 — 최근 8분기 실적 + 시나리오 3종(재고 유지/정상화/추세 지속, 빗금). **가정 문장을 차트 하단에 노출**
+  - 소스 `lib/stellantis-forecast/`(`source.ts` + pure `aggregate.ts`). 공개 3종(`stellantis_shipments`·MarkLines·`cox_brand_inventory`)은 anon, **자사 매출(`pnl_entries` customer='Stellantis NA')만 `confidentialDb`**. 소매는 캐나다 1개월 지연 → 3개국이 다 찬 분기까지만 집계(`lastCompleteQuarter`), 제약은 페이지 각주로 상시 노출. 권한은 `/management` 분기 자동 적용(guest·hmobility 차단) — `permissions.ts` 수정 불필요.
 - **inventory** — 재고 KPI 5개 + 차트 6종:
   1. 재고 현황(종류) 콤보 — 운영+관리+보상+운송 누적막대 + 회전율 꺾은선(실적만)
   2. 재고 현황(국가) 누적막대 — 국내(구동+제동조향+전장)·미국·우즈벡 + 영업+국내보상(=전체−국가합, 기본 숨김; 켜면 총액=차트1). 실적만, 회전율 제외
@@ -295,6 +301,30 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 | `oem_sales_usa_group_month`    | `country='USA'` 한정 `oem_group × year_month` → SUM(sales)::bigint | ~1.8천 | 미국 TOP10 OEM 월별 시계열     |
 
 - `lib/oem/source.ts`가 뷰1은 `TARGET_YEAR`만, 뷰2는 전체 기간 fetch. `cacheTag`는 원본 `oem_sales_group_country_month` 유지(뷰는 실시간 반영이라 수집 시 원본 무효화로 자동 갱신).
+
+> ⚠️ **지표 정의**: 위 5개 테이블 + 2개 뷰는 전부 MarkLines `vehicle_sales` export **하나**에서 파생되며 **판매(소매/신차등록)** 다. 출하·생산이 아니다(`import_oem_sales.py`의 단일 `aggregate()`가 소스). 프로젝트 전체에서 **출하(도매)는 `stellantis_shipments`·`hyundai_sales`·`kia_sales`·`kg_mobility_sales`뿐**이고, **생산은 `uzbekistan_auto_stats`(`kind='production'`)뿐**이다.
+
+#### `stellantis_shipments` (21행, 신규 `20260716000001`) — Stellantis IR 북미 도매 출하
+
+| region | period_type | year_period | shipments_units | is_derived | source_url | filing_date | collected_at |
+
+- **PK** (region, period_type, year_period) · **인덱스** (period_type, year_period) · **RLS** anon read / service_role write (공개 데이터)
+- 출처 **SEC EDGAR 6-K**(`data.sec.gov/submissions/CIK0001605484.json`, **UA 헤더 필수**). stellantis.com은 Akamai 403 차단이라 미사용.
+- 지표 = `shipments`(공장→딜러 인도, **매출 인식 기준**). `stellantis_na_sales`(소매+플릿 최종고객 인도)와 **정반대 지표**다.
+- `region='North America'`는 미국+캐나다+멕시코이며 **마세라티 제외**(별도 세그먼트) → 소매와 대비 시 스코프를 맞출 것.
+- `is_derived=true` = **Q2 = H1 − Q1, Q4 = FY − H1 − Q3** 차분 도출(실적 PR이 Q1/H1/Q3/FY 4회뿐, 천대 반올림 ±1,000대). **2026 이후에도 동일** → 최신 분기가 비어 있는 게 정상.
+- 검증: FY PR의 H2 표(스크립트 미사용 독립 소스)와 `Q3 + 도출Q4` 대조 → 2021~2025 **오차 0**.
+
+#### `cox_brand_inventory` (신규 `20260716000001` + `20260716000002`) — Cox 브랜드별 딜러 재고일수
+
+| brand | year_month | days_supply | is_outlier_excluded | source_url | image_url | collected_at |
+
+- **PK** (brand, year_month) · **인덱스** year_month · **RLS** anon read / service_role write (공개 데이터)
+- 출처 coxautoinc.com 월간 리포트. **브랜드별 수치가 차트 JPEG 안에만** 있어 LLM vision 판독(CSV 첨부는 산업 전체만).
+- **CHECK**: `(is_outlier_excluded AND days_supply IS NULL) OR (NOT is_outlier_excluded AND days_supply IS NOT NULL)`
+- **결측의 의미가 2가지다 — 섞지 말 것**: `is_outlier_excluded=true` + `days_supply=null` = Cox가 **업계 평균(NATION)×2 초과라 값을 감춘 것**(= 강한 위험 신호. Chrysler가 202512~202603 이 상태). **행 자체가 없으면** 저물량 상시 제외(Fiat·Alfa Romeo)·그 달 로스터 누락·판독 실패 중 하나로 **우리가 모르는 상태**.
+- `brand`는 `BRAND_ALIASES` 정규화 후 값(Cox가 202602부터 `Mercedes-Benz` → `Mercedes`로 라벨 변경). 업계 평균 행은 `NATION`.
+- 과거치가 **소급 수정**되므로 최근 3개월 재적재. 적재 전 기존 DB 값과 대조해 변경분을 경고한다.
 
 #### `oem_model_outlook` (10행) — 모델 outlook 노트
 
@@ -568,25 +598,27 @@ GHA runner: sync_management_excel.py (apply)
 
 ### 23개 워크플로 카테고리
 
-| 카테고리                | 워크플로 예시                                                                                                         | 주기                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| 가격                    | collect-prices, collect-prices-live                                                                                   | 매시간 / 5분           |
-| 환율                    | collect-fx, collect-fx-live                                                                                           | 매시간 / 5분           |
-| 재무                    | collect-financials (4 job: listed/dart-audit×8/domestic/snapshot)                                                     | 분기 (1/4/7/10월 15일) |
-| 뉴스                    | collect-news                                                                                                          | 4시간                  |
-| 감성                    | analyze-board-sentiment                                                                                               | 일간                   |
-| DART                    | collect-dart-audit (shard 8), collect-dart-labor                                                                      | 분기 / 일간            |
-| 매크로                  | collect-macro-outlook, collect-market-series, collect-market-series-live                                              | 일간 / 주간 / 매시간   |
-| 해운·철강               | collect-shipping, collect-steel-kr                                                                                    | 일간                   |
-| 원자재                  | collect-dubai-oil                                                                                                     | 일간                   |
-| 글로벌 스냅샷           | collect-global-snapshot                                                                                               | 일간                   |
-| 한세 종목토론           | collect-naver-board (GHA Node tsx 직접)                                                                               | 30분                   |
-| 한세 분봉               | collect-hansae-intraday (KIS)                                                                                         | 5분                    |
-| OEM                     | collect-oem-model-outlook                                                                                             | 일간                   |
-| OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일           |
-| 보강                    | enrich-company                                                                                                        | 수동                   |
-| 경영관리 엑셀 업로드    | sync-management (workflow_dispatch — dry-run/apply)                                                                   | 수동                   |
-| Vercel cron 대체 (curl) | cron-sentiment                                                                                                        | 일 1회                 |
+| 카테고리                | 워크플로 예시                                                                                                         | 주기                           |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 가격                    | collect-prices, collect-prices-live                                                                                   | 매시간 / 5분                   |
+| 환율                    | collect-fx, collect-fx-live                                                                                           | 매시간 / 5분                   |
+| 재무                    | collect-financials (4 job: listed/dart-audit×8/domestic/snapshot)                                                     | 분기 (1/4/7/10월 15일)         |
+| 뉴스                    | collect-news                                                                                                          | 4시간                          |
+| 감성                    | analyze-board-sentiment                                                                                               | 일간                           |
+| DART                    | collect-dart-audit (shard 8), collect-dart-labor                                                                      | 분기 / 일간                    |
+| 매크로                  | collect-macro-outlook, collect-market-series, collect-market-series-live                                              | 일간 / 주간 / 매시간           |
+| 해운·철강               | collect-shipping, collect-steel-kr                                                                                    | 일간                           |
+| 원자재                  | collect-dubai-oil                                                                                                     | 일간                           |
+| 글로벌 스냅샷           | collect-global-snapshot                                                                                               | 일간                           |
+| 한세 종목토론           | collect-naver-board (GHA Node tsx 직접)                                                                               | 30분                           |
+| 한세 분봉               | collect-hansae-intraday (KIS)                                                                                         | 5분                            |
+| OEM                     | collect-oem-model-outlook                                                                                             | 일간                           |
+| OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일                   |
+| OEM 스텔란티스          | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments (SEC EDGAR 북미 도매 출하)      | 분기 (1/4/7/10월 · 2/5/8/11월) |
+| 신차 재고 (Cox)         | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독)                                           | 매월 20일                      |
+| 보강                    | enrich-company                                                                                                        | 수동                           |
+| 경영관리 엑셀 업로드    | sync-management (workflow_dispatch — dry-run/apply)                                                                   | 수동                           |
+| Vercel cron 대체 (curl) | cron-sentiment                                                                                                        | 일 1회                         |
 
 ### cron-job.org 외부 트리거
 

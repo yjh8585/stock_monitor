@@ -1,0 +1,66 @@
+name: Stellantis 북미 출하 수집 (분기 실적 발표 후)
+
+on:
+  schedule:
+    # 2·5·8·11월 27일 03:00 UTC = KST 12:00.
+    # Stellantis는 Q1/H1/Q3/FY 4회만 실적 PR을 낸다. 발표일 실측(2021~2026):
+    #   FY 2/15~2/26 · Q1 4/30~5/5 · H1 7/25~8/3 · Q3 10/28~11/3
+    # → 각 발표 뒤에 오도록 해당 월 27일로 잡는다.
+    # 발표가 밀려 한 번 놓쳐도 스크립트가 매 실행마다 2021~현재를 전량 재도출·upsert하므로
+    # 다음 분기 실행에서 자동 복구된다(멱등).
+    - cron: '0 3 27 2,5,8,11 *'
+  workflow_dispatch:
+    inputs:
+      year_from:
+        description: 'backfill 시작 연도 (비우면 2021)'
+        type: string
+        default: '2021'
+      year_to:
+        description: 'backfill 마지막 연도 (비우면 올해)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'DB 쓰기 없이 파싱·도출 결과만 확인'
+        type: boolean
+        default: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      # Playwright/브라우저 불필요. SEC EDGAR JSON + requests + BeautifulSoup만 사용.
+      - name: Stellantis 북미 출하 수집
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.year_from }}" ]; then
+            ARGS="$ARGS --year-from ${{ inputs.year_from }}"
+          fi
+          if [ -n "${{ inputs.year_to }}" ]; then
+            ARGS="$ARGS --year-to ${{ inputs.year_to }}"
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python collect_stellantis_shipments.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}

@@ -8,19 +8,28 @@
 
 ---
 
-## `/oem/stellantis-na` — Stellantis NA (FCA US LLC)
+## `/oem/stellantis-na` — Stellantis NA (FCA US LLC → Stellantis)
 
+- **지표 (중요)**: **미국 총 판매 = 소매 + 플릿**(최종고객 인도 기준). **도매 출하(shipments)가 아니다.**
+  FCA US 공식 집계방법론이 _"Reported vehicle unit sales **do not correspond to** FCA US's reported revenues"_ 라고 명시한다(매출 인식 = 도매 출하 시점). 도매 출하는 Stellantis IR의 consolidated shipments이며 **지역(북미) 단위로만** 공시 — 이 테이블에 없다.
+  검증: DB 2023년 합계 `1,527,090` = FCA US 공시 FY2023 미국 판매 `1,527,090` 완전 일치.
+  ⚠️ 2026-07-15 이전 UI가 이를 "도매 출하(shipments)"로 **정반대 라벨링**했다가 정정됨. 재발 금지.
 - **범위**: brand·차종별 분기 판매 (2021Q1~)
-- **출처**: prnewswire.com FCA US LLC publisher의 분기당 1개 보도자료 HTML `<table>`. `collect_stellantis_na_sales.py` — **requests + BeautifulSoup (Playwright 불필요)**
+- **출처**: prnewswire 분기당 1개 보도자료 HTML `<table>`. `collect_stellantis_na_sales.py` — **requests + BeautifulSoup (Playwright 불필요)**
 - **테이블** `stellantis_na_sales`: PK = period_type/year_period/brand/vehicle_model/region
   - brand 6종 = Jeep/Ram/Chrysler/Dodge/Fiat/Alfa Romeo (Maserati는 별도 PR이라 미수집)
   - `brand='Total'`/`vehicle_model='Total'`은 합계 row, region은 단일 `'US'`
 - **gotcha**:
   - 분기 PR이 CYTD 컬럼 동봉 → Q4의 경우 `period_type='year'`(연 누계) 한 세트 **추가 적재**. Q1~Q3 연 누계는 분기 SUM으로 자연 도출.
   - cross-check: brand_total vs 모델 SUM (Q **±25**, YTD **±100**, source-side 미세 누락 허용) + 회사 합계 **±5** (실패 시 abort)
+  - **발행 주체 이관 (2026Q2~)**: FCA US LLC → **Stellantis**. 회사 합계 행 라벨도 `'FCA US LLC'` → `'Stellantis'`로 바뀌어 `COMPANY_TOTAL_LABELS`에 둘 다 등록. 미인식 시 이 행이 model로 오분류돼 **직전 brand(Jeep)에 회사 합계가 통째로 얹히고** cross-check 실패 → exit 2. **`--no-abort`로 강행 금지**(오염 적재).
+  - **publisher 인덱스 2개가 서로 겹치지 않는다**: 과거 분기는 `/news/fca-us-llc`에만, 신규는 `/news/stellantis`에만. auto-discover는 **둘 다 순회**해야 한다.
+  - **분기 확정은 제목이 아니라 본문 표 캡션** `Sales Summary Q<n> <YYYY>`. 옛 제목 정규식은 2025Q3/Q4도 이미 놓치고 있었다(제목의 `%`가 매칭을 끊음).
+  - **동일 차종 병합**(`MODEL_ALIASES`): `Voyager` → `Pacifica`(하위 트림, 보도자료도 2026Q2부터 통합 표기). 합산 후 **YoY는 재계산**(원본 % 평균은 틀림). `vehicle_model`이 PK라 규칙 추가 시 **재처리 + 옛 행 DELETE 필요**(upsert-only라 잔존).
+  - 미해결: `Wagoneer`+`Grand Wagoneer` → `Wagoneer/G. Wagoneer`(2026Q2~) 병합 미적용 → 해당 모델 시계열은 Q1/Q2 경계에서 단절.
 - **차트**: KPI 4종 + 분기 brand stacked(분기/연 토글, 합계 라벨) + 브랜드 mix(100% stacked) + PT mix(100% stacked) + 차종 TOP10(brand 1단계 드롭다운, region 단일 'US')
-- **URL 매핑**: `scripts/lib/stellantis_pr_urls.json` (22분기 영구 캐시) + `--auto-discover`로 publisher index에서 신규 분기 발견. HTML sha256 캐시 `data/_stellantis_pr_cache/`
-- **cron**: `collect-stellantis-na-sales.yml` — 분기 첫 달(1·4·7·10) 3일 03:00 UTC. `workflow_dispatch` 입력: `year_from`/`year_to`/`quarter`/`reprocess_all`/`auto_discover`
+- **URL 매핑**: `scripts/lib/stellantis_pr_urls.json` (영구 캐시) + `--auto-discover`. HTML sha256 캐시 `data/_stellantis_pr_cache/`
+- **cron**: `collect-stellantis-na-sales.yml` — 분기 첫 달(1·4·7·10) 3일 03:00 UTC. **스케줄 실행은 항상 `--auto-discover`**(과거엔 inputs가 비어 발견이 안 돌아 URL을 매 분기 손으로 채워야 했다 — 2026Q2 누락의 원인). `workflow_dispatch` 입력: `year_from`/`year_to`/`quarter`/`reprocess_all`/`auto_discover`
 
 ## `/oem/kg-mobility` — KG모빌리티
 

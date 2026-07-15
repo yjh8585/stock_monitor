@@ -43,8 +43,8 @@ export default async function StellantisNaPage() {
       <div>
         <h2 className="text-base font-semibold">Stellantis USA (FCA US LLC)</h2>
         <p className="text-xs text-muted-foreground">
-          분기별 brand·차종 도매 출하 (shipments) · 출처: prnewswire.com FCA US LLC 보도자료 ·{' '}
-          {data.totalRows.toLocaleString('ko-KR')}행 · 최신 수집{' '}
+          분기별 brand·차종 미국 총 판매 (소매+플릿, 최종고객 인도 기준) · 출처: prnewswire.com
+          보도자료 · {data.totalRows.toLocaleString('ko-KR')}행 · 최신 수집{' '}
           {data.lastCollectedAt?.slice(0, 10) ?? '-'} · 단일 region=US (캐나다 미수집) · brand
           6종(Jeep/Ram/Chrysler/Dodge/Fiat/Alfa Romeo, Maserati 별도)
         </p>
@@ -68,7 +68,7 @@ export default async function StellantisNaPage() {
       <CompanyTopModelsTable
         dataAll={data.topModels.all}
         flatRegions={brandFilterOptions}
-        title="차종 TOP10 (도매 출하 shipments · brand 필터)"
+        title="차종 TOP10 (미국 총 판매 · brand 필터)"
         latestPeriodLabel={data.kpi.latestYearLabel.replace(/\s*실적\s*$/, '')}
         prevPeriodLabel={data.kpi.prevYearLabel.replace(/\s*실적\s*$/, '')}
         ytdPeriodLabel={data.kpi.ytdLabel}
@@ -80,6 +80,11 @@ export default async function StellantisNaPage() {
         않고 통합 표기 &quot;Ram P/U&quot; 합계 약{' '}
         <span className="font-medium text-foreground">373,120</span>대로 보고됨 (2024년부터 LD/HD
         분리). 분리 표기 이후 연도(2025+)와 직접 비교 시 참고.
+      </p>
+      <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
+        ※ <span className="font-medium text-foreground">Voyager</span>는 Pacifica의 하위 트림으로
+        동일 차종이라 <span className="font-medium text-foreground">Pacifica에 합산</span>했다(보도
+        자료도 2026Q2부터 통합 표기). 2026Q2부터 발행 주체가 FCA US LLC → Stellantis로 이관됨.
       </p>
     </div>
   );

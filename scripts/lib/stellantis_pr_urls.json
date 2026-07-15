@@ -1,8 +1,11 @@
 {
-  "_comment": "prnewswire FCA US LLC quarterly sales URL cache. Audit 2026-05-27 검증. Quarterly reporting started Q2 2020 (FCA switched from monthly to quarterly during COVID).",
-  "_url_template_hint": "https://www.prnewswire.com/news-releases/<slug>-<release_id>.html  ; slug pattern varies year by year (fca-us-reports-... | fca-reports-... | fca-us-...)",
+  "_comment": "prnewswire 분기 미국 판매(소매+플릿) URL 캐시. Audit 2026-05-27 검증. Quarterly reporting started Q2 2020 (FCA switched from monthly to quarterly during COVID). 2026Q2부터 발행 주체가 FCA US LLC → Stellantis로 이관 — 두 publisher 인덱스는 서로 겹치지 않는다(과거는 옛 인덱스에만, 신규는 새 인덱스에만). 2026-07-15 실측 확인.",
+  "_url_template_hint": "https://www.prnewswire.com/news-releases/<slug>-<release_id>.html ; slug pattern varies (fca-us-reports-... | fca-reports-... | fca-us-... | stellantis-reports-...) → URL 조립 불가, 인덱스 발견 필수",
   "_publish_pattern": "Q1 -> early April; Q2 -> early July; Q3 -> early October; Q4+FY -> early January (next year)",
-  "_publisher_index_page": "https://www.prnewswire.com/news/fca-us-llc",
+  "_publisher_index_page": [
+    "https://www.prnewswire.com/news/fca-us-llc",
+    "https://www.prnewswire.com/news/stellantis"
+  ],
   "_release_id_regex": "(\\d{9})\\.html$",
   "quarters": {
     "2020-Q4": "https://www.prnewswire.com/news-releases/fca-us-reports-fourth-quarter-and-full-year-2020-sales-results-301201374.html",
@@ -26,6 +29,8 @@
     "2025-Q2": "https://www.prnewswire.com/news-releases/fca-us-reports-second-quarter-2025-us-sales-results-302496258.html",
     "2025-Q3": "https://www.prnewswire.com/news-releases/fca-us-total-sales-rise-6-year-over-year-in-us-third-quarter-report-302573083.html",
     "2025-Q4": "https://www.prnewswire.com/news-releases/fca-us-fourth-quarter-total-sales-increase-4-year-over-year-reports-full-year-2025-us-sales-results-302652833.html",
-    "2026-Q1": "https://www.prnewswire.com/news-releases/fca-us-first-quarter-sales-increase-4-year-over-year-302731747.html"
-  }
+    "2026-Q1": "https://www.prnewswire.com/news-releases/fca-us-first-quarter-sales-increase-4-year-over-year-302731747.html",
+    "2026-Q2": "https://www.prnewswire.com/news-releases/stellantis-reports-us-sales-gains-in-first-half-2026-302816096.html"
+  },
+  "_quarter_caption_hint": "분기 확정은 제목이 아니라 본문 표 캡션 'Sales Summary Q<n> <YYYY>'로 한다. 제목 정규식은 2025Q3/Q4도 이미 놓쳤다(제목의 % 문자가 매칭을 끊음)."
 }
