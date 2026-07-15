@@ -15,8 +15,6 @@ const eslintConfig = defineConfig([
     // Python 가상환경 및 외부 스크립트
     'scripts/venv/**',
     'scripts/analyze_fnguide*.py',
-    // 외부 서브모듈 (mcp-shrimp-task-manager)
-    'mcp-shrimp-task-manager/**',
   ]),
 ]);
 

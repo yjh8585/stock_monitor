@@ -15,7 +15,7 @@
 
 - [x] Next.js 15 + TypeScript + Tailwind CSS 4 + shadcn/ui 초기화
 - [x] ESLint, Prettier, Pino 로거 설정
-- [x] mcp-shrimp-task-manager 빌드 + `.mcp.json` 등록
+- [x] ~~mcp-shrimp-task-manager 빌드 + `.mcp.json` 등록~~ (2026-07-15 제거 — superpowers 스킬·TodoWrite·ROADMAP/MEMORY와 역할 중복)
 - [x] 프로젝트 서브 에이전트 4종 (`.claude/agents/`)
 - [x] `ROADMAP.md`, `USER_ACTIONS.md`, `.env.example` 작성
 - [x] `lib/logger.ts` (Pino 기반 서버 전용 로거)
