@@ -919,6 +919,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      longterm_revenue_plan: {
+        Row: {
+          basis_quarter: number;
+          basis_year: number;
+          fx_note: string | null;
+          period_year: number;
+          series: string;
+          value_mwon: number | null;
+        };
+        Insert: {
+          basis_quarter: number;
+          basis_year: number;
+          fx_note?: string | null;
+          period_year: number;
+          series: string;
+          value_mwon?: number | null;
+        };
+        Update: {
+          basis_quarter?: number;
+          basis_year?: number;
+          fx_note?: string | null;
+          period_year?: number;
+          series?: string;
+          value_mwon?: number | null;
+        };
+        Relationships: [];
+      };
       management_uploads: {
         Row: {
           created_at: string;

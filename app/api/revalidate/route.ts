@@ -49,6 +49,7 @@ const ALL_TAGS = [
   'personnel_entries',
   'finance_entries',
   'loan_entries',
+  'longterm_revenue_plan',
   'posts',
   'companies',
   'financials',

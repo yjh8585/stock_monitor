@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/charts/ChartLegend';
@@ -21,8 +22,8 @@ import { ChartSection, ToggleGroup } from '@/components/management/plan/_selecto
 import { buildLeverageSeries, listSubsidiaries } from '@/lib/finance/aggregate';
 import type { FinanceRow, LeveragePoint } from '@/lib/finance/types';
 
-const ASSET_COLOR = '#2563eb'; // 자산 (파랑)
-const LIABILITY_COLOR = '#f59e0b'; // 부채 (amber)
+const ASSET_COLOR = MGMT_BAR_COLORS[0]; // 자산 (진한 남색)
+const LIABILITY_COLOR = MGMT_BAR_COLORS[2]; // 부채 (밝은 파랑)
 const RATIO_COLOR = '#dc2626'; // 부채비율 라인 (비율선 컨벤션, 빨강)
 
 function fmt(n: number | null | undefined, digits = 0): string {

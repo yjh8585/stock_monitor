@@ -14,16 +14,17 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { ChartSection } from './_selectors';
 import { LegendRow } from '@/components/charts/ChartLegend';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
 import type { PlanRow } from '@/lib/plan/types';
 
-const COLOR_SUCCESS = '#16a34a'; // green-600
-const COLOR_FAIL = '#dc2626'; // red-600
+const COLOR_SUCCESS = MGMT_BAR_COLORS[0]; // 진한 남색 (성공)
+const COLOR_FAIL = MGMT_BAR_COLORS[2]; // 밝은 파랑 (실패)
 const COLOR_CANCEL = '#9ca3af'; // gray-400
-const COLOR_RATE = '#2563eb'; // blue-600
+const COLOR_RATE = '#dc2626'; // 성공율 라인 — 비율선 컨벤션(빨강), 막대와 대비
 
 function fmt(n: number | null | undefined, digits = 0): string {
   if (n == null || Number.isNaN(n)) return '—';
@@ -127,7 +128,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
   const h = useChartHeight(360, 440, 520);
 
   return (
-    <ChartSection title="2. 입찰 성공율" unit="억원">
+    <ChartSection title="3. 입찰 성공율" unit="억원">
       {points.length === 0 ? (
         <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
       ) : (

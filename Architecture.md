@@ -89,10 +89,12 @@
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
-탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **finance** / **org-chart** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`·`loan_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
+탭: **pnl** / **plan** / **inventory** / **production** / **personnel** / **finance** / **org-chart** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`longterm_revenue_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`·`loan_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
 
 - **pnl** — 손익 16섹션: 1 전사 비용구조, **2-1 손익분기점(BEP) 분석**(콤보차트: 우상단 토글[손익분기점·매출(억원) / 공헌이익률·고정비율(%)] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리[§4-F]·범례 LegendRow. 영업이익률=공헌이익률−고정비율), **2-2 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬['기타'는 맨 아래], 행 클릭 시 노란 강조 토글(다중)), 3 2026 연간 추정, 4~9 전사/부문/고객/제품/고객·제품/실별 실적, 10 수익성 산점(매출 YoY×영업이익률), 11 이익기여도 TOP10/WORST10, 12·13 전년대비 월별, 14 제품·고객 YoY, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
-- **plan** — 계획 대비 실적·달성율 콤보 차트 8종(수주·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 2·3은 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
+- **plan** — 차트 10종.
+  1. **중장기 매출 전망**(`LongtermRevenueChart`) — 2027~2031 연도별 세로 그룹 막대 3계열(수주 Volume·고객 EDI 100%·한세 전망) + 데이터 기준 드롭다운(2026.1Q/2026.2Q, 기본=최신). 단위 **억원**(DB `value_mwon`은 엑셀 원본 백만원, `buildLongtermPoints()`가 ÷100 환산 — 재무 탭과 같은 규칙). 환율 기준은 엑셀 원문 문구를 차트 상단에 표기. 값이 전무한 계열은 막대·범례 모두 생략(2026.1Q의 '고객 EDI 100%'=엑셀 N/A). 범례 클릭으로 계열 on/off(`useHiddenSeries`), **기본은 '한세 전망'만 켜짐**. 범례는 `LegendRow`로 순서 고정(recharts 기본 범례는 데이터 키 가나다순을 따라가 막대 왼→오와 어긋남). 소스 `longterm_revenue_plan`(§7-G), 적재 `sync_longterm_revenue.py`.
+  2. ~10. 계획 대비 실적·달성율 콤보 차트 9종(수주·입찰 성공율·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 4·5는 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
 - **inventory** — 재고 KPI 5개 + 차트 6종:
   1. 재고 현황(종류) 콤보 — 운영+관리+보상+운송 누적막대 + 회전율 꺾은선(실적만)
   2. 재고 현황(국가) 누적막대 — 국내(구동+제동조향+전장)·미국·우즈벡 + 영업+국내보상(=전체−국가합, 기본 숨김; 켜면 총액=차트1). 실적만, 회전율 제외
@@ -287,8 +289,8 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 `oem_sales_group_country_month`(약 12만 행)를 앱에서 전량 fetch·집계하면 빌드 프리렌더가 statement/USE_CACHE timeout(백업 커밋 배포 간헐 ERROR) → 무거운 SUM을 DB로 이관. 순수 SUM 재집계라 값은 원본과 동일(전역 합계 항등 검증됨).
 
-| 뷰                             | 정의                                                              | 행 수  | 용도                          |
-| ------------------------------ | ----------------------------------------------------------------- | ------ | ----------------------------- |
+| 뷰                             | 정의                                                               | 행 수  | 용도                           |
+| ------------------------------ | ------------------------------------------------------------------ | ------ | ------------------------------ |
 | `oem_sales_country_group_year` | `year(=ym/100) × oem_group × country` → SUM(sales)::bigint         | ~1.2만 | 국가 TOP15 / OEM×국가 매트릭스 |
 | `oem_sales_usa_group_month`    | `country='USA'` 한정 `oem_group × year_month` → SUM(sales)::bigint | ~1.8천 | 미국 TOP10 OEM 월별 시계열     |
 
@@ -394,6 +396,14 @@ UNIQUE: (source, note_date)
 엑셀 '이인텔리전스' 시트 적재(`sync_loan.py`). 자회사(이인텔리전스) 대여금. 단위 억원 원본(`loan_eok`, 환산 없음). 공란(미래월·결측월)→null. `/management/finance` 3번 블록: `LoanKpiCards`(누적/당월/2026 YTD 계획대비 지급율) + 계획대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적).
 **PK**: (period_year, period_month, kind)
 **RLS**: 정책 없음 (20260611000001) → service_role 전용(`confidentialDb`).
+
+#### `longterm_revenue_plan` (신규, 20260715000001) — 영업본부 중장기 매출 전망 (사외비)
+
+| basis_year | basis_quarter(1~4) | series('수주 Volume'\|'고객 EDI 100%'\|'한세 전망') | period_year | value_mwon | fx_note |
+
+`참고/영업계획/*.xlsx` '연도별 Booked 매출' 시트 요약표(B2:H11) 적재(`sync_longterm_revenue.py`, **월별손익 엑셀과 다른 파일** → 업로드 오케스트레이터 미편입). DB는 백만원 원본(`value_mwon`), 화면은 억원(÷100). 기준(basis) 2종 × 계열 3종 × 전망 연도 5개(2027~2031) = 30행. 엑셀 `N/A`(2026.1Q의 '고객 EDI 100%')→null이며 값이 전무한 계열은 차트에서 막대·범례 모두 생략(0으로 그리지 않음). `fx_note`는 시트 B2 원문 1줄 — 시트에 하나뿐이라 전 행 동일값 중복 저장(조인 회피). `/management/plan` 1번 차트: `LongtermRevenueChart`(기준 드롭다운 + 3계열 세로 그룹 막대).
+**PK**: (basis_year, basis_quarter, series, period_year)
+**RLS**: 정책 없음 (20260715000001) → service_role 전용(`confidentialDb`).
 
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
@@ -592,17 +602,17 @@ python scripts/onboard_company.py --ticker 005380
 
 ## 11. 보안
 
-| 영역              | 정책                                                                                                                                                                                                                                                                                                                                                        |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **세션**          | Supabase Auth (쿠키), `proxy.ts`가 `PUBLIC_PATH_PREFIXES` 외 라우트는 세션 강제                                                                                                                                                                                                                                                                             |
-| **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                                                                                                                                                                                                                      |
-| **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                                                                                                                                                                                                                       |
-| **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                                                                                                                                                                                                                        |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260624). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
-| **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록                                                                                                                                                                                                    |
-| **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                                                                                                                                                                                                                    |
-| **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                                                                                                                                                                                                                               |
-| **SQL**           | postgrest 파라미터 바인딩만 (문자열 결합 금지)                                                                                                                                                                                                                                                                                                              |
+| 영역              | 정책                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **세션**          | Supabase Auth (쿠키), `proxy.ts`가 `PUBLIC_PATH_PREFIXES` 외 라우트는 세션 강제                                                                                                                                                                                                                                                                                                      |
+| **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                                                                                                                                                                                                                                               |
+| **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                                                                                                                                                                                                                                                |
+| **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                                                                                                                                                                                                                                                 |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
+| **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록                                                                                                                                                                                                                             |
+| **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                                                                                                                                                                                                                                             |
+| **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                                                                                                                                                                                                                                                        |
+| **SQL**           | postgrest 파라미터 바인딩만 (문자열 결합 금지)                                                                                                                                                                                                                                                                                                                                       |
 
 ## 12. 배포 파이프라인
 
