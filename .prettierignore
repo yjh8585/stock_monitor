@@ -1,9 +1,6 @@
 # Claude Code 로컬 설정
 .claude/
 
-# 외부 서브모듈
-mcp-shrimp-task-manager/
-
 # Next.js 빌드 산출물
 .next/
 out/

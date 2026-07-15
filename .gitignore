@@ -43,10 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# MCP
-mcp-shrimp-task-manager/node_modules/
-.shrimp_data/
-
 # Python
 scripts/venv/
 scripts/__pycache__/
