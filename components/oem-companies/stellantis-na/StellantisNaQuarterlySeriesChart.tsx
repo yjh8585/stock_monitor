@@ -23,7 +23,7 @@ const Inner = dynamic(() => import('./StellantisNaQuarterlySeriesChartInner'), {
 export default function StellantisNaQuarterlySeriesChart({
   quarterly,
   annual,
-  title = '분기별 도매 출하 (shipments · brand stacked)',
+  title = '분기별 미국 총 판매 (소매+플릿 · brand stacked)',
 }: Props) {
   return (
     <Card size="sm" className="gap-3">
