@@ -366,10 +366,11 @@ export const CHART_HEIGHT = {
 1. **시계열+기간토글?** → `SeriesChart`/`MultiSeriesChart` 재사용(거의 새로 안 만듦).
 2. **카테고리 축?** → §4 레시피 복사 + §5 토큰 사용.
 3. 높이는 `useChartHeight` 3-tier 중 선택(직접 px 금지).
-4. 색은 `OEM_COLORS`/`PT_COLORS` 우선, 부족하면 -600 계열 추가.
+4. 색은 `OEM_COLORS`/`PT_COLORS` 우선, 부족하면 -600 계열 추가. **경영관리(`/management`) 막대는 예외 — `MGMT_BAR_COLORS`(파란 계열)만 사용**(§5-A 규칙).
 5. 툴팁은 `chartTheme`(`TOOLTIP_CONTENT_STYLE`), 그리드·데이터 라벨은 `chartStyle` 상수 사용(§5-D/E, 리터럴 복붙 금지).
-6. 범례 상단 중앙 + 토글 필요 시 `useHiddenSeries`/`LegendRow`.
-7. 무거우면 `XxxInner` + `dynamic ssr:false` 래퍼.
-8. 빈 데이터/로딩 상태 처리(§5-G).
-9. 다크모드 — hex 고정색 외엔 `var(--card/--border/--foreground/--muted)` 사용.
-10. `npm run check-all` + dev 서버에서 sm/md/lg 폭 모두 확인.
+6. 범례 상단 중앙. **경영관리 막대 차트는 범례 클릭 토글을 기본 제공**(`useHiddenSeries` + `LegendRow`) — "필요 시"가 아니다. 초기 OFF 계열이 필요하면 `useHiddenSeries(['키1','키2'])`.
+7. recharts 기본 `<Legend>`는 payload를 **데이터 키 순서**(= `source.ts`의 `.order()` 정렬)로 만들어 막대 왼→오와 어긋난다 → **색과 라벨이 불일치하는 조용한 버그**. 순서가 중요하면 `<Legend content={() => <LegendRow ... />}>`로 직접 통제(v3 타입은 `payload` prop을 막는다). 검증은 범례 색 vs 첫 그룹 막대 색 대조.
+8. 무거우면 `XxxInner` + `dynamic ssr:false` 래퍼.
+9. 빈 데이터/로딩 상태 처리(§5-G).
+10. 다크모드 — hex 고정색 외엔 `var(--card/--border/--foreground/--muted)` 사용.
+11. `npm run check-all` + dev 서버에서 sm/md/lg 폭 모두 확인.
