@@ -395,6 +395,14 @@ UNIQUE: (source, note_date)
 **PK**: (period_year, period_month, kind)
 **RLS**: 정책 없음 (20260611000001) → service_role 전용(`confidentialDb`).
 
+#### `longterm_revenue_plan` (신규, 20260715000001) — 영업본부 중장기 매출 전망 (사외비)
+
+| basis_year | basis_quarter(1~4) | series('수주 Volume'\|'고객 EDI 100%'\|'한세 전망') | period_year | value_mwon | fx_note |
+
+`참고/영업계획/*.xlsx` '연도별 Booked 매출' 시트 요약표(B2:H11) 적재(`sync_longterm_revenue.py`, **월별손익 엑셀과 다른 파일** → 업로드 오케스트레이터 미편입). 단위 백만원 원본(환산 없음). 기준(basis) 2종 × 계열 3종 × 전망 연도 5개(2027~2031) = 30행. 엑셀 `N/A`(2026.1Q의 '고객 EDI 100%')→null이며 값이 전무한 계열은 차트에서 막대·범례 모두 생략(0으로 그리지 않음). `fx_note`는 시트 B2 원문 1줄 — 시트에 하나뿐이라 전 행 동일값 중복 저장(조인 회피). `/management/plan` 1번 차트: `LongtermRevenueChart`(기준 드롭다운 + 3계열 세로 그룹 막대).
+**PK**: (basis_year, basis_quarter, series, period_year)
+**RLS**: 정책 없음 (20260715000001) → service_role 전용(`confidentialDb`).
+
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
 | 컬럼          | 타입        | 설명                                                                                                   |
@@ -598,7 +606,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                                                                                                                                                                                                                      |
 | **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                                                                                                                                                                                                                       |
 | **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                                                                                                                                                                                                                        |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260624). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
 | **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록                                                                                                                                                                                                    |
 | **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                                                                                                                                                                                                                    |
 | **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                                                                                                                                                                                                                               |
