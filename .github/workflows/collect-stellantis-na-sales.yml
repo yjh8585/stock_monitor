@@ -67,7 +67,11 @@ jobs:
           if [ "${{ inputs.reprocess_all }}" = "true" ]; then
             ARGS="$ARGS --reprocess-all"
           fi
-          if [ "${{ inputs.auto_discover }}" = "true" ]; then
+          # 스케줄 실행은 항상 auto-discover.
+          # 과거엔 inputs가 비어 스케줄에서 발견이 아예 돌지 않았고, 그래서 신규 분기 URL을
+          # 매 분기 손으로 채워야 했다(2026Q2 누락의 원인). 발견 로직이 본문 표 캡션 기반으로
+          # 바뀌어 발행 명의 변화에 견디므로 스케줄에서 켜 둔다.
+          if [ "${{ inputs.auto_discover }}" = "true" ] || [ "${{ github.event_name }}" = "schedule" ]; then
             ARGS="$ARGS --auto-discover"
           fi
           python collect_stellantis_na_sales.py $ARGS

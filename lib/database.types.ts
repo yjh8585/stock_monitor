@@ -263,6 +263,36 @@ export type Database = {
           },
         ];
       };
+      cox_brand_inventory: {
+        Row: {
+          brand: string;
+          collected_at: string;
+          days_supply: number | null;
+          image_url: string | null;
+          is_outlier_excluded: boolean;
+          source_url: string | null;
+          year_month: number;
+        };
+        Insert: {
+          brand: string;
+          collected_at?: string;
+          days_supply?: number | null;
+          image_url?: string | null;
+          is_outlier_excluded?: boolean;
+          source_url?: string | null;
+          year_month: number;
+        };
+        Update: {
+          brand?: string;
+          collected_at?: string;
+          days_supply?: number | null;
+          image_url?: string | null;
+          is_outlier_excluded?: boolean;
+          source_url?: string | null;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
       exchange_rates: {
         Row: {
           base: string;
@@ -1690,6 +1720,39 @@ export type Database = {
           vehicle_model?: string;
           year_period?: string;
           yoy_pct?: number | null;
+        };
+        Relationships: [];
+      };
+      stellantis_shipments: {
+        Row: {
+          collected_at: string;
+          filing_date: string | null;
+          is_derived: boolean;
+          period_type: string;
+          region: string;
+          shipments_units: number;
+          source_url: string | null;
+          year_period: string;
+        };
+        Insert: {
+          collected_at?: string;
+          filing_date?: string | null;
+          is_derived?: boolean;
+          period_type?: string;
+          region: string;
+          shipments_units: number;
+          source_url?: string | null;
+          year_period: string;
+        };
+        Update: {
+          collected_at?: string;
+          filing_date?: string | null;
+          is_derived?: boolean;
+          period_type?: string;
+          region?: string;
+          shipments_units?: number;
+          source_url?: string | null;
+          year_period?: string;
         };
         Relationships: [];
       };
