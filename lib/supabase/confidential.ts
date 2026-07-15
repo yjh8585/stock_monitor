@@ -37,6 +37,7 @@ import { createSupabaseAdminClient } from './admin';
  * - loan_entries: 이인텔리전스 자회사 대여금 계획·실적 (migration 20260611000001)
  * - management_uploads: 경영관리 엑셀 업로드 작업 추적 (migration 20260624000001)
  * - org_charts: 조직도 이미지 메타 (migration 20260624000002)
+ * - longterm_revenue_plan: 영업본부 중장기 매출 전망 (migration 20260715000001)
  */
 const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -50,6 +51,7 @@ const CONFIDENTIAL_TABLES = [
   'loan_entries',
   'management_uploads',
   'org_charts',
+  'longterm_revenue_plan',
 ] as const;
 
 /**
