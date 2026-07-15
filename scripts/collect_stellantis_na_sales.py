@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """Stellantis NA (FCA US LLC) 분기 판매 → stellantis_na_sales 적재 (PR5).
 
+지표 주의: 이 표의 수치는 **도매 출하(shipments)가 아니라 미국 총 판매(소매+플릿, 최종고객 인도
+기준)** 다. FCA US 공식 집계방법론 문서가 "Reported vehicle unit sales do not correspond to
+FCA US's reported revenues"라고 명시한다(매출 인식 기준 = 도매 출하). 도매 출하는 Stellantis IR의
+consolidated shipments이며 지역(북미) 단위로만 공시된다 — 이 스크립트가 담는 값이 아니다.
+
 플로우:
-  1. scripts/lib/stellantis_pr_urls.json (audit 검증한 22분기 매핑) 로드.
-  2. (선택) --auto-discover 시 prnewswire publisher index에서 신규 분기 발견.
+  1. scripts/lib/stellantis_pr_urls.json (audit 검증한 분기 매핑) 로드.
+  2. (선택) --auto-discover 시 prnewswire publisher index 2개에서 신규 분기 발견.
+     2026Q2부터 발행 주체가 FCA US LLC → Stellantis로 이관됐고 두 인덱스는 겹치지 않는다.
+     분기 확정은 제목이 아니라 본문 표 캡션('… Sales Summary Q2 2026')으로 한다.
   3. 각 분기 URL에서 HTML fetch (requests + UA 헤더, sha256 캐시).
   4. BeautifulSoup으로 <table> 1개 추출 → 정규화.
   5. 행 분류 (model / subtotal / brand_total / company_total / spacer).
+     company_total 라벨은 'FCA US LLC'(~2026Q1) 또는 'Stellantis'(2026Q2~).
+     MODEL_ALIASES에 따라 동일 차종 별칭을 합산 병합(Voyager → Pacifica).
   6. cross-check (실패 시 abort):
        - subtotal 제외 sum(models[brand]) == brand_total[brand]
        - sum(brand_totals) == company_total
@@ -72,7 +81,14 @@ COMMON_HEADERS = {
   'Referer': 'https://www.prnewswire.com/news/fca-us-llc',
 }
 
-PUBLISHER_INDEX_URL = 'https://www.prnewswire.com/news/fca-us-llc'
+# publisher 인덱스 2개.
+# 2026Q2부터 발행 주체가 FCA US LLC → Stellantis로 이관됐고, 두 인덱스는 서로 겹치지 않는다
+# (과거 분기는 옛 인덱스에만, 신규 분기는 새 인덱스에만 — 2026-07-15 실측).
+# 따라서 auto-discover는 반드시 둘 다 순회해야 한다.
+PUBLISHER_INDEX_URLS = (
+  'https://www.prnewswire.com/news/fca-us-llc',
+  'https://www.prnewswire.com/news/stellantis',
+)
 
 # release_id: prnewswire 9자리 cision ID (영구). URL 끝의 -NNNNNNNNN.html.
 RELEASE_ID_RE = re.compile(r'-(\d{9})\.html$', re.I)
@@ -98,8 +114,17 @@ BRAND_DISPLAY = {
 # subtotal row: 'TOTAL Ram PU' 등. 모델 SUM 시 double-count 방지 — skip.
 SUBTOTAL_PREFIX_RE = re.compile(r'^TOTAL\s+', re.I)
 
-# 회사 합계 row 라벨
-COMPANY_TOTAL_LABELS = {'FCA US LLC'}
+# 회사 합계 row 라벨.
+# 2026Q2부터 발행 명의가 바뀌며 이 라벨도 'FCA US LLC' → 'Stellantis'로 변경됐다(실측).
+# 미인식 시 이 행이 model로 오분류돼 직전 brand(Jeep)에 회사 합계가 통째로 얹힌다.
+COMPANY_TOTAL_LABELS = {'FCA US LLC', 'Stellantis'}
+_COMPANY_TOTAL_UPPER = {s.upper() for s in COMPANY_TOTAL_LABELS}
+
+# 동일 차종의 별칭 → 정본 모델. build 전에 합산 병합한다.
+# Chrysler Voyager는 Pacifica의 하위 트림으로 같은 차종이며, prnewswire도 2026Q2부터
+# Voyager 행을 없애고 Pacifica로 통합했다. 과거 분기를 병합해야 모델 시계열이
+# 2026Q1/Q2 경계에서 끊기지 않는다 (사용자 지시 2026-07-15).
+MODEL_ALIASES = {'Voyager': 'Pacifica'}
 
 # 행 헤더/잔재 토큰 — skip
 HEADER_TOKENS = {
@@ -107,7 +132,11 @@ HEADER_TOKENS = {
   'q1 sales', 'q2 sales', 'q3 sales', 'q4 sales',
   'cytd sales', 'vol %',
 }
-HEADER_PREFIX = ('FCA US LLC Sales Summary',)
+HEADER_PREFIX = ('FCA US LLC Sales Summary', 'Stellantis Sales Summary')
+
+# 표 캡션 — 'FCA US LLC Sales Summary Q1 2026' / 'Stellantis Sales Summary Q2 2026'.
+# 발행 명의와 무관하게 항상 존재하므로 auto-discover의 분기 확정 근거로 쓴다(제목 파싱보다 안정).
+SUMMARY_CAPTION_RE = re.compile(r'Sales\s+Summary\s+(Q[1-4])\s+(20\d{2})', re.I)
 
 # 검증 허용 오차 (대 단위)
 # - COMPANY: brand_total SUM == FCA US LLC. PR 자체에서 산출 — 5대 이내 일치.
@@ -337,8 +366,7 @@ def _row_kind(first: str) -> str:
   """첫 셀 텍스트 → 행 종류."""
   if not first:
     return 'empty'
-  upper = first.upper()
-  if first in COMPANY_TOTAL_LABELS or upper == 'FCA US LLC':
+  if first.upper() in _COMPANY_TOTAL_UPPER:
     return 'company_total'
   m = BRAND_TOTAL_RE.match(first)
   if m:
@@ -355,6 +383,50 @@ def _brand_from_row(first: str) -> str | None:
     return None
   raw = re.sub(r'\s+', ' ', m.group('brand').upper()).strip()
   return BRAND_DISPLAY.get(raw)
+
+
+def _recalc_yoy(curr: int | None, prev: int | None) -> float | None:
+  """병합 후 YoY 재계산. 원본 % 두 개를 평균하면 틀리므로 합산값에서 다시 구한다."""
+  if curr is None or not prev:
+    return None
+  return round((curr - prev) / prev * 100, 2)
+
+
+def _merge_model_aliases(models: list[dict], year_period: str) -> list[dict]:
+  """MODEL_ALIASES에 따라 동일 차종의 별칭 행을 정본 모델로 합산 병합.
+
+  brand 합계·회사 합계는 불변이므로 cross-check 허용 오차에 영향이 없다.
+  같은 분기에 정본과 별칭이 둘 다 있으면 대수를 더하고 YoY는 재계산한다.
+  """
+  if not any(m['vehicle_model'] in MODEL_ALIASES for m in models):
+    return models
+
+  out: list[dict] = []
+  index: dict[tuple[str, str], dict] = {}
+  sources: dict[tuple[str, str], list[str]] = {}
+  for m in models:
+    canonical = MODEL_ALIASES.get(m['vehicle_model'], m['vehicle_model'])
+    key = (m['brand'] or '', canonical)
+    sources.setdefault(key, []).append(m['vehicle_model'])
+    existing = index.get(key)
+    if existing is None:
+      merged = dict(m)
+      merged['vehicle_model'] = canonical
+      index[key] = merged
+      out.append(merged)
+      continue
+    for field in ('q_curr', 'q_prior', 'ytd_curr', 'ytd_prior'):
+      a, b = existing.get(field), m.get(field)
+      existing[field] = None if a is None and b is None else (a or 0) + (b or 0)
+    existing['q_yoy'] = _recalc_yoy(existing['q_curr'], existing['q_prior'])
+    existing['ytd_yoy'] = _recalc_yoy(existing['ytd_curr'], existing['ytd_prior'])
+
+  for key, names in sources.items():
+    if len(names) > 1:
+      logger.info(f'  {year_period}: {" + ".join(names)} → {key[1]} 합산 병합 (동일 차종)')
+    elif names[0] != key[1]:
+      logger.info(f'  {year_period}: {names[0]} → {key[1]} 이름 정규화 (동일 차종)')
+  return out
 
 
 def normalize_rows(
@@ -430,6 +502,7 @@ def normalize_rows(
   # 후처리: model의 brand 채우기 — brand_total은 자기 brand의 모델들 뒤에 등장.
   # raw rows를 다시 한번 순회하며 model index → brand 매핑 구성.
   _assign_brands_to_models(raw_rows, models, year_period)
+  models = _merge_model_aliases(models, year_period)
 
   return models, brand_totals, company_total
 
@@ -659,56 +732,91 @@ def build_db_rows(
 # ---------------------------------------------------------------------------
 # Auto-discover (publisher index)
 # ---------------------------------------------------------------------------
+# 슬러그에 발행사명 제약을 두지 않는다 — 2026Q2 슬러그는 'stellantis-...'로 시작한다.
 HREF_RE = re.compile(
-  r'/news-releases/(fca[-\w]+-\d{9})\.html', re.I,
-)
-TITLE_QUARTER_RE = re.compile(
-  r'(?:'
-  r'(?P<q4>(?:fourth[\s-]+quarter|q4)[\s\w-]*?(?P<q4y>20\d{2}))'
-  r'|(?P<q1>(?:first[\s-]+quarter|q1)[\s\w-]*?(?P<q1y>20\d{2}))'
-  r'|(?P<q2>(?:second[\s-]+quarter|q2)[\s\w-]*?(?P<q2y>20\d{2}))'
-  r'|(?P<q3>(?:third[\s-]+quarter|q3)[\s\w-]*?(?P<q3y>20\d{2}))'
-  r')',
-  re.I,
+  r'/news-releases/([-\w]+-\d{9})\.html', re.I,
 )
 
+# 후보 필터 — 제목만으로 분기를 확정하지 않는다(아래 주석 참고). 본문 fetch 대상만 좁힌다.
+TITLE_CANDIDATE_RE = re.compile(r'\b(sales|quarter|half)\b', re.I)
 
-def auto_discover_new_quarters(cache: dict) -> int:
-  """publisher index에서 신규 분기 PR 발견 → cache 갱신. 신규 발견 수 반환."""
+
+def _index_candidates(index_url: str) -> list[tuple[str, str, str]]:
+  """publisher index 1개 → [(release_id, full_url, title)] 후보 목록."""
+  headers = {**COMMON_HEADERS, 'Referer': index_url}
   try:
-    r = requests.get(PUBLISHER_INDEX_URL, headers=COMMON_HEADERS, timeout=REQUEST_TIMEOUT_S)
+    r = requests.get(index_url, headers=headers, timeout=REQUEST_TIMEOUT_S)
   except Exception as e:
-    logger.warning(f'  publisher index fetch 실패: {e}')
-    return 0
+    logger.warning(f'  publisher index fetch 실패 ({index_url}): {e}')
+    return []
   if r.status_code != 200:
-    logger.warning(f'  publisher index status={r.status_code}')
-    return 0
+    logger.warning(f'  publisher index status={r.status_code} ({index_url})')
+    return []
+
   soup = BeautifulSoup(r.text, 'html.parser')
-  added = 0
+  out: list[tuple[str, str, str]] = []
+  seen: set[str] = set()
   for a in soup.find_all('a', href=True):
     href = a.get('href', '')
     if not HREF_RE.search(href):
       continue
-    title = a.get_text(strip=True)
-    m = TITLE_QUARTER_RE.search(title)
+    full = href if href.startswith('http') else f'https://www.prnewswire.com{href}'
+    m = RELEASE_ID_RE.search(full)
     if not m:
       continue
-    if m.group('q1'):
-      yp = f'{m.group("q1y")}-Q1'
-    elif m.group('q2'):
-      yp = f'{m.group("q2y")}-Q2'
-    elif m.group('q3'):
-      yp = f'{m.group("q3y")}-Q3'
-    elif m.group('q4'):
-      yp = f'{m.group("q4y")}-Q4'
-    else:
+    rid = m.group(1)
+    if rid in seen:
       continue
+    seen.add(rid)
+    out.append((rid, full, a.get_text(strip=True)))
+  return out
+
+
+def auto_discover_new_quarters(cache: dict) -> int:
+  """publisher index 2개에서 신규 분기 PR 발견 → cache 갱신. 신규 발견 수 반환.
+
+  분기 확정은 **제목이 아니라 본문 표 캡션**('… Sales Summary Q2 2026')으로 한다.
+  제목 정규식은 발행 명의·문구 변화에 취약해 2025Q3/Q4도 이미 놓치고 있었다(실측).
+  캡션은 발행 명의와 무관하게 항상 존재한다.
+
+  본문 fetch는 **캐시에 없는 release_id만** 대상이라 호출량이 신규 릴리스 수로 제한된다.
+  """
+  known_ids: set[str] = set()
+  for url in cache.get('quarters', {}).values():
+    m = RELEASE_ID_RE.search(url or '')
+    if m:
+      known_ids.add(m.group(1))
+
+  candidates: dict[str, tuple[str, str]] = {}   # rid → (url, title)
+  for index_url in PUBLISHER_INDEX_URLS:
+    for rid, full, title in _index_candidates(index_url):
+      if rid in known_ids or rid in candidates:
+        continue
+      if not TITLE_CANDIDATE_RE.search(title):
+        continue
+      candidates[rid] = (full, title)
+
+  added = 0
+  for rid, (full, title) in candidates.items():
+    try:
+      time.sleep(REQUEST_SLEEP_S)
+      r = requests.get(full, headers=COMMON_HEADERS, timeout=REQUEST_TIMEOUT_S)
+    except Exception as e:
+      logger.warning(f'  후보 fetch 실패 rid={rid}: {e}')
+      continue
+    if r.status_code != 200:
+      logger.warning(f'  후보 status={r.status_code} rid={rid}')
+      continue
+    m = SUMMARY_CAPTION_RE.search(r.text)
+    if not m:
+      # 판매 요약표가 없는 릴리스(글로벌 뉴스 등) — 정상 skip
+      continue
+    yp = f'{m.group(2)}-{m.group(1).upper()}'
     if yp in cache.get('quarters', {}):
       continue
-    full = href if href.startswith('http') else f'https://www.prnewswire.com{href}'
     cache.setdefault('quarters', {})[yp] = full
     added += 1
-    logger.info(f'  신규 분기 발견: {yp} → {full}')
+    logger.info(f'  신규 분기 발견: {yp} → {full}  (제목: {title[:60]})')
   return added
 
 
