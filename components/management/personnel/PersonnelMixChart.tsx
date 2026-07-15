@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/charts/ChartLegend';
 import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
@@ -27,8 +28,8 @@ function fmt(n: number | null | undefined, digits = 0): string {
   });
 }
 
-const OFFICE_COLOR = '#0891b2'; // cyan-600 — 사무직 차분
-const PRODUCTION_COLOR = '#f59e0b'; // amber-500 — 생산직 활동
+const OFFICE_COLOR = MGMT_BAR_COLORS[0]; // 진한 남색 — 사무직
+const PRODUCTION_COLOR = MGMT_BAR_COLORS[2]; // 밝은 파랑 — 생산직
 
 interface Props {
   points: MixPoint[];

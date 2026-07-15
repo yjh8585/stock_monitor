@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/charts/ChartLegend';
@@ -21,7 +22,7 @@ import { ChartSection } from '@/components/management/plan/_selectors';
 import { buildInterestRateSeries } from '@/lib/finance/aggregate';
 import type { FinanceRow, InterestRatePoint } from '@/lib/finance/types';
 
-const DEBT_COLOR = '#2563eb'; // 차입금 막대 (파랑)
+const DEBT_COLOR = MGMT_BAR_COLORS[1]; // 차입금 막대 (기본 파랑)
 const RATE_COLOR = '#dc2626'; // 평균이자율 라인 (비율선 컨벤션, 빨강)
 
 function fmt(n: number | null | undefined, digits = 0): string {

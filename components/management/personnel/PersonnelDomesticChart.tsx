@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { LegendRow } from '@/components/charts/ChartLegend';
 import { sumVisibleStack, TOTAL_LABEL_ANCHOR } from '@/components/management/chart-utils';
@@ -35,9 +36,9 @@ function pctOf(part: number | null | undefined, total: number | null | undefined
 }
 
 const COLORS = {
-  domestic: '#2563eb', // blue-600
-  internal: '#16a34a', // green-600
-  partner: '#ea580c', // orange-600
+  domestic: MGMT_BAR_COLORS[0],
+  internal: MGMT_BAR_COLORS[1],
+  partner: MGMT_BAR_COLORS[2],
 };
 
 interface Props {

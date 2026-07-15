@@ -22,7 +22,7 @@ export default function RevenueTargetChart({
   );
   return (
     <ChartSection
-      title="3. 전사 매출목표 달성"
+      title="4. 전사 매출목표 달성"
       unit="억원"
       controls={
         <ToggleGroup
