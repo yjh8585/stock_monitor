@@ -127,7 +127,7 @@ export default function OrderFunnelChart({ rows }: { rows: PlanRow[] }) {
   const h = useChartHeight(360, 440, 520);
 
   return (
-    <ChartSection title="2. 입찰 성공율" unit="억원">
+    <ChartSection title="3. 입찰 성공율" unit="억원">
       {points.length === 0 ? (
         <div className="py-12 text-center text-base text-muted-foreground">데이터가 없습니다.</div>
       ) : (
