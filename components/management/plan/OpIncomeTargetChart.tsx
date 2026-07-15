@@ -23,7 +23,7 @@ export default function OpIncomeTargetChart({
   }, [rows, prepared, basis]);
   return (
     <ChartSection
-      title="4. 전사 영업이익 목표 달성"
+      title="5. 전사 영업이익 목표 달성"
       unit="억원"
       controls={
         <ToggleGroup
