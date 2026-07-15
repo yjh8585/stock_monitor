@@ -4,9 +4,11 @@
  * 계획 페이지 차트 1번 전용. fetch/캐시는 lib/plan/source.ts가 담당하고
  * 여기는 순수 계산만 둔다(단위 테스트 대상).
  *
- * 단위: 백만원. 엑셀 'N/A'는 value_mwon = null로 적재되며, 전부 null인 계열은
- * activeSeries()에서 탈락해 막대·범례에 나타나지 않는다(0으로 그리면 '전망 0원'이라는
- * 거짓 사실을 표시하게 되므로).
+ * 단위: DB(`value_mwon`)는 엑셀 원본 그대로 **백만원**, 화면 표시는 **억원**이다.
+ * 환산은 buildLongtermPoints()가 `÷100`으로 수행한다(재무 탭 `value_mwon / 100`과 동일 규칙).
+ *
+ * 엑셀 'N/A'는 value_mwon = null로 적재되며, 전부 null인 계열은 activeSeries()에서 탈락해
+ * 막대·범례에 나타나지 않는다(0으로 그리면 '전망 0원'이라는 거짓 사실을 표시하게 되므로).
  */
 
 /** 계열 3종 — DB CHECK ↔ sync 적재값 ↔ UI 라벨을 한글 그대로 일치시킨다. 표시 순서이기도 하다. */
@@ -31,8 +33,13 @@ export interface LongtermBasis {
   quarter: number;
 }
 
-/** 막대 그룹 1개(= 전망 연도 1개). 계열명이 그대로 recharts dataKey가 된다. */
+/** 막대 그룹 1개(= 전망 연도 1개). 계열명이 그대로 recharts dataKey가 된다. 값 단위 **억원**. */
 export type LongtermPoint = { year: number } & Partial<Record<LongtermSeries, number | null>>;
+
+/** 백만원 → 억원. 소수 2자리에서 반올림(부동소수 잔재 제거). */
+function toEok(mwon: number | null): number | null {
+  return mwon == null ? null : Math.round((mwon / 100) * 100) / 100;
+}
 
 /** (연도, 분기) → 드롭다운 키. */
 export function basisKey(year: number, quarter: number): string {
@@ -59,7 +66,7 @@ export function activeSeries(rows: readonly LongtermRow[], basis: string): Longt
   return LONGTERM_SERIES.filter((s) => has.has(s));
 }
 
-/** 해당 기준의 연도별 포인트 — 연도 오름차순. 값 없는 계열은 null 유지. */
+/** 해당 기준의 연도별 포인트 — 연도 오름차순, **백만원→억원 환산**. 값 없는 계열은 null 유지. */
 export function buildLongtermPoints(rows: readonly LongtermRow[], basis: string): LongtermPoint[] {
   const byYear = new Map<number, LongtermPoint>();
   for (const r of rows) {
@@ -69,7 +76,7 @@ export function buildLongtermPoints(rows: readonly LongtermRow[], basis: string)
       p = { year: r.period_year };
       byYear.set(r.period_year, p);
     }
-    p[r.series] = r.value_mwon;
+    p[r.series] = toEok(r.value_mwon);
   }
   return [...byYear.values()].sort((a, b) => a.year - b.year);
 }

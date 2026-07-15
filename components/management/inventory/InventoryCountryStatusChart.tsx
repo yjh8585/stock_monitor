@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { ChartSection } from '@/components/management/plan/_selectors';
 import { LegendRow } from '@/components/charts/ChartLegend';
@@ -34,10 +35,10 @@ function pctOf(part: number | null | undefined, total: number | null | undefined
 }
 
 const COLORS = {
-  domestic: '#2563eb',
-  us: '#16a34a',
-  uz: '#ea580c',
-  residual: '#94a3b8',
+  domestic: MGMT_BAR_COLORS[0],
+  us: MGMT_BAR_COLORS[1],
+  uz: MGMT_BAR_COLORS[2],
+  residual: MGMT_BAR_COLORS[3],
 };
 
 const STACK_KEYS = ['domestic', 'us', 'uz', 'residual'] as const;

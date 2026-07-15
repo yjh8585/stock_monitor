@@ -15,7 +15,8 @@ export function LegendRow({
   onToggle,
 }: {
   items: Array<{ key: string; label: string; shape: 'rect' | 'line'; color: string }>;
-  hidden?: Set<string>;
+  /** 읽기만 하므로 ReadonlySet — useHiddenSeries()의 hidden을 그대로 넘길 수 있다. */
+  hidden?: ReadonlySet<string>;
   onToggle?: (key: string) => void;
 }) {
   return (

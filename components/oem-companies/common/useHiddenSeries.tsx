@@ -39,9 +39,13 @@ function extractKey(payload: LegendClickPayload): string {
   return String(payload.value ?? '');
 }
 
-/** recharts Legend 클릭 토글 + inactive 스타일 처리를 캡슐화. */
-export function useHiddenSeries(): UseHiddenSeriesResult {
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
+/**
+ * recharts Legend 클릭 토글 + inactive 스타일 처리를 캡슐화.
+ *
+ * @param initialHidden 처음부터 꺼둘 시리즈 키(마운트 시 1회만 반영). 기본 전체 표시.
+ */
+export function useHiddenSeries(initialHidden?: readonly string[]): UseHiddenSeriesResult {
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(initialHidden ?? []));
 
   const isHidden = useCallback((key: string) => hidden.has(key), [hidden]);
 

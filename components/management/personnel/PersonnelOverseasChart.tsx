@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { MGMT_BAR_COLORS } from '@/components/charts/palette';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { OverseasPoint } from '@/lib/personnel/types';
 
@@ -23,7 +24,7 @@ function fmt(n: number | null | undefined, digits = 0): string {
   });
 }
 
-const BAR_COLOR = '#2563eb';
+const BAR_COLOR = MGMT_BAR_COLORS[1];
 
 interface Props {
   points: OverseasPoint[];
