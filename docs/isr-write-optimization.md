@@ -63,5 +63,6 @@
 ## 5. 재개 트리거
 
 대시보드 ISR Writes가 옵션① 이후에도 여전히 200K 초과면:
+
 1. **옵션③**(무해) 먼저 — 매퍼 컬럼 감사 → select 축소 → typecheck/build.
 2. 그래도 부족하면 **옵션②**(FX 환산 ~1h 지연 감수) — revalidate.py 매핑 + source.ts 환율 분리.
