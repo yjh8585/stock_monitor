@@ -76,6 +76,7 @@
 | pnl       | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                                                                              |
 | pnl       | `FixedVariableBep`                                                                                                         | 콤보(토글: 손익분기점·매출[억원] / 공헌이익률·고정비율[%] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리) |
 | pnl       | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                                                                                       |
+| plan      | `LongtermRevenueChart`                                                                                                     | 세로 그룹 막대 3계열 + 기준 드롭다운(값 전무 계열 자동 제외, 범례 `LegendRow`로 순서 고정, 라벨 `MGMT_DATA_LABEL_STYLE`) |
 | plan      | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)                                                                    |
 | plan      | `OrderFunnelChart`                                                                                                         | 퍼널                                                                                                            |
 | inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                                                                                  |
@@ -243,7 +244,7 @@ const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
 | 축 tick             | **13~14px** (`tick={{ fontSize: 13 }}` 또는 `className="text-sm"`) | ⚠️ 13/14 혼용                      |
 | 막대 위 데이터 라벨 | **15px / 700** (`DATA_LABEL_STYLE`)                                | 2026-05-27 가독성 위해 13→15 상향  |
 | 막대 내부 라벨      | 13~16px / 600                                                      | 차트별 상이                        |
-| 콤보·인원 라벨      | 16px                                                               | 경영관리                           |
+| 콤보·인원 라벨      | 16px                                                               | 경영관리 — 상수 `MGMT_DATA_LABEL_STYLE`(chartStyle.ts) |
 | 범례                | **14~16px**                                                        | `LegendRow`=16, recharts Legend=14 |
 | 툴팁 본문           | **16px** (`contentStyle.fontSize`)                                 |                                    |
 | footer(단위/출처)   | 10px                                                               | lightweight 카드                   |
