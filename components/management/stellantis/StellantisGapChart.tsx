@@ -40,15 +40,16 @@ export default function StellantisGapChart({
         이미 공식 발표와 근사함이 확인된 MarkLines 소매를 씁니다.
       </p>
       <p className="mb-2 text-sm text-muted-foreground">
-        출하는 <b>Stellantis IR 분기 릴리스의 절대값</b>을 우선 씁니다(2026년~ 지역별 표 제공). 빗금
-        막대는 과거 반기·연간 보도자료에서 <b>차분 도출</b>한 출하입니다(Q2 = H1 − Q1, Q4 = FY − H1
-        − Q3, ±1,000대 오차).
+        출하는 <b>Stellantis IR 분기 릴리스의 절대값</b>을 우선 씁니다(2026년~ 지역별 표 제공).
+        2021~2025년 <b>Q2·Q4 출하</b>는 과거 반기·연간 보도자료에서 <b>차분 도출</b>한 값이라
+        ±1,000대 오차가 있습니다(Q2 = H1 − Q1, Q4 = FY − H1 − Q3). 분기별 값·구분은 막대에 마우스를
+        올리면 툴팁으로 확인할 수 있습니다.
         {partialQuarterNote ? <> {partialQuarterNote}</> : null}
       </p>
       {projectedNote ? (
         <p className="mb-2 text-sm text-amber-700 dark:text-amber-400">
-          ⚠️ 맨 오른쪽 분기(<b>빗금 소매 막대 + 속 빈 점</b>)는 <b>추정 포함 분기</b>입니다.{' '}
-          {projectedNote} 이 분기는 아래 통계·진단 계산에서는 제외합니다(실측 완전 분기만 셉니다).
+          ⚠️ 맨 오른쪽 분기(갭 선의 <b>속 빈 점</b>)는 소매 일부가 <b>추정치</b>인 분기입니다.{' '}
+          {projectedNote}
         </p>
       ) : null}
       <Inner points={allPoints} />
