@@ -1,10 +1,10 @@
 /**
  * 스텔란티스 북미 매출 전망(/management/stellantis) 순수 집계 빌더.
  *
- * 이 모듈이 답하려는 질문은 셋이다:
- *  ① 스텔란티스 재고가 쌓이고 있는가?  → 두 항등식을 나란히 세운다(차트 1·2)
- *  ② 자사 매출은 시간을 두고 무엇을 따라가는가?  → 3축 시차 상관(`analyzeDrivers`)
- *  ③ 재고가 이 방향이면 자사 매출은 어디로 가는가?  → 조건부 빈도(`buildInventoryOutlook`)
+ * 이 모듈이 답하려는 질문은 둘이다:
+ *  ① 스텔란티스 재고가 쌓이고 있는가?  → 두 항등식을 나란히 세운다(차트 1·2 + 재고 신호등 KPI)
+ *  ② 각 지표가 전년 대비 어디로 가는가?  → YTD YoY KPI(`buildRetailKpi`·`buildShipmentsKpi`·
+ *     `buildRevenueKpi`)
  *
  * **두 재고 경로의 성격 차이가 이 모듈의 핵심 전제다:**
  *  - `출하 − 소매 = 딜러 재고 증감` — 정확한 항등식. 단 분기 단위이고 최신 분기가 늘 비어 있다.
@@ -21,21 +21,15 @@
  *    안 그러면 소매가 과소집계돼 재고 축적을 과대평가한다.
  */
 import type {
-  ConditionalRate,
-  CoxInventoryRow,
-  Diagnosis,
-  DriverAxis,
-  DriverLagProfile,
   GapPoint,
-  InventoryOutlook,
-  LagCandidate,
-  LagResult,
+  InventoryKpi,
+  KpiMetric,
+  KpiMetricKey,
   MonthlyFlowPoint,
   PlantEvent,
   PlantEventWithContext,
   ProductionMonthRow,
   RetailMonthRow,
-  RevenueDriverAnalysis,
   RevenueMonthRow,
   ShipmentRow,
 } from './types';
@@ -54,50 +48,8 @@ export const MASERATI_MODELS: ReadonlySet<string> = new Set([
 /** IR North America 세그먼트 구성 국가 (MarkLines country 라벨). 생산·소매 공통. */
 export const NA_COUNTRIES: readonly string[] = ['USA', 'Canada', 'Mexico'];
 
-/** 스텔란티스 브랜드 (Cox 차트에 실리는 것만 — Fiat·Alfa Romeo는 물량 미달로 미수록). */
-export const STELLANTIS_COX_BRANDS: readonly string[] = ['Jeep', 'Ram', 'Dodge', 'Chrysler'];
-
-/** Cox가 이상치로 제외하는 기준 — 업계 평균 대비 배수. */
-export const COX_OUTLIER_MULTIPLE = 2;
-
-/** 시차 탐색 범위(개월). 자사 매출 53개월이라 ±6이면 lag별 표본 35~41로 충분. */
-export const MAX_LAG_MONTHS = 6;
-
-/** 상관을 신뢰할 최소 표본 수. 이보다 적으면 시차를 채택하지 않는다. */
-export const MIN_LAG_SAMPLES = 12;
-
-/**
- * 조건부 확률을 화면에서 숫자로 강조해도 되는 최소 표본 수.
- *
- * 8개 미만이면 Wilson 구간이 사실상 [0,1]에 가까워 어떤 비율도 정보가 아니다.
- * (분기 축은 겹치는 표본이 13개 안팎이라 이 문턱을 겨우 넘는다 — 그래서 화면이 n을 항상 함께 쓴다.)
- */
-export const MIN_CONDITIONAL_SAMPLES = 8;
-
-/** 추세 계산에 쓰는 최근 분기 수. */
-const TREND_WINDOW_QUARTERS = 4;
-
-/**
- * 재고 국면 판정에 쓰는 관찰 창.
- *
- * 사용자 질문("6개월간 재고가 증가하고 있다면")을 그대로 옮긴 값이다. 월별 축은 6개월,
- * 분기 축은 같은 기간인 2분기.
- */
+/** 공장 이벤트 직전 재고 국면을 볼 때 쓰는 관찰 창(개월) — `attachEventContext`. */
 const STATE_WINDOW_MONTHS = 6;
-const STATE_WINDOW_QUARTERS = 2;
-
-/**
- * 결과를 보는 미래 시점.
- *
- * 창과 같은 길이로 둔다 — "최근 6개월 재고 방향이 앞으로 6개월 매출에 무엇을 시사하는가".
- * 시차 탐지 결과(`analyzeDrivers`)를 쓰지 않고 **고정값**을 쓰는 이유: 탐지 시차로 지평을
- * 정하면 같은 데이터로 지평을 고르고 그 지평에서 다시 확률을 재는 이중 데이터 스누핑이 된다.
- */
-const OUTCOME_HORIZON_MONTHS = 6;
-const OUTCOME_HORIZON_QUARTERS = 2;
-
-/** Wilson 신뢰구간 z (95%). */
-const Z_95 = 1.96;
 
 // ---------------------------------------------------------------------------
 // 기간 헬퍼
@@ -435,489 +387,218 @@ export function buildProjectedGapQuarter(
 }
 
 // ---------------------------------------------------------------------------
-// 통계 기초
+// KPI 카드 — YTD(당해 누적) YoY + 재고 신호등
 // ---------------------------------------------------------------------------
 
-/**
- * 일련번호 키 계열 → 전년 동기 대비 증감률(%).
- *
- * 원계열(수준) 상관을 쓰면 둘 다 우상향·계절성만 있어도 r이 0.9씩 나온다(허위 상관).
- * 전년 동기 대비 증감률은 추세·계절성을 함께 제거해 "같이 흔들리는가"만 남긴다.
- */
-export function toYoyByIndex(
-  series: Map<number, number>,
-  periodsPerYear: number
-): Map<number, number> {
-  const out = new Map<number, number>();
-  for (const [index, value] of series) {
-    const prev = series.get(index - periodsPerYear);
-    if (prev === undefined || prev === 0) continue;
-    out.set(index, ((value - prev) / prev) * 100);
+/** 월별 계열의 당해 연도 1월~cutoffMonth(포함) 누적. 없는 달은 0으로 친다. */
+function ytdMonthlySum(byMonth: Map<number, number>, year: number, cutoffMonthNum: number): number {
+  let sum = 0;
+  for (let m = 1; m <= cutoffMonthNum; m += 1) {
+    sum += byMonth.get(year * 100 + m) ?? 0;
   }
-  return out;
+  return sum;
 }
 
-/** 월 키(YYYYMM) 계열 → YoY 증감률(%). */
-export function toYoySeries(series: Map<number, number>): Map<number, number> {
-  const byIndex = new Map([...series].map(([ym, v]) => [monthIndex(ym), v]));
-  const yoy = toYoyByIndex(byIndex, 12);
-  return new Map([...yoy].map(([i, v]) => [monthFromIndex(i), v]));
-}
-
-/** 피어슨 상관계수. 표본이 2 미만이거나 분산이 0이면 null. */
-export function pearson(xs: number[], ys: number[]): number | null {
-  const n = xs.length;
-  if (n < 2 || ys.length !== n) return null;
-  const meanX = xs.reduce((a, b) => a + b, 0) / n;
-  const meanY = ys.reduce((a, b) => a + b, 0) / n;
-  let num = 0;
-  let dx2 = 0;
-  let dy2 = 0;
-  for (let i = 0; i < n; i += 1) {
-    const dx = xs[i] - meanX;
-    const dy = ys[i] - meanY;
-    num += dx * dy;
-    dx2 += dx * dx;
-    dy2 += dy * dy;
+/** 전년 같은 span(1~cutoff월)에 데이터가 하나라도 있는지. */
+function priorYearHasMonths(
+  byMonth: Map<number, number>,
+  year: number,
+  cutoffMonthNum: number
+): boolean {
+  for (const ym of byMonth.keys()) {
+    if (Math.floor(ym / 100) === year - 1 && ym % 100 <= cutoffMonthNum) return true;
   }
-  if (dx2 === 0 || dy2 === 0) return null;
-  return num / Math.sqrt(dx2 * dy2);
+  return false;
 }
 
-/**
- * Wilson score 95% 신뢰구간.
- *
- * 정규근사(p̂ ± 1.96·√(p̂(1−p̂)/n))를 쓰지 않는 이유: 표본이 10~20개고 p̂이 0·1에 가까우면
- * 구간이 [0,1] 밖으로 나가거나 폭이 0이 되는 등 무의미해진다. Wilson은 작은 표본에서도
- * 구간이 항상 (0,1) 안에 있고 실제 포함확률이 명목값에 가깝다.
- *
- * ⚠️ 이 구간은 **관측이 서로 독립**이라고 가정한다. 이 페이지의 조건은 이동창(겹치는 구간)이라
- * 실제 독립 표본 수는 더 적고 **진짜 구간은 여기 나온 것보다 넓다**. 화면이 그 사실을 밝힌다.
- */
-export function wilsonInterval(successes: number, total: number): { low: number; high: number } {
-  if (total === 0) return { low: 0, high: 1 };
-  const p = successes / total;
-  const z2 = Z_95 * Z_95;
-  const denom = 1 + z2 / total;
-  const center = (p + z2 / (2 * total)) / denom;
-  const margin = (Z_95 * Math.sqrt((p * (1 - p)) / total + z2 / (4 * total * total))) / denom;
-  return { low: Math.max(0, center - margin), high: Math.min(1, center + margin) };
+/** 월 누적 기간 라벨. 6월까지면 '상반기', 12월까지면 '연간'. */
+function ytdMonthLabel(year: number, cutoffMonthNum: number): string {
+  if (cutoffMonthNum === 6) return `${year} 상반기 (1~6월)`;
+  if (cutoffMonthNum === 12) return `${year} 연간 (1~12월)`;
+  return `${year}.1~${cutoffMonthNum}월 누적`;
 }
 
-function makeRate(declines: number, total: number): ConditionalRate {
-  const { low, high } = wilsonInterval(declines, total);
-  return { declines, total, rate: total === 0 ? 0 : declines / total, ciLow: low, ciHigh: high };
+/** 분기 누적 기간 라벨. Q2까지면 '상반기', Q4까지면 '연간'. */
+function ytdQuarterLabel(year: number, cutoffQuarterNum: number): string {
+  if (cutoffQuarterNum === 2) return `${year} 상반기 (Q1~Q2)`;
+  if (cutoffQuarterNum === 4) return `${year} 연간 (Q1~Q4)`;
+  return `${year} Q1~Q${cutoffQuarterNum}`;
 }
 
-// ---------------------------------------------------------------------------
-// 시차 탐지 — "자사 매출은 무엇을 따라가는가"
-// ---------------------------------------------------------------------------
-
-/**
- * 일련번호 계열 두 개의 시차별 상관.
- *
- * 매칭 규칙: `자사 매출[t] ↔ 상대[t + lag]`.
- * lag > 0 = 자사 매출이 **선행**(부품을 먼저 납품하고 나중에 차가 나온다/팔린다).
- * lag < 0 = 자사 매출이 **후행**.
- */
-function detectLagOnIndex(
-  baseByIndex: Map<number, number>,
-  otherByIndex: Map<number, number>,
-  periodsPerYear: number,
-  maxLagPeriods: number,
-  minSamples: number
-): { lagPeriods: number; r: number; n: number; candidates: LagCandidate[] } | null {
-  const baseYoy = toYoyByIndex(baseByIndex, periodsPerYear);
-  const otherYoy = toYoyByIndex(otherByIndex, periodsPerYear);
-  const monthsPerPeriod = 12 / periodsPerYear;
-
-  const candidates: LagCandidate[] = [];
-  const raw: { lagPeriods: number; r: number; n: number }[] = [];
-  for (let lag = -maxLagPeriods; lag <= maxLagPeriods; lag += 1) {
-    const xs: number[] = [];
-    const ys: number[] = [];
-    for (const [index, baseValue] of baseYoy) {
-      const otherValue = otherYoy.get(index + lag);
-      if (otherValue === undefined) continue;
-      xs.push(baseValue);
-      ys.push(otherValue);
-    }
-    const r = pearson(xs, ys);
-    if (r === null || xs.length < minSamples) continue;
-    candidates.push({ lagMonths: lag * monthsPerPeriod, r, n: xs.length });
-    raw.push({ lagPeriods: lag, r, n: xs.length });
-  }
-  if (raw.length === 0) return null;
-  const best = raw.reduce((a, b) => (Math.abs(b.r) > Math.abs(a.r) ? b : a));
-  return { lagPeriods: best.lagPeriods, r: best.r, n: best.n, candidates };
-}
-
-/**
- * 자사 매출이 상대 월별 계열보다 몇 달 선행하는지 탐지.
- *
- * 추정하지 않고 데이터가 답하게 한다(사용자 결정 2026-07-15). 후보 전체를 함께 반환해
- * 화면에서 근거를 볼 수 있게 한다 — 블랙박스 금지.
- */
-export function detectLag(
-  revenueMonthly: Map<number, number>,
-  otherMonthly: Map<number, number>,
-  maxLag: number = MAX_LAG_MONTHS
-): LagResult | null {
-  const rev = new Map([...revenueMonthly].map(([ym, v]) => [monthIndex(ym), v]));
-  const other = new Map([...otherMonthly].map(([ym, v]) => [monthIndex(ym), v]));
-  const found = detectLagOnIndex(rev, other, 12, maxLag, MIN_LAG_SAMPLES);
-  if (!found) return null;
-  return { lagMonths: found.lagPeriods, r: found.r, n: found.n, candidates: found.candidates };
-}
-
-/** 자사 매출(분기 합) vs 분기 계열(출하)의 시차 탐지. 시차는 분기 단위라 월로 환산해 담는다. */
-export function detectLagQuarterly(
-  revenueQuarters: Map<string, number>,
-  otherQuarters: Map<string, number>,
-  maxLagQuarters: number,
-  minSamples: number
-): LagResult | null {
-  const rev = new Map([...revenueQuarters].map(([q, v]) => [quarterIndex(q), v]));
-  const other = new Map([...otherQuarters].map(([q, v]) => [quarterIndex(q), v]));
-  const found = detectLagOnIndex(rev, other, 4, maxLagQuarters, minSamples);
-  if (!found) return null;
-  return { lagMonths: found.lagPeriods * 3, r: found.r, n: found.n, candidates: found.candidates };
-}
-
-/** 자사 월별 매출 → 분기 합계 (억원). */
-export function revenueByQuarter(revenue: RevenueMonthRow[]): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const row of revenue) {
-    const quarter = quarterOfYearMonth(row.year_month);
-    out.set(quarter, (out.get(quarter) ?? 0) + row.revenueEok);
-  }
-  return out;
-}
-
-/** 분기 축(출하) 시차 탐색 범위 — ±2분기(±6개월)로 월별 축과 같은 폭을 본다. */
-const MAX_LAG_QUARTERS = 2;
-
-/** 분기 축은 표본이 원래 적다(출하 21분기). 월별과 같은 12를 요구하면 아무것도 안 나온다. */
-const MIN_LAG_SAMPLES_QUARTERLY = 6;
-
-/**
- * "자사 매출은 시간을 두고 무엇을 따라가는가" — 3축 시차 상관.
- *
- * 생산·소매(월별)와 출하(분기)에 각각 시차 상관을 걸고 |r|이 가장 큰 축을 leader로 뽑는다.
- * **결론을 단정하지 않고 근거와 한계를 함께 반환**한다 — 표본이 작고 다중비교가 있어
- * 최대 |r| 하나만 떼어 보면 반드시 과대해석하게 된다.
- */
-export function analyzeDrivers(
-  revenue: RevenueMonthRow[],
-  productionByMonth: Map<number, number>,
-  retailByMonth: Map<number, number>,
-  shipments: ShipmentRow[]
-): RevenueDriverAnalysis {
-  const revenueMonthly = new Map(revenue.map((r) => [r.year_month, r.revenueEok]));
-  const revenueQuarters = revenueByQuarter(revenue);
-  const shipmentQuarters = new Map(shipments.map((s) => [s.year_period, s.shipments_units]));
-
-  const specs: {
-    axis: DriverAxis;
-    axisLabel: string;
-    granularity: 'month' | 'quarter';
-    lag: LagResult | null;
-  }[] = [
-    {
-      axis: 'production',
-      axisLabel: '스텔란티스 북미 생산',
-      granularity: 'month',
-      lag: detectLag(revenueMonthly, productionByMonth),
-    },
-    {
-      axis: 'retail',
-      axisLabel: '스텔란티스 북미 소매 판매',
-      granularity: 'month',
-      lag: detectLag(revenueMonthly, retailByMonth),
-    },
-    {
-      axis: 'shipments',
-      axisLabel: '스텔란티스 북미 출하(도매)',
-      granularity: 'quarter',
-      lag: detectLagQuarterly(
-        revenueQuarters,
-        shipmentQuarters,
-        MAX_LAG_QUARTERS,
-        MIN_LAG_SAMPLES_QUARTERLY
-      ),
-    },
-  ];
-
-  const profiles: DriverLagProfile[] = specs.map((s) => ({
-    ...s,
-    unavailableReason:
-      s.lag === null
-        ? s.granularity === 'quarter'
-          ? `겹치는 분기가 ${MIN_LAG_SAMPLES_QUARTERLY}개에 못 미쳐 계산하지 않았습니다.`
-          : `겹치는 표본이 ${MIN_LAG_SAMPLES}개월에 못 미쳐 계산하지 않았습니다.`
-        : null,
-  }));
-
-  const available = profiles.filter((p) => p.lag !== null);
-  const leader =
-    available.length === 0
-      ? null
-      : available.reduce((a, b) => (Math.abs(b.lag!.r) > Math.abs(a.lag!.r) ? b : a));
-
-  const caveats = [
-    '전년 동기 대비 증감률로 상관을 냅니다 — 원계열은 셋 다 우상향·계절성이 있어 그대로 상관을 내면 아무 관계나 r≈0.9가 나옵니다.',
-    `축 3개 × 시차 후보 여러 개를 모두 시험한 뒤 |r|이 가장 큰 것을 고릅니다. 이렇게 고른 최대값은 우연만으로도 커지므로(다중비교), r 하나가 아니라 **시차별 프로파일의 모양**을 보십시오 — 이웃 시차까지 완만하게 높으면 실제 관계일 가능성이 크고, 한 점만 뾰족하면 우연일 가능성이 큽니다.`,
-    'YoY 계열은 이웃한 달끼리 서로 닮아(자기상관) 실질 독립 표본 수가 표시된 n보다 적습니다. r은 참고 지표이지 통계적 검정 결과가 아닙니다.',
-    '상관은 인과가 아닙니다. 자사 매출과 스텔란티스 지표가 같은 외부 요인(북미 자동차 수요 전반)에 함께 반응하는 것일 수 있습니다.',
-  ];
-
-  return { profiles, leader, caveats };
-}
-
-// ---------------------------------------------------------------------------
-// 재고 방향 → 자사 매출 방향 (조건부 빈도)
-// ---------------------------------------------------------------------------
-
-/**
- * "재고가 N기간 쌓였다면 자사 매출이 줄어들 확률은?" — 과거 빈도로 답한다.
- *
- * 방법:
- *  1. 시점 t의 **국면** = 직전 `window` 기간 누적 갭의 부호 (양수면 축적, 음수면 소진).
- *  2. 시점 t의 **결과** = `horizon` 기간 뒤 자사 매출의 전년 동기 대비 증감률이 음수인가.
- *  3. 국면별로 결과가 '감소'였던 빈도를 센다. 전체 감소율(base)과 비교해야 의미가 산다 —
- *     매출이 원래 절반의 달에 감소했다면 "축적 국면에 50% 감소"는 아무 정보도 아니다.
- *
- * 회귀·모형을 쓰지 않는 이유: 표본이 수십 개뿐이라 계수를 추정하면 그럴듯한 숫자가 나오지만
- * 근거가 없다(사용자 결정 2026-07-15, 전망 시나리오에서 같은 판단). 세는 것은 정직하다.
- */
-export function buildInventoryOutlook(params: {
-  key: 'monthly' | 'quarterly';
+function makeKpiMetric(params: {
+  key: KpiMetricKey;
   label: string;
-  /** 기간 일련번호 → 갭(대). */
-  gapByIndex: Map<number, number>;
-  /** 기간 일련번호 → 자사 매출(억원). */
-  revenueByIndex: Map<number, number>;
-  periodsPerYear: number;
-  windowPeriods: number;
-  horizonPeriods: number;
-  conditionLabel: string;
-  outcomeLabel: string;
-}): InventoryOutlook {
-  const {
-    key,
-    label,
-    gapByIndex,
-    revenueByIndex,
-    periodsPerYear,
-    windowPeriods,
-    horizonPeriods,
-    conditionLabel,
-    outcomeLabel,
-  } = params;
-
-  const revYoy = toYoyByIndex(revenueByIndex, periodsPerYear);
-  const gapIndices = [...gapByIndex.keys()].sort((a, b) => a - b);
-
-  /** t 시점의 직전 window 누적 갭. 창이 하나라도 비면 null(구멍을 0으로 메우지 않는다). */
-  const windowSum = (t: number): number | null => {
-    let sum = 0;
-    for (let i = t - windowPeriods + 1; i <= t; i += 1) {
-      const v = gapByIndex.get(i);
-      if (v === undefined) return null;
-      sum += v;
-    }
-    return sum;
-  };
-
-  let buildDeclines = 0;
-  let buildTotal = 0;
-  let drainDeclines = 0;
-  let drainTotal = 0;
-  let baseDeclines = 0;
-  let baseTotal = 0;
-
-  for (const t of gapIndices) {
-    const sum = windowSum(t);
-    if (sum === null) continue;
-    const outcome = revYoy.get(t + horizonPeriods);
-    if (outcome === undefined) continue;
-    const declined = outcome < 0;
-    baseTotal += 1;
-    if (declined) baseDeclines += 1;
-    if (sum > 0) {
-      buildTotal += 1;
-      if (declined) buildDeclines += 1;
-    } else {
-      drainTotal += 1;
-      if (declined) drainDeclines += 1;
-    }
-  }
-
-  // 현재 국면 — 갭이 있는 마지막 시점 기준.
-  const latest = gapIndices.at(-1);
-  const latestSum = latest === undefined ? null : windowSum(latest);
-  const currentState: 'building' | 'draining' = (latestSum ?? 0) > 0 ? 'building' : 'draining';
-
-  // 같은 국면이 이어진 기간 — 창 누적 부호가 언제부터 지금과 같았는지 거슬러 센다.
-  let currentStreak = 0;
-  if (latest !== undefined) {
-    for (let t = latest; ; t -= 1) {
-      const sum = windowSum(t);
-      if (sum === null) break;
-      const state = sum > 0 ? 'building' : 'draining';
-      if (state !== currentState) break;
-      currentStreak += 1;
-    }
-  }
-
+  unit: 'units' | 'eok';
+  currentValue: number;
+  priorValue: number;
+  priorHasData: boolean;
+  periodLabel: string;
+}): KpiMetric {
+  const { key, label, unit, currentValue, priorValue, priorHasData, periodLabel } = params;
+  const absChange = currentValue - priorValue;
+  const yoyPct = priorHasData && priorValue !== 0 ? (absChange / priorValue) * 100 : null;
   return {
     key,
     label,
-    building: makeRate(buildDeclines, buildTotal),
-    draining: makeRate(drainDeclines, drainTotal),
-    base: makeRate(baseDeclines, baseTotal),
-    conditionLabel,
-    outcomeLabel,
-    currentState,
-    currentStreak,
-    hasEnoughSamples:
-      buildTotal >= MIN_CONDITIONAL_SAMPLES && drainTotal >= MIN_CONDITIONAL_SAMPLES,
+    periodLabel,
+    currentValue,
+    priorValue,
+    yoyPct,
+    absChange,
+    unit,
+    available: true,
   };
 }
 
-/** 월별(생산−소매)·분기별(출하−소매) 두 축의 재고→매출 전망을 만든다. */
-export function buildInventoryOutlooks(
-  monthlyFlow: MonthlyFlowPoint[],
-  gap: GapPoint[],
-  revenue: RevenueMonthRow[]
-): InventoryOutlook[] {
-  const revenueMonthIndex = new Map(revenue.map((r) => [monthIndex(r.year_month), r.revenueEok]));
-  const revenueQuarterIndex = new Map(
-    [...revenueByQuarter(revenue)].map(([q, v]) => [quarterIndex(q), v])
-  );
-
-  return [
-    buildInventoryOutlook({
-      key: 'monthly',
-      label: '월별 · 생산 − 소매 기준',
-      gapByIndex: new Map(monthlyFlow.map((p) => [monthIndex(p.yearMonth), p.gap])),
-      revenueByIndex: revenueMonthIndex,
-      periodsPerYear: 12,
-      windowPeriods: STATE_WINDOW_MONTHS,
-      horizonPeriods: OUTCOME_HORIZON_MONTHS,
-      conditionLabel: `직전 ${STATE_WINDOW_MONTHS}개월 누적 (생산 − 소매) > 0`,
-      outcomeLabel: `${OUTCOME_HORIZON_MONTHS}개월 뒤 자사 매출이 전년 동월보다 감소`,
-    }),
-    buildInventoryOutlook({
-      key: 'quarterly',
-      label: '분기별 · 출하 − 소매 기준',
-      gapByIndex: new Map(gap.map((p) => [quarterIndex(p.yearPeriod), p.gap])),
-      revenueByIndex: revenueQuarterIndex,
-      periodsPerYear: 4,
-      windowPeriods: STATE_WINDOW_QUARTERS,
-      horizonPeriods: OUTCOME_HORIZON_QUARTERS,
-      conditionLabel: `직전 ${STATE_WINDOW_QUARTERS}분기 누적 (출하 − 소매) > 0`,
-      outcomeLabel: `${OUTCOME_HORIZON_QUARTERS}분기 뒤 자사 매출이 전년 동기보다 감소`,
-    }),
-  ];
-}
-
-// ---------------------------------------------------------------------------
-// 진단 신호
-// ---------------------------------------------------------------------------
-
-/** 최근 n분기 gap 합계. */
-function recentGapSum(gap: GapPoint[], n: number): number {
-  return gap.slice(-n).reduce((acc, p) => acc + p.gap, 0);
-}
-
-function yoyOf(points: GapPoint[], pick: (p: GapPoint) => number): number | null {
-  if (points.length < 5) return null;
-  const latest = points[points.length - 1];
-  const prior = points[points.length - 5]; // 4분기 전 = 전년 동기
-  const prev = pick(prior);
-  if (prev === 0) return null;
-  return ((pick(latest) - prev) / prev) * 100;
+function emptyKpiMetric(key: KpiMetricKey, label: string, unit: 'units' | 'eok'): KpiMetric {
+  return {
+    key,
+    label,
+    periodLabel: '—',
+    currentValue: 0,
+    priorValue: 0,
+    yoyPct: null,
+    absChange: 0,
+    unit,
+    available: false,
+  };
 }
 
 /**
- * 3색 진단.
+ * 소매 판매 KPI — MarkLines 북미 소매, 당해 1월~최신 완성월 누적 YoY.
  *
- * 사용자 정의 시나리오: "출하와 자사 매출은 크게 늘었는데 소매가 안 늘고 재고가 쌓이면
- * → 향후 감산 → 자사 매출 악영향". 이를 그대로 판정식으로 옮긴다.
- *
- * **판정의 주축은 분기 출하 갭**(정확한 항등식)이고, 월별 생산 갭과 Cox 재고일수는
- * **독립 교차검증**으로 쓴다. 세 경로가 같은 방향이면 신뢰도가 올라가고, 어긋나면
- * 그 사실을 근거에 적어 사람이 판단하게 한다 — 조용히 하나만 믿지 않는다.
+ * `retailByMonth`는 이미 완성월까지 잘려 있으므로(source에서 cutoff 적용) 최신 키가 곧 완성월이다.
+ * 전년 동기간(1~같은 월)과 비교한다.
  */
-export function diagnose(
-  gap: GapPoint[],
-  monthlyFlow: MonthlyFlowPoint[],
-  cox: CoxInventoryRow[]
-): Diagnosis {
-  const reasons: string[] = [];
-  if (gap.length === 0) {
+export function buildRetailKpi(retailByMonth: Map<number, number>): KpiMetric {
+  if (retailByMonth.size === 0) return emptyKpiMetric('retail', '소매 판매', 'units');
+  const latest = Math.max(...retailByMonth.keys());
+  const year = Math.floor(latest / 100);
+  const cutoff = latest % 100;
+  return makeKpiMetric({
+    key: 'retail',
+    label: '소매 판매',
+    unit: 'units',
+    currentValue: ytdMonthlySum(retailByMonth, year, cutoff),
+    priorValue: ytdMonthlySum(retailByMonth, year - 1, cutoff),
+    priorHasData: priorYearHasMonths(retailByMonth, year, cutoff),
+    periodLabel: ytdMonthLabel(year, cutoff),
+  });
+}
+
+/** 출하량 KPI — 분기 출하의 당해 Q1~최신 분기 누적 YoY. */
+export function buildShipmentsKpi(shipments: ShipmentRow[]): KpiMetric {
+  if (shipments.length === 0) return emptyKpiMetric('shipments', '출하량', 'units');
+  const latestIdx = Math.max(...shipments.map((s) => quarterIndex(s.year_period)));
+  const year = Math.floor(latestIdx / 4);
+  const cutoffQ = (latestIdx % 4) + 1;
+  const ytd = (y: number): number =>
+    shipments
+      .filter((s) => {
+        const i = quarterIndex(s.year_period);
+        return Math.floor(i / 4) === y && (i % 4) + 1 <= cutoffQ;
+      })
+      .reduce((acc, s) => acc + s.shipments_units, 0);
+  const priorHasData = shipments.some((s) => {
+    const i = quarterIndex(s.year_period);
+    return Math.floor(i / 4) === year - 1 && (i % 4) + 1 <= cutoffQ;
+  });
+  return makeKpiMetric({
+    key: 'shipments',
+    label: '출하량',
+    unit: 'units',
+    currentValue: ytd(year),
+    priorValue: ytd(year - 1),
+    priorHasData,
+    periodLabel: ytdQuarterLabel(year, cutoffQ),
+  });
+}
+
+/** 스텔란티스향 매출 KPI (사외비) — 당해 1월~최신월 누적 YoY(억원). */
+export function buildRevenueKpi(revenue: RevenueMonthRow[]): KpiMetric {
+  if (revenue.length === 0) return emptyKpiMetric('revenue', '스텔란티스향 매출', 'eok');
+  const byMonth = new Map(revenue.map((r) => [r.year_month, r.revenueEok]));
+  const latest = Math.max(...byMonth.keys());
+  const year = Math.floor(latest / 100);
+  const cutoff = latest % 100;
+  return makeKpiMetric({
+    key: 'revenue',
+    label: '스텔란티스향 매출',
+    unit: 'eok',
+    currentValue: ytdMonthlySum(byMonth, year, cutoff),
+    priorValue: ytdMonthlySum(byMonth, year - 1, cutoff),
+    priorHasData: priorYearHasMonths(byMonth, year, cutoff),
+    periodLabel: ytdMonthLabel(year, cutoff),
+  });
+}
+
+/**
+ * 재고 증감 KPI — 신호등.
+ *
+ * 분기 갭(출하 − 소매) 계열의 **최신 부호**로 방향을 정하고, 같은 부호가 뒤에서 몇 분기 이어졌는지
+ * 센다. 재고 증가(building)면 향후 감산 → 당사 매출 하방이라 **빨강**, 재고 감소(draining)면 **초록**,
+ * 균형이면 **노랑**(사용자 지시 2026-07-16 — 신호등).
+ */
+export function buildInventoryKpi(gapSeries: GapPoint[]): InventoryKpi {
+  if (gapSeries.length === 0) {
     return {
-      level: 'yellow',
+      label: '재고 증감',
+      status: 'yellow',
       headline: '데이터 부족',
-      reasons: ['출하·소매가 모두 있는 분기가 없습니다.'],
+      detail: '출하·소매가 모두 있는 분기가 없습니다.',
+      consecutiveQuarters: 0,
+      direction: 'flat',
     };
   }
+  const latest = gapSeries[gapSeries.length - 1];
+  const dir: 'building' | 'draining' | 'flat' =
+    latest.gap > 0 ? 'building' : latest.gap < 0 ? 'draining' : 'flat';
 
-  const latest = gap[gap.length - 1];
-  const shipYoy = yoyOf(gap, (p) => p.shipments);
-  const retailYoy = yoyOf(gap, (p) => p.retail);
-  const recentGap = recentGapSum(gap, TREND_WINDOW_QUARTERS);
-
-  reasons.push(
-    `${latest.label} 출하 ${latest.shipments.toLocaleString('ko-KR')}대 vs 소매 ${latest.retail.toLocaleString('ko-KR')}대 → 갭 ${latest.gap >= 0 ? '+' : ''}${latest.gap.toLocaleString('ko-KR')}대`
-  );
-  if (shipYoy !== null && retailYoy !== null) {
-    reasons.push(
-      `전년 동기 대비 출하 ${shipYoy.toFixed(1)}% · 소매 ${retailYoy.toFixed(1)}% (차이 ${(shipYoy - retailYoy).toFixed(1)}%p)`
-    );
+  let n = 0;
+  if (dir !== 'flat') {
+    for (let i = gapSeries.length - 1; i >= 0; i -= 1) {
+      const g = gapSeries[i].gap;
+      const s = g > 0 ? 'building' : g < 0 ? 'draining' : 'flat';
+      if (s !== dir) break;
+      n += 1;
+    }
   }
-  reasons.push(
-    `최근 ${TREND_WINDOW_QUARTERS}분기 누적 갭 ${recentGap >= 0 ? '+' : ''}${recentGap.toLocaleString('ko-KR')}대 → 재고 ${recentGap > 0 ? '축적' : '소진'}`
-  );
 
-  // 교차검증 ① — 월별 생산 갭(더 최신). 분기 출하 갭보다 3개월 이상 앞선 사실을 준다.
-  const monthlyNote = describeMonthlyFlow(monthlyFlow);
-  if (monthlyNote) reasons.push(monthlyNote);
-
-  // 교차검증 ② — Cox 실측 재고일수.
-  const coxNote = describeCox(cox);
-  if (coxNote) reasons.push(coxNote);
-
-  const shipOutpacingRetail = shipYoy !== null && retailYoy !== null && shipYoy > retailYoy;
-  const building = recentGap > 0;
-
-  if (shipOutpacingRetail && building) {
+  if (dir === 'building') {
     return {
-      level: 'red',
-      headline: '재고 축적 · 향후 감산 위험',
-      reasons: [
-        ...reasons,
-        '출하가 소매를 앞지르며 재고가 쌓이고 있습니다. 스텔란티스가 재고를 되돌리려면 출하를 줄여야 하고, 그러면 자사 매출도 함께 줄어듭니다.',
-      ],
+      label: '재고 증감',
+      status: 'red',
+      headline: `${n}분기 연속 재고 증가`,
+      detail:
+        '출하가 소매를 웃돌아 딜러 재고가 쌓이고 있습니다. 스텔란티스가 재고를 되돌리려 출하(=당사 매출)를 줄일 수 있어 향후 매출에 하방 위험입니다.',
+      consecutiveQuarters: n,
+      direction: 'building',
     };
   }
-  if (!shipOutpacingRetail && !building) {
+  if (dir === 'draining') {
     return {
-      level: 'green',
-      headline: '재고 소진 · 보충 출하 기대',
-      reasons: [
-        ...reasons,
-        '소매가 출하를 앞질러 재고가 줄고 있습니다. 재고를 다시 채우려면 출하를 늘려야 하므로 자사 매출에 우호적입니다.',
-      ],
+      label: '재고 증감',
+      status: 'green',
+      headline: `${n}분기 연속 재고 감소`,
+      detail:
+        '소매가 출하를 웃돌아 딜러 재고가 줄고 있습니다. 재고 보충을 위해 출하가 늘면 당사 매출에 우호적입니다.',
+      consecutiveQuarters: n,
+      direction: 'draining',
     };
   }
   return {
-    level: 'yellow',
-    headline: '혼조 — 방향 미확정',
-    reasons: [...reasons, '출하·소매 증감과 재고 방향이 같은 쪽을 가리키지 않습니다.'],
+    label: '재고 증감',
+    status: 'yellow',
+    headline: '재고 방향 혼조',
+    detail: '출하와 소매가 균형에 가까워 재고 방향이 뚜렷하지 않습니다.',
+    consecutiveQuarters: 0,
+    direction: 'flat',
   };
 }
+
+// ---------------------------------------------------------------------------
+// 공장 이벤트 컨텍스트
+// ---------------------------------------------------------------------------
 
 /**
  * 공장 이벤트에 "그때 재고가 어땠는가"를 붙인다.
@@ -955,36 +636,4 @@ export function attachEventContext(
         precedingState: (sum > 0 ? 'building' : 'draining') as 'building' | 'draining',
       };
     });
-}
-
-/** 최근 6개월 생산−소매 누적 문장 — 분기 출하 갭보다 최신인 교차검증 축. */
-export function describeMonthlyFlow(monthlyFlow: MonthlyFlowPoint[]): string | null {
-  if (monthlyFlow.length === 0) return null;
-  const recent = monthlyFlow.slice(-STATE_WINDOW_MONTHS);
-  const sum = recent.reduce((acc, p) => acc + p.gap, 0);
-  const first = recent[0].label;
-  const last = recent[recent.length - 1].label;
-  return `월별 교차검증 — ${first}~${last} 누적 (생산 − 소매) ${sum >= 0 ? '+' : ''}${sum.toLocaleString('ko-KR')}대 → 파이프라인 재고 ${sum > 0 ? '축적' : '소진'} 방향`;
-}
-
-/** Cox 최신 월 기준 스텔란티스 브랜드의 업계 평균 대비 배율 문장. */
-export function describeCox(cox: CoxInventoryRow[]): string | null {
-  if (cox.length === 0) return null;
-  const latestMonth = Math.max(...cox.map((r) => r.year_month));
-  const rows = cox.filter((r) => r.year_month === latestMonth);
-  const nation = rows.find((r) => r.brand === 'NATION')?.days_supply;
-  if (!nation) return null;
-
-  const parts = STELLANTIS_COX_BRANDS.map((brand) => {
-    const row = rows.find((r) => r.brand === brand);
-    if (!row) return null;
-    if (row.days_supply === null) {
-      // Cox가 업계 평균 2배 초과라 값을 감춘 경우 — 값이 없는 게 아니라 '심각하다'는 신호다.
-      return `${brand} ${nation * COX_OUTLIER_MULTIPLE}일 초과(Cox 미공개)`;
-    }
-    return `${brand} ${row.days_supply}일`;
-  }).filter((s): s is string => s !== null);
-  if (parts.length === 0) return null;
-
-  return `Cox ${monthLabel(latestMonth)} 딜러 재고일수 — ${parts.join(' · ')} (업계 평균 ${nation}일)`;
 }

@@ -1,47 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import {
   addMonths,
-  analyzeDrivers,
   attachEventContext,
   buildGapPoints,
-  buildInventoryOutlook,
-  buildInventoryOutlooks,
+  buildInventoryKpi,
   buildMonthlyFlow,
   buildNaProductionMonths,
   buildNaRetailMonths,
   buildNaRetailQuarters,
   buildProjectedGapQuarter,
-  describeCox,
-  describeMonthlyFlow,
-  detectLag,
-  detectLagQuarterly,
-  diagnose,
+  buildRetailKpi,
+  buildRevenueKpi,
+  buildShipmentsKpi,
   estimateCountryMonth,
   lastCompleteMonth,
   lastCompleteQuarter,
-  MIN_CONDITIONAL_SAMPLES,
   monthFromIndex,
   monthIndex,
   monthLabel,
   monthsOfQuarter,
-  pearson,
-  quarterFromIndex,
-  quarterIndex,
   quarterLabel,
   quarterOfYearMonth,
-  revenueByQuarter,
-  toYoyByIndex,
-  toYoySeries,
-  wilsonInterval,
 } from './aggregate';
 import type {
-  CoxInventoryRow,
   GapPoint,
   MonthlyFlowPoint,
   PlantEvent,
   ProductionMonthRow,
   RetailMonthRow,
-  RevenueMonthRow,
   ShipmentRow,
 } from './types';
 
@@ -564,625 +550,6 @@ describe('buildProjectedGapQuarter — 소매 일부 추정으로 최신 분기 
   });
 });
 
-describe('toYoySeries / toYoyByIndex / pearson', () => {
-  it('전년 동월 대비 증감률', () => {
-    const series = new Map([
-      [202501, 100],
-      [202601, 120],
-    ]);
-    expect(toYoySeries(series).get(202601)).toBeCloseTo(20);
-  });
-
-  it('전년 값이 없으면 제외', () => {
-    expect(toYoySeries(new Map([[202601, 120]])).size).toBe(0);
-  });
-
-  it('전년 값이 0이면 제외 (0 나누기 방지)', () => {
-    const series = new Map([
-      [202501, 0],
-      [202601, 120],
-    ]);
-    expect(toYoySeries(series).size).toBe(0);
-  });
-
-  it('연말→연초 경계를 넘어 계산한다', () => {
-    const series = new Map([
-      [202512, 100],
-      [202612, 150],
-    ]);
-    expect(toYoySeries(series).get(202612)).toBeCloseTo(50);
-  });
-
-  it('toYoyByIndex — 월별 축은 12기간 전과 비교한다', () => {
-    const series = new Map([
-      [0, 100],
-      [11, 999], // 11기간 전 — 비교 대상이 아니다
-      [12, 130],
-    ]);
-    const out = toYoyByIndex(series, 12);
-    expect(out.get(12)).toBeCloseTo(30);
-    expect(out.has(11)).toBe(false);
-  });
-
-  it('toYoyByIndex — 분기 축은 4기간 전과 비교한다 (같은 함수, 다른 주기)', () => {
-    const series = new Map([
-      [0, 100],
-      [4, 80],
-    ]);
-    expect(toYoyByIndex(series, 4).get(4)).toBeCloseTo(-20);
-  });
-
-  it('toYoyByIndex — 직전 값이 0이면 제외 (0 나누기 방지)', () => {
-    const series = new Map([
-      [0, 0],
-      [4, 80],
-    ]);
-    expect(toYoyByIndex(series, 4).size).toBe(0);
-  });
-
-  it('완전 상관 = 1', () => {
-    expect(pearson([1, 2, 3], [2, 4, 6])).toBeCloseTo(1);
-  });
-
-  it('완전 역상관 = -1', () => {
-    expect(pearson([1, 2, 3], [6, 4, 2])).toBeCloseTo(-1);
-  });
-
-  it('분산 0이면 null', () => {
-    expect(pearson([1, 1, 1], [1, 2, 3])).toBeNull();
-  });
-
-  it('표본 부족이면 null', () => {
-    expect(pearson([1], [2])).toBeNull();
-  });
-});
-
-describe('wilsonInterval — 작은 표본에서도 무너지지 않아야 한다', () => {
-  const width = (s: number, n: number) => {
-    const { low, high } = wilsonInterval(s, n);
-    return high - low;
-  };
-
-  it('같은 비율이라도 표본이 작을수록 구간이 넓다', () => {
-    expect(width(5, 10)).toBeGreaterThan(width(50, 100));
-    expect(width(50, 100)).toBeGreaterThan(width(500, 1000));
-  });
-
-  it('0/n에서도 구간이 [0,1] 안이고 폭이 0이 아니다 — 정규근사라면 폭 0인 거짓 확신이 나온다', () => {
-    const { low, high } = wilsonInterval(0, 10);
-    expect(low).toBeGreaterThanOrEqual(0);
-    expect(high).toBeLessThanOrEqual(1);
-    expect(high - low).toBeGreaterThan(0);
-    expect(high).toBeLessThan(1); // 0/10을 보고도 "절대 아니다"라고 말하지 않는다
-  });
-
-  it('n/n에서도 구간이 [0,1] 안이고 폭이 0이 아니다', () => {
-    const { low, high } = wilsonInterval(10, 10);
-    expect(low).toBeGreaterThan(0); // 10/10을 보고도 "무조건이다"라고 말하지 않는다
-    expect(high).toBeLessThanOrEqual(1);
-    expect(high - low).toBeGreaterThan(0);
-  });
-
-  it('표본이 크면 점추정으로 수렴한다', () => {
-    const { low, high } = wilsonInterval(600, 1000);
-    expect(low).toBeCloseTo(0.6, 1);
-    expect(high).toBeCloseTo(0.6, 1);
-    expect(low).toBeLessThan(0.6);
-    expect(high).toBeGreaterThan(0.6);
-  });
-
-  it('표본이 0이면 완전 무지 — [0,1]', () => {
-    expect(wilsonInterval(0, 0)).toEqual({ low: 0, high: 1 });
-  });
-});
-
-describe('detectLag', () => {
-  /** 24개월치 시리즈 생성 (YoY가 나오려면 12개월 이상 필요). */
-  function series(start: number, count: number, fn: (i: number) => number): Map<number, number> {
-    const out = new Map<number, number>();
-    for (let i = 0; i < count; i += 1) {
-      const year = Math.floor(start / 100) + Math.floor(((start % 100) - 1 + i) / 12);
-      const month = (((start % 100) - 1 + i) % 12) + 1;
-      out.set(year * 100 + month, fn(i));
-    }
-    return out;
-  }
-
-  it('자사 매출이 2개월 선행하면 lag=+2를 찾아낸다', () => {
-    // 소매[t] = 매출[t-2] 관계를 심는다 → 매출[t] ↔ 소매[t+2]
-    const wave = (i: number) => 100 + 30 * Math.sin(i / 2);
-    const revenue = series(202401, 36, wave);
-    const retailData = series(202401, 36, (i) => wave(i - 2));
-    const result = detectLag(revenue, retailData, 6);
-    expect(result).not.toBeNull();
-    expect(result!.lagMonths).toBe(2);
-    expect(Math.abs(result!.r)).toBeGreaterThan(0.9);
-  });
-
-  it('동행이면 lag=0', () => {
-    const wave = (i: number) => 100 + 30 * Math.sin(i / 2);
-    const revenue = series(202401, 36, wave);
-    const retailData = series(202401, 36, wave);
-    const result = detectLag(revenue, retailData, 6);
-    expect(result!.lagMonths).toBe(0);
-  });
-
-  it('후보 전체를 반환한다 — 화면에서 근거를 보여줘야 하므로', () => {
-    const wave = (i: number) => 100 + 30 * Math.sin(i / 2);
-    const result = detectLag(series(202401, 36, wave), series(202401, 36, wave), 3);
-    expect(result!.candidates.length).toBeGreaterThan(1);
-    expect(result!.candidates.every((c) => c.n >= 12)).toBe(true);
-  });
-
-  it('표본이 부족하면 null', () => {
-    const revenue = new Map([
-      [202501, 100],
-      [202601, 110],
-    ]);
-    expect(detectLag(revenue, revenue, 6)).toBeNull();
-  });
-});
-
-describe('detectLagQuarterly — 분기 축이라 시차가 3의 배수로만 나온다', () => {
-  function quarterSeries(count: number, fn: (i: number) => number): Map<string, number> {
-    const start = quarterIndex('2020-Q1');
-    const out = new Map<string, number>();
-    for (let i = 0; i < count; i += 1) out.set(quarterFromIndex(start + i), fn(i));
-    return out;
-  }
-
-  const wave = (i: number) => 100 + 30 * Math.sin(i / 2);
-
-  it('자사 매출이 1분기 선행하면 lagMonths=+3 — 분기 축은 개월을 쪼개 못 본다', () => {
-    // 출하[t] = 매출[t-1분기] 관계를 심는다 → 매출[t] ↔ 출하[t+1분기]
-    const revenue = quarterSeries(20, wave);
-    const shipmentsQ = quarterSeries(20, (i) => wave(i - 1));
-    const result = detectLagQuarterly(revenue, shipmentsQ, 2, 6);
-    expect(result).not.toBeNull();
-    expect(result!.lagMonths).toBe(3);
-    expect(Math.abs(result!.r)).toBeGreaterThan(0.9);
-  });
-
-  it('동행이면 lagMonths=0', () => {
-    const revenue = quarterSeries(20, wave);
-    expect(detectLagQuarterly(revenue, quarterSeries(20, wave), 2, 6)!.lagMonths).toBe(0);
-  });
-
-  it('후보 시차는 전부 3의 배수 — 분기 데이터에서 1·2개월 시차를 주장할 근거가 없다', () => {
-    const revenue = quarterSeries(20, wave);
-    const result = detectLagQuarterly(revenue, quarterSeries(20, wave), 2, 6);
-    expect(result!.candidates.length).toBeGreaterThan(1);
-    expect(result!.candidates.every((c) => c.lagMonths % 3 === 0)).toBe(true);
-    expect(result!.candidates.map((c) => c.lagMonths).sort((a, b) => a - b)).toEqual([
-      -6, -3, 0, 3, 6,
-    ]);
-  });
-
-  it('겹치는 분기가 최소 표본에 못 미치면 null', () => {
-    const revenue = quarterSeries(20, wave);
-    expect(detectLagQuarterly(revenue, quarterSeries(20, wave), 2, 99)).toBeNull();
-  });
-
-  it('빈 입력은 null', () => {
-    expect(detectLagQuarterly(new Map(), new Map(), 2, 6)).toBeNull();
-  });
-});
-
-describe('revenueByQuarter', () => {
-  it('월별 매출을 분기로 합산', () => {
-    const out = revenueByQuarter([
-      { year_month: 202601, revenueEok: 10 },
-      { year_month: 202602, revenueEok: 20 },
-      { year_month: 202604, revenueEok: 5 },
-    ]);
-    expect(out.get('2026-Q1')).toBe(30);
-    expect(out.get('2026-Q2')).toBe(5);
-  });
-});
-
-describe('analyzeDrivers — 3축 시차 상관', () => {
-  const wave = (i: number) => 100 + 30 * Math.sin(i / 2);
-
-  /** 결정적 의사난수 — 재실행마다 같아야 테스트가 흔들리지 않는다. */
-  function pseudoRandom(i: number): number {
-    const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
-    return x - Math.floor(x);
-  }
-
-  function monthSeries(
-    start: number,
-    count: number,
-    fn: (i: number) => number
-  ): Map<number, number> {
-    const out = new Map<number, number>();
-    for (let i = 0; i < count; i += 1) out.set(addMonths(start, i), fn(i));
-    return out;
-  }
-
-  const revenueRows: RevenueMonthRow[] = [...monthSeries(202401, 36, wave)].map(
-    ([year_month, revenueEok]) => ({ year_month, revenueEok })
-  );
-  // 생산은 매출과 완전 동행, 소매는 무관한 잡음 → leader는 생산이어야 한다.
-  const productionByMonth = monthSeries(202401, 36, wave);
-  const retailByMonth = monthSeries(202401, 36, (i) => 100 + 40 * pseudoRandom(i));
-  const shipments = [
-    ship('2024-Q1', 300),
-    ship('2024-Q2', 320),
-    ship('2024-Q3', 310),
-    ship('2024-Q4', 330),
-    ship('2025-Q1', 340),
-    ship('2025-Q2', 350),
-    ship('2025-Q3', 345),
-    ship('2025-Q4', 360),
-  ];
-
-  it('생산·소매·출하 3축 프로파일을 모두 반환한다', () => {
-    const out = analyzeDrivers(revenueRows, productionByMonth, retailByMonth, shipments);
-    expect(out.profiles.map((p) => p.axis)).toEqual(['production', 'retail', 'shipments']);
-    expect(out.profiles.every((p) => p.axisLabel.length > 0)).toBe(true);
-  });
-
-  it('출하 축은 분기 주기로 표시된다 — 시차 해상도가 다르다는 사실을 화면이 알아야 한다', () => {
-    const out = analyzeDrivers(revenueRows, productionByMonth, retailByMonth, shipments);
-    const byAxis = new Map(out.profiles.map((p) => [p.axis, p.granularity]));
-    expect(byAxis.get('production')).toBe('month');
-    expect(byAxis.get('retail')).toBe('month');
-    expect(byAxis.get('shipments')).toBe('quarter');
-  });
-
-  it('leader는 |r|이 가장 큰 축 — 동행하는 생산을 잡음 소매보다 앞세운다', () => {
-    const out = analyzeDrivers(revenueRows, productionByMonth, retailByMonth, shipments);
-    expect(out.leader).not.toBeNull();
-    expect(out.leader!.axis).toBe('production');
-    const others = out.profiles.filter((p) => p.lag !== null && p.axis !== out.leader!.axis);
-    for (const p of others) {
-      expect(Math.abs(out.leader!.lag!.r)).toBeGreaterThanOrEqual(Math.abs(p.lag!.r));
-    }
-  });
-
-  it('계산된 축은 이유를 비워 두고, 표본 부족 축은 이유를 채운다 — 조용히 빠지면 안 된다', () => {
-    const out = analyzeDrivers(revenueRows, productionByMonth, retailByMonth, []);
-    const shipProfile = out.profiles.find((p) => p.axis === 'shipments')!;
-    expect(shipProfile.lag).toBeNull();
-    expect(shipProfile.unavailableReason).toContain('분기');
-
-    const prodProfile = out.profiles.find((p) => p.axis === 'production')!;
-    expect(prodProfile.lag).not.toBeNull();
-    expect(prodProfile.unavailableReason).toBeNull();
-  });
-
-  it('아무 축도 표본을 못 채우면 leader는 null이고 모든 축에 이유가 남는다', () => {
-    const out = analyzeDrivers([], new Map(), new Map(), []);
-    expect(out.leader).toBeNull();
-    expect(out.profiles).toHaveLength(3);
-    expect(out.profiles.every((p) => p.lag === null && p.unavailableReason !== null)).toBe(true);
-  });
-
-  it('caveats는 절대 비지 않는다 — 다중비교·자기상관을 안 밝히면 r을 오독한다', () => {
-    const out = analyzeDrivers(revenueRows, productionByMonth, retailByMonth, shipments);
-    expect(out.caveats.length).toBeGreaterThan(0);
-    expect(out.caveats.every((c) => c.length > 10)).toBe(true);
-  });
-});
-
-describe('buildInventoryOutlook — 재고 국면 → 매출 방향 조건부 빈도', () => {
-  type OutlookParams = Parameters<typeof buildInventoryOutlook>[0];
-
-  /**
-   * 24기간 인위적 매출. 4기간 전 대비로 보면 인덱스 4~13은 감소, 14~23은 증가한다.
-   * (windowPeriods=2 · horizonPeriods=2 조합에서 축적 구간 결과가 전부 '감소'가 되도록 짰다.)
-   */
-  const revenueByIndex = new Map(
-    [
-      100, 100, 100, 100, 90, 90, 90, 90, 80, 80, 80, 80, 70, 70, 90, 90, 100, 100, 100, 100, 110,
-      110, 110, 110,
-    ].map((v, i) => [i, v])
-  );
-
-  /** 앞 flipIndex개는 축적(+100), 나머지는 소진(−100). */
-  function gapFlippingAt(flipIndex: number, length = 24): Map<number, number> {
-    const out = new Map<number, number>();
-    for (let i = 0; i < length; i += 1) out.set(i, i < flipIndex ? 100 : -100);
-    return out;
-  }
-
-  function outlook(overrides: Partial<OutlookParams> = {}) {
-    return buildInventoryOutlook({
-      key: 'quarterly',
-      label: '테스트 축',
-      gapByIndex: gapFlippingAt(12),
-      revenueByIndex,
-      periodsPerYear: 4,
-      windowPeriods: 2,
-      horizonPeriods: 2,
-      conditionLabel: '직전 2기간 누적 갭 > 0',
-      outcomeLabel: '2기간 뒤 매출 감소',
-      ...overrides,
-    });
-  }
-
-  it('축적 국면 뒤 매출이 항상 감소하면 building.rate = 1', () => {
-    const out = outlook();
-    expect(out.building.declines).toBe(10);
-    expect(out.building.total).toBe(10);
-    expect(out.building.rate).toBe(1);
-  });
-
-  it('소진 국면 뒤 매출이 항상 증가하면 draining.rate = 0', () => {
-    const out = outlook();
-    expect(out.draining.declines).toBe(0);
-    expect(out.draining.total).toBe(10);
-    expect(out.draining.rate).toBe(0);
-  });
-
-  it('base는 조건과 무관한 전체 비율 — 두 국면의 분자·분모를 그대로 합친 값이다', () => {
-    const out = outlook();
-    expect(out.base.total).toBe(out.building.total + out.draining.total);
-    expect(out.base.declines).toBe(out.building.declines + out.draining.declines);
-    expect(out.base.rate).toBeCloseTo(0.5);
-  });
-
-  it('base가 있어야 조건부 비율을 읽을 수 있다 — 100% vs 기저 50%는 진짜 신호다', () => {
-    const out = outlook();
-    expect(out.building.rate).toBeGreaterThan(out.base.rate);
-    expect(out.draining.rate).toBeLessThan(out.base.rate);
-  });
-
-  it('비율에는 Wilson 구간이 함께 붙는다 — 비율만 내놓으면 사실처럼 읽힌다', () => {
-    const out = outlook();
-    expect(out.building.ciLow).toBeGreaterThan(0);
-    expect(out.building.ciLow).toBeLessThan(1);
-    expect(out.building.ciHigh).toBeLessThanOrEqual(1);
-  });
-
-  it('현재 국면은 마지막 시점의 창 누적 부호 — 소진으로 끝나면 draining', () => {
-    const out = outlook();
-    expect(out.currentState).toBe('draining');
-  });
-
-  it('현재 국면이 이어진 기간을 거슬러 센다', () => {
-    // 인덱스 12부터 갭이 음수 → 창 누적(t-1,t)이 소진으로 굳는 건 t=12부터. t=23까지 12기간.
-    expect(outlook().currentStreak).toBe(12);
-  });
-
-  it('갭이 계속 양수면 currentState는 building', () => {
-    const out = outlook({ gapByIndex: gapFlippingAt(24) });
-    expect(out.currentState).toBe('building');
-    expect(out.currentStreak).toBeGreaterThan(0);
-  });
-
-  it(`표본이 ${MIN_CONDITIONAL_SAMPLES}개 미만인 국면이 하나라도 있으면 hasEnoughSamples=false`, () => {
-    // flipIndex−2 = 축적 표본 수. 10 → 8개(경계 통과), 9 → 7개(경계 미달).
-    expect(outlook({ gapByIndex: gapFlippingAt(10) }).building.total).toBe(MIN_CONDITIONAL_SAMPLES);
-    expect(outlook({ gapByIndex: gapFlippingAt(10) }).hasEnoughSamples).toBe(true);
-
-    expect(outlook({ gapByIndex: gapFlippingAt(9) }).building.total).toBe(
-      MIN_CONDITIONAL_SAMPLES - 1
-    );
-    expect(outlook({ gapByIndex: gapFlippingAt(9) }).hasEnoughSamples).toBe(false);
-  });
-
-  it('한 국면만 관측되면 hasEnoughSamples=false — 비교 대상이 없으면 비율은 정보가 아니다', () => {
-    const out = outlook({ gapByIndex: gapFlippingAt(24) });
-    expect(out.draining.total).toBe(0);
-    expect(out.hasEnoughSamples).toBe(false);
-  });
-
-  it('창에 구멍이 있는 시점은 버린다 — 부분합으로 메우면 국면 부호가 뒤집힐 수 있다', () => {
-    const holed = gapFlippingAt(12);
-    holed.delete(5);
-    // t=5는 갭 자체가 없고, t=6은 창(4,5)이 불완전 → 둘 다 표본에서 빠져 10 → 8.
-    expect(outlook({ gapByIndex: holed }).building.total).toBe(8);
-  });
-
-  it('결과 시점 매출 YoY가 없는 시점은 버린다 — 갭만 있고 결과가 없으면 셀 수 없다', () => {
-    const out = outlook({ revenueByIndex: new Map() });
-    expect(out.base.total).toBe(0);
-    expect(out.base.rate).toBe(0);
-    expect(out.hasEnoughSamples).toBe(false);
-  });
-
-  it('입력 라벨·키를 그대로 실어 나른다 — 화면이 조건 정의를 함께 보여줘야 한다', () => {
-    const out = outlook({ key: 'monthly', label: '월별 축' });
-    expect(out.key).toBe('monthly');
-    expect(out.label).toBe('월별 축');
-    expect(out.conditionLabel).toBe('직전 2기간 누적 갭 > 0');
-    expect(out.outcomeLabel).toBe('2기간 뒤 매출 감소');
-  });
-});
-
-describe('buildInventoryOutlooks', () => {
-  const revenue: RevenueMonthRow[] = [];
-  for (let i = 0; i < 36; i += 1) {
-    revenue.push({ year_month: addMonths(202401, i), revenueEok: 100 + i });
-  }
-
-  it('월별·분기별 2개 축을 만든다', () => {
-    const out = buildInventoryOutlooks([], [], revenue);
-    expect(out.map((o) => o.key)).toEqual(['monthly', 'quarterly']);
-    expect(out.every((o) => o.label.length > 0)).toBe(true);
-  });
-
-  it('두 축이 각자의 소스를 본다 — 월별은 생산−소매, 분기별은 출하−소매', () => {
-    // 월별 갭은 계속 양수(축적), 분기 갭은 계속 음수(소진) → 두 축의 현재 국면이 갈려야 한다.
-    const monthlyFlow = flowWithGaps(
-      Array.from({ length: 12 }, (_, i): [number, number] => [addMonths(202501, i), 100])
-    );
-    const gap: GapPoint[] = buildGapPoints(
-      [ship('2025-Q1', 200), ship('2025-Q2', 200), ship('2025-Q3', 200), ship('2025-Q4', 200)],
-      new Map([
-        ['2025-Q1', 300],
-        ['2025-Q2', 300],
-        ['2025-Q3', 300],
-        ['2025-Q4', 300],
-      ])
-    );
-    const out = buildInventoryOutlooks(monthlyFlow, gap, revenue);
-    expect(out[0].currentState).toBe('building');
-    expect(out[1].currentState).toBe('draining');
-  });
-
-  it('조건·결과 문장에 창과 지평을 밝힌다 — 6개월/2분기가 어디서 왔는지 보여야 한다', () => {
-    const out = buildInventoryOutlooks([], [], revenue);
-    expect(out[0].conditionLabel).toContain('6개월');
-    expect(out[0].outcomeLabel).toContain('6개월');
-    expect(out[1].conditionLabel).toContain('2분기');
-    expect(out[1].outcomeLabel).toContain('2분기');
-  });
-});
-
-describe('describeCox — 이상치 제외의 의미', () => {
-  const rows = (extra: CoxInventoryRow[] = []): CoxInventoryRow[] => [
-    { brand: 'NATION', year_month: 202605, days_supply: 76 },
-    { brand: 'Jeep', year_month: 202605, days_supply: 145 },
-    ...extra,
-  ];
-
-  it('업계 평균과 브랜드 재고일수를 함께 서술', () => {
-    const out = describeCox(rows());
-    expect(out).toContain('Jeep 145일');
-    expect(out).toContain('업계 평균 76일');
-  });
-
-  it('days_supply가 null이면 "N일 초과(Cox 미공개)"로 — 값 없음이 아니라 심각 신호다', () => {
-    const out = describeCox(rows([{ brand: 'Chrysler', year_month: 202605, days_supply: null }]));
-    expect(out).toContain('Chrysler 152일 초과(Cox 미공개)');
-  });
-
-  it('NATION이 없으면 배율을 못 구하므로 null', () => {
-    expect(describeCox([{ brand: 'Jeep', year_month: 202605, days_supply: 145 }])).toBeNull();
-  });
-
-  it('빈 입력은 null', () => {
-    expect(describeCox([])).toBeNull();
-  });
-
-  it('최신 월만 본다', () => {
-    const out = describeCox([
-      { brand: 'NATION', year_month: 202604, days_supply: 78 },
-      { brand: 'Jeep', year_month: 202604, days_supply: 128 },
-      ...rows(),
-    ]);
-    expect(out).toContain('Jeep 145일');
-    expect(out).not.toContain('128일');
-  });
-});
-
-describe('describeMonthlyFlow — 분기 출하 갭보다 최신인 교차검증 축', () => {
-  it('최근 6개월 누적이 양수면 축적', () => {
-    const flow = flowWithGaps(
-      Array.from({ length: 6 }, (_, i): [number, number] => [addMonths(202601, i), 100])
-    );
-    expect(describeMonthlyFlow(flow)).toContain('축적');
-  });
-
-  it('최근 6개월 누적이 음수면 소진', () => {
-    const flow = flowWithGaps(
-      Array.from({ length: 6 }, (_, i): [number, number] => [addMonths(202601, i), -100])
-    );
-    expect(describeMonthlyFlow(flow)).toContain('소진');
-  });
-
-  it('최근 6개월만 본다 — 옛날에 크게 쌓였어도 지금 빠지고 있으면 소진이다', () => {
-    const flow = flowWithGaps([
-      ...Array.from({ length: 6 }, (_, i): [number, number] => [addMonths(202501, i), 99999]),
-      ...Array.from({ length: 6 }, (_, i): [number, number] => [addMonths(202507, i), -100]),
-    ]);
-    const out = describeMonthlyFlow(flow);
-    expect(out).toContain('소진');
-    expect(out).toContain('25.07'); // 창의 시작이 옛 구간이 아니라 최근 6개월이다
-    expect(out).toContain('25.12');
-  });
-
-  it('빈 입력은 null', () => {
-    expect(describeMonthlyFlow([])).toBeNull();
-  });
-});
-
-describe('diagnose', () => {
-  /** 5개 분기 = 전년 동기 비교가 가능한 최소 길이. */
-  function gapSeries(spec: { ship: number; retail: number }[]): GapPoint[] {
-    const shipments = spec.map((s, i) =>
-      ship(`202${5 + Math.floor(i / 4)}-Q${(i % 4) + 1}`, s.ship)
-    );
-    const retailMap = new Map(shipments.map((s, i) => [s.year_period, spec[i].retail]));
-    return buildGapPoints(shipments, retailMap);
-  }
-
-  it('출하가 소매를 앞지르고 재고가 쌓이면 빨강', () => {
-    const gap = gapSeries([
-      { ship: 300, retail: 300 },
-      { ship: 300, retail: 300 },
-      { ship: 300, retail: 300 },
-      { ship: 300, retail: 300 },
-      { ship: 400, retail: 310 }, // 출하 +33% vs 소매 +3%, 갭 +90
-    ]);
-    const d = diagnose(gap, [], []);
-    expect(d.level).toBe('red');
-    expect(d.headline).toContain('감산 위험');
-  });
-
-  it('소매가 출하를 앞지르고 재고가 줄면 초록', () => {
-    const gap = gapSeries([
-      { ship: 400, retail: 300 },
-      { ship: 300, retail: 400 },
-      { ship: 300, retail: 400 },
-      { ship: 300, retail: 400 },
-      { ship: 300, retail: 450 },
-    ]);
-    const d = diagnose(gap, [], []);
-    expect(d.level).toBe('green');
-  });
-
-  it('방향이 엇갈리면 노랑 — 출하가 소매를 앞지르지만 재고는 여전히 소진 중', () => {
-    const gap = gapSeries([
-      { ship: 300, retail: 400 }, // 전년 동기(비교 기준)
-      { ship: 300, retail: 400 },
-      { ship: 300, retail: 400 },
-      { ship: 300, retail: 400 },
-      // 출하 +33.3% vs 소매 +12.5% → 출하가 앞섬. 하지만 최근 4분기 갭 합 -350 → 재고는 소진 중.
-      { ship: 400, retail: 450 },
-    ]);
-    expect(diagnose(gap, [], []).level).toBe('yellow');
-  });
-
-  it('데이터가 없으면 노랑 + 사유 명시', () => {
-    const d = diagnose([], [], []);
-    expect(d.level).toBe('yellow');
-    expect(d.reasons[0]).toContain('없습니다');
-  });
-
-  it('근거에 실제 수치를 담는다 — 사람이 검증할 수 있어야 한다', () => {
-    const gap = gapSeries([
-      { ship: 300, retail: 300 },
-      { ship: 300, retail: 300 },
-      { ship: 300, retail: 300 },
-      { ship: 300, retail: 300 },
-      { ship: 400, retail: 310 },
-    ]);
-    const d = diagnose(gap, [], []);
-    expect(d.reasons.join(' ')).toMatch(/400/);
-    expect(d.reasons.join(' ')).toMatch(/310/);
-  });
-
-  it('Cox 실측이 있으면 근거에 포함', () => {
-    const gap = gapSeries([{ ship: 300, retail: 250 }]);
-    const cox: CoxInventoryRow[] = [
-      { brand: 'NATION', year_month: 202605, days_supply: 76 },
-      { brand: 'Jeep', year_month: 202605, days_supply: 145 },
-    ];
-    expect(diagnose(gap, [], cox).reasons.join(' ')).toContain('Cox');
-  });
-
-  it('월별 생산 갭이 있으면 근거에 포함 — 분기 출하 갭보다 최신인 독립 교차검증이다', () => {
-    const gap = gapSeries([{ ship: 300, retail: 250 }]);
-    const flow = flowWithGaps(
-      Array.from({ length: 6 }, (_, i): [number, number] => [addMonths(202601, i), 100])
-    );
-    expect(diagnose(gap, flow, []).reasons.join(' ')).toContain('월별 교차검증');
-  });
-});
-
 describe('attachEventContext — 이벤트가 원인인가 결과인가', () => {
   function plantEvent(startYearMonth: number, plant = 'Toledo'): PlantEvent {
     return {
@@ -1274,5 +641,131 @@ describe('attachEventContext — 이벤트가 원인인가 결과인가', () => 
 
   it('빈 이벤트 목록은 빈 결과', () => {
     expect(attachEventContext([], flowThroughJuly)).toEqual([]);
+  });
+});
+
+describe('buildRetailKpi — 소매 YTD YoY', () => {
+  it('당해 1~최신월 누적을 전년 같은 기간과 비교', () => {
+    // 2025 1~3월 = 300, 2026 1~3월(최신 202603) = 360 → +20%
+    const m = new Map<number, number>([
+      [202501, 100],
+      [202502, 100],
+      [202503, 100],
+      [202601, 120],
+      [202602, 120],
+      [202603, 120],
+    ]);
+    const k = buildRetailKpi(m);
+    expect(k.available).toBe(true);
+    expect(k.currentValue).toBe(360);
+    expect(k.priorValue).toBe(300);
+    expect(k.absChange).toBe(60);
+    expect(k.yoyPct).toBeCloseTo(20);
+    expect(k.unit).toBe('units');
+    expect(k.periodLabel).toContain('2026');
+  });
+
+  it('최신월이 6월이면 상반기 라벨', () => {
+    const m = new Map<number, number>();
+    for (let mo = 1; mo <= 6; mo += 1) {
+      m.set(202500 + mo, 10);
+      m.set(202600 + mo, 10);
+    }
+    expect(buildRetailKpi(m).periodLabel).toContain('상반기');
+  });
+
+  it('전년 같은 기간 데이터가 없으면 yoyPct는 null(당해 값은 유지)', () => {
+    const k = buildRetailKpi(
+      new Map<number, number>([
+        [202601, 120],
+        [202602, 120],
+      ])
+    );
+    expect(k.yoyPct).toBeNull();
+    expect(k.currentValue).toBe(240);
+  });
+
+  it('빈 맵은 available false', () => {
+    expect(buildRetailKpi(new Map()).available).toBe(false);
+  });
+});
+
+describe('buildShipmentsKpi — 출하 분기 YTD YoY', () => {
+  it('당해 Q1~최신분기 누적을 전년 같은 분기와 비교', () => {
+    // 2025 Q1+Q2 = 647, 2026 Q1+Q2 = 824 → +27.4%
+    const k = buildShipmentsKpi([
+      ship('2025-Q1', 325000),
+      ship('2025-Q2', 322000, true),
+      ship('2026-Q1', 379000),
+      ship('2026-Q2', 445000),
+    ]);
+    expect(k.currentValue).toBe(824000);
+    expect(k.priorValue).toBe(647000);
+    expect(k.absChange).toBe(177000);
+    expect(k.yoyPct).toBeCloseTo(27.4, 0);
+    expect(k.periodLabel).toContain('상반기');
+  });
+
+  it('빈 배열은 available false', () => {
+    expect(buildShipmentsKpi([]).available).toBe(false);
+  });
+});
+
+describe('buildRevenueKpi — 매출 YTD YoY (억원)', () => {
+  it('당해 1~최신월 누적을 전년과 비교, 단위 eok', () => {
+    const k = buildRevenueKpi([
+      { year_month: 202501, revenueEok: 10 },
+      { year_month: 202502, revenueEok: 10 },
+      { year_month: 202601, revenueEok: 15 },
+      { year_month: 202602, revenueEok: 15 },
+    ]);
+    expect(k.unit).toBe('eok');
+    expect(k.currentValue).toBe(30);
+    expect(k.priorValue).toBe(20);
+    expect(k.yoyPct).toBeCloseTo(50);
+  });
+
+  it('빈 배열은 available false', () => {
+    expect(buildRevenueKpi([]).available).toBe(false);
+  });
+});
+
+describe('buildInventoryKpi — 재고 신호등', () => {
+  function gp(gap: number): GapPoint {
+    return {
+      yearPeriod: '2026-Q1',
+      label: '26Q1',
+      shipments: 0,
+      retail: 0,
+      gap,
+      cumGap: gap,
+      isDerived: false,
+    };
+  }
+
+  it('최신 갭이 양수(재고 증가)면 빨강 + 연속 분기 수', () => {
+    const k = buildInventoryKpi([gp(-50), gp(10), gp(20), gp(30)]);
+    expect(k.status).toBe('red');
+    expect(k.direction).toBe('building');
+    expect(k.consecutiveQuarters).toBe(3);
+    expect(k.headline).toContain('3분기 연속 재고 증가');
+  });
+
+  it('최신 갭이 음수(재고 감소)면 초록', () => {
+    const k = buildInventoryKpi([gp(50), gp(-10), gp(-20)]);
+    expect(k.status).toBe('green');
+    expect(k.direction).toBe('draining');
+    expect(k.consecutiveQuarters).toBe(2);
+    expect(k.headline).toContain('감소');
+  });
+
+  it('최신 갭이 0이면 노랑(혼조)', () => {
+    expect(buildInventoryKpi([gp(10), gp(0)]).status).toBe('yellow');
+  });
+
+  it('빈 계열은 노랑 + 데이터 부족', () => {
+    const k = buildInventoryKpi([]);
+    expect(k.status).toBe('yellow');
+    expect(k.headline).toContain('데이터 부족');
   });
 });

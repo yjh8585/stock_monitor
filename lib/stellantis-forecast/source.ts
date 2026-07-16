@@ -16,16 +16,17 @@ import logger from '@/lib/logger';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import {
-  analyzeDrivers,
   attachEventContext,
   buildGapPoints,
-  buildInventoryOutlooks,
+  buildInventoryKpi,
   buildMonthlyFlow,
   buildNaProductionMonths,
   buildNaRetailMonths,
   buildNaRetailQuarters,
   buildProjectedGapQuarter,
-  diagnose,
+  buildRetailKpi,
+  buildRevenueKpi,
+  buildShipmentsKpi,
   lastCompleteMonth,
   lastCompleteQuarter,
   NA_COUNTRIES,
@@ -34,7 +35,6 @@ import {
 } from './aggregate';
 import { PLANT_EVENTS } from './plant-events';
 import type {
-  CoxInventoryRow,
   ProductionMonthRow,
   RetailMonthRow,
   RevenueMonthRow,
@@ -139,22 +139,6 @@ async function fetchNaProduction(): Promise<ProductionMonthRow[]> {
   return out;
 }
 
-/** Cox 딜러 재고일수. days_supply=null + is_outlier_excluded=true = "업계 평균 2배 초과(Cox 미공개)". */
-async function fetchCox(): Promise<CoxInventoryRow[]> {
-  const supabase = createSupabaseAnonClient();
-  const { data, error } = await supabase
-    .from('cox_brand_inventory')
-    .select('brand, year_month, days_supply')
-    .order('year_month', { ascending: true })
-    .order('brand', { ascending: true });
-  if (error) {
-    // 재고는 보조 축이라 없어도 페이지가 성립한다 — 진단이 Cox 없이도 동작하도록 설계됨.
-    logger.warn({ err: error }, 'cox_brand_inventory 조회 실패 — 재고 교차검증 없이 진행');
-    return [];
-  }
-  return data ?? [];
-}
-
 /** 자사 Stellantis NA향 월별 매출 (사외비 → confidentialDb 필수). */
 async function fetchRevenue(): Promise<RevenueMonthRow[]> {
   const { data, error } = await confidentialDb
@@ -188,14 +172,12 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
   cacheTag('stellantis-shipments');
   cacheTag('oem_sales_model_country_month');
   cacheTag('oem_production_model_country_month');
-  cacheTag('cox-brand-inventory');
   cacheTag('pnl_entries');
 
-  const [shipments, retailRows, productionRows, cox, revenue] = await Promise.all([
+  const [shipments, retailRows, productionRows, revenue] = await Promise.all([
     fetchShipments(),
     fetchNaRetail(),
     fetchNaProduction(),
-    fetchCox(),
     fetchRevenue(),
   ]);
 
@@ -212,7 +194,7 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
   const gap = buildGapPoints(shipments, retailQuarters);
 
   // 진행 중인 최신 분기(출하는 IR로 왔지만 소매가 아직 국가별로 덜 도착)를 소매 일부 추정으로
-  // 채워 차트 2에만 붙인다(사용자 결정 2026-07-16). 통계·진단은 실측 gap만 쓴다.
+  // 채워 차트 1에만 붙인다(사용자 결정 2026-07-16). KPI 신호등은 최신 신호 반영 위해 이 계열을 쓴다.
   const projected = buildProjectedGapQuarter(gap, shipments, retailRows, quarterCutoff);
 
   // 출하가 아직 없는 분기(retail은 완비인데 shipment 미도착)가 있으면 화면에 사실대로 밝힌다.
@@ -227,18 +209,23 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
     .sort()
     .pop();
 
+  // 재고 신호등은 차트 1이 보여주는 계열(실측 + 추정 최신 분기)로 판정 — 최신 신호를 반영한다.
+  const gapForKpi = projected ? [...gap, projected.point] : gap;
+
   return {
     monthlyFlow,
     gap,
     gapProjected: projected?.point ?? null,
     projectedNote: projected?.note ?? null,
-    drivers: analyzeDrivers(revenue, productionMonths, retailMonths, shipments),
-    outlooks: buildInventoryOutlooks(monthlyFlow, gap, revenue),
+    kpiMetrics: [
+      buildRetailKpi(retailMonths),
+      buildShipmentsKpi(shipments),
+      buildRevenueKpi(revenue),
+    ],
+    kpiInventory: buildInventoryKpi(gapForKpi),
     // 공장 이벤트는 DB가 아니라 코드 상수(수동 큐레이션) — 그래서 cacheTag가 없다.
     // 파일이 바뀌면 배포가 캐시를 갈아치우므로 별도 무효화 경로가 필요 없다.
     events: attachEventContext(PLANT_EVENTS, monthlyFlow),
-    diagnosis: diagnose(gap, monthlyFlow, cox),
-    cox,
     lastCompleteMonth: monthCutoff,
     lastCompleteQuarter: quarterCutoff,
     partialQuarterNote: partialQuarter

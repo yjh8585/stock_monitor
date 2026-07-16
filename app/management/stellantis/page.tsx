@@ -1,8 +1,6 @@
-import DiagnosisCards from '@/components/management/stellantis/DiagnosisCards';
-import DriverAnalysisSection from '@/components/management/stellantis/DriverAnalysisSection';
-import InventoryOutlookSection from '@/components/management/stellantis/InventoryOutlookSection';
 import PlantEventsSection from '@/components/management/stellantis/PlantEventsSection';
 import StellantisDashboard from '@/components/management/stellantis/StellantisDashboard';
+import StellantisKpiCards from '@/components/management/stellantis/StellantisKpiCards';
 import { monthLabel, quarterLabel } from '@/lib/stellantis-forecast/aggregate';
 import { getStellantisForecastData } from '@/lib/stellantis-forecast/source';
 import type { StellantisForecastData } from '@/lib/stellantis-forecast/types';
@@ -10,13 +8,11 @@ import type { StellantisForecastData } from '@/lib/stellantis-forecast/types';
 /**
  * 스텔란티스 북미 매출 전망 (server).
  *
- * `getStellantisForecastData()` 한 번으로 5개 소스(생산·출하·소매·딜러 재고·자사 매출)를 모아
- * 카드 4장 + 차트 2종 + 분석 3섹션에 분배한다. 자사 매출만 사외비이며 source.ts가
- * `confidentialDb`로 처리한다.
+ * `getStellantisForecastData()` 한 번으로 소스(생산·출하·소매·자사 매출)를 모아 KPI 카드 4장 +
+ * 차트 2종 + 공장 동향에 분배한다. 자사 매출만 사외비이며 source.ts가 `confidentialDb`로 처리한다.
  *
- * 화면 순서 = 읽는 순서다: 진단(요약) → ①② 재고가 쌓이는가(두 소스로 각각) →
- * ③ 자사 매출은 무엇을 따라가는가 → ④ 그래서 재고 방향이 매출에 뭘 시사하는가 →
- * ⑤ 공장에서 실제로 무슨 일이 있었는가.
+ * 화면 순서 = 읽는 순서다: KPI 4장(YTD 요약) → ① 분기 출하 갭(정확) → ② 월별 생산 갭(즉시) →
+ * ③ 공장에서 실제로 무슨 일이 있었는가.
  */
 export default async function StellantisPage() {
   const data = await getStellantisForecastData();
@@ -42,15 +38,8 @@ export default async function StellantisPage() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 px-6 py-4">
       <PageHeader />
-      <DiagnosisCards
-        diagnosis={data.diagnosis}
-        gap={data.gap}
-        monthlyFlow={data.monthlyFlow}
-        drivers={data.drivers}
-      />
+      <StellantisKpiCards metrics={data.kpiMetrics} inventory={data.kpiInventory} />
       <StellantisDashboard data={data} />
-      <DriverAnalysisSection drivers={data.drivers} />
-      <InventoryOutlookSection outlooks={data.outlooks} />
       <PlantEventsSection events={data.events} />
       <Footnotes data={data} />
     </div>
@@ -63,15 +52,13 @@ function PageHeader() {
     <header className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <h1 className="text-xl font-semibold">스텔란티스 북미 매출 전망</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        주거래처 스텔란티스 북미의 <b>생산 · 출하(도매) · 소매 판매 · 딜러 재고</b>와 자사
-        Stellantis NA향 매출을 대비해 향후 매출의 방향을 읽습니다. 생산·출하가 늘어도 소매가
-        따라오지 않으면 재고가 쌓이고, 스텔란티스는 결국 감산으로 되돌립니다 — 그때 자사 매출도 함께
-        줄어듭니다.
+        주거래처 스텔란티스 북미의 <b>생산 · 출하(도매) · 소매 판매</b>와 자사 Stellantis NA향
+        매출을 대비해 향후 매출의 방향을 읽습니다. 생산·출하가 늘어도 소매가 따라오지 않으면 재고가
+        쌓이고, 스텔란티스는 결국 감산으로 되돌립니다 — 그때 자사 매출도 함께 줄어듭니다.
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        생산 = MarkLines (월, 북미 공장) · 출하 = Stellantis IR / SEC EDGAR (분기, 북미 지역) · 소매
-        = MarkLines (월, 미국·캐나다·멕시코) · 딜러 재고 = Cox Automotive (월, 브랜드별 재고일수) ·
-        자사 매출 = 자체 손익 (월, 억원)
+        출하 = Stellantis IR / SEC EDGAR (분기, 북미 지역) · 소매 = MarkLines (월,
+        미국·캐나다·멕시코) · 생산 = MarkLines (월, 북미 공장) · 자사 매출 = 자체 손익 (월, 억원)
       </p>
     </header>
   );
@@ -92,10 +79,10 @@ function Footnotes({ data }: { data: StellantisForecastData }) {
       <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         {data.partialQuarterNote ? <li>{data.partialQuarterNote}</li> : null}
         <li>
-          <b>차트 1의 갭은 항등식이 아니라 근사입니다.</b> MarkLines 생산의 국가는{' '}
+          <b>차트 2(월별 생산 갭)는 항등식이 아니라 근사입니다.</b> MarkLines 생산의 국가는{' '}
           <b>공장이 있는 나라</b>, 소매의 국가는 <b>차가 팔린 나라</b>라 북미 밖 수출입이 갭에
-          섞입니다(실측 2024.01~2026.05 북미 생산 = 북미 소매의 +3.1%). 정확한 항등식은 차트
-          2입니다.
+          섞입니다(실측 2024.01~2026.05 북미 생산 = 북미 소매의 +3.1%). 정확한 항등식은 차트 1(분기
+          출하 갭)입니다.
         </li>
         <li>
           출하는 <b>북미(미국+캐나다+멕시코) 지역 단위</b>입니다. 브랜드·차종별 출하는 어떤 공개
@@ -103,7 +90,7 @@ function Footnotes({ data }: { data: StellantisForecastData }) {
         </li>
         <li>
           2021~2025년 Q2·Q4 출하는 반기·연간 보도자료에서 <b>차분 도출</b>한 값입니다(Q2 = H1 − Q1,
-          Q4 = FY − H1 − Q3). 천대 반올림이 누적돼 ±1,000대 오차가 있으며, 차트 2에서{' '}
+          Q4 = FY − H1 − Q3). 천대 반올림이 누적돼 ±1,000대 오차가 있으며, 차트 1에서{' '}
           <b>빗금 막대</b>로 구분했습니다.
         </li>
         <li>
@@ -120,8 +107,8 @@ function Footnotes({ data }: { data: StellantisForecastData }) {
           있습니다. 절대값 정합이 아니라 <b>추세 비교</b>용으로 보십시오.
         </li>
         <li>
-          자사 매출은 <b>별도(standalone) 기준</b>입니다. 연결은 월별 데이터가 2025년부터라 시차
-          탐지에 필요한 표본이 나오지 않습니다.
+          자사 <b>스텔란티스향 매출</b>은 <b>별도(standalone) 기준</b>이며 사외비입니다. KPI는 당해
+          누적(YTD)을 전년 같은 기간과 비교합니다.
         </li>
       </ul>
     </section>

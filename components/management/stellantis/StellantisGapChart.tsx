@@ -11,12 +11,12 @@ const Inner = dynamic(() => import('./StellantisGapChartInner'), {
 });
 
 /**
- * 차트 2 — 분기 북미 출하 vs 소매 · 재고 증감.
+ * 차트 1 — 분기 북미 출하 vs 소매 · 재고 증감.
  *
  * 항등식 **출하 − 소매 = 딜러 재고 증감**을 한 화면에 세운다. 출하가 소매를 계속 웃돌면
  * 딜러 재고가 쌓이고, 스텔란티스는 결국 출하를 줄여(감산) 되돌린다 — 그때 자사 매출도 함께 준다.
  *
- * 차트 1과 달리 **근사가 아니라 정확한 항등식**이다(출하·소매 모두 북미 시장 기준).
+ * 차트 2와 달리 **근사가 아니라 정확한 항등식**이다(출하·소매 모두 북미 시장 기준).
  * 대가는 주기: 출하가 분기 단위이고 최신 분기는 늘 비어 있다.
  */
 export default function StellantisGapChart({
@@ -33,7 +33,7 @@ export default function StellantisGapChart({
   // 추정 분기는 실측 계열 뒤에 붙여 차트에만 그린다(통계·진단은 실측 points만 쓴다).
   const allPoints = projected ? [...points, projected] : points;
   return (
-    <ChartSection title="2. 분기 북미 출하 vs 소매 · 재고 증감" unit="대">
+    <ChartSection title="1. 분기 북미 출하 vs 소매 · 재고 증감" unit="대">
       <p className="mb-2 text-sm text-muted-foreground">
         출하(도매, <b>Stellantis 공식 IR</b>) − 소매 판매(MarkLines 미국·캐나다·멕시코, 마세라티
         제외) = 딜러 재고 증감. 스텔란티스 공식 소매는 미국분만 공개돼 북미 스코프를 못 맞추므로,
