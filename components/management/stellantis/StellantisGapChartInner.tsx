@@ -4,7 +4,6 @@ import type { ReactElement } from 'react';
 import {
   Bar,
   CartesianGrid,
-  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -21,7 +20,6 @@ import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyl
 import { useHiddenSeries } from '@/components/oem-companies/common/useHiddenSeries';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { GapPoint } from '@/lib/stellantis-forecast/types';
-import { hatchDefs, hatchFill } from './chartHatch';
 import { fmt, fmtSigned } from './format';
 import { bandDomain } from './gapAxis';
 
@@ -34,12 +32,6 @@ const GAP_COLOR = '#dc2626';
 
 /** 0선·중립 요소 색(chart-guide §5-A "중립·잔여는 회색"). */
 const NEUTRAL_COLOR = '#9ca3af';
-
-/** 차분 도출 출하 막대에 씌울 빗금 패턴 id (문서 전역 유일해야 함). */
-const DERIVED_HATCH_ID = 'stellantis-gap-derived-shipments';
-
-/** 소매 일부 추정 분기의 소매 막대에 씌울 빗금 패턴 id. */
-const ESTIMATED_HATCH_ID = 'stellantis-gap-estimated-retail';
 
 /**
  * 차트 1 — 분기 북미 출하 vs 소매 막대 + 재고 증감(출하 − 소매) 꺾은선.
@@ -64,10 +56,6 @@ export default function StellantisGapChartInner({ points }: { points: GapPoint[]
   return (
     <ResponsiveContainer width="100%" height={h}>
       <ComposedChart data={points} margin={{ top: 24, right: 24, bottom: 10, left: 10 }} barGap={2}>
-        {hatchDefs([
-          { id: DERIVED_HATCH_ID, color: SHIPMENTS_COLOR },
-          { id: ESTIMATED_HATCH_ID, color: RETAIL_COLOR },
-        ])}
         <CartesianGrid
           strokeDasharray="3 3"
           className="stroke-border"
@@ -122,6 +110,9 @@ export default function StellantisGapChartInner({ points }: { points: GapPoint[]
             fontSize: 13,
           }}
         />
+        {/* 막대는 실측·차분 도출·추정을 색으로 구분하지 않는다(사용자 지시 2026-07-17) —
+            차분 도출 분기·추정 분기는 아래 보조문구 + 툴팁으로 안내한다. 추정 최신 분기만
+            갭 선의 속 빈 점으로 위치를 표시한다. */}
         <Bar
           yAxisId="units"
           dataKey="shipments"
@@ -129,16 +120,7 @@ export default function StellantisGapChartInner({ points }: { points: GapPoint[]
           fill={SHIPMENTS_COLOR}
           radius={[2, 2, 0, 0]}
           hide={isHidden('shipments')}
-        >
-          {/* 빗금 = 반기·연간 보도자료 차분 도출(±1,000대). 소매·재고 증감은 도출이 아니라
-              출하 막대에만 적용한다(gap이 출하에서 파생되는 사실은 툴팁 문구로 밝힌다). */}
-          {points.map((p) => (
-            <Cell
-              key={p.yearPeriod}
-              fill={p.isDerived ? hatchFill(DERIVED_HATCH_ID) : SHIPMENTS_COLOR}
-            />
-          ))}
-        </Bar>
+        />
         <Bar
           yAxisId="units"
           dataKey="retail"
@@ -146,15 +128,7 @@ export default function StellantisGapChartInner({ points }: { points: GapPoint[]
           fill={RETAIL_COLOR}
           radius={[2, 2, 0, 0]}
           hide={isHidden('retail')}
-        >
-          {/* 추정 포함 분기는 소매 막대에 빗금 — 실측 소매와 구분한다. */}
-          {points.map((p) => (
-            <Cell
-              key={p.yearPeriod}
-              fill={p.isEstimated ? hatchFill(ESTIMATED_HATCH_ID) : RETAIL_COLOR}
-            />
-          ))}
-        </Bar>
+        />
         <Line
           yAxisId="gap"
           type="monotone"

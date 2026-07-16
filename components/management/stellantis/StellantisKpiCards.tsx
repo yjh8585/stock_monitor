@@ -1,5 +1,5 @@
 import type { InventoryKpi, KpiMetric, TrafficLight } from '@/lib/stellantis-forecast/types';
-import { fmtSigned } from './format';
+import { fmt, fmtSigned } from './format';
 
 /**
  * 스텔란티스 KPI 카드 4종 (server component — 상호작용 없어 클라이언트 JS를 안 태운다).
@@ -58,11 +58,24 @@ function MetricCard({ metric }: { metric?: KpiMetric }) {
       </div>
       <div className="mt-1 text-sm text-muted-foreground">전년 동기 대비 (YoY)</div>
       <div className="mt-2 text-sm text-muted-foreground">
-        절대값 변화{' '}
-        <b className={`tabular-nums ${tone}`}>
-          {fmtSigned(metric.absChange)}
-          {unit}
-        </b>
+        {metric.yoyPct === null ? (
+          <span className="tabular-nums">
+            당해 {fmt(metric.currentValue)}
+            {unit} (전년 동기 데이터 없음)
+          </span>
+        ) : (
+          <>
+            <span className="tabular-nums">
+              전년 {fmt(metric.priorValue)}
+              {unit} → 당해 {fmt(metric.currentValue)}
+              {unit}
+            </span>{' '}
+            <b className={`tabular-nums ${tone}`}>
+              ({fmtSigned(metric.absChange)}
+              {unit})
+            </b>
+          </>
+        )}
       </div>
     </Shell>
   );
