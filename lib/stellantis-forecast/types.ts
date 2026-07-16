@@ -50,6 +50,20 @@ export interface RevenueMonthRow {
   revenueEok: number;
 }
 
+/**
+ * `cox_brand_inventory` 한 행 — Cox 집계 브랜드별 미국 딜러 재고일수(월).
+ *
+ * 공장 동향의 '재고' 이벤트를 이 표에서 **자동 생성**한다(수동 큐레이션 아님).
+ */
+export interface CoxInventoryRow {
+  brand: string;
+  year_month: number;
+  /** 재고일수. NATION(업계 평균)×2 초과로 Cox가 차트에서 제외한 브랜드는 null(값 없음이 아니라 신호). */
+  days_supply: number | null;
+  is_outlier_excluded: boolean;
+  source_url: string | null;
+}
+
 /** 차트 2 — 분기 출하 vs 소매 vs 재고 증감. 단위 = 대. */
 export interface GapPoint {
   /** 'YYYY-QN' */
@@ -183,6 +197,8 @@ export type PlantEventType =
   | 'closure'
   | 'restart'
   | 'production_add'
+  // '재고' — 공장이 아니라 미국 딜러 네트워크의 재고 지표(Cox 재고일수 등). 화면에서 음영 강조.
+  | 'inventory'
   | 'other';
 
 /** 페이지 전체 데이터. */

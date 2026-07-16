@@ -21,6 +21,7 @@
  *    안 그러면 소매가 과소집계돼 재고 축적을 과대평가한다.
  */
 import type {
+  CoxInventoryRow,
   GapPoint,
   InventoryKpi,
   KpiMetric,
@@ -50,6 +51,17 @@ export const NA_COUNTRIES: readonly string[] = ['USA', 'Canada', 'Mexico'];
 
 /** 공장 이벤트 직전 재고 국면을 볼 때 쓰는 관찰 창(개월) — `attachEventContext`. */
 const STATE_WINDOW_MONTHS = 6;
+
+/**
+ * 차트 2(월별 생산 갭)의 시작월(YYYYMM).
+ *
+ * 생산·소매 원본은 2020.01부터 있으나, 차트 1(분기 출하)이 2021-Q1부터라 시작점을 맞춘다
+ * (사용자 지시 2026-07-17). 두 차트가 같은 시작 연도에서 출발해야 눈으로 대조된다.
+ */
+export const CHART_START_MONTH = 202101;
+
+/** Cox 재고일수를 '재고' 이벤트로 만들 때 대상 스텔란티스 브랜드. */
+const STELLANTIS_BRANDS: readonly string[] = ['Jeep', 'Ram', 'Dodge', 'Chrysler'];
 
 // ---------------------------------------------------------------------------
 // 기간 헬퍼
@@ -214,10 +226,13 @@ export function buildNaProductionMonths(
  */
 export function buildMonthlyFlow(
   productionByMonth: Map<number, number>,
-  retailByMonth: Map<number, number>
+  retailByMonth: Map<number, number>,
+  minMonth: number | null = null
 ): MonthlyFlowPoint[] {
+  // minMonth 이전 월은 누적(cumGap) 이전에 걸러 낸다 — 잘라낸 기간이 cumGap에 스며들지 않게.
   const months = [...productionByMonth.keys()]
     .filter((m) => retailByMonth.has(m))
+    .filter((m) => minMonth === null || m >= minMonth)
     .sort((a, b) => a - b);
   let cum = 0;
   return months.map((yearMonth) => {
@@ -594,6 +609,78 @@ export function buildInventoryKpi(gapSeries: GapPoint[]): InventoryKpi {
     consecutiveQuarters: 0,
     direction: 'flat',
   };
+}
+
+// ---------------------------------------------------------------------------
+// 재고 이벤트 자동 생성 (Cox 딜러 재고일수)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cox 브랜드별 딜러 재고일수를 월별 '재고' 이벤트로 **자동 생성**한다.
+ *
+ * 공장 동향의 '재고' 항목을 사람이 손으로 옮겨 적던 것을(수동 큐레이션) 이미 자동 수집돼
+ * DB에 쌓이는 `cox_brand_inventory`에서 만들어 낸다(사용자 지시 2026-07-17 — "재고만 자동").
+ * Cox가 매월 갱신되면 재고 타임라인이 저절로 늘어난다.
+ *
+ * - 한 달에 스텔란티스 브랜드(Jeep·Ram·Dodge·Chrysler)가 하나도 없으면 이벤트를 만들지 않는다.
+ * - `excludeMonths`에 든 월은 건너뛴다 — 그 달은 이미 **수동 큐레이션 항목**(더 풍부한 서술)이
+ *   있어 자동 항목과 중복시키지 않기 위함이다(수동 우선).
+ * - NATION(업계 평균)×2 초과로 Cox가 값을 뺀 브랜드(`is_outlier_excluded` 또는 `days_supply=null`)는
+ *   수치 대신 "차트 제외"라는 사실만 문구에 남긴다.
+ */
+export function buildCoxInventoryEvents(
+  rows: CoxInventoryRow[],
+  excludeMonths: ReadonlySet<number> = new Set()
+): PlantEvent[] {
+  const byMonth = new Map<number, Map<string, CoxInventoryRow>>();
+  for (const row of rows) {
+    let brands = byMonth.get(row.year_month);
+    if (!brands) {
+      brands = new Map();
+      byMonth.set(row.year_month, brands);
+    }
+    brands.set(row.brand, row);
+  }
+
+  const events: PlantEvent[] = [];
+  for (const [yearMonth, brands] of [...byMonth.entries()].sort((a, b) => a[0] - b[0])) {
+    if (excludeMonths.has(yearMonth)) continue;
+
+    const present = STELLANTIS_BRANDS.filter((b) => brands.has(b));
+    if (present.length === 0) continue;
+
+    const shown: string[] = [];
+    const excluded: string[] = [];
+    for (const brand of STELLANTIS_BRANDS) {
+      const row = brands.get(brand);
+      if (!row) continue;
+      if (row.is_outlier_excluded || row.days_supply === null) excluded.push(brand);
+      else shown.push(`${brand} ${row.days_supply}일`);
+    }
+
+    const nation = brands.get('NATION')?.days_supply ?? null;
+    const nationText = nation !== null ? ` (업계 평균 ${nation}일)` : '';
+    let summary = `${monthLabel(yearMonth)} 미국 딜러 재고일수 — ${shown.join(' · ')}${nationText}. Cox Automotive 집계.`;
+    if (excluded.length > 0) {
+      summary += ` ${excluded.join('·')}은(는) 업계 평균 2배 초과로 Cox 차트에서 제외(수치 미공개).`;
+    }
+
+    events.push({
+      plant: '미국 딜러 네트워크 (Cox 집계 딜러 재고일수 — 자동 수집)',
+      country: 'USA',
+      startYearMonth: yearMonth,
+      endYearMonth: yearMonth,
+      eventType: 'inventory',
+      models: present.slice(),
+      summary,
+      statedReason: '',
+      inventoryRelation: 'response_to_glut',
+      sourceUrl: brands.get(present[0])?.source_url ?? 'https://www.coxautoinc.com/insights/',
+      sourceName: 'Cox Automotive',
+      sourceDate: null,
+    });
+  }
+  return events;
 }
 
 // ---------------------------------------------------------------------------
