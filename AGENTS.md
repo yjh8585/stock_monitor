@@ -168,6 +168,8 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 - 수집 스크립트가 끝나면 **반드시 `scripts/lib/revalidate.py`로 태그 무효화**. 안 하면 페이지가 `'use cache'` 결과를 들고 있어 stale.
 - **수집 외 경로의 캐시 무효화**: `posts` 등 `'use cache'` 테이블을 수동(tsx/직접 INSERT)으로 변경하면 `revalidateTag`를 코드에서 못 부름 → `/api/revalidate`(POST `x-revalidate-secret` + `{tags:[...]}`, 프로덕션은 `NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET`) curl 또는 로컬 dev 재시작.
+- **⚠️ GHA revalidate 시크릿 이름**: 수집 워크플로는 revalidate 시크릿을 **`NEXT_REVALIDATE_SECRET`** 로 넘겨야 한다(`lib/revalidate.py`가 읽는 이름). `sync-oem-excel.yml`·`sync-oem-production-excel.yml`이 `REVALIDATE_SECRET` 오타라 GHA 캐시 무효화가 **조용히 스킵**되던 것을 2026-07-17 교정. 유사 오타 시 적재는 정상이나 화면은 `cacheLife` TTL로 뒤늦게 갱신되는 증상 → 신규 워크플로 작성 시 정확한 이름 확인.
+- **dev `'use cache'` stale 가볍게 무효화**: source.ts 등 편집 후 dev가 옛 캐시 값을 들고 있을 때 `rm -rf .next`+재시작 대신 `scripts/lib/revalidate.py`의 `revalidate_tags([태그])`를 로컬 호출(`NEXT_REVALIDATE_URL`=localhost)하면 해당 태그만 무효화돼 빠르다.
 - 뷰(`related_stocks_view` 등)는 SQL 마이그레이션에 정의. **컬럼 추가 시 뷰부터 수정** → 페이지는 자동 반영.
 - 실패·이상치는 `scripts/_*_log.json`에 기록. `analyze_*.py` 진단 후 `recheck_*.py`/`recollect_*.py`로 재처리.
 
@@ -205,6 +207,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - 공통 모듈 재사용(`db.py`·`accounts_map.py`·`fx.py`). upsert 키·멱등성 확보.
 - **캐시 무효화**: 두 경로 모두 자동 hook. (1) `db.upsert_rows(...)` bulk upsert는 함수 안에서 `revalidate_for_tables` 자동 호출. (2) `WriteSession` — `with WriteSession() as w: w.table('x').update(...).execute()` 블록 종료 시 누적 테이블을 자동 revalidate(`select`는 추적 X, 예외 시에도 호출, silent fail). **신규 mutating 스크립트는 반드시 WriteSession**. 정기 cron 14개 적용 완료, 잔여 일회성은 점진 마이그레이션. 테스트 `scripts/lib/test_db_writesession.py`.
 - Playwright는 시스템 캐시(`PLAYWRIGHT_BROWSERS_PATH`). 프로젝트에 브라우저 다운로드 금지.
+- **OEM MarkLines Excel sync**(`sync_oem_excel.py`·`sync_oem_production_excel.py`)는 만료되는 세션 쿠키 GitHub Secret **`MARKLINES_COOKIE`** 의존(아이디/비번 자동 로그인 아님 — 브라우저 DevTools에서 수동 채취). 만료 시 워크플로가 exit 1(로그 '쿠키 만료')로 실패 → Secret 재채취·갱신 필요. **MarkLines 단일 디바이스 정책**상 사람이 로컬에서 로그인하면 CI 쿠키가 조용히 무효화될 수 있다(OEM sync 실패의 흔한 원인).
 - **LLM 추출 수집기**(`collect_uzauto_financials.py`·현대 분기 IR·`collect_cox_inventory.py` 등)는 **로컬 실행 가능**하다 — `ANTHROPIC_API_KEY`가 `scripts/.env`엔 없지만 **프로젝트 루트 `.env.local`에 있고**, `lib/bootstrap.py`의 `init_script()`가 `scripts/.env`와 `<root>/.env.local`을 **둘 다** 로드한다(2026-07-15 실측 정정 — 과거 이 문서는 "로컬 실행 불가"라고 잘못 적고 있었다). 구식 스크립트가 `scripts/.env`만 로드한다면 그건 그 스크립트의 boilerplate 문제이니 `init_script`로 교체할 것. GHA Secrets에도 같은 키가 있어 워크플로 실행도 가능.
 - **스캔 PDF**(UzAuto IFRS 등)는 `pypdf`/`pdfplumber` 텍스트 추출이 0자 + Read 도구 렌더가 `pdftoppm`(poppler) 미설치로 실패 → venv `pymupdf`(fitz)로 페이지 렌더(`fitz.open(p)[n].get_pixmap(dpi=200).save(png)`)→Read(vision)로 판독.
 - 손익/사외비 엑셀 파싱 디버깅: **openpyxl `read_only=True` 단독 결과를 신뢰하지 말 것**(행/열 인덱싱이 어긋나 부문값이 제품열로 읽히는 오진 관측) → `read_only=False`(`ws.cell`) 또는 sync의 `parse_sheet()` 직접 호출로 교차검증.
