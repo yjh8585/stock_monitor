@@ -12,9 +12,9 @@ const Inner = dynamic(() => import('./StellantisMonthlyFlowChartInner'), {
 });
 
 /**
- * 차트 1 — 월별 북미 생산 vs 소매 · 재고 증감.
+ * 차트 2 — 월별 북미 생산 vs 소매 · 재고 증감.
  *
- * MarkLines 단일 소스라 **월별로 즉시** 갱신된다(차트 2의 분기 출하는 항상 한 분기 이상 늦다).
+ * MarkLines 단일 소스라 **월별로 즉시** 갱신된다(차트 1의 분기 출하는 항상 한 분기 이상 늦다).
  * 대신 `생산 − 소매`는 항등식이 아니라 근사다 — 아래 각주로 그 한계를 밝힌다.
  */
 export default function StellantisMonthlyFlowChart({
@@ -25,7 +25,7 @@ export default function StellantisMonthlyFlowChart({
   lastCompleteMonth: number | null;
 }) {
   return (
-    <ChartSection title="1. 월별 북미 생산 vs 소매 · 재고 증감" unit="대">
+    <ChartSection title="2. 월별 북미 생산 vs 소매 · 재고 증감" unit="대">
       <p className="mb-2 text-sm text-muted-foreground">
         생산(MarkLines 미국·캐나다·멕시코 <b>공장</b>) − 소매 판매(MarkLines 미국·캐나다·멕시코{' '}
         <b>시장</b>, 마세라티 제외) = 파이프라인 재고 증감.
@@ -40,7 +40,7 @@ export default function StellantisMonthlyFlowChart({
       <p className="mb-2 text-sm text-muted-foreground">
         ⚠️ 생산은 <b>만든 나라</b>, 소매는 <b>팔린 나라</b> 기준이라 북미 밖 수출입이 갭에 섞입니다.
         절대 수준(2024.01~2026.05 실측 북미 생산 = 북미 소매의 +3.1%)이 아니라 <b>방향</b>으로
-        읽으십시오. 정확한 항등식은 차트 2입니다.
+        읽으십시오. 정확한 항등식은 차트 1입니다.
       </p>
       <Inner points={points} />
     </ChartSection>

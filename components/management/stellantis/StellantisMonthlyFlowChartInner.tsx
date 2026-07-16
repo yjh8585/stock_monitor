@@ -22,7 +22,7 @@ import type { MonthlyFlowPoint } from '@/lib/stellantis-forecast/types';
 import { fmt, fmtSigned } from './format';
 import { bandDomain } from './gapAxis';
 
-/** 막대 2계열 — 대비를 위해 `MGMT_BAR_COLORS`를 벌려 쓴다(chart-guide §5-A). 차트 2와 같은 규칙. */
+/** 막대 2계열 — 대비를 위해 `MGMT_BAR_COLORS`를 벌려 쓴다(chart-guide §5-A). 차트 1과 같은 규칙. */
 const PRODUCTION_COLOR = MGMT_BAR_COLORS[0];
 const RETAIL_COLOR = MGMT_BAR_COLORS[2];
 
@@ -33,9 +33,9 @@ const GAP_COLOR = '#dc2626';
 const NEUTRAL_COLOR = '#9ca3af';
 
 /**
- * 차트 1 — 월별 북미 생산 vs 소매 막대 + 갭(생산 − 소매) 꺾은선.
+ * 차트 2 — 월별 북미 생산 vs 소매 막대 + 갭(생산 − 소매) 꺾은선.
  *
- * 차트 2(분기 출하 기준)와 **의도적으로 같은 시각 문법**을 쓴다: 같은 막대색, 같은 빨간 갭 선,
+ * 차트 1(분기 출하 기준)과 **의도적으로 같은 시각 문법**을 쓴다: 같은 막대색, 같은 빨간 갭 선,
  * 같은 이중축 밴드 분리. 두 차트가 같은 질문("재고가 쌓이는가")에 다른 소스로 답하므로
  * 형태가 같아야 눈으로 대조된다.
  *

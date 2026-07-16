@@ -4,7 +4,7 @@ import type { PlantEventType, PlantEventWithContext } from '@/lib/stellantis-for
 import { fmtSigned } from './format';
 
 /**
- * 5. 스텔란티스 공장 동향 — 재고 국면과 대조.
+ * 3. 스텔란티스 공장 동향 — 재고 국면과 대조.
  *
  * 이벤트 하나하나에 **그때 재고가 어땠는지**(직전 6개월 누적 생산−소매)를 붙여 나란히 놓는다.
  * 회사가 발표한 사유(`statedReason`)와 당시 갭의 부호가 어긋날 수 있고, 그 판단은 화면이 아니라
@@ -43,7 +43,7 @@ function periodText(start: number, end: number): string {
 export default function PlantEventsSection({ events }: { events: PlantEventWithContext[] }) {
   if (events.length === 0) {
     return (
-      <ChartSection title="5. 스텔란티스 공장 동향" unit="">
+      <ChartSection title="3. 스텔란티스 공장 동향" unit="">
         <div className="py-8 text-center text-base text-muted-foreground">
           등록된 이벤트가 없습니다.
         </div>
@@ -52,7 +52,7 @@ export default function PlantEventsSection({ events }: { events: PlantEventWithC
   }
 
   return (
-    <ChartSection title="5. 스텔란티스 공장 동향 — 재고 국면과 대조" unit="">
+    <ChartSection title="3. 스텔란티스 공장 동향 — 재고 국면과 대조" unit="">
       <p className="mb-3 text-sm text-muted-foreground">
         가동 중단·설비 전환·시프트 증감 등 <b>{events.length}건</b>. 각 이벤트에{' '}
         <b>직전 6개월 누적 (생산 − 소매)</b>를 붙였습니다 — 이벤트가 재고 과잉의 <b>결과</b>인지

@@ -42,9 +42,9 @@ const DERIVED_HATCH_ID = 'stellantis-gap-derived-shipments';
 const ESTIMATED_HATCH_ID = 'stellantis-gap-estimated-retail';
 
 /**
- * 차트 2 — 분기 북미 출하 vs 소매 막대 + 재고 증감(출하 − 소매) 꺾은선.
+ * 차트 1 — 분기 북미 출하 vs 소매 막대 + 재고 증감(출하 − 소매) 꺾은선.
  *
- * 차트 1(월별 생산 기준)과 **의도적으로 같은 시각 문법**을 쓴다: 같은 막대색, 같은 빨간 갭 선,
+ * 차트 2(월별 생산 기준)와 **의도적으로 같은 시각 문법**을 쓴다: 같은 막대색, 같은 빨간 갭 선,
  * 같은 이중축 밴드(`gapAxis.ts`). 두 차트가 같은 질문("재고가 쌓이는가")에 다른 소스로 답하므로
  * 형태가 같아야 눈으로 대조된다.
  *
