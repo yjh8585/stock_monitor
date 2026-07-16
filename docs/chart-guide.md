@@ -79,10 +79,11 @@
 | plan       | `LongtermRevenueChart`                                                                                                     | 세로 그룹 막대 3계열(억원) + 기준 드롭다운. 값 전무 계열 자동 제외, 범례 `LegendRow`+`useHiddenSeries` 토글(기본 '한세 전망'만 ON), 색 `MGMT_BAR_COLORS`, 라벨 `MGMT_DATA_LABEL_STYLE` |
 | plan       | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)                                                                                                                                           |
 | plan       | `OrderFunnelChart`                                                                                                         | 퍼널                                                                                                                                                                                   |
-| stellantis | `StellantisGapChart`                                                                                                       | 콤보(북미 출하·소매 막대 + 재고 증감 라인). **선이 음수 가능** → §4-F 일반화 domain + 0선 `ReferenceLine`. 차분 도출 출하는 `Cell`+빗금(`chartHatch.tsx`)                              |
-| stellantis | `StellantisRevenueVsRetailChart`                                                                                           | 콤보(자사 매출 막대 + 소매 라인, 시차 정렬). §4-F 표준 domain. 결측 구간 `connectNulls={false}`                                                                                        |
-| stellantis | `StellantisUnitRevenueChart`                                                                                               | 라인(대당 매출 원단위) + 평균 `ReferenceLine`. Y축 0 기준(`Y_AXIS_PADDED_DOMAIN`)이라 "평평한가"가 정직하게 읽힘. 부제에 변동계수(CV)                                                  |
-| stellantis | `StellantisForecastChart`                                                                                                  | 막대(실적 + 시나리오 3종). **전망은 빗금**으로 구분(색 변경 대신 — 파란 계열 규칙 유지), 데이터 라벨은 실적 막대에만(전망은 1칸 3막대라 겹침), 가정 문장은 차트 하단 목록              |
+| stellantis | `StellantisMonthlyFlowChart`                                                                                               | 콤보(**월별** 북미 생산·소매 막대 + 갭 라인). 밀도 대응: `dot={false}`+`activeDot`(월 77개에 점 찍으면 구슬 목걸이), `minTickGap`으로 x축 라벨 자동 솎기, 라벨 없음                    |
+| stellantis | `StellantisGapChart`                                                                                                       | 콤보(**분기** 북미 출하·소매 막대 + 갭 라인). 차분 도출 출하는 `Cell`+빗금(`chartHatch.tsx`)                                                                                           |
+| stellantis | ↑ 두 차트 공용                                                                                                             | **같은 질문에 다른 소스로 답하므로 시각 문법을 공유한다**(막대색·빨간 갭 선·0선 `ReferenceLine`). 갭 축 domain은 **선이 음수 가능**해 §4-F를 일반화한 `gapAxis.ts` `bandDomain()` 공용 |
+| stellantis | `DriverAnalysisSection`                                                                                                    | 차트가 아니라 **CSS 막대**(recharts 아님). 시차별 \|r\| 프로파일을 후보 전체로 폄 — 최대값 하나만 띄우면 다중비교로 우연을 사실로 읽게 된다                                            |
+| stellantis | `InventoryOutlookSection`                                                                                                  | 차트가 아니라 **CSS 막대**. 비율 점추정 + Wilson 95% 구간 오버레이 + 50% 기준선. 분자/분모를 항상 병기 — 구간 없이 비율만 쓰면 표본 부족이 숨는다                                      |
 | inventory  | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                                                                                                                                                         |
 | personnel  | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                                                                                                                                                          |
 
@@ -226,13 +227,16 @@ const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
 > ```
 >
 > `min=0`이면 결과가 `[-1.375×max, 1.125×max]`로 위 표준 공식과 사실상 동일 — 즉 **상위집합**이라 인상이 바뀌지 않는다.
-> 구현·주석: `components/management/stellantis/StellantisGapChartInner.tsx`(재고 증감 = 출하 − 소매).
+> 구현: `components/management/stellantis/gapAxis.ts` `bandDomain(values)` — 스텔란티스 탭 차트 1·2가 **공용**한다.
+> 두 차트가 같은 질문("재고가 쌓이는가")에 다른 소스(월별 생산 / 분기 출하)로 답하므로 **축 문법이 같아야 눈으로 대조된다**.
+> 같은 상황(0을 걸치는 선)이 또 나오면 이 모듈을 재사용할 것 — 리터럴로 다시 계산하지 말 것.
 
 - 막대가 누적(스택)이면 `domain` 상한 기준 max는 **스택 합계**의 최댓값으로 잡는다(개별 시리즈 X).
 - 범례는 `LegendRow`(클릭 토글). 데이터 라벨은 막대 top / 선 marker 위(offset).
 - **밀집 차트는 데이터 라벨을 생략**한다(툴팁으로 대체). 카테고리 20개 × 막대 2개처럼 라벨이 반드시 겹치는 경우
   16px 규칙을 지켜도 판독이 안 된다 — `InventoryAchievementChart`(`showValueLabels` 옵션), `StellantisGapChart`(라벨 없음) 참고.
-- 적용 차트: `PlanAchievementChart`(달성율), `FixedVariableBep`(BEP·고정비율), `InventoryStatusChart`(회전율), `FinanceLeverageChart`(부채비율), `StellantisGapChart`(재고 증감 — 음수 가능), `StellantisRevenueVsRetailChart`(소매).
+- **월 단위 장기 시계열**(수십~수백 포인트)은 라벨뿐 아니라 **선의 dot도 끈다**(`dot={false}` + `activeDot`) — 안 그러면 선이 구슬 목걸이가 된다. x축 라벨은 고정 `interval` 대신 `minTickGap`으로 맡길 것: 데이터가 도착할수록 포인트가 늘어 고정 interval은 언젠가 반드시 겹친다(`StellantisMonthlyFlowChart` 참고).
+- 적용 차트: `PlanAchievementChart`(달성율), `FixedVariableBep`(BEP·고정비율), `InventoryStatusChart`(회전율), `FinanceLeverageChart`(부채비율), `StellantisGapChart`·`StellantisMonthlyFlowChart`(재고 증감 — 음수 가능, `gapAxis.ts` 공용).
 
 ### 4-G. 산점/버블
 

@@ -6,6 +6,8 @@
 
 `/oem` "전체" 탭은 글로벌 MarkLines 대시보드(5개 `oem_sales_group_*` 테이블) + OEM 모델 outlook. 탭 네비는 `app/oem/layout.tsx`에서 통합 관리(6탭: 전체/Stellantis USA/KG모빌리티/현대차/기아/우즈베키스탄).
 
+> **MarkLines Excel 파이프라인은 판매·생산 2개다.** 이 문서의 MarkLines 언급은 모두 **판매**(`vehicle_sales` → `oem_sales_*`, `sync_oem_excel.py`)다. **생산**(`vehicle_production` → `oem_production_model_country_month`, `sync_oem_production_excel.py`)은 `/oem/*`이 아니라 `/management/stellantis`가 쓰며, 같은 쿠키를 쓰지만 **페이지·레이아웃·country의 의미가 모두 다르다**(생산의 `country`는 **공장 국가**, 판매는 **판매 시장**). 상세 → [`Architecture.md §7`](../Architecture.md).
+
 ---
 
 ## `/oem/stellantis-na` — Stellantis NA (FCA US LLC → Stellantis)

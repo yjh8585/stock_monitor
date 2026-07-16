@@ -66,6 +66,8 @@ COLUMN_TO_TAGS = {
     'oem_sales_type_seg_month': ['oem_sales_type_seg_month'],
     'oem_sales_model_country_month': ['oem_sales_model_country_month'],
     'oem_model_outlook': ['oem_model_outlook'],
+    # MarkLines 생산량 (모델×생산국×월) — /management/stellantis 차트 1
+    'oem_production_model_country_month': ['oem_production_model_country_month'],
     # OEM 회사별 탭 (PR2~5) — 회사별 IR 차종 판매 + 4사 공통 PT 매핑
     'kg_mobility_sales': ['oem-kg-mobility-sales'],
     'hyundai_sales': ['oem-hyundai-sales'],
