@@ -1285,6 +1285,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      oem_production_model_country_month: {
+        Row: {
+          country: string;
+          model: string;
+          oem_group: string;
+          production: number;
+          year_month: number;
+        };
+        Insert: {
+          country?: string;
+          model?: string;
+          oem_group?: string;
+          production: number;
+          year_month: number;
+        };
+        Update: {
+          country?: string;
+          model?: string;
+          oem_group?: string;
+          production?: number;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
       oem_sales_group_country_month: {
         Row: {
           country: string;

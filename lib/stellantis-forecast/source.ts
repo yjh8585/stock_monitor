@@ -1,11 +1,12 @@
 /**
  * 스텔란티스 북미 매출 전망(/management/stellantis) 데이터 입구 — fetch + 'use cache'.
  *
- * 소스 4종을 한 화면에 모은다. **자사 매출만 사외비**이고 나머지 3종은 공개 데이터다:
- *  - `stellantis_shipments`      (공개) 북미 출하 — SEC EDGAR
- *  - `oem_sales_model_country_month` (공개) 북미 소매 — MarkLines
- *  - `cox_brand_inventory`       (공개) 딜러 재고일수 — Cox
- *  - `pnl_entries`               (**사외비**) 자사 Stellantis NA향 매출 → 반드시 confidentialDb
+ * 소스 5종을 한 화면에 모은다. **자사 매출만 사외비**이고 나머지 4종은 공개 데이터다:
+ *  - `oem_production_model_country_month` (공개) 북미 생산 — MarkLines
+ *  - `oem_sales_model_country_month`      (공개) 북미 소매 — MarkLines
+ *  - `stellantis_shipments`               (공개) 북미 출하 — SEC EDGAR
+ *  - `cox_brand_inventory`                (공개) 딜러 재고일수 — Cox
+ *  - `pnl_entries`                        (**사외비**) 자사 Stellantis NA향 매출 → 반드시 confidentialDb
  *
  * 집계·판정은 aggregate.ts(pure)에서 하고 여기선 fetch + 조립만 한다.
  */
@@ -15,21 +16,26 @@ import logger from '@/lib/logger';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import {
-  buildForecast,
+  analyzeDrivers,
+  attachEventContext,
   buildGapPoints,
+  buildInventoryOutlooks,
+  buildMonthlyFlow,
+  buildNaProductionMonths,
   buildNaRetailMonths,
   buildNaRetailQuarters,
-  buildRevenueVsRetail,
-  buildUnitRevenue,
-  detectLag,
+  buildProjectedGapQuarter,
   diagnose,
+  lastCompleteMonth,
   lastCompleteQuarter,
   NA_COUNTRIES,
+  quarterIndex,
   quarterLabel,
-  revenueByQuarter,
 } from './aggregate';
+import { PLANT_EVENTS } from './plant-events';
 import type {
   CoxInventoryRow,
+  ProductionMonthRow,
   RetailMonthRow,
   RevenueMonthRow,
   ShipmentRow,
@@ -46,6 +52,14 @@ const CUSTOMER_STELLANTIS_NA = 'Stellantis NA';
  * 별도는 2022-01부터 53개월 연속이라 ±6개월 시차 탐색에 필요한 표본이 나온다.
  */
 const REVENUE_BASIS = 'standalone';
+
+/**
+ * MarkLines의 스텔란티스 그룹 라벨.
+ *
+ * 2020년은 'FCA'(PSA 합병 2021-01 완료 전), 2021년부터 'Stellantis'. 둘 다 받아야 시계열이
+ * 2020년까지 이어진다. 북미 한정으로는 PSA의 생산·판매가 사실상 없어 스코프가 연속이다.
+ */
+const STELLANTIS_GROUPS = ['Stellantis', 'FCA'];
 
 /** PostgREST 페이지 크기. */
 const PAGE_SIZE = 1000;
@@ -79,7 +93,7 @@ async function fetchNaRetail(): Promise<RetailMonthRow[]> {
     const { data, error } = await supabase
       .from('oem_sales_model_country_month')
       .select('country, model, year_month, sales')
-      .in('oem_group', ['Stellantis', 'FCA'])
+      .in('oem_group', STELLANTIS_GROUPS)
       .in('country', NA_COUNTRIES as string[])
       .order('year_month', { ascending: true })
       .order('country', { ascending: true })
@@ -88,6 +102,35 @@ async function fetchNaRetail(): Promise<RetailMonthRow[]> {
     if (error) {
       logger.error({ err: error }, 'oem_sales_model_country_month 조회 실패');
       throw new Error(`MarkLines 북미 소매 조회 실패: ${error.message}`);
+    }
+    const page = data ?? [];
+    out.push(...page);
+    if (page.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
+/**
+ * MarkLines 북미 생산 — `country`가 **공장 국가**다(소매의 country와 의미가 다름).
+ *
+ * 소매와 같은 이유로 **결정적 정렬 필수**.
+ */
+async function fetchNaProduction(): Promise<ProductionMonthRow[]> {
+  const supabase = createSupabaseAnonClient();
+  const out: ProductionMonthRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('oem_production_model_country_month')
+      .select('country, model, year_month, production')
+      .in('oem_group', STELLANTIS_GROUPS)
+      .in('country', NA_COUNTRIES as string[])
+      .order('year_month', { ascending: true })
+      .order('country', { ascending: true })
+      .order('model', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) {
+      logger.error({ err: error }, 'oem_production_model_country_month 조회 실패');
+      throw new Error(`MarkLines 북미 생산 조회 실패: ${error.message}`);
     }
     const page = data ?? [];
     out.push(...page);
@@ -144,45 +187,60 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
   cacheLife('days');
   cacheTag('stellantis-shipments');
   cacheTag('oem_sales_model_country_month');
+  cacheTag('oem_production_model_country_month');
   cacheTag('cox-brand-inventory');
   cacheTag('pnl_entries');
 
-  const [shipments, retailRows, cox, revenue] = await Promise.all([
+  const [shipments, retailRows, productionRows, cox, revenue] = await Promise.all([
     fetchShipments(),
     fetchNaRetail(),
+    fetchNaProduction(),
     fetchCox(),
     fetchRevenue(),
   ]);
 
-  // 캐나다가 한 달 늦게 들어오므로 3개국이 다 찬 분기까지만 쓴다 — 안 그러면 소매 과소집계로
-  // 재고 축적을 과대평가한다(aggregate.ts lastCompleteQuarter 주석 참고).
-  const cutoff = lastCompleteQuarter(retailRows);
-  const retailQuarters = buildNaRetailQuarters(retailRows, cutoff);
-  const retailMonths = buildNaRetailMonths(retailRows);
+  // MarkLines는 국가별 도착 시점이 다르므로 3개국이 다 찬 기간까지만 쓴다 — 안 그러면
+  // 소매·생산이 과소집계돼 갭이 허구가 된다(aggregate.ts lastCompleteMonth 주석 참고).
+  const monthCutoff = lastCompleteMonth(productionRows, retailRows);
+  const quarterCutoff = lastCompleteQuarter(retailRows);
 
+  const retailMonths = buildNaRetailMonths(retailRows, monthCutoff);
+  const productionMonths = buildNaProductionMonths(productionRows, monthCutoff);
+  const retailQuarters = buildNaRetailQuarters(retailRows, quarterCutoff);
+
+  const monthlyFlow = buildMonthlyFlow(productionMonths, retailMonths);
   const gap = buildGapPoints(shipments, retailQuarters);
-  const lag = detectLag(new Map(revenue.map((r) => [r.year_month, r.revenueEok])), retailMonths);
-  const lagMonths = lag?.lagMonths ?? 0;
 
-  const revenueQuarters = revenueByQuarter(revenue);
-  const unitRevenue = buildUnitRevenue(revenueQuarters, shipments, lagMonths);
+  // 진행 중인 최신 분기(출하는 IR로 왔지만 소매가 아직 국가별로 덜 도착)를 소매 일부 추정으로
+  // 채워 차트 2에만 붙인다(사용자 결정 2026-07-16). 통계·진단은 실측 gap만 쓴다.
+  const projected = buildProjectedGapQuarter(gap, shipments, retailRows, quarterCutoff);
 
-  // 출하가 아직 없는 분기(H1/FY 보도자료 대기)가 있으면 화면에 사실대로 밝힌다.
+  // 출하가 아직 없는 분기(retail은 완비인데 shipment 미도착)가 있으면 화면에 사실대로 밝힌다.
+  // 단 **출하 era(첫 출하 분기) 이전**의 소매 분기(2020 FCA 등)는 '대기'가 아니라 스코프 밖이므로
+  // 제외한다 — 안 그러면 2020-Q4가 영영 오지 않을 출하를 기다리는 것처럼 오표시된다.
   const shipmentQuarters = new Set(shipments.map((s) => s.year_period));
+  const firstShipQuarterIndex = shipments.length
+    ? Math.min(...shipments.map((s) => quarterIndex(s.year_period)))
+    : Infinity;
   const partialQuarter = [...retailQuarters.keys()]
-    .filter((q) => !shipmentQuarters.has(q))
+    .filter((q) => !shipmentQuarters.has(q) && quarterIndex(q) >= firstShipQuarterIndex)
     .sort()
     .pop();
 
   return {
+    monthlyFlow,
     gap,
-    lag,
-    unitRevenue,
-    diagnosis: diagnose(gap, cox),
-    forecast: buildForecast(gap, unitRevenue, revenueQuarters),
+    gapProjected: projected?.point ?? null,
+    projectedNote: projected?.note ?? null,
+    drivers: analyzeDrivers(revenue, productionMonths, retailMonths, shipments),
+    outlooks: buildInventoryOutlooks(monthlyFlow, gap, revenue),
+    // 공장 이벤트는 DB가 아니라 코드 상수(수동 큐레이션) — 그래서 cacheTag가 없다.
+    // 파일이 바뀌면 배포가 캐시를 갈아치우므로 별도 무효화 경로가 필요 없다.
+    events: attachEventContext(PLANT_EVENTS, monthlyFlow),
+    diagnosis: diagnose(gap, monthlyFlow, cox),
     cox,
-    revenueVsRetail: buildRevenueVsRetail(revenue, retailMonths, lagMonths),
-    lastCompleteQuarter: cutoff,
+    lastCompleteMonth: monthCutoff,
+    lastCompleteQuarter: quarterCutoff,
     partialQuarterNote: partialQuarter
       ? `${quarterLabel(partialQuarter)} 출하는 스텔란티스 반기·연간 보도자료 공시 후 반영됩니다(분기 실적 발표는 Q1·H1·Q3·FY 4회만).`
       : null,

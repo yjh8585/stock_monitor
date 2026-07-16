@@ -262,6 +262,32 @@ def derive_year_quarters(
   return valid
 
 
+def existing_direct_quarters() -> set[str]:
+  """DB에 이미 **실측(is_derived=false)**으로 채워진 북미 분기 집합.
+
+  IR 홈페이지 수집(`collect_stellantis_shipments_ir.py`)이 2026+ 분기를 IR 표의 **절대값**으로
+  채우면(더 정확·더 이르다), 이 EDGAR 차분 수집이 같은 분기를 나중에 is_derived=true로 **덮지
+  않도록** 하기 위한 가드다(사용자 지시 2026-07-16: stellantis.com IR이 primary, EDGAR는 보완).
+
+  조회 실패 시 빈 집합을 돌려주어 가드 없이 진행한다(수집 자체를 막지 않는다).
+  """
+  from lib.db import get_client
+  try:
+    resp = (
+      get_client()
+      .table(DB_TABLE)
+      .select('year_period')
+      .eq('region', REGION_NORTH_AMERICA)
+      .eq('period_type', PERIOD_TYPE_QUARTER)
+      .eq('is_derived', False)
+      .execute()
+    )
+    return {row['year_period'] for row in (resp.data or [])}
+  except Exception as e:
+    logger.warning(f'  기존 실측 분기 조회 실패 — IR 우선 가드 없이 진행: {e}')
+    return set()
+
+
 def build_db_rows(
   quarters: list[dict[str, Any]], sources: dict[str, tuple[str, str]],
 ) -> list[dict[str, Any]]:
@@ -401,6 +427,16 @@ def main() -> int:
   for year in sorted(values):
     quarters = derive_year_quarters(values[year], year)
     all_rows.extend(build_db_rows(quarters, per_year_sources[year]))
+
+  # IR 홈페이지가 이미 실측으로 채운 분기를 차분 도출값으로 덮지 않는다(IR primary).
+  direct = existing_direct_quarters()
+  skipped = [r for r in all_rows if r['is_derived'] and r['year_period'] in direct]
+  if skipped:
+    all_rows = [r for r in all_rows if not (r['is_derived'] and r['year_period'] in direct)]
+    logger.info(
+      f'IR 실측값 보존 — 차분 도출 {len(skipped)}행 스킵: '
+      f'{[r["year_period"] for r in skipped]}'
+    )
 
   # 요약 — 분기별 천대 + 도출 여부
   logger.info(f'적재 대상 {len(all_rows)}행:')
