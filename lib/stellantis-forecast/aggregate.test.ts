@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addMonths,
   attachEventContext,
+  buildCoxInventoryEvents,
   buildGapPoints,
   buildInventoryKpi,
   buildMonthlyFlow,
@@ -23,6 +24,7 @@ import {
   quarterOfYearMonth,
 } from './aggregate';
 import type {
+  CoxInventoryRow,
   GapPoint,
   MonthlyFlowPoint,
   PlantEvent,
@@ -30,6 +32,21 @@ import type {
   RetailMonthRow,
   ShipmentRow,
 } from './types';
+
+function cox(
+  brand: string,
+  yearMonth: number,
+  daysSupply: number | null,
+  isOutlierExcluded = false
+): CoxInventoryRow {
+  return {
+    brand,
+    year_month: yearMonth,
+    days_supply: daysSupply,
+    is_outlier_excluded: isOutlierExcluded,
+    source_url: 'https://www.coxautoinc.com/insights/example/',
+  };
+}
 
 function retail(
   country: string,
@@ -348,6 +365,77 @@ describe('buildMonthlyFlow', () => {
     const out = buildMonthlyFlow(production, retailMap);
     expect(out.map((p) => p.yearMonth)).toEqual([202512, 202601, 202602]);
     expect(out.map((p) => p.cumGap)).toEqual([0, 100, 300]);
+  });
+
+  it('minMonth 이전 월은 누적 전에 잘라 낸다 — cumGap이 시작월부터 새로 계산된다', () => {
+    const production = new Map([
+      [202011, 500], // 2020 — 잘려야 함
+      [202012, 500], // 2020 — 잘려야 함
+      [202101, 300],
+      [202102, 400],
+    ]);
+    const retailMap = new Map([
+      [202011, 100],
+      [202012, 100],
+      [202101, 250],
+      [202102, 300],
+    ]);
+    const out = buildMonthlyFlow(production, retailMap, 202101);
+    expect(out.map((p) => p.yearMonth)).toEqual([202101, 202102]);
+    // 2020년 갭(각 +400)이 cumGap에 스며들지 않고 2021.01부터 새로 누적된다.
+    expect(out[0].cumGap).toBe(50);
+    expect(out[1].cumGap).toBe(150);
+  });
+});
+
+describe('buildCoxInventoryEvents — Cox 재고일수 → 재고 이벤트 자동 생성', () => {
+  it('월별로 스텔란티스 브랜드 + NATION을 요약한 inventory 이벤트를 만든다', () => {
+    const rows = [
+      cox('Jeep', 202605, 145),
+      cox('Ram', 202605, 144),
+      cox('Dodge', 202605, 148),
+      cox('Chrysler', 202605, 129),
+      cox('NATION', 202605, 76),
+      cox('Toyota', 202605, 30), // 스텔란티스 밖 브랜드는 무시
+    ];
+    const out = buildCoxInventoryEvents(rows);
+    expect(out).toHaveLength(1);
+    expect(out[0].eventType).toBe('inventory');
+    expect(out[0].startYearMonth).toBe(202605);
+    expect(out[0].sourceName).toBe('Cox Automotive');
+    expect(out[0].summary).toContain('Jeep 145일');
+    expect(out[0].summary).toContain('업계 평균 76일');
+    // 스텔란티스 4개 브랜드만 models에
+    expect(out[0].models).toEqual(['Jeep', 'Ram', 'Dodge', 'Chrysler']);
+  });
+
+  it('excludeMonths에 든 달은 건너뛴다 (수동 항목 우선)', () => {
+    const rows = [
+      cox('Jeep', 202512, 130),
+      cox('Ram', 202512, 115),
+      cox('Jeep', 202601, 165),
+      cox('Ram', 202601, 155),
+    ];
+    const out = buildCoxInventoryEvents(rows, new Set([202512]));
+    expect(out.map((e) => e.startYearMonth)).toEqual([202601]);
+  });
+
+  it('outlier 제외 브랜드(days_supply null)는 수치 대신 제외 사실만 남긴다', () => {
+    const rows = [
+      cox('Jeep', 202603, 127),
+      cox('Chrysler', 202603, null, true),
+      cox('NATION', 202603, 79),
+    ];
+    const out = buildCoxInventoryEvents(rows);
+    expect(out[0].summary).toContain('Jeep 127일');
+    expect(out[0].summary).not.toContain('Chrysler 12'); // 수치 없음
+    expect(out[0].summary).toContain('Cox 차트에서 제외');
+    expect(out[0].models).toEqual(['Jeep', 'Chrysler']); // 존재는 하므로 models엔 포함
+  });
+
+  it('스텔란티스 브랜드가 하나도 없는 달은 이벤트를 만들지 않는다', () => {
+    const out = buildCoxInventoryEvents([cox('NATION', 202605, 76), cox('Toyota', 202605, 30)]);
+    expect(out).toHaveLength(0);
   });
 });
 

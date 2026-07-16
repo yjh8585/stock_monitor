@@ -17,6 +17,7 @@ import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import {
   attachEventContext,
+  buildCoxInventoryEvents,
   buildGapPoints,
   buildInventoryKpi,
   buildMonthlyFlow,
@@ -27,6 +28,7 @@ import {
   buildRetailKpi,
   buildRevenueKpi,
   buildShipmentsKpi,
+  CHART_START_MONTH,
   lastCompleteMonth,
   lastCompleteQuarter,
   NA_COUNTRIES,
@@ -35,6 +37,7 @@ import {
 } from './aggregate';
 import { PLANT_EVENTS } from './plant-events';
 import type {
+  CoxInventoryRow,
   ProductionMonthRow,
   RetailMonthRow,
   RevenueMonthRow,
@@ -166,19 +169,41 @@ async function fetchRevenue(): Promise<RevenueMonthRow[]> {
     .map(([year_month, revenueEok]) => ({ year_month, revenueEok }));
 }
 
+/**
+ * Cox 브랜드별 미국 딜러 재고일수 (공개) — 공장 동향의 '재고' 이벤트 자동 생성용.
+ *
+ * 스텔란티스 4개 브랜드 + NATION(업계 평균)만 받는다(≈수십 행 → 페이지네이션 불필요).
+ */
+async function fetchCoxInventory(): Promise<CoxInventoryRow[]> {
+  const supabase = createSupabaseAnonClient();
+  const { data, error } = await supabase
+    .from('cox_brand_inventory')
+    .select('brand, year_month, days_supply, is_outlier_excluded, source_url')
+    .in('brand', ['Jeep', 'Ram', 'Dodge', 'Chrysler', 'NATION'])
+    .order('year_month', { ascending: true })
+    .order('brand', { ascending: true });
+  if (error) {
+    logger.error({ err: error }, 'cox_brand_inventory 조회 실패');
+    throw new Error(`Cox 재고일수 조회 실패: ${error.message}`);
+  }
+  return data ?? [];
+}
+
 export async function getStellantisForecastData(): Promise<StellantisForecastData> {
   'use cache';
   cacheLife('days');
   cacheTag('stellantis-shipments');
   cacheTag('oem_sales_model_country_month');
   cacheTag('oem_production_model_country_month');
+  cacheTag('cox_brand_inventory');
   cacheTag('pnl_entries');
 
-  const [shipments, retailRows, productionRows, revenue] = await Promise.all([
+  const [shipments, retailRows, productionRows, revenue, coxRows] = await Promise.all([
     fetchShipments(),
     fetchNaRetail(),
     fetchNaProduction(),
     fetchRevenue(),
+    fetchCoxInventory(),
   ]);
 
   // MarkLines는 국가별 도착 시점이 다르므로 3개국이 다 찬 기간까지만 쓴다 — 안 그러면
@@ -190,8 +215,16 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
   const productionMonths = buildNaProductionMonths(productionRows, monthCutoff);
   const retailQuarters = buildNaRetailQuarters(retailRows, quarterCutoff);
 
-  const monthlyFlow = buildMonthlyFlow(productionMonths, retailMonths);
+  // 차트 2는 차트 1(분기 출하, 2021-Q1~)과 시작 연도를 맞춰 2021.01부터 그린다(사용자 지시 2026-07-17).
+  const monthlyFlow = buildMonthlyFlow(productionMonths, retailMonths, CHART_START_MONTH);
   const gap = buildGapPoints(shipments, retailQuarters);
+
+  // 공장 동향의 '재고' 이벤트는 Cox 재고일수에서 자동 생성한다(사용자 지시 2026-07-17 — 재고만 자동).
+  // 수동 큐레이션 '재고'(inventory) 항목이 이미 있는 달은 자동 생성을 건너뛴다(수동 우선, 중복 방지).
+  const manualInventoryMonths = new Set(
+    PLANT_EVENTS.filter((e) => e.eventType === 'inventory').map((e) => e.startYearMonth)
+  );
+  const coxInventoryEvents = buildCoxInventoryEvents(coxRows, manualInventoryMonths);
 
   // 진행 중인 최신 분기(출하는 IR로 왔지만 소매가 아직 국가별로 덜 도착)를 소매 일부 추정으로
   // 채워 차트 1에만 붙인다(사용자 결정 2026-07-16). KPI 신호등은 최신 신호 반영 위해 이 계열을 쓴다.
@@ -223,9 +256,9 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
       buildRevenueKpi(revenue),
     ],
     kpiInventory: buildInventoryKpi(gapForKpi),
-    // 공장 이벤트는 DB가 아니라 코드 상수(수동 큐레이션) — 그래서 cacheTag가 없다.
-    // 파일이 바뀌면 배포가 캐시를 갈아치우므로 별도 무효화 경로가 필요 없다.
-    events: attachEventContext(PLANT_EVENTS, monthlyFlow),
+    // 공장 이벤트는 코드 상수(수동 큐레이션)이고, '재고'(딜러 재고일수)는 Cox DB에서 자동 생성한다.
+    // 둘을 합쳐 재고 국면 컨텍스트를 붙인다(최신순 정렬은 attachEventContext가 담당).
+    events: attachEventContext([...PLANT_EVENTS, ...coxInventoryEvents], monthlyFlow),
     lastCompleteMonth: monthCutoff,
     lastCompleteQuarter: quarterCutoff,
     partialQuarterNote: partialQuarter

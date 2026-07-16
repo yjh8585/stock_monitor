@@ -37,7 +37,10 @@ import type { PlantEvent } from './types';
  * - `closure` — 공장 폐쇄(현재 해당 항목 없음 — 유휴 공장도 폐쇄가 아닌 `operational pause`).
  * - `restart` — 중단됐던 가동의 재개, 또는 감축 조치의 철회·복귀.
  * - `production_add` — 신규 물량·라인·엔진 투입으로 생산이 실제로 늘어나는 조치.
- * - `other` — 위에 안 맞는 것(가이던스 수정, 딜러 재고 지표, 발언·검토 단계, 출시 연기 등).
+ * - `inventory` — 공장이 아니라 **미국 딜러 네트워크의 재고 지표**(Cox 재고일수 등). 화면에서
+ *   '재고'로 분류되고 음영으로 강조된다. Cox 자동 수집분(`buildCoxInventoryEvents`)과 여기
+ *   수동 항목이 같은 유형을 공유하되, 같은 달이 겹치면 수동을 우선한다(source.ts에서 제외).
+ * - `other` — 위에 안 맞는 것(가이던스 수정, 발언·검토 단계, 출시 연기 등).
  *
  * ## 읽을 때 주의
  * - `plant`가 "미국 딜러 네트워크"인 항목은 **공장이 아니다**. Cox 집계 딜러 재고일수처럼
@@ -313,7 +316,7 @@ export const PLANT_EVENTS: PlantEvent[] = [
     country: 'USA',
     startYearMonth: 202412,
     endYearMonth: 202412,
-    eventType: 'other',
+    eventType: 'inventory',
     models: ['Jeep', 'Ram', 'Dodge', 'Chrysler'],
     summary:
       '2024-12-31 기준 미국 딜러 재고가 전년 대비 20% 감소한 30.4만 대로 떨어져, 2024년 9월에 제시한 "연말까지 33만 대 이하" 재고 정상화 목표를 초과 달성했다.',
@@ -346,7 +349,7 @@ export const PLANT_EVENTS: PlantEvent[] = [
     country: 'USA',
     startYearMonth: 202501,
     endYearMonth: 202501,
-    eventType: 'other',
+    eventType: 'inventory',
     models: ['Dodge', 'Jeep', 'Ram', 'Chrysler'],
     summary:
       '2025-01-06 기준 재고일수는 Dodge 122일·Jeep 114일·Ram 107일·Chrysler 79일로 2024년 말 대비 개선됐으나, 12월 업계 평균 75일을 여전히 크게 웃돌았다. Ram은 다른 3개 브랜드와 달리 전년비 개선이 사실상 없었다.',
@@ -699,7 +702,7 @@ export const PLANT_EVENTS: PlantEvent[] = [
     country: 'USA',
     startYearMonth: 202512,
     endYearMonth: 202512,
-    eventType: 'other',
+    eventType: 'inventory',
     models: ['Jeep', 'Ram', 'Chrysler', 'Dodge'],
     summary:
       '2025년 말 기준 Jeep 약 130일·Ram 약 115일로 업계 평균 76일(총 277만 대)을 크게 상회했다. 다만 업계 전체 재고일수는 92일→76일로 급감하는 국면이었으므로 과잉은 스텔란티스 브랜드에 국한된 현상이며, Chrysler는 Cox 제외 기준상 "152일 초과"라는 하한만 도출 가능하다.',
@@ -835,7 +838,7 @@ export const PLANT_EVENTS: PlantEvent[] = [
     country: 'USA',
     startYearMonth: 202603,
     endYearMonth: 202603,
-    eventType: 'other',
+    eventType: 'inventory',
     models: ['Chrysler', 'Dodge', 'Ram', 'Jeep'],
     summary:
       '2026년 3월 말 재고일수는 Dodge 140일·Ram 138일·Jeep 127일로 업계 평균 79일을 크게 상회했다(총 재고 289만 대). Chrysler는 업계 평균의 2배인 158일을 초과해 Cox가 차트에서 제외 — 158은 제외 임계치일 뿐 Chrysler의 실제 수치는 미공개다.',
@@ -950,7 +953,7 @@ export const PLANT_EVENTS: PlantEvent[] = [
     country: 'USA',
     startYearMonth: 202606,
     endYearMonth: 202607,
-    eventType: 'other',
+    eventType: 'inventory',
     models: ['Jeep', 'Ram', 'Chrysler', 'Dodge'],
     summary:
       '2026년 6월 미국 딜러 재고가 93 판매일수·전년 대비 약 12만 대 증가로 쌓였고(북미 출하 44.5만 대 +38% YoY vs 미국 판매 +6%), HSBC는 2024년과 같은 대규모 가격 인하·생산 감축을 반복해야 할 수 있다며 투자의견을 Reduce로 하향했다(목표가 EUR 5.50→4.00). "OEM 중 재고 증가율 최고"는 HSBC가 아니라 CarGurus 2026년 5월 리포트 기준이다.',
