@@ -8,8 +8,8 @@
  *  - **재고(days' supply)**: 딜러 보유 재고를 일평균 판매로 나눈 일수. Cox, 브랜드별 월간.
  *
  * 두 항등식을 나란히 본다:
- *  - **출하 − 소매 = 딜러 재고 증감** (정확. 단 분기·최신 분기 공백)  → 차트 2
- *  - **생산 − 소매 ≈ 파이프라인 재고 증감** (근사. 월별·즉시)        → 차트 1
+ *  - **출하 − 소매 = 딜러 재고 증감** (정확. 단 분기·최신 분기 공백)  → 차트 1
+ *  - **생산 − 소매 ≈ 파이프라인 재고 증감** (근사. 월별·즉시)        → 차트 2
  * 둘이 같은 방향을 가리키면 신뢰도가 올라가고, 어긋나면 그 사실 자체가 경고다.
  */
 
@@ -64,7 +64,7 @@ export interface CoxInventoryRow {
   source_url: string | null;
 }
 
-/** 차트 2 — 분기 출하 vs 소매 vs 재고 증감. 단위 = 대. */
+/** 차트 1 — 분기 출하 vs 소매 vs 재고 증감. 단위 = 대. */
 export interface GapPoint {
   /** 'YYYY-QN' */
   yearPeriod: string;
@@ -88,7 +88,7 @@ export interface GapPoint {
   isEstimated?: boolean;
 }
 
-/** 차트 1 — 월별 생산 vs 소매 vs 갭. 단위 = 대. MarkLines 단일 소스. */
+/** 차트 2 — 월별 생산 vs 소매 vs 갭. 단위 = 대. MarkLines 단일 소스. */
 export interface MonthlyFlowPoint {
   yearMonth: number;
   /** '25.03' 형태 표시 라벨 */
