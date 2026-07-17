@@ -29,6 +29,7 @@ import yfinance as yf  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 from lib.db import WriteSession  # noqa: E402
+from lib.fnguide_guard import is_fnguide_fallback  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 # 사용자 정책: Haiku 4.5 (비용 절감)
@@ -57,6 +58,10 @@ def fetch_fnguide_summary(page, ticker: str) -> str | None:
         page.goto(url, timeout=30_000)
         page.wait_for_load_state('networkidle', timeout=20_000)
         page.wait_for_timeout(2500)
+        # 페이지 신원: 로그인 없는 세션은 fnguide가 기본 페이지(삼성전자)를 반환할 수 있다.
+        gi_name = page.evaluate(
+            "() => (document.querySelector('#giName')?.innerText || '').trim()"
+        )
         items = page.evaluate("""
             () => Array.from(
                 document.querySelectorAll('ul#bizSummaryContent li')
@@ -64,7 +69,11 @@ def fetch_fnguide_summary(page, ticker: str) -> str | None:
         """)
         if not items:
             return None
-        return ' '.join(items)
+        text = ' '.join(items)
+        if is_fnguide_fallback(text, ticker, gi_name):
+            logger.warning(f'fnguide {ticker}: 폴백 페이지(삼성전자 기본) 감지 — 저장 skip')
+            return None
+        return text
     except Exception as e:
         logger.debug(f'fnguide {ticker} 실패: {e}')
         return None

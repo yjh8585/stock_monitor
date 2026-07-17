@@ -109,3 +109,6 @@ review/*-prompt.md
 
 # Playwright MCP 산출물
 .playwright-mcp/
+
+# Python 테스트 캐시
+.pytest_cache/
