@@ -31,12 +31,12 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import WriteSession, upsert_rows
 from collect_dart_audit import (
-  ACCT_TO_DB,
   MILLION,
   _fetch_tables,
   _get_audit_rcpt,
   _get_dart,
   _get_main_doc_url,
+  _match_acct,
   _parse_financial_tables,
   _target_years,
 )
@@ -103,7 +103,10 @@ def _try_finstate_all(odr, corp_code: str, year: int, fs_div: str) -> dict[str, 
   result: dict[str, dict[str, float | None]] = {}
   for _, r in df.iterrows():
     acc_nm = str(r.get('account_nm', '')).strip()
-    db_col = next((v for k, v in ACCT_TO_DB.items() if k in acc_nm), None)
+    # _match_acct: 정확일치 우선 + ACCT_REJECT('매출채권'·'매출총이익' 등 함정계정 거부).
+    # 과거 부분문자열 매칭(if k in acc_nm)은 짧은 키 '매출'이 '매출채권'을 잡아
+    # 매출채권(외상매출금)을 revenue로 오적재했다. audit-HTML 경로와 동일 매퍼 사용.
+    db_col = _match_acct(acc_nm)
     if not db_col or db_col in result:
       continue
     curr_raw = r.get('thstrm_amount')

@@ -169,6 +169,41 @@ def _normalize_corp_name(name: str) -> str:
   return re.sub(r'\s+', '', s).strip()
 
 
+def _name_contains_match(corp_norm: str, target_norm: str) -> bool:
+  """정규화된 DART corp명(corp_norm)과 우리 회사명(target_norm)의 부분일치 여부.
+
+  방향별로 위험도가 다르다:
+    - target_norm(우리 전체 이름)이 corp_norm에 포함 → 안전(우리 이름이 더 긴 corp명의 부분).
+      허용.
+    - corp_norm(DART의 짧은 이름)이 target_norm에 포함 → 오매칭 위험. 과거 길이가드가 없어
+      '워트' in '한국파워트레인', '지디' in '인지디스플레이'가 참이 되어 엉뚱한 상장사로
+      해소됐다. 최소 3자 + 우리 이름 길이의 50% 이상 + 접두/접미 경계일 때만 허용
+      (중간 부분문자열 매칭 차단).
+  """
+  if not corp_norm or not target_norm:
+    return False
+  if target_norm in corp_norm:
+    return True
+  if corp_norm in target_norm:
+    return (
+      len(corp_norm) >= 3
+      and len(corp_norm) >= len(target_norm) * 0.5
+      and (target_norm.startswith(corp_norm) or target_norm.endswith(corp_norm))
+    )
+  return False
+
+
+def _corp_name_for_code(dart, corp_code: str) -> str | None:
+  """corp_code로 DART corp_name을 역조회한다(자동캐시 전 완전일치 재검증용)."""
+  codes = getattr(dart, 'corp_codes', None)
+  if codes is None or codes.empty:
+    return None
+  hit = codes[codes['corp_code'].astype(str) == str(corp_code)]
+  if hit.empty:
+    return None
+  return str(hit.iloc[0].get('corp_name') or '')
+
+
 def _ascii_part(s: str) -> str:
   """문자열에서 ASCII 영문/숫자만 추출(소문자화). 영문/한글 혼용 매칭용.
 
@@ -789,9 +824,9 @@ def _resolve_corp_code_impl(dart, name: str, db_corp_code: str | None) -> str | 
     import pandas as _pd
     mask = _pd.Series(False, index=codes.index)
     for k in keys:
-      mask = mask | norms.str.contains(re.escape(k), na=False) | norms.apply(
-        lambda x, _k=k: _k in x or (x and x in _k)
-      )
+      # _name_contains_match: 짧은 corp명이 우리 이름 중간에 박혀 오매칭되는 것 차단
+      # (예: '워트' in '한국파워트레인', '지디' in '인지디스플레이'). 안전 방향은 그대로 허용.
+      mask = mask | norms.apply(lambda x, _k=k: _name_contains_match(x, _k))
     candidates = codes[mask]
     if not candidates.empty:
       suffix = f' (영문→한글: {target_eng2kor!r})' if len(keys) > 1 else ''
@@ -971,11 +1006,25 @@ def collectDartAudit() -> None:
     # DB에 corp_code 미저장이면 자동 매핑 결과를 SET — 다음 run에서 resolve 과정 skip.
     # 신규 회사가 onboard 없이 등록돼도 첫 GHA run 이후 DB에 corp_code 채워짐.
     if not db_corp_code:
-      try:
-        get_client().table('companies').update({'dart_corp_code': corp_code}).eq('id', company_id).execute()
-        logger.debug(f'  → DB dart_corp_code SET: {corp_code}')
-      except Exception as e:
-        logger.warning(f'  → DB SET 실패: {e}')
+      # 부분/ascii/음역 매칭 결과는 자동 캐시 금지 — 완전일치(원본 또는 영문→한글 음역)만 SET.
+      # 과거엔 검증 없이 캐시해 오배정 corp_code(워트→한국파워트레인 등)가 영구화됐다.
+      cn = _corp_name_for_code(dart, corp_code)
+      cn_norm = _normalize_corp_name(cn or '')
+      exact_targets = {
+        _normalize_corp_name(name),
+        _normalize_corp_name(_ascii_to_korean(name)),
+      }
+      if cn_norm and cn_norm in exact_targets:
+        try:
+          get_client().table('companies').update({'dart_corp_code': corp_code}).eq('id', company_id).execute()
+          logger.debug(f'  → DB dart_corp_code SET: {corp_code}')
+        except Exception as e:
+          logger.warning(f'  → DB SET 실패: {e}')
+      else:
+        logger.warning(
+          f'  → {name}: 부분매칭 corp_code={corp_code}({cn}) 자동캐시 skip '
+          f'(오배정 방지 — 필요 시 manual_dart_mapping.json에 수동 등록)'
+        )
     # `with ThreadPoolExecutor`는 __exit__에서 wait=True라 백그라운드 thread가
     # SSL 핸드셰이크에서 hang하면 무한 대기 → 다음 회사로 못 넘어감. 명시적
     # shutdown(wait=False)로 thread leak 허용하되 메인 흐름은 즉시 진행.

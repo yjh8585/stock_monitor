@@ -13,6 +13,10 @@ next-env.d.ts
 # 패키지
 node_modules/
 
+# Python 테스트 캐시 (pytest 실행 시 생성)
+.pytest_cache/
+scripts/**/__pycache__/
+
 # 참고 자료 (크롤링 원본 등)
 참고/
 

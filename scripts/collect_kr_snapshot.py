@@ -21,6 +21,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.companies import get_kr_companies
 from lib.db import get_client
+from lib.fnguide_guard import is_fnguide_fallback
 
 # ──────────────────────────────────────────────
 # 상수
@@ -104,6 +105,13 @@ def _scrape_company(page, ticker: str, company_id: str) -> None:
     return
 
   summary = _parse_business_summary(page)
+  # 페이지 신원: 로그인 없는 세션에서 fnguide가 기본 페이지(삼성전자)를 반환하는 폴백 차단.
+  gi_name = page.evaluate(
+    "() => (document.querySelector('#giName')?.innerText || '').trim()"
+  )
+  if summary and is_fnguide_fallback(summary, ticker, gi_name):
+    logger.warning(f"KR {ticker}: 폴백 페이지(삼성전자 기본) 감지 — 저장 skip")
+    summary = None
   _update_business_summary(company_id, summary)
   logger.info(f"KR {ticker}: business_summary={'OK' if summary else '미수집'}")
 
