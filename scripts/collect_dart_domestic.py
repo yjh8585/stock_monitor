@@ -67,15 +67,28 @@ def _load_force_set() -> set[str]:
   return {t.strip() for t in raw.split(',') if t.strip()}
 
 
-def _resolve_corp_code(odr, name_kr: str, ticker: str, manual: dict[str, str]) -> str | None:
-  """find_corp_code 시도 → 실패 시 수동 매핑 룩업."""
+def _resolve_corp_code(
+  odr, name_kr: str, ticker: str, manual: dict[str, str], db_corp: str | None = None
+) -> str | None:
+  """corp_code 해석 — 동명이인 방어 순서: DB 확정값 > 수동 매핑 > find_corp_code(이름).
+
+  find_corp_code(name)는 동명 회사를 첫 매칭으로 반환해 오배정 위험이 크므로,
+  이미 DB(dart_corp_code)나 수동 매핑에 확정 corp가 있으면 이름 재해석을 하지 않는다.
+  (과거: 매번 이름으로 재해석해 다스·삼송 등 비상장 동명이인이 재수집마다 오배정됐다.
+  상세 → 메모리 project_domestic_data_contamination_2026_07_17.)
+  """
+  if db_corp and str(db_corp).strip():
+    return str(db_corp).strip()
+  manual_hit = manual.get(ticker) or manual.get(name_kr)
+  if manual_hit:
+    return str(manual_hit)
   try:
     code = odr.find_corp_code(name_kr)
     if code:
       return str(code)
   except Exception as e:
     logger.debug(f'find_corp_code 실패 ({name_kr}): {e}')
-  return manual.get(ticker) or manual.get(name_kr)
+  return None
 
 
 def _resolve_corp_name(odr, corp_code: str) -> str | None:
@@ -131,9 +144,13 @@ def _collect_year(odr, corp_code: str, year: int) -> tuple[dict[str, dict[str, f
   """1회계연도 재무 수집. 우선순위: 결산감사 HTML(CFS) > finstate_all(CFS) > finstate_all(OFS).
   반환: (parsed dict, source 라벨). 데이터 없으면 ({}, '')."""
   try:
-    rcpt = _get_audit_rcpt(odr, corp_code, year)
-    if rcpt:
-      url = _get_main_doc_url(odr, rcpt)
+    # _get_audit_rcpt는 (rcept_no, report_nm, is_consolidated) 튜플을 반환한다.
+    # 과거 이 튜플을 통째로 _get_main_doc_url(rcpt_no:str)에 넘겨 sub_docs가
+    # 'tuple' object has no attribute 'isdecimal'로 죽으면서 결산감사 HTML 경로가
+    # 항상 실패했다(비상장 재수집 불가 원인). rcept_no만 넘긴다.
+    rcpt_no, _report_nm, _is_consolidated = _get_audit_rcpt(odr, corp_code, year)
+    if rcpt_no:
+      url = _get_main_doc_url(odr, rcpt_no)
       if url:
         tables = _fetch_tables(url)
         parsed = _parse_financial_tables(tables) if tables else {}
@@ -247,7 +264,7 @@ def _collect_dart_domestic_in_session(w, odr, manual: dict[str, str]) -> None:
   resp = (
     w.table('companies')
     .select(
-      'id,ticker,name_kr,status,dart_collection_status,retry_after,'
+      'id,ticker,name_kr,status,dart_corp_code,dart_collection_status,retry_after,'
       'company_pages!inner(page)'
     )
     .eq('status', 'active')
@@ -300,7 +317,7 @@ def _collect_dart_domestic_in_session(w, odr, manual: dict[str, str]) -> None:
     name: str = c['name_kr']
 
     try:
-      corp_code = _resolve_corp_code(odr, name, ticker, manual)
+      corp_code = _resolve_corp_code(odr, name, ticker, manual, c.get('dart_corp_code'))
       if not corp_code:
         logger.warning(f'[{idx}/{len(pending)}] [{ticker}] {name}: DART_NO_MATCH')
         _flush_company(w, cid, [], None, ('no_match', 'DART_NO_MATCH'))
