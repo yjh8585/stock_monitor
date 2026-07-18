@@ -87,6 +87,7 @@
   - 시가총액, 기업개요, 대주주/주주구분, 신용등급(CP/Bond) 수집
 - [x] `scripts/collect_financials.py` — fnguide 재무제표·투자지표로 교체
   - GoMenu('103') 재무제표, GoMenu('105') 투자지표 수집
+  - ⚠️ 2026-07: fnguide 레이아웃 변경(Snapshot fallback·통합표)으로 재작성 → `SVD_Finance.asp`/`SVD_Invest.asp` 직접 URL + 구조 변경 감지 가드. 상세 → AGENTS.md `collect_financials.py`
 - [ ] 스크립트 실행 테스트 및 데이터 정합성 확인
 
 ---
