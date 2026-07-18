@@ -185,6 +185,7 @@ def _collect_dart_audit_single(w, c: dict) -> list[dict]:
     from collect_dart_audit import (
       _collect_company,
       _get_dart,
+      _identity_verdict_for_code,
       _resolve_corp_code,
       _target_years,
     )
@@ -192,18 +193,33 @@ def _collect_dart_audit_single(w, c: dict) -> list[dict]:
     if not odr:
       return []
     cached_code = c.get('dart_corp_code')
-    corp_code = _resolve_corp_code(odr, c['name_kr'], cached_code)
+    profile = {
+      'ticker': c.get('ticker'),
+      'name_kr': c.get('name_kr'),
+      'data_source': c.get('data_source'),
+      'market': c.get('market'),
+      'homepage_url': c.get('homepage_url'),
+    }
+    corp_code = _resolve_corp_code(odr, c['name_kr'], cached_code, profile)
     if not corp_code:
       return []
-    # 새로 resolve된 경우 companies에 캐싱 — 다음 호출은 lookup skip.
+    # 새로 resolve된 경우 companies에 캐싱 — 단, 개체 확증(confirm)일 때만.
+    # 무검증 캐싱은 동명이인 오배정 corp_code를 영구화한다(과거 워트/지디).
     if not cached_code:
-      try:
-        w.table('companies').update(
-          {'dart_corp_code': str(corp_code)}
-        ).eq('id', c['id']).execute()
-        logger.info(f"  dart_corp_code 캐싱: {c['name_kr']} → {corp_code}")
-      except Exception as e:
-        logger.warning(f"  dart_corp_code 캐싱 실패 ({c['name_kr']}): {e}")
+      verdict = _identity_verdict_for_code(str(corp_code), profile)
+      if verdict == 'confirm':
+        try:
+          w.table('companies').update(
+            {'dart_corp_code': str(corp_code)}
+          ).eq('id', c['id']).execute()
+          logger.info(f"  dart_corp_code 캐싱: {c['name_kr']} → {corp_code} (개체확증)")
+        except Exception as e:
+          logger.warning(f"  dart_corp_code 캐싱 실패 ({c['name_kr']}): {e}")
+      else:
+        logger.info(
+          f"  dart_corp_code 캐싱 보류: {c['name_kr']} → {corp_code} "
+          f"(개체검증 {verdict}, 확증 아님 — 수동 매핑 시 확정)"
+        )
     return _collect_company(odr, c['id'], str(corp_code), years=_target_years())
   except Exception as e:
     logger.error(f'  DART 실패: {e}')

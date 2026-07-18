@@ -36,6 +36,8 @@ from collect_dart_audit import (
   _get_audit_rcpt,
   _get_dart,
   _get_main_doc_url,
+  _identity_allows,
+  _identity_verdict_for_code,
   _match_acct,
   _parse_financial_tables,
   _target_years,
@@ -67,13 +69,34 @@ def _load_force_set() -> set[str]:
   return {t.strip() for t in raw.split(',') if t.strip()}
 
 
+def _count_exact_corp_names(odr, name: str) -> int:
+  """odr.corp_codes에서 corp_name이 name과 정확히 같은 행 수.
+
+  find_corp_code(name)가 정확일치로 본 동명 후보 수(2 이상이면 동명이인 존재).
+  조회 불가/예외 시 1(=동명 없음)로 보수적 폴백 — 카운트 실패로 정상 회사를 과차단하지 않게."""
+  try:
+    codes = getattr(odr, 'corp_codes', None)
+    if codes is None or codes.empty:
+      return 1
+    return max(1, int((codes['corp_name'].astype(str) == str(name)).sum()))
+  except Exception:
+    return 1
+
+
 def _resolve_corp_code(
-  odr, name_kr: str, ticker: str, manual: dict[str, str], db_corp: str | None = None
+  odr,
+  name_kr: str,
+  ticker: str,
+  manual: dict[str, str],
+  db_corp: str | None = None,
+  profile: dict | None = None,
 ) -> str | None:
-  """corp_code 해석 — 동명이인 방어 순서: DB 확정값 > 수동 매핑 > find_corp_code(이름).
+  """corp_code 해석 — 동명이인 방어 순서: DB 확정값 > 수동 매핑 > find_corp_code(이름)+개체검증.
 
   find_corp_code(name)는 동명 회사를 첫 매칭으로 반환해 오배정 위험이 크므로,
   이미 DB(dart_corp_code)나 수동 매핑에 확정 corp가 있으면 이름 재해석을 하지 않는다.
+  이름으로 해석한 경우엔 해석된 corp의 DART 프로필(상장코드/홈페이지)이 우리 회사와 맞는지
+  개체검증한다 — 동명(정확일치 후보 2개↑)인데 확증 못하면 오배정 방지 위해 스킵한다.
   (과거: 매번 이름으로 재해석해 다스·삼송 등 비상장 동명이인이 재수집마다 오배정됐다.
   상세 → 메모리 project_domestic_data_contamination_2026_07_17.)
   """
@@ -85,7 +108,17 @@ def _resolve_corp_code(
   try:
     code = odr.find_corp_code(name_kr)
     if code:
-      return str(code)
+      code = str(code)
+      prof = profile or {'ticker': ticker, 'name_kr': name_kr}
+      homonyms = _count_exact_corp_names(odr, name_kr)
+      verdict = _identity_verdict_for_code(code, prof)
+      if _identity_allows(verdict, homonyms):
+        return code
+      logger.warning(
+        f'{name_kr}: find_corp_code={code} 동명 {homonyms}개·개체검증 {verdict} — '
+        f'오배정 방지 스킵(수동 매핑 권장)'
+      )
+      return None
   except Exception as e:
     logger.debug(f'find_corp_code 실패 ({name_kr}): {e}')
   return None
@@ -265,6 +298,7 @@ def _collect_dart_domestic_in_session(w, odr, manual: dict[str, str]) -> None:
     w.table('companies')
     .select(
       'id,ticker,name_kr,status,dart_corp_code,dart_collection_status,retry_after,'
+      'data_source,market,homepage_url,'
       'company_pages!inner(page)'
     )
     .eq('status', 'active')
@@ -316,8 +350,17 @@ def _collect_dart_domestic_in_session(w, odr, manual: dict[str, str]) -> None:
     ticker: str = c['ticker']
     name: str = c['name_kr']
 
+    profile = {
+      'ticker': ticker,
+      'name_kr': name,
+      'data_source': c.get('data_source'),
+      'market': c.get('market'),
+      'homepage_url': c.get('homepage_url'),
+    }
     try:
-      corp_code = _resolve_corp_code(odr, name, ticker, manual, c.get('dart_corp_code'))
+      corp_code = _resolve_corp_code(
+        odr, name, ticker, manual, c.get('dart_corp_code'), profile
+      )
       if not corp_code:
         logger.warning(f'[{idx}/{len(pending)}] [{ticker}] {name}: DART_NO_MATCH')
         _flush_company(w, cid, [], None, ('no_match', 'DART_NO_MATCH'))

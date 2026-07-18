@@ -204,6 +204,122 @@ def _corp_name_for_code(dart, corp_code: str) -> str | None:
   return str(hit.iloc[0].get('corp_name') or '')
 
 
+# ── 동명이인 엔티티 검증 ─────────────────────────────────────────────────────
+# 이름으로 해석한 corp_code가 "진짜 그 회사"인지 DART 프로필(상장코드/주소/홈페이지)로
+# 확증한다. find_corp_code(name)는 동명 여럿 중 첫 행만 돌려줘 다스·삼송·워트/지디류
+# 오배정을 막지 못했다(메모리 project_domestic_data_contamination_2026_07_17).
+#
+# 2단계 국가 SLD(.co.kr/.or.kr 등) — 이 경우 등록가능 도메인이 3라벨이라 서브도메인을 흡수.
+_CCTLD_SLDS = frozenset({'co', 'or', 'ne', 'go', 're', 'pe', 'ac', 'com', 'net', 'org', 'gov', 'edu'})
+
+
+def _domain_key(url: str | None) -> str:
+  """홈페이지 URL을 비교용 등록가능 도메인 코어로 정규화.
+
+  스킴·www·경로·쿼리·포트를 제거하고 소문자화. '.co.kr'류 2단계 SLD는 3라벨을 남긴다.
+  예: 'https://www.kftec.com/'→'kftec.com', 'www.samsung.com/sec'→'samsung.com',
+      'http://sub.foo.co.kr'→'foo.co.kr'. 파싱 불가/빈값은 ''.
+  """
+  if not url:
+    return ''
+  s = str(url).strip().lower()
+  s = re.sub(r'^[a-z][a-z0-9+.\-]*://', '', s)  # 스킴 제거
+  s = re.split(r'[/?#]', s, maxsplit=1)[0]  # 경로/쿼리/프래그먼트 제거
+  s = s.split('@')[-1]  # userinfo 제거
+  s = s.split(':')[0]  # 포트 제거
+  if s.startswith('www.'):
+    s = s[4:]
+  s = s.strip('.')
+  if not s or '.' not in s:
+    return s
+  labels = s.split('.')
+  if len(labels) >= 3 and labels[-2] in _CCTLD_SLDS:
+    return '.'.join(labels[-3:])
+  return '.'.join(labels[-2:])
+
+
+def _verify_corp_identity(info: dict | None, profile: dict | None) -> str:
+  """DART company.json(info)과 우리 회사 프로필(profile)의 개체 동일성 판정.
+
+  반환:
+    'confirm' — 강한 일치(상장코드 일치, 또는 홈페이지 도메인 일치).
+    'reject'  — 강한 모순(상장코드 불일치, 상장/비상장 구분 어긋남, 비상장 placeholder의 상장 승격).
+    'unknown' — 판별 근거 부족.
+
+  ⚠️ hm_url은 모회사/JV 도메인 잡음이 섞이므로(우진공업 hm_url=ngkntk.co.kr) 도메인
+     '불일치'만으로는 reject하지 않는다 — 일치할 때만 confirm 근거로 쓴다.
+  profile 키: ticker, data_source, market, homepage_url. info 키: stock_code, corp_cls, hm_url.
+  """
+  if not isinstance(info, dict) or not isinstance(profile, dict):
+    return 'unknown'
+
+  dart_stock = re.sub(r'\D', '', str(info.get('stock_code') or ''))
+  corp_cls = str(info.get('corp_cls') or '').strip().upper()
+  dart_listed = bool(dart_stock) or corp_cls in ('Y', 'K', 'N')
+
+  our_ticker = re.sub(r'\D', '', str(profile.get('ticker') or ''))
+  our_source = str(profile.get('data_source') or '').strip().lower()
+  our_market = str(profile.get('market') or '').strip()
+  our_listed = bool(our_market) or our_source in ('fnguide', 'pykrx', 'pykrx+dart')
+
+  # 신호1: 상장코드 교차검증 (결정적). KRX 코드는 6자리, '0015S0'류는 숫자만 5자리.
+  if our_listed and len(our_ticker) >= 5:
+    if dart_stock:
+      return 'confirm' if dart_stock == our_ticker else 'reject'
+    return 'reject'  # 우리는 상장인데 resolved corp가 비상장 → 다른 개체
+  if not our_listed and our_source == 'dart' and dart_listed:
+    return 'reject'  # 비상장 placeholder가 상장 동명사로 승격(워트/지디형)
+
+  # 신호2: 홈페이지 도메인 일치 (불일치는 reject 안 함 — 도메인 잡음 방어)
+  our_dom = _domain_key(profile.get('homepage_url'))
+  dart_dom = _domain_key(info.get('hm_url'))
+  if our_dom and dart_dom and our_dom == dart_dom:
+    return 'confirm'
+
+  return 'unknown'
+
+
+def _identity_allows(verdict: str, candidate_count: int) -> bool:
+  """동명이인 방어 정책: 'confirm'→통과, 'reject'→차단, 'unknown'→동명(후보 2개↑)일 때만 차단.
+
+  즉 동명이인이 존재해 오배정 위험이 실재할 때만 미확증 해석을 막고, 동명이 없으면(후보 1개)
+  홈페이지 확증이 없어도 그대로 수집한다(사용자 결정 — '동명 있을 때만 차단')."""
+  if verdict == 'confirm':
+    return True
+  if verdict == 'reject':
+    return False
+  return candidate_count < 2
+
+
+def _fetch_corp_info(corp_code: str) -> dict | None:
+  """DART company.json 조회 → status=='000' dict, 실패/미존재는 None."""
+  if not corp_code or not DART_KEY:
+    return None
+  try:
+    info = _with_retry(
+      _session.get,
+      'https://opendart.fss.or.kr/api/company.json',
+      params={'crtfc_key': DART_KEY, 'corp_code': str(corp_code)},
+      timeout=(10, 15),
+      _attempts=2,
+      _deadline=30,
+    ).json()
+  except Exception as e:
+    logger.debug(f'company.json 조회 실패 ({corp_code}): {e}')
+    return None
+  return info if isinstance(info, dict) and info.get('status') == '000' else None
+
+
+def _identity_verdict_for_code(corp_code: str, profile: dict | None) -> str:
+  """corp_code의 DART 프로필을 조회해 profile과 동일성 판정.
+
+  네트워크/조회 실패 시 'unknown' — 일시 장애가 대량 오차단(no_match 폭증)으로 번지지 않게."""
+  info = _fetch_corp_info(corp_code)
+  if info is None:
+    return 'unknown'
+  return _verify_corp_identity(info, profile)
+
+
 def _ascii_part(s: str) -> str:
   """문자열에서 ASCII 영문/숫자만 추출(소문자화). 영문/한글 혼용 매칭용.
 
@@ -759,7 +875,9 @@ def _collect_company(
   return rows
 
 
-def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
+def _resolve_corp_code(
+  dart, name: str, db_corp_code: str | None, profile: dict | None = None
+) -> str | None:
   """`_resolve_corp_code_impl`을 회사 단위 timeout 가드로 감싼 wrapper.
 
   과거 일부 회사에서 corp_codes 조회·company.json 호출이 무한 hang하며
@@ -767,10 +885,13 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
   타임아웃 시 None 반환 + 호출부는 그 회사를 unmapped로 처리하고 다음 회사로 진행.
   shutdown(wait=False)로 thread leak 허용 — `with ThreadPoolExecutor` 패턴은
   __exit__에서 무한 대기라 nested hang을 만든다.
+
+  profile(ticker/data_source/market/homepage_url)을 주면 이름 해석 결과를 개체검증으로
+  게이트한다(동명이인 방어). 미제공이면 기존 induty 우선 로직만 동작.
   """
   ex = ThreadPoolExecutor(max_workers=1)
   try:
-    return ex.submit(_resolve_corp_code_impl, dart, name, db_corp_code).result(
+    return ex.submit(_resolve_corp_code_impl, dart, name, db_corp_code, profile).result(
       timeout=RESOLVE_CORP_CODE_TIMEOUT
     )
   except FuturesTimeout:
@@ -782,7 +903,9 @@ def _resolve_corp_code(dart, name: str, db_corp_code: str | None) -> str | None:
     ex.shutdown(wait=False, cancel_futures=True)
 
 
-def _resolve_corp_code_impl(dart, name: str, db_corp_code: str | None) -> str | None:
+def _resolve_corp_code_impl(
+  dart, name: str, db_corp_code: str | None, profile: dict | None = None
+) -> str | None:
   """회사명에서 DART corp_code를 식별. 동명/표기 차이/이름 변경 모두 대응.
 
   우선순위:
@@ -791,6 +914,12 @@ def _resolve_corp_code_impl(dart, name: str, db_corp_code: str | None) -> str | 
     3) 정규화 부분 일치(포함 관계).
     4) 후보 여럿이면 induty_code prefix(자동차 30/31/33 외 24~33,46)로 자동차 우선,
        자동차 후보 없으면 None 반환 + WARN.
+
+  profile 제공 시(ticker/data_source/market/homepage_url) 동명이인 엔티티 검증 게이트를 건다:
+    - 단일 후보는 개체검증이 'reject'(명백 모순)일 때만 스킵.
+    - 다중 후보는 후보별 company.json 1회로 induty와 identity를 함께 판정 →
+      개체 확증(confirm)된 후보 우선, 아무도 확증 못하면 오배정 방지 위해 스킵.
+  profile=None이면(범위 밖 호출부) 기존 induty 우선 로직만 동작(회귀 없음).
     5) 자동차 후보 안에서 modify_date 최신.
   """
   if db_corp_code:
@@ -869,47 +998,74 @@ def _resolve_corp_code_impl(dart, name: str, db_corp_code: str | None) -> str | 
 
   if candidates.empty:
     return None
-  if len(candidates) == 1:
-    return str(candidates.iloc[0]['corp_code'])
 
-  logger.info(f'{name}: 동명/유사명 회사 {len(candidates)}개 — 자동차 업종 우선 선택')
-  scored: list[tuple[int, str, str]] = []  # (is_auto, modify_date, corp_code)
+  cand_count = len(candidates)
+
+  # 단일 후보 — 정규화 이름이 같은 순수 동명이인도 완전일치로 여기에 온다.
+  if cand_count == 1:
+    code = str(candidates.iloc[0]['corp_code'])
+    if profile is None:
+      return code
+    # 개체검증 'reject'(명백 모순)만 차단, 'unknown'은 동명 없음(후보1)이라 통과.
+    verdict = _identity_verdict_for_code(code, profile)
+    if _identity_allows(verdict, 1):
+      return code
+    logger.warning(f'{name}: 단일 후보 {code} 개체검증 reject — 오배정 방지 스킵(수동 매핑 권장)')
+    return None
+
+  # 다중 후보 — 후보별 company.json 1회로 induty(자동차 業種)와 identity를 함께 판정.
+  logger.info(f'{name}: 동명/유사명 회사 {cand_count}개 — 자동차 업종·개체검증으로 선택')
+  scored: list[tuple[int, int, str, str]] = []  # (is_auto, is_confirmed, modify_date, corp_code)
   any_auto = False
   for _, row in candidates.iterrows():
     code = str(row['corp_code'])
     modify = str(row.get('modify_date') or '')
-    try:
-      info = _with_retry(
-        _session.get,
-        'https://opendart.fss.or.kr/api/company.json',
-        params={'crtfc_key': DART_KEY, 'corp_code': code},
-        timeout=(10, 15),
-      ).json()
-    except Exception as e:
-      logger.warning(f'  {code}: company.json 조회 실패 ({e})')
-      scored.append((0, modify, code))
-      continue
-    if info.get('status') != '000':
-      scored.append((0, modify, code))
+    info = _fetch_corp_info(code)
+    if info is None:
+      logger.warning(f'  {code}: company.json 조회 실패')
+      scored.append((0, 0, modify, code))
       continue
     induty = str(info.get('induty_code') or '')
-    is_auto = any(induty.startswith(p) for p in _AUTO_INDUTY_PREFIXES)
+    is_auto = 1 if any(induty.startswith(p) for p in _AUTO_INDUTY_PREFIXES) else 0
+    verdict = _verify_corp_identity(info, profile) if profile is not None else 'unknown'
+    if verdict == 'reject':
+      logger.info(f'  {code} induty={induty} — 개체검증 reject(제외)')
+      continue  # 명백 모순 후보는 배제
     if is_auto:
       any_auto = True
-    scored.append((1 if is_auto else 0, modify, code))
-    logger.info(f'  {code} induty={induty} modify={modify} {"← 자동차" if is_auto else ""}')
+    is_conf = 1 if verdict == 'confirm' else 0
+    scored.append((is_auto, is_conf, modify, code))
+    logger.info(
+      f'  {code} induty={induty} modify={modify}'
+      f'{" ←자동차" if is_auto else ""}{" ←확증" if is_conf else ""}'
+    )
 
-  if not any_auto:
+  if not scored:
+    logger.warning(f'{name}: 동명/유사 후보 {cand_count}개 전부 개체검증 reject/조회실패 — 스킵')
+    return None
+
+  # profile 있으면: 개체 확증(confirm) 후보 우선. 아무도 확증 못하면(동명 미확증)
+  # 오배정 방지 위해 스킵 — 사용자 정책 '동명 있을 때만 차단'의 다중후보 적용.
+  if profile is not None:
+    confirmed = [s for s in scored if s[1] == 1]
+    if confirmed:
+      confirmed.sort(key=lambda t: (t[0], t[2]), reverse=True)  # 자동차>비자동차, modify 최신
+      return confirmed[0][3]
     logger.warning(
-      f'{name}: 동명/유사명 후보 {len(candidates)}개 중 자동차 업종 매치 없음 — '
-      f'companies.dart_corp_code 수동 매핑 권장. 스킵.'
+      f'{name}: 동명/유사 후보 {cand_count}개 중 개체 확증 없음 — 오배정 방지 스킵(수동 매핑 권장)'
     )
     return None
 
-  # 자동차 매치만 필터링 후 modify_date 최신
+  # profile 없음(범위 밖) → 기존 동작: 자동차 매치 우선 + modify 최신, 자동차 없으면 스킵.
+  if not any_auto:
+    logger.warning(
+      f'{name}: 동명/유사명 후보 {cand_count}개 중 자동차 업종 매치 없음 — '
+      f'companies.dart_corp_code 수동 매핑 권장. 스킵.'
+    )
+    return None
   auto_only = [s for s in scored if s[0] == 1]
-  auto_only.sort(key=lambda t: t[1], reverse=True)
-  return auto_only[0][2]
+  auto_only.sort(key=lambda t: t[2], reverse=True)
+  return auto_only[0][3]
 
 
 def _dedup_rows(all_rows: list[dict]) -> list[dict]:
@@ -962,7 +1118,8 @@ def collectDartAudit() -> None:
   target_filter: set[str] = {t.strip() for t in raw.split(',') if t.strip()}
 
   companies = [
-    r for r in client.table('companies').select('id,ticker,name_kr,data_source,dart_corp_code').execute().data
+    r for r in client.table('companies')
+    .select('id,ticker,name_kr,data_source,market,homepage_url,dart_corp_code').execute().data
     if r.get('data_source') == 'dart'
     and (not target_filter or r.get('ticker') in target_filter)
   ]
@@ -989,9 +1146,16 @@ def collectDartAudit() -> None:
     company_id = company['id']
 
     db_corp_code = company.get('dart_corp_code')
+    profile = {
+      'ticker': company.get('ticker'),
+      'name_kr': name,
+      'data_source': company.get('data_source'),
+      'market': company.get('market'),
+      'homepage_url': company.get('homepage_url'),
+    }
     logger.info(f'{name} DART 코드 검색 중...' + (f' (DB 매핑: {db_corp_code})' if db_corp_code else ''))
     try:
-      corp_code = _resolve_corp_code(dart, name, db_corp_code)
+      corp_code = _resolve_corp_code(dart, name, db_corp_code, profile)
     except Exception as e:
       logger.error(f'{name} corp_code 검색 실패: {e}')
       unmapped.append({'id': company_id, 'name_kr': name, 'reason': f'예외: {e}'})

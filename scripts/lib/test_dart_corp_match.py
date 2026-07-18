@@ -66,5 +66,116 @@ class TestCorpNameForCode(unittest.TestCase):
         self.assertIsNone(aud._corp_name_for_code(FakeDart(), '99999999'))
 
 
+class TestDomainKey(unittest.TestCase):
+    """홈페이지 URL → 비교용 도메인 코어 정규화(엔티티 검증 신호2용)."""
+
+    def test_strips_scheme_www_path_query(self):
+        dk = aud._domain_key
+        self.assertEqual(dk('https://www.kftec.com/'), 'kftec.com')
+        self.assertEqual(dk('www.samsong.com'), 'samsong.com')
+        self.assertEqual(dk('www.samsung.com/sec'), 'samsung.com')  # 경로 제거
+        self.assertEqual(dk('https://dhautonex.co.kr/?locale=ko'), 'dhautonex.co.kr')  # 쿼리 제거
+
+    def test_cckr_three_labels(self):
+        """.co.kr / .or.kr 등 2단계 SLD는 등록가능 도메인이 3라벨."""
+        dk = aud._domain_key
+        self.assertEqual(dk('http://www.iljeong.co.kr/'), 'iljeong.co.kr')
+        self.assertEqual(dk('https://sub.foo.co.kr'), 'foo.co.kr')  # 서브도메인 흡수
+
+    def test_empty_and_junk(self):
+        self.assertEqual(aud._domain_key(''), '')
+        self.assertEqual(aud._domain_key(None), '')
+
+
+class TestVerifyCorpIdentity(unittest.TestCase):
+    """DART company.json(info)과 우리 프로필(profile)의 개체 동일성 판정.
+    반환: 'confirm' | 'reject' | 'unknown'. 동명이인 재오염 방어의 핵심.
+    """
+
+    verify = staticmethod(lambda info, profile: aud._verify_corp_identity(info, profile))
+
+    def test_listed_stock_code_match_confirms(self):
+        v = aud._verify_corp_identity(
+            {'stock_code': '037330', 'corp_cls': 'Y'},
+            {'ticker': '037330', 'data_source': 'fnguide'},
+        )
+        self.assertEqual(v, 'confirm')
+
+    def test_listed_stock_code_mismatch_rejects(self):
+        """인지디스플레이(037330)로 해석돼야 하는데 지디(155960)로 잡히면 reject."""
+        v = aud._verify_corp_identity(
+            {'stock_code': '155960', 'corp_cls': 'Y'},
+            {'ticker': '037330', 'data_source': 'fnguide'},
+        )
+        self.assertEqual(v, 'reject')
+
+    def test_listed_resolved_to_unlisted_rejects(self):
+        """우리는 상장(티커 有)인데 resolved corp가 비상장이면 다른 개체 → reject."""
+        v = aud._verify_corp_identity(
+            {'stock_code': '', 'corp_cls': 'E'},
+            {'ticker': '037330', 'data_source': 'fnguide'},
+        )
+        self.assertEqual(v, 'reject')
+
+    def test_unlisted_placeholder_promoted_to_listed_rejects(self):
+        """비상장 placeholder(data_source='dart')가 상장 동명사로 승격 = 워트/지디형 → reject."""
+        v = aud._verify_corp_identity(
+            {'stock_code': '396470', 'corp_cls': 'Y', 'hm_url': ''},
+            {'ticker': '', 'data_source': 'dart', 'homepage_url': ''},
+        )
+        self.assertEqual(v, 'reject')
+
+    def test_homepage_domain_match_confirms(self):
+        """둘 다 비상장이라 상장코드 신호가 없을 때, 홈페이지 도메인 일치로 확증."""
+        v = aud._verify_corp_identity(
+            {'stock_code': '', 'corp_cls': 'E', 'hm_url': 'www.samsong.com'},
+            {'ticker': '', 'data_source': 'dart', 'homepage_url': 'http://www.samsong.com/'},
+        )
+        self.assertEqual(v, 'confirm')
+
+    def test_homepage_domain_mismatch_is_unknown_not_reject(self):
+        """hm_url은 모회사/JV 도메인 잡음(우진공업→ngkntk)이 섞여 불일치만으로 reject 금지."""
+        v = aud._verify_corp_identity(
+            {'stock_code': '', 'corp_cls': 'E', 'hm_url': 'www.ngkntk.co.kr'},
+            {'ticker': '', 'data_source': 'dart', 'homepage_url': 'https://www.woojin.co.kr'},
+        )
+        self.assertEqual(v, 'unknown')
+
+    def test_both_unlisted_no_homepage_is_unknown(self):
+        v = aud._verify_corp_identity(
+            {'stock_code': '', 'corp_cls': 'E', 'hm_url': ''},
+            {'ticker': '', 'data_source': 'dart', 'homepage_url': ''},
+        )
+        self.assertEqual(v, 'unknown')
+
+    def test_stock_signal_wins_over_homepage(self):
+        """상장코드 일치는 결정적 — 홈페이지가 달라도 confirm."""
+        v = aud._verify_corp_identity(
+            {'stock_code': '005930', 'corp_cls': 'Y', 'hm_url': 'www.other.com'},
+            {'ticker': '005930', 'data_source': 'fnguide', 'homepage_url': 'www.mine.com'},
+        )
+        self.assertEqual(v, 'confirm')
+
+    def test_bad_info_is_unknown(self):
+        self.assertEqual(aud._verify_corp_identity(None, {'ticker': '005930'}), 'unknown')
+
+
+class TestIdentityAllows(unittest.TestCase):
+    """정책: confirm→통과 / reject→차단 / unknown→후보 2개↑면 차단(동명 있을 때만), 1개면 통과."""
+
+    def test_confirm_always_allows(self):
+        self.assertTrue(aud._identity_allows('confirm', 1))
+        self.assertTrue(aud._identity_allows('confirm', 5))
+
+    def test_reject_always_blocks(self):
+        self.assertFalse(aud._identity_allows('reject', 1))
+        self.assertFalse(aud._identity_allows('reject', 5))
+
+    def test_unknown_blocks_only_on_homonym(self):
+        self.assertTrue(aud._identity_allows('unknown', 1))  # 동명 없음 → 통과
+        self.assertFalse(aud._identity_allows('unknown', 2))  # 동명이인 존재 → 차단
+        self.assertFalse(aud._identity_allows('unknown', 4))
+
+
 if __name__ == '__main__':
     unittest.main()
