@@ -18,6 +18,36 @@
 
 ---
 
+## ✅ 정정 실행 결과 (2026-07-18 세션 2 — 프로덕션 반영·revalidate 완료)
+
+> 정정 착수 전 **롤백 스냅샷** = scratchpad `_snap_financials_*.json`·`_snap_companies_*.json`(financials 4185 + companies 570행 전량).
+
+**완료(DB 반영·검증됨):**
+- ☑ **P1-1 Q4=연간** (실측 446행/167사): Q1~Q3 있는 **145행 산술복원**(Q4 = 연간−(Q1+Q2+Q3), flow 7종), Q1~Q3 없는 **301행 삭제**(허위 중복행, 사용자 결정). 검증: Q4=연간 오염 **0**.
+- ☑ **P1-2 부채=자산** (217행/79사): `total_liabilities = total_assets − total_equity` 산술복원, `debt_ratio`(생성컬럼) 자동 재계산. 검증: TL==TA **0**.
+- ☑ **P1-3 market** (77건): pykrx 권위 재도출 — KONEX 3 + KOSDAQ 73 + 엠씨넥스 KOSDAQ→KOSPI. KOSPI 155→**80**. (P4-1 엠씨넥스 동시 해소)
+- ☑ **P2-1 corp**: 베바스토코리아 corp→`00764214`(베바스토동희, DART 감사보고서 부재로 재무 공란), 서한이노빌리티 corp→`00258926`+**DART 재수집 성공**(FY2021~2025 자기값), 일진복합소재 **status=hidden**(사명변경=하이솔루스 확인)·일진하이솔루스 corp=`00972503` 설정.
+- ☑ **P2-2 두원공조**: DART 재수집 — FY2023 매출 1,546,398(감사값 일치)·FY2022 복원, FY2024는 감사값(1,535,344) 직접 보정(재수집이 sub_docs 버그로 가비지).
+- ☑ **P3-2 에스케이온**: DART 재수집 — FY2022 매출 7.62조(감사값 일치)·cogs<매출·A=L+E ✓.
+- ☑ **P3-3 동원금속**: `fiscal_year_end_month=3` 메타 정정(매출 복원은 아래 미해결 참조).
+- ☑ **P3-5 세진**: FY2021 음수자산(−7,223→132,059=TL+TE) 정정 + 유령 중복행 FY2024/FY2025 삭제.
+- ☑ **P4-2 청보**: 사명 더큐브앤→청보. ☑ **P4-3 상폐 4사**(창대정밀·대주코레스·삼보오토·세원이앤씨) 웹/pykrx 확인 후 **status=hidden**.
+- ☑ **P5-1 우수정기** 홈페이지→woosupm.com. ☑ **P5-2 에스에이치비** group='SL'.
+
+**인프라 수정 (세션 3 — 커밋 대기, TDD·41테스트 통과):**
+- ☑ **① fnguide 수집기 재작성 완료**: fnguide가 재무 하이라이트를 회사 무관 fallback(snap[9] 가비지)으로 바꾸고 연간/분기를 단일 통합표로 변경 → 옛 `_find_annual_table`이 표를 못 찾아 **KR 상장사 0행**이던 것을, **`SVD_Finance.asp`/`SVD_Invest.asp` 직접 URL**(구 GoMenu 대체)로 재작성. `_classify_finance_tables`(날짜 간격으로 연간/분기 판정)·`_table_period_kind` 신설, 대차대조표 총계 신규 라벨('자산'/'부채'/'자본') 매핑 추가. **분기표가 discrete Q4를 직접 제공 → Q4=연간 버그 원천 차단.** 라이브 검증: 넥센 Q4 833,100·현대모비스 61조·삼성SDI 13.27조 정확, 자산=부채+자본 성립. 다음 스케줄 `collect-financials`가 KR 상장사 ~169개 정확 재수집. 테스트 `scripts/lib/test_fnguide_svd.py`(7).
+- ☑ **② DART `sub_docs` NameError 우회 + 문서선택 견고화**: `dart.sub_docs`(라이브러리 `name 'url' is not defined`)를 직접 트리 파싱으로 대체, `_pick_statement_node`로 주석 배제·재무제표 본문 우선 선택. NameError 완전 제거(잔존 0), 회귀 0. 테스트 `scripts/lib/test_dart_docsel.py`(4).
+
+**파서 딥디버그 + 잔여 정정 (세션 4 — 커밋 대기, TDD·45테스트 통과):**
+- ☑ **P3-1 cogs 단위/계정 근본 수정** (케이비오토텍·평화기공·피엔디티·메탈다인): systematic-debugging으로 근본 규명 — 이 회사들의 손익계산서는 **성질별 분류라 '매출원가' 행이 없고**, `_parse_financial_tables`가 문서 전체(재무제표+주석 200여 표)를 훑다 **매출원가를 주석/뒤쪽 요약표에서 잘못 집었다**(단위 천원 미변환 1000×·세부라인 오값). **수정**: 손익계정은 '손익계산서 본표'(매출액+영업이익/당기순이익 동시 보유)에서만·**첫 본표만** 소비, 대차계정은 재무상태표 본표에서만(`income_done`/`balance_done`, `_INCOME/_BALANCE_STMT_COLS`). **재수집 결과**: 메탈다인 rev 67,196>cogs 52,056 정상화, 나머지 3사 cogs=null(성질별=미보고, 정직). **전체 cogs>매출 파서버그 잔존 0**. 테스트 `test_dart_statement_scope.py`(4).
+- ☑ **P5-4 오피모빌리티** 소개 주어 정정(플라스틱옴니엄→오피모빌리티(구 플라스틱옴니엄)).
+- ☑ **P5-3 제품군 map 확장**: `product_category_map`에 도어·미러·와이퍼·배기·밸브·EGR·펌프 raw 추가(마이그 `20260718000001`). **미래 수집분** 정규화 — 기존 products는 이미 트리거가 '기타'로 정규화해 raw 소실(2026-07-17 제품명 재분류 완료)이라 미적용. 비자동차→자동차 역오류(LG전자 TV=구동계 등)는 name-level이라 map 무관 — 미착수(LOW, 오탐 경계 주의).
+- **P3-4 삼성SDI·일진하이솔루스**: ①로 자동 해결(fnguide). **세진 극단연도**: `_get_audit_rcpt` 연도매핑 잔여이나 세진 데이터는 정정 완료(FY21~23)·②③ 수정 후 dry-run 정상 — 미착수(현 데이터 문제 없음).
+
+> 정정은 **DB 데이터 직접 수정 + DART targeted 재수집**으로 수행(원 계획의 "코드 수정 후 재수집"은 fnguide 고장으로 불가). 임시 스크립트 `scripts/_fix0718_*.py`(gitignore 대상).
+
+---
+
 ## P1. 수집기 계통 코드 버그 (최우선 — 한 번 고치면 대량 자동 정정)
 
 ### ☐ P1-1. fnguide 분기 Q4 = 연간 누적값 (153개사) — `q4_annual_bug`

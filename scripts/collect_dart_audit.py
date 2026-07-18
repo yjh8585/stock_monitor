@@ -555,8 +555,19 @@ def _filter_annotation_nums(nums: list[float]) -> list[float]:
   return [v for v in nums if v == 0 or abs(v) >= threshold]
 
 
+# 손익계산서/재무상태표 '본표' 계정 스코프 — 주석(note) 표에서 계정이 새어드는 것 차단.
+_INCOME_STMT_COLS = frozenset({'revenue', 'cogs', 'sga', 'operating_income', 'net_income'})
+_BALANCE_STMT_COLS = frozenset({'total_assets', 'total_liabilities', 'total_equity', 'inventory'})
+
+
 def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
   """재무제표 테이블 목록에서 {db_col: {current, prior}} 형태로 파싱한다.
+
+  주석(note) 유출 차단: 손익계정(매출원가 등)은 '손익계산서 본표'(매출액 + 영업이익/
+  당기순이익 동시 보유)에서만, 대차계정은 '재무상태표 본표'(자산총계 + 부채/자본총계
+  동시 보유)에서만 추출한다. 성질별 손익계산서엔 매출원가 행이 없어, 문서 전체(재무제표+
+  주석 200여 표)를 훑으면 매출원가를 주석에서 잘못 집어 단위(천원 미변환 1000×)·계정
+  (세부라인) 오적재가 났다(케이비오토텍·평화기공 실측 2026-07-18).
 
   표 구조 처리: 계정명 셀(첫 셀) 다음의 모든 셀에서 숫자 컬럼을 동적으로 추출.
   - 짝수 개 숫자: [당기세부..당기합계, 전기세부..전기합계] 가정 → 양쪽 마지막(합계) 사용.
@@ -565,21 +576,40 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
   """
   result: dict[str, dict[str, float | None]] = {}
   seen: set[str] = set()
+  income_done = False    # 첫 손익계산서 본표 소비 여부
+  balance_done = False   # 첫 재무상태표 본표 소비 여부
 
   for tbl in tables:
     tbl_text = _normalize(tbl.get_text())
     if not any(kw in tbl_text for kw in ACCT_TO_DB):
       continue
 
-    divider = _table_unit_divider(tbl)
-
+    # 행별 (cells, db_col) 선계산 → 표가 손익계산서/재무상태표 본표인지 판별
+    rows: list[tuple[list[str], str | None]] = []
     for row in tbl.find_all('tr'):
       cells = [td.get_text(strip=True) for td in row.find_all(['th', 'td'])]
       if len(cells) < 2:
         continue
+      rows.append((cells, _match_acct(cells[0])))
 
-      db_col = _match_acct(cells[0])
-      if db_col is None or db_col in GENERATED_COLS or db_col in seen:
+    row_cols = {c for _, c in rows if c}
+    is_income = 'revenue' in row_cols and ('operating_income' in row_cols or 'net_income' in row_cols)
+    is_balance = 'total_assets' in row_cols and ('total_liabilities' in row_cols or 'total_equity' in row_cols)
+
+    # 첫 본표만 소비한다. 뒤쪽 요약표(전 계정 보유·단위 상이)가 본표에 없던 계정
+    # (성질별 손익계산서엔 매출원가 없음)을 다른 단위로 채우는 오적재를 차단.
+    allowed: set[str] = set()
+    if is_income and not income_done:
+      allowed |= _INCOME_STMT_COLS
+    if is_balance and not balance_done:
+      allowed |= _BALANCE_STMT_COLS
+    if not allowed:
+      continue  # 본표 아님(주석) 또는 이미 소비한 본표 유형(뒤 요약표) — 스킵
+
+    divider = _table_unit_divider(tbl)
+
+    for cells, db_col in rows:
+      if db_col is None or db_col not in allowed or db_col in GENERATED_COLS or db_col in seen:
         continue
 
       # 계정명 셀 이후의 모든 셀에서 숫자만 추출 (주석 번호·빈 셀·기호 무시)
@@ -606,6 +636,12 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
         'prior': prior / divider if prior is not None else None,
       }
       seen.add(db_col)
+
+    # 이 본표를 소비했으면 해당 유형을 완료 처리 — 뒤 요약표는 무시
+    if is_income:
+      income_done = True
+    if is_balance:
+      balance_done = True
 
   return result
 
@@ -723,8 +759,38 @@ _VIEWDOC_RE = re.compile(
 )
 
 
+def _pick_statement_node(nodes: list) -> tuple | None:
+  """main.do 좌측 트리 노드 중 재무제표 '본문' 노드를 선택한다.
+
+  노드 = (text, rcpNo, dcmNo, eleId, offset, length, dtd). 제목은 글자 사이 공백이
+  섞이므로(예: '연 결 손 익 계 산 서') 정규화 후 매칭한다. 주석·외부감사 등 비-본문을
+  배제하고 '재무제표/재무상태표/손익계산서/포괄손익' 본문을 우선하며, 후보 중 최대 길이
+  (합본 첨부문서)를 고른다. 재무제표 노드가 없으면 전체 최대 길이로 폴백.
+  (과거엔 무조건 최대 길이만 골라 주석이 재무제표보다 길면 주석을 잘못 집었다.)"""
+  if not nodes:
+    return None
+
+  def _norm(t: str) -> str:
+    return re.sub(r'\s+', '', t or '')
+
+  def _length(n: tuple) -> int:
+    return int(n[5]) if str(n[5]).isdigit() else 0
+
+  exclude = ('주석', '외부감사', '독립된감사인', '감사의견')
+  stmt_kw = ('재무제표', '재무상태표', '손익계산서', '포괄손익')
+  stmt = [
+    n for n in nodes
+    if any(k in _norm(n[0]) for k in stmt_kw)
+    and not any(x in _norm(n[0]) for x in exclude)
+  ]
+  return max(stmt or nodes, key=_length)
+
+
 def _fallback_viewer_url(rcpt_no: str) -> str | None:
-  """sub_docs가 못 찾는 보고서에서 main.do 좌측 트리를 직접 파싱해 본문 viewer URL을 만든다."""
+  """main.do 좌측 트리를 직접 파싱해 재무제표 본문 viewer URL을 만든다.
+
+  OpenDartReader.sub_docs는 DART main.do 형식 변경으로 정규식 미스매치 시 라이브러리
+  내부에서 NameError(dart_utils.py 'url' 미정의)를 던지므로 의존하지 않고 직접 파싱한다."""
   url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcpt_no}'
   try:
     r = _with_retry(_session.get, url, timeout=(10, 30), _deadline=60)
@@ -734,12 +800,9 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
 
   nodes = _TREE_NODE_RE.findall(r.text)
   if nodes:
-    def _node_length(node: tuple[str, ...]) -> int:
-      lng = node[5]
-      return int(lng) if lng.isdigit() else 0
-
-    text, rcp, dcm, ele, off, lng, dtd = max(nodes, key=_node_length)
-    logger.info(f'fallback 트리 본문 선택 (rcpNo={rcpt_no}): eleId={ele} length={lng} text={text}')
+    picked = _pick_statement_node(nodes)
+    text, rcp, dcm, ele, off, lng, dtd = picked
+    logger.info(f'트리 본문 선택 (rcpNo={rcpt_no}): eleId={ele} length={lng} text={text}')
     return (
       f'http://dart.fss.or.kr/report/viewer.do?'
       f'rcpNo={rcp}&dcmNo={dcm}&eleId={ele}&offset={off}&length={lng}&dtd={dtd}'
@@ -757,20 +820,13 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
 
 
 def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
-  """sub_docs에서 가장 큰(재무제표 본문) 문서 URL을 반환. 실패 시 main.do 직접 파싱."""
-  try:
-    docs = _with_retry(dart.sub_docs, rcpt_no, _deadline=60, _silence_stdout=True)
-  except Exception as e:
-    logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
-    return _fallback_viewer_url(rcpt_no)
-  if docs is None or docs.empty:
-    return _fallback_viewer_url(rcpt_no)
+  """재무제표 본문 viewer URL을 반환한다 (main.do 트리 직접 파싱, 주석 배제·본문 우선).
 
-  def extract_length(url: str) -> int:
-    m = re.search(r'length=(\d+)', str(url))
-    return int(m.group(1)) if m else 0
-
-  return str(max(docs['url'], key=extract_length))
+  OpenDartReader.sub_docs는 DART main.do 형식 변경으로 정규식 미스매치 시 라이브러리
+  내부에서 NameError(dart_utils.py:141 'url' 미정의)를 던져 매 감사보고서마다 예외+경고를
+  냈다. 어차피 예외 후 main.do 직접 파싱으로 폴백했으므로, 처음부터 직접 파싱한다.
+  `dart` 인자는 호출부 시그니처 호환을 위해 유지(미사용)."""
+  return _fallback_viewer_url(rcpt_no)
 
 
 def _is_pdf_only_report(rcpt_no: str) -> bool:

@@ -35,20 +35,20 @@ from lib.db import get_client, upsert_rows
 
 MILLION = 1_000_000
 
-# fnguide 관련 상수
+# fnguide 관련 상수 (2026-07 신규 레이아웃: 재무제표·투자지표 직접 URL).
+# 옛 Snapshot(SVD_Main) Financial Highlight는 익명 세션에 회사 무관 fallback을 반환해
+# 폐기. 구 GoMenu('103')/('105') JS 네비게이션도 미정의라 직접 URL로 대체.
 FNGUIDE_BASE_URL     = 'https://comp.fnguide.com'
-FNGUIDE_SNAPSHOT_URL = (
-  f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Main.asp'
-  '?pGB=1&gicode={gicode}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701'
+FNGUIDE_FINANCE_URL = (
+  f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Finance.asp'
+  '?pGB=1&gicode={gicode}&cID=&MenuYn=Y&ReportGB=&NewMenuID=103&stkGb=701'
+)
+FNGUIDE_INVEST_URL = (
+  f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Invest.asp'
+  '?pGB=1&gicode={gicode}&cID=&MenuYn=Y&ReportGB=&NewMenuID=105&stkGb=701'
 )
 FNGUIDE_PAGE_TIMEOUT = 30_000   # 30초 (ms)
-FNGUIDE_NAV_WAIT_MS  = 3_000   # 탭 전환 후 networkidle 대기 (ms)
-
-# fnguide 재무제표 테이블 인덱스 (GoMenu('103') 이동 후)
-FNGUIDE_TABLE_ANNUAL_INCOME  = 0
-FNGUIDE_TABLE_QTR_INCOME     = 1
-FNGUIDE_TABLE_ANNUAL_BALANCE = 2
-FNGUIDE_TABLE_QTR_BALANCE    = 3
+FNGUIDE_NAV_WAIT_MS  = 3_000   # 페이지 로드 후 networkidle 대기 (ms)
 
 # fnguide 억원 → 백만원 변환 승수
 FNGUIDE_UNIT_MULTIPLIER = 100.0
@@ -74,6 +74,11 @@ FNGUIDE_TO_DB: dict[str, str] = {
   '자산총계':             'total_assets',
   '부채총계':             'total_liabilities',
   '자본총계':             'total_equity',
+  # SVD_Finance 재무상태표는 총계를 짧은 라벨로 표기 (자산총계→'자산' 등). 정확일치라
+  # '유동자산'·'자본금' 등 세부 계정은 안 잡힌다. (신규 레이아웃 2026-07)
+  '자산':                 'total_assets',
+  '부채':                 'total_liabilities',
+  '자본':                 'total_equity',
   '재고자산':             'inventory',
   # Snapshot Financial Highlight 추가 항목
   'EPS':                  'eps',
@@ -217,24 +222,6 @@ def _parse_income_table(
         period_data[key][db_col] = round(val * multiplier, 4)
 
   return period_data
-
-
-def _merge_period_data(
-  base: dict[str, dict],
-  extra: dict[str, dict],
-) -> None:
-  """extra의 period_data를 base에 in-place 병합한다.
-
-  같은 period_end 키 안에서 컬럼이 이미 존재하면 덮어쓰지 않음 (먼저 들어온 값 우선).
-  Snapshot 테이블에서 이미 채운 값을 재무제표 탭이 덮어쓰지 않도록 보장한다.
-  """
-  for key, vals in extra.items():
-    if key not in base:
-      base[key] = dict(vals)
-      continue
-    for col, v in vals.items():
-      if col not in base[key]:
-        base[key][col] = v
 
 
 def _merge_balance_table(
@@ -382,44 +369,62 @@ def _build_kr_rows(
 # fnguide Playwright 수집
 # ──────────────────────────────────────────────
 
-def _find_annual_table(tables: list[dict]) -> Optional[dict]:
-  """Snapshot IFRS(연결) 연간 아카이브 테이블을 반환한다.
+def _finance_first_label(tbl: dict) -> str:
+  """테이블 첫 행 첫 셀 라벨(여러 줄이면 첫 줄)."""
+  rows = tbl.get('rows', [])
+  if not rows or not rows[0]:
+    return ''
+  return rows[0][0].split('\n')[0].strip()
 
-  _extract_fnguide_tables는 thead tr:last-child만 가져오므로 'IFRS(연결)' 텍스트가
-  헤더에 없다. 대신 행 데이터 기준으로 식별:
-  - 첫 행 라벨 '매출액'
-  - 헤더에 12월(연간) 기간만 2개 이상
-  - 분기 기간(03/06/09월) 없음
-  순서상 IFRS(연결)이 IFRS(별도)보다 앞에 있으므로 첫 번째 매치를 반환.
+
+def _table_period_kind(tbl: dict) -> str:
+  """SVD_Finance 테이블의 기간 종류를 날짜 헤더 간격으로 판정.
+
+  연간표는 열 간격이 ~12개월(연말 결산 반복), 분기표는 ~3개월. 결산월과 무관하게
+  간격만 보므로 비-12월 결산(예: 3월 결산)도 정상 판정한다. 전년동기/(E)/(P)/라벨
+  열은 무시. 파싱 가능한 날짜 2개 미만이면 'unknown'(peer·주주 표 배제).
   """
-  for tbl in tables:
-    hdrs = tbl.get('headers', [])
-    rows = tbl.get('rows', [])
-    if not rows or not rows[0]:
+  dates: list[date] = []
+  for h in tbl.get('headers', []):
+    hs = h.strip()
+    if hs in FNGUIDE_SKIP_HEADERS or '(E)' in hs or '(P)' in hs:
       continue
-    if rows[0][0].split('\n')[0].strip() != '매출액':
-      continue
-    # '(E)', '(P)' 접미어 없는 정확한 YYYY/12 형식만 연간으로 판별
-    annual_hdrs  = [h for h in hdrs if re.match(r'^\d{4}/12$', h.strip())]
-    quarter_hdrs = [h for h in hdrs if re.match(r'^\d{4}/(?:03|06|09)$', h.strip())]
-    if len(annual_hdrs) >= 2 and not quarter_hdrs:
-      return tbl
-  return None
+    d = _parse_period(hs)
+    if d is not None:
+      dates.append(d)
+  if len(dates) < 2:
+    return 'unknown'
+  dates.sort()
+  gaps = [(b.year - a.year) * 12 + (b.month - a.month) for a, b in zip(dates, dates[1:])]
+  annual_gaps = sum(1 for g in gaps if g >= 6)
+  quarter_gaps = sum(1 for g in gaps if 0 < g < 6)
+  return 'annual' if annual_gaps >= quarter_gaps else 'quarterly'
 
 
-def _find_quarterly_table(tables: list[dict]) -> Optional[dict]:
-  """Snapshot IFRS(연결) 분기 테이블을 반환한다."""
+def _classify_finance_tables(tables: list[dict]) -> dict:
+  """SVD_Finance 테이블에서 연간/분기 × 손익/재무상태 4종을 식별한다.
+
+  손익표=첫 행 라벨 '매출액', 재무상태표=첫 행 라벨 '자산'. 연간/분기는
+  _table_period_kind(열 간격)로 구분하고 각 슬롯은 첫 매치를 채택한다. 첫 행이
+  '매출액'이어도 날짜 헤더가 없으면(peer 비교표) 'unknown'이라 배제된다.
+  """
+  result: dict = {'annual_income': None, 'quarterly_income': None,
+                  'annual_balance': None, 'quarterly_balance': None}
   for tbl in tables:
-    hdrs = tbl.get('headers', [])
-    rows = tbl.get('rows', [])
-    if not rows or not rows[0]:
+    label = _finance_first_label(tbl)
+    if label == '매출액':
+      base = 'income'
+    elif label == '자산':
+      base = 'balance'
+    else:
       continue
-    if rows[0][0].split('\n')[0].strip() != '매출액':
+    kind = _table_period_kind(tbl)
+    if kind not in ('annual', 'quarterly'):
       continue
-    quarter_hdrs = [h for h in hdrs if re.match(r'^\d{4}/(?:03|06|09)$', h.strip())]
-    if len(quarter_hdrs) >= 2:
-      return tbl
-  return None
+    slot = f'{kind}_{base}'
+    if result.get(slot) is None:
+      result[slot] = tbl
+  return result
 
 
 def _scrape_company_financials(
@@ -429,77 +434,52 @@ def _scrape_company_financials(
   currency: str,
   fiscal_year_end_month: int = 12,
 ) -> list[dict]:
-  """단일 회사의 연간·분기 재무제표를 fnguide에서 스크레이핑한다.
+  """단일 회사의 연간·분기 재무제표를 fnguide SVD_Finance에서 스크레이핑한다.
 
-  전략:
-  - Snapshot(SVD_main) Financial Highlight 테이블 → 연간·분기 재무 + PER·PBR·EPS
-  - GoMenu('103') 재무제표 탭 → 매출원가·매출총이익·판관비·재고자산 (Snapshot에 없음)
-  - GoMenu('105') 투자지표 탭 → EV/EBITDA 등 추가 지표
-  Snapshot에서 채운 값은 후속 페이지가 덮어쓰지 않음.
+  전략 (2026-07 신규 레이아웃):
+  - SVD_Finance.asp 직접 URL → 연간/분기 손익 + 재무상태 4종 테이블. 분기표가
+    discrete 분기값(정확한 Q4)을 직접 제공하므로 Q4=연간누적 오류가 원천 차단된다.
+  - SVD_Invest.asp 직접 URL → EPS/PER/BPS/PBR/EV_EBITDA 등 투자지표.
+  옛 Snapshot Financial Highlight(SVD_Main)는 익명 세션에 회사 무관 fallback을 반환해
+  쓰지 않는다. GoMenu()는 신규 페이지에서 미정의라 직접 URL로 대체.
   """
   gicode = _to_gicode(ticker)
-  snapshot_url = FNGUIDE_SNAPSHOT_URL.format(gicode=gicode)
   all_rows: list[dict] = []
+  U = FNGUIDE_UNIT_MULTIPLIER
 
   try:
-    # Snapshot 페이지 직접 로드 (Financial Highlight 포함)
-    page.goto(snapshot_url, timeout=FNGUIDE_PAGE_TIMEOUT)
+    # 재무제표(SVD_Finance) — 연간/분기 손익·재무상태
+    page.goto(FNGUIDE_FINANCE_URL.format(gicode=gicode), timeout=FNGUIDE_PAGE_TIMEOUT)
     page.wait_for_load_state('networkidle', timeout=FNGUIDE_PAGE_TIMEOUT)
     page.wait_for_timeout(FNGUIDE_NAV_WAIT_MS)
 
-    snap_tables = _extract_fnguide_tables(page)
-
-    annual_tbl = _find_annual_table(snap_tables)
-    qtr_tbl    = _find_quarterly_table(snap_tables)
-
-    if annual_tbl is None:
-      logger.warning(f"KR {ticker}: Financial Highlight 연간 테이블 없음 — 스킵")
+    cls = _classify_finance_tables(_extract_fnguide_tables(page))
+    if cls['annual_income'] is None:
+      logger.warning(f"KR {ticker}: SVD_Finance 연간 손익 테이블 없음 — 스킵")
       return []
 
-    # Snapshot 데이터 파싱 (억원 × 100 → 백만원)
-    annual_data = _parse_income_table(annual_tbl, FNGUIDE_UNIT_MULTIPLIER)
-    qtr_data: dict[str, dict] = (
-      _parse_income_table(qtr_tbl, FNGUIDE_UNIT_MULTIPLIER) if qtr_tbl else {}
-    )
+    # 억원 × 100 → 백만원. 연간표의 최신 분기 열(예: 2026/03)은 _build_kr_rows가
+    # period_end.month != 결산월로 스킵한다.
+    annual_data = _parse_income_table(cls['annual_income'], U)
+    if cls['annual_balance'] is not None:
+      _merge_balance_table(annual_data, cls['annual_balance'], U)
 
-    # 재무제표 탭(GoMenu('103')) — 매출원가·매출총이익·판관비·재고자산 보강
-    try:
-      page.evaluate("GoMenu('103')")
-      page.wait_for_load_state('networkidle', timeout=FNGUIDE_PAGE_TIMEOUT)
-      page.wait_for_timeout(FNGUIDE_NAV_WAIT_MS)
-      fin_tables = _extract_fnguide_tables(page)
+    qtr_data: dict[str, dict] = {}
+    if cls['quarterly_income'] is not None:
+      qtr_data = _parse_income_table(cls['quarterly_income'], U)
+      if cls['quarterly_balance'] is not None:
+        _merge_balance_table(qtr_data, cls['quarterly_balance'], U)
 
-      if len(fin_tables) > FNGUIDE_TABLE_ANNUAL_INCOME:
-        _merge_period_data(
-          annual_data,
-          _parse_income_table(fin_tables[FNGUIDE_TABLE_ANNUAL_INCOME], FNGUIDE_UNIT_MULTIPLIER),
-        )
-      if len(fin_tables) > FNGUIDE_TABLE_ANNUAL_BALANCE:
-        _merge_balance_table(
-          annual_data, fin_tables[FNGUIDE_TABLE_ANNUAL_BALANCE], FNGUIDE_UNIT_MULTIPLIER
-        )
-      if qtr_tbl and len(fin_tables) > FNGUIDE_TABLE_QTR_INCOME:
-        _merge_period_data(
-          qtr_data,
-          _parse_income_table(fin_tables[FNGUIDE_TABLE_QTR_INCOME], FNGUIDE_UNIT_MULTIPLIER),
-        )
-      if qtr_tbl and len(fin_tables) > FNGUIDE_TABLE_QTR_BALANCE:
-        _merge_balance_table(
-          qtr_data, fin_tables[FNGUIDE_TABLE_QTR_BALANCE], FNGUIDE_UNIT_MULTIPLIER
-        )
-    except Exception as e:
-      logger.warning(f"KR {ticker} 재무제표(103) 수집 실패: {e}")
-
-    # 투자지표 탭(GoMenu('105')) — EV/EBITDA 수집
+    # 투자지표(SVD_Invest) — EPS/PER/BPS/PBR/EV_EBITDA 등
     invest_map: dict[str, dict] = {}
     try:
-      page.evaluate("GoMenu('105')")
+      page.goto(FNGUIDE_INVEST_URL.format(gicode=gicode), timeout=FNGUIDE_PAGE_TIMEOUT)
       page.wait_for_load_state('networkidle', timeout=FNGUIDE_PAGE_TIMEOUT)
       page.wait_for_timeout(FNGUIDE_NAV_WAIT_MS)
       inv_tables = _extract_fnguide_tables(page)
       invest_map = _build_invest_map(inv_tables[1] if len(inv_tables) > 1 else {})
     except Exception as e:
-      logger.warning(f"KR {ticker} 투자지표 수집 실패: {e}")
+      logger.warning(f"KR {ticker} 투자지표(SVD_Invest) 수집 실패: {e}")
 
     all_rows.extend(_build_kr_rows(
       company_id, currency, 'annual', annual_data, invest_map,
@@ -800,30 +780,58 @@ def _filter_to_upsert(rows: list[dict], existing_keys: set[tuple]) -> list[dict]
 # 메인
 # ──────────────────────────────────────────────
 
+# fnguide 구조 변경 감지 임계값 — KR 회사 대량 0행이면 파서가 깨진 신호.
+KR_HEALTH_MIN_COMPANIES = 10   # 이보다 적으면 신호 부족 → 판단 보류
+KR_HEALTH_MIN_RATIO     = 0.5  # 데이터 획득 회사 비율 하한
+
+
+def _kr_health_ok(attempted: int, with_data: int) -> bool:
+  """KR fnguide 수집 건전성. 구조 변경 시 발생하는 대량 0행을 감지한다.
+
+  회사가 KR_HEALTH_MIN_COMPANIES 미만이면 신호가 부족해 판단 보류(True — 정상 회사
+  과차단 방지). 그 이상이면 데이터를 얻은 회사 비율이 KR_HEALTH_MIN_RATIO 이상이어야
+  정상. fnguide가 페이지 구조를 바꿔 파서가 표를 못 찾으면 대부분 0행이 되어 감지된다
+  (2026-07 Snapshot→통합표 변경을 침묵 처리했던 재발 방지)."""
+  if attempted < KR_HEALTH_MIN_COMPANIES:
+    return True
+  return with_data >= attempted * KR_HEALTH_MIN_RATIO
+
+
 def collectFinancials() -> None:
-  """21개사 재무데이터를 수집해 financials 테이블에 upsert한다."""
+  """KR 상장사 + 글로벌 재무데이터를 수집해 financials 테이블에 upsert한다."""
   id_map, cur_map = _load_company_maps()
 
   kr_rows     = _collect_kr_financials(id_map, cur_map)
   global_rows = _collect_global_financials(id_map, cur_map)
   all_rows    = kr_rows + global_rows
 
-  if not all_rows:
+  # fnguide 구조 변경 감지 — 대량 0행이면 파서가 깨진 신호(이번 사태의 침묵 실패 방지).
+  kr_attempted = sum(1 for c in get_kr_companies() if id_map.get(c['ticker']))
+  kr_with_data = len({r['company_id'] for r in kr_rows})
+  structure_broken = not _kr_health_ok(kr_attempted, kr_with_data)
+  if structure_broken:
+    logger.error(
+      f"⚠️ fnguide 구조 변경 의심 — KR {kr_with_data}/{kr_attempted} 회사만 수집됨. "
+      "SVD_Finance 레이아웃/파서(_classify_finance_tables) 점검 필요."
+    )
+
+  if all_rows:
+    existing_keys = _load_existing_keys()
+    to_upsert     = _filter_to_upsert(all_rows, existing_keys)
+    if to_upsert:
+      upsert_rows('financials', to_upsert, 'company_id,period_type,fiscal_year,fiscal_quarter')
+      logger.info(
+        f"재무 수집 완료 — {len(to_upsert)}/{len(all_rows)}행 upsert "
+        f"(KR {len(kr_rows)} + 글로벌 {len(global_rows)})"
+      )
+    else:
+      logger.info("upsert 대상 행 없음 (모두 안정화된 과거 데이터)")
+  else:
     logger.warning("수집된 재무 데이터 없음")
-    return
 
-  existing_keys = _load_existing_keys()
-  to_upsert     = _filter_to_upsert(all_rows, existing_keys)
-
-  if not to_upsert:
-    logger.info("upsert 대상 행 없음 (모두 안정화된 과거 데이터)")
-    return
-
-  upsert_rows('financials', to_upsert, 'company_id,period_type,fiscal_year,fiscal_quarter')
-  logger.info(
-    f"재무 수집 완료 — {len(to_upsert)}/{len(all_rows)}행 upsert "
-    f"(KR {len(kr_rows)} + 글로벌 {len(global_rows)})"
-  )
+  # 구조 이상은 수집분 upsert 후 non-zero 종료로 워크플로에 알린다.
+  if structure_broken:
+    sys.exit(2)
 
 
 if __name__ == '__main__':
