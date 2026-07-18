@@ -1,0 +1,56 @@
+name: 유튜브 보고서 자동 생성 (본문+주요장면·차트)
+
+# /api/posts(youtube 제출)가 workflow_dispatch로 트리거. Vercel 서버리스는 yt-dlp/ffmpeg를
+# 못 돌려서 캡처를 여기(GHA)로 넘긴다. 베스트에포트 — 유튜브가 GHA IP를 봇 차단하면
+# 이미지 없이 텍스트만으로 graceful 완성.
+on:
+  workflow_dispatch:
+    inputs:
+      post_id:
+        description: '갱신할 posts id (processing 상태로 이미 생성된 글)'
+        required: true
+        type: string
+      source_url:
+        description: '유튜브 watch URL'
+        required: true
+        type: string
+
+jobs:
+  build-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치 (yt-dlp 포함)
+        run: pip install -r requirements.txt
+
+      - name: ffmpeg 설치
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: 보고서 생성 실행
+        run: |
+          python collect_yt_report.py \
+            --post-id "${{ github.event.inputs.post_id }}" \
+            --url "${{ github.event.inputs.source_url }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEXT_REVALIDATE_PROD_URL: ${{ secrets.NEXT_REVALIDATE_PROD_URL }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+          # 선택: 유튜브 봇 차단 완화용 쿠키(로그인 브라우저 cookies.txt 내용). 없어도 동작(베스트에포트).
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}

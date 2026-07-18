@@ -25,7 +25,7 @@
 | 로깅       | Pino                                                                          | 클라이언트 / Loguru: Python              |
 | AI SDK     | `@anthropic-ai/sdk` + `@google/genai`                                         | Claude·Gemini                            |
 | 수집       | Python 3.13 + `postgrest-py` + Playwright + pykrx + yfinance + OpenDartReader | venv                                     |
-| 배포       | Vercel + GitHub Actions (23 워크플로)                                         | Hobby 플랜                               |
+| 배포       | Vercel + GitHub Actions (24 워크플로)                                         | Hobby 플랜                               |
 | Cron       | GitHub Actions schedule + cron-job.org (5분 간격)                             | Vercel cron 미사용 (Hobby 제약)          |
 
 ## 3. 시스템 컨텍스트 다이어그램
@@ -40,7 +40,7 @@
                                   ▼
 ┌──────────────────┐    ┌────────────────────┐    ┌──────────────────┐
 │  GitHub Actions  │ ─▶ │  scripts/*.py      │ ─▶ │  Supabase        │
-│  23 워크플로     │    │  collect / enrich  │    │  PostgreSQL +    │
+│  24 워크플로     │    │  collect / enrich  │    │  PostgreSQL +    │
 │  (cron · manual) │    │  (postgrest-py)    │    │  Auth + Storage  │
 └──────────────────┘    └─────────┬──────────┘    └────────┬─────────┘
                                   │                         │
@@ -161,7 +161,7 @@ lib/                      # 도메인 모듈 + 공용 유틸
 scripts/                  # Python 수집 + onboarding
   lib/                    #   공용 모듈 (db.py, accounts_map, fx, revalidate)
 supabase/migrations/      # 시간순 SQL (YYYYMMDD000NNN_*.sql)
-.github/workflows/        # 22개 GHA 워크플로
+.github/workflows/        # 24개 GHA 워크플로
 proxy.ts                  # Next.js 16 미들웨어
 next.config.ts            # cacheComponents + staleTimes + serverExternalPackages
 vercel.json               # 배포 설정 (Vercel cron 미사용)
@@ -615,7 +615,7 @@ GHA runner: sync_management_excel.py (apply)
 
 ## 10. 자동화 (GitHub Actions + cron-job.org)
 
-### 23개 워크플로 카테고리
+### 24개 워크플로 카테고리
 
 | 카테고리                | 워크플로 예시                                                                                                                                                                                                                                      | 주기                                               |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
@@ -638,6 +638,7 @@ GHA runner: sync_management_excel.py (apply)
 | 신차 재고 (Cox)         | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독)                                                                                                                                                                        | 매월 20일                                          |
 | 보강                    | enrich-company                                                                                                                                                                                                                                     | 수동                                               |
 | 경영관리 엑셀 업로드    | sync-management (workflow_dispatch — dry-run/apply)                                                                                                                                                                                                | 수동                                               |
+| 보고서 자동생성         | collect-yt-report (workflow_dispatch — `/reports/new` 유튜브 제출 시 `/api/posts`가 트리거, 자막→LLM 본문+주요장면·차트 캡처→post UPDATE. 베스트에포트)                                                                                             | 자동 트리거                                        |
 | Vercel cron 대체 (curl) | cron-sentiment                                                                                                                                                                                                                                     | 일 1회                                             |
 
 ### cron-job.org 외부 트리거

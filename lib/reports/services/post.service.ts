@@ -12,6 +12,49 @@ const TEMP_TITLE = '⏳ 본문 생성 중…';
 
 const CATEGORY_LIST = ['로봇', '기술', '부품사', '전기차', '자율주행', '시장', 'OEM'];
 
+const GITHUB_OWNER = 'yjh8585';
+const GITHUB_REPO = 'stock_monitor';
+const YT_REPORT_WORKFLOW = 'collect-yt-report.yml';
+
+/**
+ * 유튜브 보고서 생성을 GitHub Actions로 트리거(collect-yt-report.yml).
+ *
+ * Vercel 서버리스는 yt-dlp/ffmpeg를 못 돌려 프레임 캡처가 불가 → 캡처를 GHA로 위임한다.
+ * GHA가 본문+주요장면·차트를 만들어 해당 post 를 completed 로 UPDATE한다(베스트에포트).
+ * dispatch 실패(GITHUB_PAT 미설정 등) 시 caller가 텍스트 경로로 폴백.
+ */
+async function triggerYoutubeReportWorkflow(
+  postId: number,
+  sourceUrl: string
+): Promise<{ ok: boolean; error?: string }> {
+  const pat = process.env.GITHUB_PAT;
+  if (!pat) return { ok: false, error: 'GITHUB_PAT 환경변수 미설정' };
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${YT_REPORT_WORKFLOW}/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${pat}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({
+          ref: 'master',
+          inputs: { post_id: String(postId), source_url: sourceUrl },
+        }),
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return { ok: false, error: `GitHub API ${res.status}: ${text.slice(0, 200)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** 제목 기반으로 카테고리를 Claude로 분류. 실패 시 null 반환. */
 async function classifyCategory(title: string): Promise<string | null> {
   try {
@@ -83,6 +126,15 @@ export class PostService {
   }
 
   private async processYoutube(id: number, sourceUrl: string) {
+    // 1순위: GHA로 위임(본문 + 주요장면·차트 스크린샷 포함). GHA가 completed 로 UPDATE.
+    const dispatched = await triggerYoutubeReportWorkflow(id, sourceUrl);
+    if (dispatched.ok) {
+      logger.info({ id }, '유튜브 보고서 GHA 트리거 — 이미지 포함 처리 위임');
+      return;
+    }
+
+    // 폴백: GHA 트리거 실패 → 기존 Gemini 텍스트 경로(이미지 없음).
+    logger.warn({ id, error: dispatched.error }, 'GHA 트리거 실패 → 텍스트 경로 폴백');
     const result = await analyzeYoutubeVideo(sourceUrl);
     const category = await classifyCategory(result.title);
     await this.repo.update(id, {
