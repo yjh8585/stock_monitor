@@ -519,7 +519,7 @@ UNIQUE: (source, note_date)
 | 테이블                 | 컬럼                                   | 용도                              |
 | ---------------------- | -------------------------------------- | --------------------------------- |
 | `kis_tokens`           | env_key, token, expires_at, updated_at | 한국투자증권 API 토큰 (자체 갱신) |
-| `product_category_map` | raw_category, normalized               | 제품 카테고리 정규화 매핑 (63행)  |
+| `product_category_map` | raw_category, normalized               | 제품 카테고리 정규화 매핑 (74행, `20260718000001`로 자동차 부품 raw 확장)  |
 
 ---
 
