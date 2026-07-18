@@ -33,9 +33,9 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 
 - `report-web`: 웹페이지 → Readability + turndown으로 본문 보존 → Claude 한국어 요약(`report-web.service.ts`)
 - `report-file`: PDF → 추출 → Claude 요약(`report-pdf.service.ts`)
-- `youtube`: 자막 → 요약 + `key_scenes`(`youtube.service.ts`)
+- `youtube`: **GitHub Actions로 위임**(`post.service.ts`가 `collect-yt-report.yml`을 workflow_dispatch) → `scripts/collect_yt_report.py`가 자막→LLM 본문+**주요 장면·차트 스크린샷**→해당 post UPDATE(completed). Vercel 서버리스는 yt-dlp/ffmpeg를 못 돌려 캡처를 GHA로 넘긴다. **베스트에포트** — 유튜브가 GHA IP를 봇 차단(429/403)하면 이미지 없이 텍스트만으로 graceful 완성. GHA 트리거 실패(`GITHUB_PAT` 미설정 등) 시 기존 Gemini 텍스트 경로(`youtube.service.ts`)로 폴백. 성공률은 GitHub Secret `YOUTUBE_COOKIES`(로그인 브라우저 cookies.txt)로 개선. 자동 경로는 비용 절감 모델(Haiku)이라 **고품질·이미지 다수는 수동 §7 툴킷 권장**.
 
-캐시 무효화는 라우트가 `revalidateTag('posts')`/`post:<id>`로 자동 처리.
+캐시 무효화는 라우트가 `revalidateTag('posts')`/`post:<id>`로 자동 처리(GHA 경로는 스크립트가 게시 완료 후 자체 무효화).
 
 ### 2-B. 직접 작성 (LLM API 미사용)
 
