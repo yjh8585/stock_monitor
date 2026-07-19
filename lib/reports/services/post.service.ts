@@ -17,11 +17,12 @@ const GITHUB_REPO = 'stock_monitor';
 const YT_REPORT_WORKFLOW = 'collect-yt-report.yml';
 
 /**
- * 유튜브 보고서 생성을 GitHub Actions로 트리거(collect-yt-report.yml).
+ * 유튜브 보고서 이미지 보강을 GitHub Actions로 트리거(collect-yt-report.yml).
  *
  * Vercel 서버리스는 yt-dlp/ffmpeg를 못 돌려 프레임 캡처가 불가 → 캡처를 GHA로 위임한다.
- * GHA가 본문+주요장면·차트를 만들어 해당 post 를 completed 로 UPDATE한다(베스트에포트).
- * dispatch 실패(GITHUB_PAT 미설정 등) 시 caller가 텍스트 경로로 폴백.
+ * caller가 텍스트 글을 먼저 완성한 뒤 호출한다. GHA가 유튜브 접근에 성공하면 주요장면·차트를
+ * 캡처해 이미지 버전으로 덮어쓴다(collect_yt_report.py --enrich). dispatch·GHA 실패해도
+ * 이미 완성된 텍스트 글이 그대로 유지된다(베스트에포트, failed로 downgrade 안 함).
  */
 async function triggerYoutubeReportWorkflow(
   postId: number,
@@ -126,19 +127,8 @@ export class PostService {
   }
 
   private async processYoutube(id: number, sourceUrl: string) {
-    // 이미지 포함 GHA 경로는 **opt-in**: Vercel env `YT_AUTO_REPORT=1` 일 때만 활성.
-    // 미설정(기본)이면 기존 Gemini 텍스트 경로 — 안정적이고 추가 설정 불필요.
-    if (process.env.YT_AUTO_REPORT === '1') {
-      const dispatched = await triggerYoutubeReportWorkflow(id, sourceUrl);
-      if (dispatched.ok) {
-        logger.info({ id }, '유튜브 보고서 GHA 트리거 — 이미지 포함 처리 위임');
-        return;
-      }
-      // GHA 트리거 실패 → 아래 텍스트 경로로 폴백.
-      logger.warn({ id, error: dispatched.error }, 'GHA 트리거 실패 → 텍스트 경로 폴백');
-    }
-
-    // 기본: 기존 Gemini 텍스트 경로(이미지 없음).
+    // 1) 텍스트 먼저 완성 — 항상 Gemini로 본문을 만들어 글을 completed로 확정한다.
+    //    봇 차단·GHA 실패와 무관하게 글은 안정적으로 완성된다(이미지 보강은 그 위에 베스트에포트).
     const result = await analyzeYoutubeVideo(sourceUrl);
     const category = await classifyCategory(result.title);
     await this.repo.update(id, {
@@ -151,7 +141,19 @@ export class PostService {
       category,
       status: 'completed',
     });
-    logger.info({ id }, '유튜브 게시글 처리 완료');
+    logger.info({ id }, '유튜브 게시글 텍스트 처리 완료');
+
+    // 2) 이미지 보강 — 기본 활성(끄려면 Vercel env `YT_AUTO_REPORT=0`). GHA가 유튜브에 접근
+    //    가능하면(로컬/쿠키 등) 주요 장면·차트를 캡처해 이미지 버전으로 덮어쓴다(collect_yt_report.py
+    //    --enrich). 봇 차단 등으로 실패하면 위 텍스트 글이 그대로 유지된다 — 실패로 downgrade되지 않는다.
+    //    ⚠️ GHA 러너 IP는 유튜브 봇 차단이 잦아, 이미지는 GitHub Secret `YOUTUBE_COOKIES` 없이는
+    //    대개 붙지 않는다(그 경우 텍스트로 graceful 유지).
+    if (process.env.YT_AUTO_REPORT !== '0') {
+      const dispatched = await triggerYoutubeReportWorkflow(id, sourceUrl);
+      if (dispatched.ok) logger.info({ id }, '유튜브 이미지 보강 GHA 트리거');
+      else
+        logger.warn({ id, error: dispatched.error }, 'GHA 이미지 보강 트리거 실패(텍스트 글 유지)');
+    }
   }
 
   private async processReportWeb(id: number, sourceUrl: string) {

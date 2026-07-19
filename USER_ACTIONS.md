@@ -52,6 +52,11 @@ git push -u origin master
 | `VALLEY_EMAIL`              | valley.town 로그인 이메일   |
 | `VALLEY_PASSWORD`           | valley.town 로그인 비밀번호 |
 
+> **(선택) `YOUTUBE_COOKIES`** — `/reports` 유튜브 자동 보고서에 **이미지(주요 장면·차트)**를 붙이려면 필요.
+> GHA 러너 IP는 유튜브가 봇 차단해서, 이 쿠키가 없으면 이미지가 대개 안 붙고 **텍스트로만** 완성된다(글이 실패하진 않음).
+> 값: 로그인한 브라우저에서 "Get cookies.txt LOCALLY" 확장으로 유튜브 `cookies.txt`를 export한 **파일 내용 전체**를 붙여넣는다.
+> 쿠키는 만료되므로(예: `MARKLINES_COOKIE`처럼) 이미지가 안 붙기 시작하면 재채취. 없어도 텍스트 요약은 정상.
+
 ---
 
 ## 5. Vercel 배포
@@ -61,6 +66,8 @@ git push -u origin master
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - `GITHUB_PAT` — GitHub 자동 트리거용(회사 onboarding·유튜브 이미지 보강). repo `workflow` 권한 PAT
+   - `(선택) YT_AUTO_REPORT` — 유튜브 이미지 자동 보강 스위치. **미설정=켜짐(기본)**, `0`으로 두면 이미지 보강을 끄고 텍스트 요약만.
 3. **Deploy** 클릭
 
 ---
