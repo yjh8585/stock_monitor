@@ -126,15 +126,19 @@ export class PostService {
   }
 
   private async processYoutube(id: number, sourceUrl: string) {
-    // 1순위: GHA로 위임(본문 + 주요장면·차트 스크린샷 포함). GHA가 completed 로 UPDATE.
-    const dispatched = await triggerYoutubeReportWorkflow(id, sourceUrl);
-    if (dispatched.ok) {
-      logger.info({ id }, '유튜브 보고서 GHA 트리거 — 이미지 포함 처리 위임');
-      return;
+    // 이미지 포함 GHA 경로는 **opt-in**: Vercel env `YT_AUTO_REPORT=1` 일 때만 활성.
+    // 미설정(기본)이면 기존 Gemini 텍스트 경로 — 안정적이고 추가 설정 불필요.
+    if (process.env.YT_AUTO_REPORT === '1') {
+      const dispatched = await triggerYoutubeReportWorkflow(id, sourceUrl);
+      if (dispatched.ok) {
+        logger.info({ id }, '유튜브 보고서 GHA 트리거 — 이미지 포함 처리 위임');
+        return;
+      }
+      // GHA 트리거 실패 → 아래 텍스트 경로로 폴백.
+      logger.warn({ id, error: dispatched.error }, 'GHA 트리거 실패 → 텍스트 경로 폴백');
     }
 
-    // 폴백: GHA 트리거 실패 → 기존 Gemini 텍스트 경로(이미지 없음).
-    logger.warn({ id, error: dispatched.error }, 'GHA 트리거 실패 → 텍스트 경로 폴백');
+    // 기본: 기존 Gemini 텍스트 경로(이미지 없음).
     const result = await analyzeYoutubeVideo(sourceUrl);
     const category = await classifyCategory(result.title);
     await this.repo.update(id, {
