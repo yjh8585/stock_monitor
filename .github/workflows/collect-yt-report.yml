@@ -40,9 +40,10 @@ jobs:
       - name: ffmpeg 설치
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: 보고서 생성 실행
+      - name: 보고서 이미지 보강 실행 (베스트에포트)
         run: |
           python collect_yt_report.py \
+            --enrich \
             --post-id "${{ github.event.inputs.post_id }}" \
             --url "${{ github.event.inputs.source_url }}"
         env:

@@ -337,6 +337,12 @@ def main() -> int:
     ap.add_argument("--url", required=True)
     ap.add_argument("--post-id", type=int, default=None)
     ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument(
+        "--enrich",
+        action="store_true",
+        help="보강 모드: 이미 완성된 글에 이미지만 덧입힌다. 실패(봇차단 등)해도 failed로 "
+        "만들지 않고 기존 글 유지, 이미지를 실제로 만들었을 때만 덮어쓴다.",
+    )
     args = ap.parse_args()
 
     vid = video_id(args.url)
@@ -353,7 +359,11 @@ def main() -> int:
 
         transcript = fetch_transcript(args.url, run)
         if len(transcript) < 80:
-            raise RuntimeError("자막을 가져오지 못했습니다(유튜브 봇 차단 가능). 수동 툴킷으로 시도하세요.")
+            msg = "자막을 가져오지 못했습니다(유튜브 봇 차단 가능)."
+            if args.enrich:
+                log(f"[skip] {msg} 기존 글 유지(덮어쓰지 않음).")
+                return 0
+            raise RuntimeError(msg + " 수동 툴킷으로 시도하세요.")
         log(f"[transcript] {len(transcript):,}자")
 
         art = write_article(client, args.model, meta, transcript)
@@ -378,6 +388,11 @@ def main() -> int:
             log(f"[capture] 실패 → 텍스트만: {e}")
             body = re.sub(r"^[ \t]*\[\[FRAME:[a-z0-9_]+\]\][ \t]*$\n?", "", body, flags=re.M)
 
+        # 보강 모드에서 이미지를 하나도 못 만들었으면 기존(텍스트) 글을 건드리지 않는다.
+        if args.enrich and not png_paths:
+            log("[skip] 이미지 0 → 기존 글 유지(덮어쓰지 않음).")
+            return 0
+
         if png_paths:
             upload_pngs(png_paths, folder)
             log(f"[upload] png {len(png_paths)}장")
@@ -401,6 +416,10 @@ def main() -> int:
         return 0
     except Exception as e:  # noqa: BLE001
         log(f"[FAIL] {e}")
+        # 보강 모드: 실패해도 기존 글을 failed로 downgrade하지 않는다(텍스트 글 유지). GHA도 성공 처리.
+        if args.enrich:
+            log("[skip] 보강 실패 → 기존 글 유지.")
+            return 0
         if args.post_id:
             try:
                 write_post({"status": "failed", "error_message": str(e)[:500]}, args.post_id)
