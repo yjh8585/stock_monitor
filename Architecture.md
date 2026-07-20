@@ -341,7 +341,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 - **PK** (brand, year_month) · **인덱스** year_month · **RLS** anon read / service_role write (공개 데이터)
 - 출처 coxautoinc.com 월간 리포트. **브랜드별 수치가 차트 JPEG 안에만** 있어 LLM vision 판독(CSV 첨부는 산업 전체만).
 - **CHECK**: `(is_outlier_excluded AND days_supply IS NULL) OR (NOT is_outlier_excluded AND days_supply IS NOT NULL)`
-- **결측의 의미가 2가지다 — 섞지 말 것**: `is_outlier_excluded=true` + `days_supply=null` = Cox가 **업계 평균(NATION)×2 초과라 값을 감춘 것**(= 강한 위험 신호. Chrysler가 202512~202603 이 상태). **행 자체가 없으면** 저물량 상시 제외(Fiat·Alfa Romeo)·그 달 로스터 누락·판독 실패 중 하나로 **우리가 모르는 상태**.
+- **결측의 의미가 2가지다 — 섞지 말 것**: `is_outlier_excluded=true` + `days_supply=null` = Cox가 **업계 평균(NATION)×2 초과라 값을 감춘 것**(= 강한 위험 신호. **대상 브랜드는 달마다 바뀐다** — Chrysler 202512~202603, Ram·Dodge 202606. Chrysler는 202604부터 값이 돌아왔다). **행 자체가 없으면** 저물량 상시 제외(Fiat·Alfa Romeo)·그 달 로스터 누락·판독 실패 중 하나로 **우리가 모르는 상태**.
 - `brand`는 `BRAND_ALIASES` 정규화 후 값(Cox가 202602부터 `Mercedes-Benz` → `Mercedes`로 라벨 변경). 업계 평균 행은 `NATION`.
 - 과거치가 **소급 수정**되므로 최근 3개월 재적재. 적재 전 기존 DB 값과 대조해 변경분을 경고한다.
 

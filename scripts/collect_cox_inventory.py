@@ -315,6 +315,7 @@ def select_chart_image(html: str, page_url: str) -> str | None:
   if container is None:
     return None
 
+  raster: list[str] = []
   scored: list[tuple[int, str]] = []
   for img in container.find_all('img'):
     src = img.get('src')
@@ -323,11 +324,19 @@ def select_chart_image(html: str, page_url: str) -> str | None:
     url = full_res_image_url(str(src), page_url)
     if media_type_for_url(url) is None:
       continue
+    raster.append(url)
     score = score_image_candidate(url)
     if score > 0:
       scored.append((score, url))
 
   if not scored:
+    # 파일명 힌트가 전부 어긋난 달(실측 202606 'Slide1-v2.jpeg' — 파워포인트 기본
+    # 내보내기 이름). 월간 재고 기사의 본문 이미지는 늘 차트 1장이므로 유일할 때만
+    # 채택한다. 차트가 아니면 vision 판독·validate_extraction이 실패로 잡아낸다.
+    # 여러 장이면 어느 게 차트인지 모르므로 찍지 않고 포기한다.
+    if len(raster) == 1:
+      logger.warning(f'  파일명 힌트 없음 — 본문 유일 이미지를 차트로 채택: {raster[0]}')
+      return raster[0]
     return None
   scored.sort(key=lambda t: -t[0])
   if len(scored) > 1 and scored[0][0] == scored[1][0]:

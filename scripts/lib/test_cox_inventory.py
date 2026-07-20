@@ -195,8 +195,25 @@ class SelectChartImageTest(unittest.TestCase):
     )
     self.assertIsNone(col.select_chart_image(html, PAGE_URL))
 
-  def test_article_without_chart_yields_none(self):
-    html = _article_html(f'<img src="{UPLOADS}/2026/06/some-photo.jpg" alt="">')
+  def test_sole_content_image_taken_regardless_of_filename(self):
+    """파일명 힌트가 전부 어긋나도 본문 이미지가 유일하면 그걸 차트로 본다.
+
+    실측 202606: Cox가 'Slide1-v2.jpeg'(파워포인트 기본 내보내기 이름)로 올려
+    'inventory' 필수 힌트가 깨졌다. 월간 재고 기사는 본문 이미지가 늘 차트 1장이므로
+    유일할 때는 채택하고, 차트가 아니면 vision 판독·validate_extraction이 걸러낸다.
+    """
+    html = _article_html(f'<img src="{UPLOADS}/2026/07/Slide1-v2.jpeg?w=1024" alt="">')
+    self.assertEqual(
+      col.select_chart_image(html, PAGE_URL),
+      f'{UPLOADS}/2026/07/Slide1-v2.jpeg',
+    )
+
+  def test_multiple_hintless_images_yield_none(self):
+    """힌트 없는 이미지가 여러 장이면 어느 게 차트인지 모른다 — 찍지 말고 포기."""
+    html = _article_html(
+      f'<img src="{UPLOADS}/2026/06/some-photo.jpg" alt="">',
+      f'<img src="{UPLOADS}/2026/06/another-photo.jpg" alt="">',
+    )
     self.assertIsNone(col.select_chart_image(html, PAGE_URL))
 
   def test_prefers_brand_chart_when_two_inventory_images(self):
