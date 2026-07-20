@@ -20,6 +20,7 @@ interface FilterParams {
   sourceType?: string;
   category?: string;
   sourceName?: string;
+  search?: string;
 }
 
 interface Props {
@@ -54,6 +55,7 @@ function buildSortHref(
   if (filters.sourceType) params.set('sourceType', filters.sourceType);
   if (filters.category) params.set('category', filters.category);
   if (filters.sourceName) params.set('sourceName', filters.sourceName);
+  if (filters.search) params.set('search', filters.search);
   return `/reports?${params.toString()}`;
 }
 
