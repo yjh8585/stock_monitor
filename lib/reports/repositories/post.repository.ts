@@ -51,6 +51,7 @@ export class PostRepository {
       sourceType?: PostSourceType;
       category?: string;
       sourceName?: string;
+      search?: string;
     }
   ): Promise<{ rows: PostListRow[]; total: number }> {
     const from = (page - 1) * pageSize;
@@ -64,6 +65,8 @@ export class PostRepository {
     if (options?.sourceType) query = query.eq('source_type', options.sourceType);
     if (options?.category) query = query.eq('category', options.category);
     if (options?.sourceName) query = query.eq('source_name', options.sourceName);
+    // 제목 부분 일치 검색(대소문자 무시). supabase-js 가 값을 URL 인코딩하므로 특수문자 안전.
+    if (options?.search) query = query.ilike('title', `%${options.search}%`);
 
     if (sort === 'source_published_at') {
       // NULL 은 항상 마지막에 — 비어 있는 작성일 행이 상단을 차지하지 않도록.

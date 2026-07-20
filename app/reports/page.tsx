@@ -22,6 +22,7 @@ interface ReportsPageProps {
     sourceType?: string;
     category?: string;
     sourceName?: string;
+    search?: string;
   }>;
 }
 
@@ -49,6 +50,7 @@ interface ListArgs {
   sourceType: PostSourceType | undefined;
   category: string | undefined;
   sourceName: string | undefined;
+  search: string | undefined;
 }
 
 /**
@@ -68,6 +70,7 @@ async function getPostsListData(args: ListArgs) {
       sourceType: args.sourceType,
       category: args.category,
       sourceName: args.sourceName,
+      search: args.search,
     }),
     repo.getDistinctCategories(),
     repo.getDistinctSourceNames(),
@@ -83,12 +86,14 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
     sourceType: rawSourceType,
     category,
     sourceName,
+    search: rawSearch,
   } = await searchParams;
 
   const sort = normalizeSort(rawSort);
   const order = normalizeOrder(rawOrder);
   const page = normalizePage(rawPage);
   const sourceType = normalizeSourceType(rawSourceType);
+  const search = rawSearch?.trim() || undefined;
 
   const { rows, total, categories, sourceNames } = await getPostsListData({
     page,
@@ -97,6 +102,7 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
     sourceType,
     category,
     sourceName,
+    search,
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -105,6 +111,7 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
     sourceType: rawSourceType,
     category,
     sourceName,
+    search,
   };
 
   return (
