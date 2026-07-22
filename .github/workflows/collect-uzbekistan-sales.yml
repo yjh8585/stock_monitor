@@ -39,7 +39,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           NEXT_REVALIDATE_URL: ${{ secrets.APP_BASE_URL }}/api/revalidate
-          NEXT_REVALIDATE_SECRET: ${{ secrets.CRON_SECRET }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
         run: |
           ARGS="--year-from ${{ inputs.year_from || '2024' }} --max-pages ${{ inputs.max_pages || '30' }}"
           if [ -n "${{ inputs.year_to }}" ]; then

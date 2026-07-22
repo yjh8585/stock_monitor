@@ -34,7 +34,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           NEXT_REVALIDATE_URL: ${{ secrets.APP_BASE_URL }}/api/revalidate
-          NEXT_REVALIDATE_SECRET: ${{ secrets.CRON_SECRET }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
           # 인포그래픽(이미지) 기사 비전 추출용 (2024 이하·2025 일부). 없으면 텍스트 기사만.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
