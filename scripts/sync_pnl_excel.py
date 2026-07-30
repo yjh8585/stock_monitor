@@ -10,6 +10,7 @@
    - year_label: '2026(P)' → period_year=2026/is_plan=True
    - 매출이 None/0/음수면 SKIP
    - 빈 차원 값은 '' 로 정규화 (PK 일관성)
+   - 거래처별 실(sil) 고정 매핑 정정 (SIL_BY_CUSTOMER — UZ Auto → 2실). 정정 시 시트당 경고 1줄
 4. postgrest-py로 chunk(500) upsert
 5. CLI: --dry-run 옵션
 
@@ -100,6 +101,12 @@ BASIS_MAP = {
   '별도': 'standalone',
 }
 
+# 거래처별 실(sil) 고정 매핑 — 엑셀 표기가 어긋나도 화면 기준으로 정정한다.
+# 키는 거래처명 소문자(공백 제거 전 strip). UZ Auto 실적은 2실로 표현(사용자 지시 2026-07-30).
+SIL_BY_CUSTOMER = {
+  'uz auto': '2실',
+}
+
 # 시트 → (기본 basis, 헤더 매핑, period_month 처리방식)
 SHEETS = [
   ('연간',    'consolidated', HEADERS_ANNUAL,  'annual'),
@@ -170,6 +177,18 @@ def norm_num(v: Any) -> float | None:
   return None
 
 
+def normalize_sil(customer: str, sil: str) -> str:
+  """거래처 기준으로 실(sil) 라벨을 정정한다. 매핑에 없는 거래처는 엑셀 값 그대로.
+
+  sil이 upsert 충돌키에 포함되므로, 엑셀이 옛 실로 남아 있으면 정정된 행과 별개 행으로
+  적재되어 합계가 이중 계산된다. 그래서 적재 전에 여기서 맞춘다.
+  """
+  expected = SIL_BY_CUSTOMER.get(customer.strip().lower())
+  if expected is None:
+    return sil
+  return expected
+
+
 def get_cell(row: tuple, col_idx_1based: int) -> Any:
   """1-indexed 컬럼 인덱스로 row 튜플에서 값 조회. 범위 밖이면 None."""
   i = col_idx_1based - 1
@@ -220,6 +239,8 @@ def row_to_entry(
   else:
     period_month = 0
 
+  customer = norm_text(get_cell(row, mapping['customer'][0]))
+
   return {
     'basis': basis,
     'year_label': year_label,
@@ -227,11 +248,11 @@ def row_to_entry(
     'period_month': period_month,
     'is_plan': is_plan,
     'is_estimate': is_estimate,
-    'sil':      norm_text(get_cell(row, mapping['sil'][0])),
+    'sil':      normalize_sil(customer, norm_text(get_cell(row, mapping['sil'][0]))),
     'division': norm_text(get_cell(row, mapping['division'][0])),
     'factory':  norm_text(get_cell(row, mapping['factory'][0])),
     'product':  norm_text(get_cell(row, mapping['product'][0])),
-    'customer': norm_text(get_cell(row, mapping['customer'][0])),
+    'customer': customer,
     **metrics,
   }
 
@@ -282,13 +303,25 @@ def parse_sheet(wb, sheet_name: str, default_basis: str,
   entries: list[dict[str, Any]] = []
   total_rows = 0
   skipped = 0
+  # (거래처, 엑셀 실, 정정 실) → 행수. 행마다 경고를 찍으면 수백 줄이 되므로 집계 후 1줄.
+  sil_fixes: dict[tuple[str, str, str], int] = {}
   for row in ws.iter_rows(min_row=DATA_START_ROW, values_only=True):
     total_rows += 1
     e = row_to_entry(row, default_basis, mapping, mode)
     if e is None:
       skipped += 1
       continue
+    raw_sil = norm_text(get_cell(row, mapping['sil'][0]))
+    if e['sil'] != raw_sil:
+      key = (e['customer'], raw_sil, e['sil'])
+      sil_fixes[key] = sil_fixes.get(key, 0) + 1
     entries.append(e)
+
+  for (cust, before, after), cnt in sorted(sil_fixes.items()):
+    logger.warning(
+      f'[{sheet_name}] 실 정정: {cust} 엑셀 "{before or "(공백)"}" → "{after}" {cnt}행 '
+      f'(엑셀 원본도 "{after}"로 맞추면 이 경고가 사라집니다)'
+    )
 
   merged = merge_by_pk(entries)
   duplicates = len(entries) - len(merged)

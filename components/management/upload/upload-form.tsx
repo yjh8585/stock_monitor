@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { FileSpreadsheet, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -79,8 +80,28 @@ export function ManagementExcelUploadForm() {
   const [job, setJob] = useState<JobView | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   useJobPoller(jobId, phase, (v) => setJob(v));
+
+  const pickFile = (picked: File | null) => {
+    setPickError(null);
+    setFile(picked);
+  };
+
+  /** 드롭된 파일 수락 — 드래그&드롭은 input accept가 적용되지 않아 확장자를 직접 확인한다. */
+  const onDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (!dropped) return;
+    if (!dropped.name.toLowerCase().endsWith('.xlsx')) {
+      setPickError(`.xlsx 엑셀 파일만 올릴 수 있습니다 (올린 파일: ${dropped.name}).`);
+      return;
+    }
+    pickFile(dropped);
+  };
 
   const onUpload = async () => {
     if (!file) return;
@@ -128,17 +149,54 @@ export function ManagementExcelUploadForm() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      {/* 클릭 영역을 박스 전체로 넓힌 파일 선택 드롭존 (label이 숨긴 input을 감싼다) */}
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring ${
+          dragOver
+            ? 'border-primary bg-primary/5'
+            : 'border-border bg-muted/30 hover:border-primary/60 hover:bg-muted/60'
+        }`}
+      >
         <input
           type="file"
           accept=".xlsx"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="text-sm"
+          onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+          className="sr-only"
         />
-        <Button onClick={onUpload} disabled={!file || busy || inProgress}>
-          업로드 + 검증
-        </Button>
-      </div>
+        {file ? (
+          <>
+            <FileSpreadsheet className="size-7 text-primary" aria-hidden />
+            <span className="text-sm font-medium break-all">{file.name}</span>
+            <span className="text-muted-foreground text-xs">
+              다른 파일로 바꾸려면 이 영역을 다시 클릭하세요.
+            </span>
+          </>
+        ) : (
+          <>
+            <UploadCloud className="text-muted-foreground size-7" aria-hidden />
+            <span className="text-sm font-medium">여기를 클릭해서 엑셀 파일을 선택하세요</span>
+            <span className="text-muted-foreground text-xs">
+              또는 파일을 이 영역에 끌어다 놓으세요 · .xlsx 형식만
+            </span>
+          </>
+        )}
+      </label>
+
+      {pickError && (
+        <p role="alert" className="text-destructive text-sm">
+          {pickError}
+        </p>
+      )}
+
+      <Button onClick={onUpload} disabled={!file || busy || inProgress}>
+        업로드 + 검증
+      </Button>
 
       {inProgress && (
         <p className="text-sm text-muted-foreground">

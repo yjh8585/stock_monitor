@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/layout/AppShell';
+import { Toaster } from '@/components/ui/sonner';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -37,6 +38,9 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <AppShell>{children}</AppShell>
         </Suspense>
+        {/* toast() 알림 표시 영역. 우하단은 챗봇 버튼(fixed bottom-5 right-5), 상단 중앙은
+            경영관리 탭 네비게이션과 겹쳐 클릭을 가로막으므로 우측 상단. */}
+        <Toaster position="top-right" />
       </body>
     </html>
   );
