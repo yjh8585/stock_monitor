@@ -28,22 +28,30 @@ OUT = Path(__file__).resolve().parent.parent / "out"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-# 탐색 대상 — 어디에 무엇이 있는지 모르므로 넓게 던지고 응답으로 판단한다.
+# 🔴 1차 탐색(2026-07-30)에서 배운 것 — 추측 URL 은 거의 404 였다.
+#    · 데이터 페이지는 `/index` 가 아니라 **`/search?rf=left_menu`** 다(성공 중인
+#      `sync_oem_production_excel.py` 가 쓰는 URL). `/index` 는 껍데기를 준다.
+#    · 국가별 페이지는 슬러그(`/global/poland`)가 아니라 **숫자 ID**(`/global/1443`)다.
+#    · 실재하는 경로는 1차에서 받은 `portal_top` 의 링크에서 확보했다.
 TARGETS = [
-    ("production_index", "https://www.marklines.com/en/vehicle_production/index"),
-    ("sales_index", "https://www.marklines.com/en/vehicle_sales/index"),
-    ("portal_top", "https://www.marklines.com/en/"),
-    ("global_index", "https://www.marklines.com/en/global/"),
-    ("report_all", "https://www.marklines.com/en/report_all/"),
-    ("supplier_top", "https://www.marklines.com/en/supplier/"),
-    # 동유럽 국가별 — 슬러그가 맞는지 응답 코드로 확인한다
-    ("country_poland", "https://www.marklines.com/en/global/poland"),
-    ("country_czech", "https://www.marklines.com/en/global/czech"),
-    ("country_slovakia", "https://www.marklines.com/en/global/slovakia"),
-    ("country_hungary", "https://www.marklines.com/en/global/hungary"),
-    ("country_romania", "https://www.marklines.com/en/global/romania"),
-    ("country_serbia", "https://www.marklines.com/en/global/serbia"),
-    ("country_turkey", "https://www.marklines.com/en/global/turkey"),
+    # ① 쿠키 유효성 판정용 — 이 페이지에 "Latest month" 엑셀 링크가 보이면 로그인된 것이다
+    ("production_search", "https://www.marklines.com/en/vehicle_production/search?rf=left_menu"),
+    ("sales_search", "https://www.marklines.com/en/vehicle_sales/search?rf=left_menu"),
+    # ② 지역별 OEM·부품사 현황(보고서에 필요한 것)
+    ("global_index", "https://www.marklines.com/en/global/index"),
+    ("global_maker_list", "https://www.marklines.com/en/global/maker-list"),
+    ("global_search", "https://www.marklines.com/en/global/search"),
+    ("global_top", "https://www.marklines.com/en/global/top"),
+    ("supplier_db", "https://www.marklines.com/en/supplier_db/"),
+    ("supplier_db_top", "https://www.marklines.com/en/supplier_db/top"),
+    ("parts_suppliers_theme", "https://www.marklines.com/en/topics_by_theme/769/parts-suppliers"),
+    ("analysis_report", "https://www.marklines.com/en/analysis_report"),
+    # ③ 유럽 리포트 — 동유럽 OEM 동향이 여기 있을 가능성
+    ("eu_report", "https://www.marklines.com/en/report/eu_report_202606"),
+    ("supplier_report", "https://www.marklines.com/en/report/supplier0032"),
+    # ④ 숫자 ID 페이지 표본 — 이 구조를 확인하면 10개국 ID 를 찾아 3단계에서 돌린다
+    ("global_1443", "https://www.marklines.com/en/global/1443"),
+    ("global_9270", "https://www.marklines.com/en/global/9270"),
 ]
 
 
@@ -62,6 +70,8 @@ def session_cookie():
 def fetch(url, cookie):
     req = urllib.request.Request(url, headers={
         "User-Agent": UA, "Cookie": cookie,
+        # Referer 를 붙인다 — 성공 중인 sync_oem_production_excel.py 와 헤더를 맞춘다
+        "Referer": "https://www.marklines.com/en/",
         "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9"})
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
@@ -82,9 +92,15 @@ def main():
         status, body = fetch(url, cookie)
         tables = body.count("<table")
         nums = len(re.findall(r">[0-9]{1,3}(?:,[0-9]{3})+<", body))
-        # 로그인 여부는 "표·수치가 실제로 있는가"로 판정한다(응답 200 은 로그인 페이지도 준다)
-        rich = tables > 0 or nums > 20
-        logged_in_any = logged_in_any or rich
+        low = body.lower()
+        # 🔴 판정 기준 교정(2026-07-30) — 1차에서 "표 개수"로 봤다가 전부 '빈껍데기'로 오판했다.
+        #    MarkLines 페이지는 표가 없어도 정상이다(div 레이아웃·JS 렌더). 성공 중인
+        #    sync_oem_*.py 와 같은 기준을 쓴다: **로그인 페이지로 튕겼는가**.
+        kicked = "/members/login" in low or "login_form" in low
+        # 회원 전용 신호 — 엑셀 다운로드 링크("latest month")가 보이면 확실히 로그인된 것이다
+        member_only = "latest month" in low or ".xls" in low
+        rich = bool(body) and not kicked
+        logged_in_any = logged_in_any or member_only
         if body:
             (OUT / f"{slug}.html").write_text(body, encoding="utf-8")
             for m in re.finditer(r'href="([^"#?]+)"', body):
@@ -92,8 +108,9 @@ def main():
                 if any(k in href.lower() for k in
                        ("global", "country", "region", "supplier", "plant", "report")):
                     links.append(f"{slug}\t{href}")
-        msg = (f"{slug:20s} HTTP {status} · {len(body):>8,}자 · <table> {tables:>3} · "
-               f"수치 {nums:>5} · {'DATA' if rich else '빈껍데기'}")
+        msg = (f"{slug:22s} HTTP {status} · {len(body):>9,}자 · tbl {tables:>3} · "
+               f"수치 {nums:>5} · {'로그인튕김' if kicked else 'OK'}"
+               f"{' · 회원전용✓' if member_only else ''}")
         print("  " + msg)
         lines.append(msg)
 
@@ -102,9 +119,10 @@ def main():
     print(f"\n저장: {OUT} · 링크 {len(set(links))}건")
 
     if not logged_in_any:
-        print("[FAIL] 어느 페이지에서도 데이터가 없다 → 쿠키가 만료됐다(Secrets 갱신 필요)")
-        return 1
-    print("[OK] 로그인 상태 확인 — artifact 를 내려받아 분석할 것")
+        # 실패로 종료하지 않는다 — HTML 을 받아 눈으로 봐야 원인을 안다(1차에서 오판했다)
+        print("[WARN] 회원 전용 신호(Latest month·.xls)를 찾지 못했다 — HTML 을 직접 확인할 것")
+    else:
+        print("[OK] 회원 전용 링크 확인 = 쿠키 유효")
     return 0
 
 
