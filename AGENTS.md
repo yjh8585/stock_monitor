@@ -159,6 +159,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - 대부분 GHA가 Python 직접 호출(로컬 venv 불필요).
 - 짧은 간격 cron은 curl 트리거(Hobby 제약 회피, `cron-sentiment`). 한세 종목토론은 Vercel 60s timeout 우회로 GHA runner에서 Node tsx 직접 실행(`collect-naver-board.yml`).
 - 신규 onboarding `onboard-company.yml`은 `workflow_dispatch` 전용 — `/api/companies` POST가 INSERT 성공 후 GitHub API로 자동 트리거. Vercel env `GITHUB_PAT` 필요.
+- **`marklines-adhoc-fetch.yml`**(`workflow_dispatch` 전용 · DB 미접근) — **MarkLines 쿠키를 꺼낼 수 없을 때 쓰는 우회 통로.** 유효 쿠키는 Secrets `MARKLINES_COOKIE` 에만 있고 Secrets 는 write-only 라 값 조회가 불가능하다(로컬 추출도 전멸: Edge 쿠키 없음 · **Chrome 127+ ABE** 복호화 불가 · **Chrome 150 은 기본 프로필 CDP 거부**). 그래서 쿠키를 빼오는 대신 **Actions 안에서 페이지를 받아 artifact `marklines-raw` 로 회수**한다(`gh run download <id> -n marklines-raw`). 스케줄이 없어 저절로 돌지 않으므로 남겨 둬도 부작용 없음. ⚠ 로그인 판정은 HTTP 200 이 아니라 **`<table>`·천단위 수치 유무**로 해야 한다 — 로그인 안 된 상태도 200 에 144KB 껍데기를 준다.
 - **`collect-yt-report.yml`**(`workflow_dispatch` 전용) — **기본 활성**(끄려면 Vercel env `YT_AUTO_REPORT=0`) `/reports/new` 유튜브 제출 시 `/api/posts`(`post.service.ts`)가 텍스트 확정 후 트리거 → `scripts/collect_yt_report.py --enrich`가 주요장면·차트 캡처해 **이미지 있을 때만** post 덮어씀(실패해도 텍스트 유지, failed 아님). **필요 GHA Secrets(`SUPABASE_URL`·`SUPABASE_SERVICE_ROLE_KEY`·`ANTHROPIC_API_KEY`·`NEXT_REVALIDATE_*`)는 onboard용으로 이미 존재**, 신규는 선택 `YOUTUBE_COOKIES`뿐. Vercel `GITHUB_PAT`(onboard용 존재). ffmpeg는 apt, yt-dlp는 requirements. **⚠️ GHA IP는 유튜브 봇차단이 잦아(2026-07-19 실측: 자막 실패) 쿠키 없이는 이미지가 대개 안 붙는다** → 이미지 확실히 원하면 수동 `scripts/yt_report/` 툴킷(로컬 IP).
 
 ### 루트 설정
