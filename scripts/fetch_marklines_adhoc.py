@@ -33,25 +33,37 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 #      `sync_oem_production_excel.py` 가 쓰는 URL). `/index` 는 껍데기를 준다.
 #    · 국가별 페이지는 슬러그(`/global/poland`)가 아니라 **숫자 ID**(`/global/1443`)다.
 #    · 실재하는 경로는 1차에서 받은 `portal_top` 의 링크에서 확보했다.
+# 🔴 3차(2026-07-30) — 사용자가 정확한 페이지를 알려줬다:
+#      /en/global/search?rf=left_menu (나라별 OEM·부품 거점 조회) · /en/map/places?rf=left_menu
+#    2차에서 받은 `global_search.html` 을 뜯어 **폼 규격을 확정**했다:
+#      GET /en/global/search_list · 국가 = `nations[N]=N` · 시설유형 = `cat[N]=N`
+#    cat: 0 본사 · 1 조립(완성차) · 2 EV전용필터 · 3 엔진 · 4 변속기 · 5 배터리 ·
+#         6 구동모터 · 7 기타공장 · 8 R&D
+#    ⚠ **불가리아·북마케도니아는 nations 목록에 없다** — MarkLines 가 집계하지 않는다.
+NATIONS = {
+    48: "poland", 49: "czech", 50: "slovakia", 51: "romania", 53: "hungary",
+    54: "serbia", 56: "croatia", 59: "turkiye", 55: "slovenia", 77: "bosnia",
+}
+# EV 전용 필터(2)는 제외 — 그건 조건이지 시설 유형이 아니다
+CATS = [0, 1, 3, 4, 5, 6, 7, 8]
+_CQ = "&".join(f"cat%5B{c}%5D={c}" for c in CATS)
+
 TARGETS = [
-    # ① 쿠키 유효성 판정용 — 이 페이지에 "Latest month" 엑셀 링크가 보이면 로그인된 것이다
+    # ① 쿠키 유효성 판정용 — "Latest month" 엑셀 링크가 보이면 로그인된 것이다
     ("production_search", "https://www.marklines.com/en/vehicle_production/search?rf=left_menu"),
-    ("sales_search", "https://www.marklines.com/en/vehicle_sales/search?rf=left_menu"),
-    # ② 지역별 OEM·부품사 현황(보고서에 필요한 것)
-    ("global_index", "https://www.marklines.com/en/global/index"),
-    ("global_maker_list", "https://www.marklines.com/en/global/maker-list"),
-    ("global_search", "https://www.marklines.com/en/global/search"),
-    ("global_top", "https://www.marklines.com/en/global/top"),
+    # ② 🔴 본론 — 나라별 OEM·부품 거점. 국가 하나씩 돌려 파일을 나눈다(분석이 쉽다)
+    *[(f"places_{name}",
+       f"https://www.marklines.com/en/global/search_list?nations%5B{code}%5D={code}&{_CQ}")
+      for code, name in NATIONS.items()],
+    # ③ 동유럽 8개국 묶음 — 한 화면에 몇 건인지(총량) 보려고
+    ("places_east_all",
+     "https://www.marklines.com/en/global/search_list?"
+     + "&".join(f"nations%5B{c}%5D={c}" for c in (48, 49, 50, 51, 53, 54, 56, 59))
+     + f"&{_CQ}"),
+    # ④ 사용자가 알려준 지도 페이지 + 부품사 DB 검색 폼(다음 단계용 규격 파악)
+    ("map_places", "https://www.marklines.com/en/map/places?rf=left_menu"),
+    ("supplier_db_search", "https://www.marklines.com/en/supplier_db/search?rf=left_menu"),
     ("supplier_db", "https://www.marklines.com/en/supplier_db/"),
-    ("supplier_db_top", "https://www.marklines.com/en/supplier_db/top"),
-    ("parts_suppliers_theme", "https://www.marklines.com/en/topics_by_theme/769/parts-suppliers"),
-    ("analysis_report", "https://www.marklines.com/en/analysis_report"),
-    # ③ 유럽 리포트 — 동유럽 OEM 동향이 여기 있을 가능성
-    ("eu_report", "https://www.marklines.com/en/report/eu_report_202606"),
-    ("supplier_report", "https://www.marklines.com/en/report/supplier0032"),
-    # ④ 숫자 ID 페이지 표본 — 이 구조를 확인하면 10개국 ID 를 찾아 3단계에서 돌린다
-    ("global_1443", "https://www.marklines.com/en/global/1443"),
-    ("global_9270", "https://www.marklines.com/en/global/9270"),
 ]
 
 
