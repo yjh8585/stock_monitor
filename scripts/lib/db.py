@@ -4,6 +4,7 @@ supabase SDK 대신 postgrest-py를 직접 사용해 pyiceberg 의존성을 제�
 환경변수: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 """
 import os
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Any
 
@@ -145,3 +146,33 @@ class WriteSession:
     if self._client is None:
       raise RuntimeError("WriteSession은 'with' 블록 안에서만 사용한다")
     return _TrackedBuilder(self._client.table(name), name, self._touched)
+
+
+def purge_older_than(table: str, ts_column: str, days: int) -> int:
+  """지정 테이블에서 ts_column이 days일보다 오래된 행을 삭제한다.
+
+  분 단위 수집 테이블(5분봉·장중 수급)은 삭제 로직이 없으면 무한히 누적된다.
+  실측 2026-08-03: stock_quotes_5min이 2.5개월 만에 10.9만 행(26MB)까지 쌓여
+  Supabase 용량 초과의 일부 원인이 되었다. collect_news.py의 보존 정책과 같은 패턴.
+
+  Args:
+    table: 대상 테이블
+    ts_column: 기준 타임스탬프 컬럼
+    days: 보존 일수. 0 이하면 아무 것도 하지 않는다 (삭제 비활성화용).
+
+  Returns:
+    삭제된 행 수 (실패 시 0 — 수집 자체는 실패시키지 않는다)
+  """
+  if days <= 0:
+    return 0
+
+  cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+  try:
+    with WriteSession() as w:
+      deleted = w.table(table).delete().lt(ts_column, cutoff).execute().data
+    n = len(deleted) if isinstance(deleted, list) else 0
+    logger.info(f"{table}: {days}일 이전 {n}행 삭제 (cutoff={cutoff[:10]})")
+    return n
+  except Exception as e:
+    logger.warning(f"{table} 보존 정책 삭제 실패: {e}")
+    return 0

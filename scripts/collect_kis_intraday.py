@@ -12,6 +12,7 @@ TR: FHKST03010200 (주식당일분봉조회)
 - date  : --date YYYY-MM-DD 지정일
 """
 import argparse
+import os
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -24,10 +25,12 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import WriteSession, get_client, upsert_rows
+from lib.db import WriteSession, get_client, purge_older_than, upsert_rows
 from lib.kis_client import KisClient
 
 HANSAE_TICKERS = ['016450', '105630', '069640', '053280']
+# 분봉 보존 일수 — 화면(한세 탭)은 당일치만 조회하므로 과거분은 누적만 된다. 0 이하면 삭제 skip.
+QUOTES_RETENTION_DAYS = int(os.getenv('QUOTES_RETENTION_DAYS', '30'))
 KST = timezone(timedelta(hours=9))
 
 
@@ -235,6 +238,9 @@ def collectKisIntraday(mode: str = 'today', target_date: date | None = None) -> 
     logger.info(f'companies 현재가·시총 스냅샷 갱신 — {len(snapshots)}개')
 
   logger.info(f'KIS 분봉 수집 완료 — 총 {total_rows}건')
+
+  # 보존 정책: N일 이전 분봉 자동 삭제 (DB 누적량 제한)
+  purge_older_than('stock_quotes_5min', 'ts', QUOTES_RETENTION_DAYS)
 
 
 if __name__ == '__main__':
