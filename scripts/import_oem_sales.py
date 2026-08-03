@@ -32,7 +32,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lib.db import upsert_rows  # noqa: E402
+from lib.db import get_client, upsert_rows  # noqa: E402
 
 EXCEL_DIR = Path(__file__).resolve().parents[1] / '참고' / 'oem 판매량'
 
@@ -192,6 +192,14 @@ def main() -> int:
      for (g, c, m, ym), s in model_country_month.items()],
     conflict_cols='oem_group,country,model,year_month',
   )
+  # 🔴 집계 구체화 뷰 갱신 — 빼먹으면 /oem이 옛 값을 **조용히** 보여준다.
+  #    oem_sales_country_group_year·oem_sales_usa_group_month는 2026-08-03(마이그
+  #    20260803000003)부터 구체화 뷰라 원본 변경을 자동 반영하지 않는다. 일반 뷰 시절의
+  #    "뷰는 실시간 반영"이라는 전제가 여기서 깨진다.
+  #    적재 경로는 이 main() 하나로 수렴한다(sync_oem_excel.py도 이걸 호출) → 여기 한 곳이면 충분.
+  get_client().rpc('refresh_oem_agg_views', {}).execute()
+  logger.success('OEM 집계 구체화 뷰 갱신 완료')
+
   logger.success('OEM 판매량 적재 완료')
   return 0
 
