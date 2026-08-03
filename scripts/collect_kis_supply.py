@@ -14,6 +14,7 @@ KIS OpenAPI로 받아 stock_supply_demand 및 stock_supply_demand_intraday에 �
 응답 정수 파싱: "+000000000123" / "-000000000045" 형태 → int(s.lstrip('+'))로 처리.
 """
 import argparse
+import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -26,10 +27,12 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from lib.db import get_client, upsert_rows
+from lib.db import get_client, purge_older_than, upsert_rows
 from lib.kis_client import KisClient
 
 HANSAE_TICKERS = ['016450', '105630', '069640', '053280']
+# 장중 수급 스냅샷 보존 일수 — 화면은 당일치만 조회한다. 0 이하면 삭제 skip.
+INTRADAY_RETENTION_DAYS = int(os.getenv('INTRADAY_RETENTION_DAYS', '30'))
 KST = timezone(timedelta(hours=9))
 
 
@@ -138,6 +141,9 @@ def collectKisSupplyIntraday() -> None:
   if snapshot_rows:
     upsert_rows('stock_supply_demand_intraday', snapshot_rows, 'company_id,snapshot_ts')
   logger.info(f'KIS 수급 intraday 완료 — supply {len(supply_rows)}행, snapshot {len(snapshot_rows)}행')
+
+  # 보존 정책: N일 이전 장중 스냅샷 자동 삭제 (DB 누적량 제한)
+  purge_older_than('stock_supply_demand_intraday', 'snapshot_ts', INTRADAY_RETENTION_DAYS)
 
 
 def collectKisSupplyIncremental() -> None:
