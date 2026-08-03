@@ -294,16 +294,20 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 | `oem_sales_group_pt_month`      | (oem_group, powertrain, year_month)     | 14,878  | (powertrain, year_month), year_month       |
 | `oem_sales_type_seg_month`      | (vehicle_type, segment, year_month)     | 13,394  | year_month                                 |
 
-#### `/oem` 프리렌더 집계 뷰 (마이그레이션 `20260714000001`)
+#### `/oem` 프리렌더 집계 **구체화 뷰** (마이그 `20260714000001` → `20260803000003`에서 전환)
 
 `oem_sales_group_country_month`(약 12만 행)를 앱에서 전량 fetch·집계하면 빌드 프리렌더가 statement/USE_CACHE timeout(백업 커밋 배포 간헐 ERROR) → 무거운 SUM을 DB로 이관. 순수 SUM 재집계라 값은 원본과 동일(전역 합계 항등 검증됨).
 
-| 뷰                             | 정의                                                               | 행 수  | 용도                           |
+🔴 **일반 뷰로는 부족했다(2026-08-03 재발).** 일반 뷰는 계산을 옮긴 게 아니라 **이름만 붙인 것**이라, 조회할 때마다 12.3만 행을 Seq Scan + 집계했다. 20260714000001이 줄인 것은 앱으로 가는 **행 수**(12.2만 → 4천)일 뿐 DB 계산 비용은 그대로였고, 문서만 고친 커밋의 배포가 같은 이유로 다시 깨졌다. → **구체화 뷰(materialized view)로 전환**해 결과를 실제로 저장한다. 실측: `.eq('year', …)` 조회가 **80ms(Seq Scan 12.3만) → 5.4ms(Bitmap Index Scan)**.
+
+| 구체화 뷰                      | 정의                                                               | 행 수  | 용도                           |
 | ------------------------------ | ------------------------------------------------------------------ | ------ | ------------------------------ |
 | `oem_sales_country_group_year` | `year(=ym/100) × oem_group × country` → SUM(sales)::bigint         | ~1.2만 | 국가 TOP15 / OEM×국가 매트릭스 |
 | `oem_sales_usa_group_month`    | `country='USA'` 한정 `oem_group × year_month` → SUM(sales)::bigint | ~1.8천 | 미국 TOP10 OEM 월별 시계열     |
 
-- `lib/oem/source.ts`가 뷰1은 `TARGET_YEAR`만, 뷰2는 전체 기간 fetch. `cacheTag`는 원본 `oem_sales_group_country_month` 유지(뷰는 실시간 반영이라 수집 시 원본 무효화로 자동 갱신).
+- `lib/oem/source.ts`가 뷰1은 `TARGET_YEAR`만, 뷰2는 전체 기간 fetch. 앱 코드는 전환 전후가 동일하다(이름·컬럼·타입 불변, PostgREST는 구체화 뷰도 그대로 조회).
+- 유니크 인덱스 `(year, oem_group, country)`·`(oem_group, year_month)` — `.eq('year')` 조회와 `.order()` 결정적 페이지네이션이 이 인덱스를 탄다. 앞으로 `REFRESH ... CONCURRENTLY`를 쓸 여지도 남긴다.
+- 🔴 **자동 갱신되지 않는다.** 원본 적재 후 `refresh_oem_agg_views()`(service_role 전용 RPC)를 불러야 한다. `import_oem_sales.py`가 upsert 직후 호출하며, 적재 경로는 그 `main()` 하나로 수렴한다(`sync_oem_excel.py`도 이를 호출). **빼먹으면 `/oem`이 옛 값을 조용히 보여준다** — 옛 서술 "뷰는 실시간 반영이라 원본 무효화로 자동 갱신"은 이제 **사실이 아니다**. `cacheTag`는 원본 테이블 태그를 계속 쓴다(캐시 무효화와 뷰 갱신은 별개 축).
 
 > ⚠️ **지표 정의**: 위 5개 테이블 + 2개 뷰는 전부 MarkLines `vehicle_sales` export **하나**에서 파생되며 **판매(소매/신차등록)** 다. 출하·생산이 아니다(`import_oem_sales.py`의 단일 `aggregate()`가 소스). 프로젝트 전체에서 **출하(도매)는 `stellantis_shipments`·`hyundai_sales`·`kia_sales`·`kg_mobility_sales`뿐**이고, **생산은 `oem_production_model_country_month`(아래)·`uzbekistan_auto_stats`(`kind='production'`)뿐**이다.
 
