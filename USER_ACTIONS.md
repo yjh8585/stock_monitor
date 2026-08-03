@@ -18,6 +18,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 > **주의**: `SUPABASE_SERVICE_ROLE_KEY`는 서버 전용이며 클라이언트에 노출하면 안 됩니다.
 
+> **⚠️ Pro 플랜이 필요합니다 (2026-08-03 실측)**: 이 프로젝트는 Free 플랜으로 운영할 수 없습니다. 2026-08-03 Free 한도(디스크 1.1GB)를 초과해 **Data API가 402로 차단**되면서 수집 스크립트와 앱이 전면 중단됐습니다(`exceed_db_size_quota`).
+>
+> 청구되는 건 데이터가 아니라 **디스크 전체**이고, 그중 **WAL이 880MB(55%)** 를 차지합니다. 이 WAL은 `min_wal_size = 1024MB` 설정 때문에 항상 1GB 가까이 유지되는데, 이 파라미터는 **Supabase가 사용자 변경을 막아둔 항목**입니다. 즉 데이터를 0으로 만들어도 한도를 맞출 수 없습니다.
+>
+> 또한 Fair Use 정책상 **용량을 줄여도 차단은 즉시 풀리지 않습니다** — 해제는 다음 결제 주기이거나 Pro 업그레이드뿐입니다. Pro는 디스크 8GB라 WAL 문제가 사라집니다. 배경·조치 상세는 [`Architecture.md` §7-J](./Architecture.md)의 `trg_skip_identical_update` 항목을 참고하세요.
+
 ---
 
 ## 2. valley.town 계정 설정
