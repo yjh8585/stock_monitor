@@ -213,23 +213,23 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 
 #### `financials` (4,109행)
 
-| 컬럼                                                                                       | 타입    | 비고                                                      |
-| ------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------- |
-| `id`                                                                                       | uuid PK |
-| `company_id`                                                                               | uuid FK |
-| `period_type`                                                                              | text    | `annual` / `quarterly`. annual은 12월 결산만 (CHECK)      |
-| `fiscal_year`, `fiscal_quarter`                                                            | int     | 비-12월 결산 글로벌사는 한국식 -1 보정 (20260521000002~3) |
-| `period_end_date`                                                                          | date    | 결산일                                                    |
-| `currency`                                                                                 | text    | KRW/USD/JPY…                                              |
-| `revenue`, `operating_income`, `operating_margin`                                          | numeric | 매출·영익·영익률                                          |
-| `cogs`, `gross_profit`, `gross_margin`, `sga`                                              | numeric | 원가·매출총익·판관비                                      |
-| `net_income`, `net_margin`, `ebitda`                                                       | numeric | 순익·EBITDA                                               |
-| `total_assets`, `total_liabilities`, `total_equity`, `inventory`                           | numeric | 재무상태표                                                |
-| `debt_ratio`, `current_ratio`, `roe`, `roa`                                                | numeric | 비율                                                      |
-| `eps`, `bps`, `dps`, `cfps`, `per`, `pbr`, `psr`, `ev_ebitda`, `ev_ebit`, `dividend_yield` | numeric | 주당 지표 + 밸류에이션                                    |
-| `labor_cost`                                                                               | bigint  | 인건비                                                    |
-| `source`                                                                                   | text    | yfinance / fnguide / dart                                 |
-| `consolidation`                                                                            | text    | `consolidated` 우선, 종속회사 없을 때만 `separate`        |
+| 컬럼                                                                                       | 타입    | 비고                                                            |
+| ------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------------- |
+| `id`                                                                                       | uuid PK |                                                                 |
+| `company_id`                                                                               | uuid FK |                                                                 |
+| `period_type`                                                                              | text    | `annual` / `quarterly`. annual은 12월 결산만 (CHECK)            |
+| `fiscal_year`, `fiscal_quarter`                                                            | int     | 비-12월 결산 글로벌사는 한국식 -1 보정 (20260521000002~3)       |
+| `period_end_date`                                                                          | date    | 결산일                                                          |
+| `currency`                                                                                 | text    | KRW/USD/JPY…                                                    |
+| `revenue`, `operating_income`, `operating_margin`                                          | numeric | 매출·영익·영익률                                                |
+| `cogs`, `gross_profit`, `gross_margin`, `sga`                                              | numeric | 원가·매출총익·판관비                                            |
+| `net_income`, `net_margin`, `ebitda`                                                       | numeric | 순익·EBITDA                                                     |
+| `total_assets`, `total_liabilities`, `total_equity`, `inventory`                           | numeric | 재무상태표                                                      |
+| `debt_ratio`, `current_ratio`, `roe`, `roa`                                                | numeric | 비율                                                            |
+| `eps`, `bps`, `dps`, `cfps`, `per`, `pbr`, `psr`, `ev_ebitda`, `ev_ebit`, `dividend_yield` | numeric | 주당 지표 + 밸류에이션                                          |
+| `labor_cost`                                                                               | bigint  | 인건비                                                          |
+| `source`                                                                                   | text    | 수집기 필수 기록 — 값은 `scripts/lib/financial_sources.py` 상수 |
+| `consolidation`                                                                            | text    | `consolidated` 우선, 종속회사 없을 때만 `separate`              |
 
 **UNIQUE**: (company_id, period_type, fiscal_year, fiscal_quarter) NULLS NOT DISTINCT  
 **인덱스**: (company_id, period_type, fiscal_year DESC, fiscal_quarter DESC), source
@@ -628,31 +628,32 @@ GHA runner: sync_management_excel.py (apply)
 
 ### 24개 워크플로 카테고리
 
-| 카테고리                | 워크플로 예시                                                                                                                                                                                                                                                                            | 주기                                               |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| 가격                    | collect-prices, collect-prices-live                                                                                                                                                                                                                                                      | 매시간 / 5분                                       |
-| 환율                    | collect-fx, collect-fx-live                                                                                                                                                                                                                                                              | 매시간 / 5분                                       |
-| 재무                    | collect-financials (4 job: listed/dart-audit×8/domestic/snapshot)                                                                                                                                                                                                                        | 분기 (1/4/7/10월 15일)                             |
-| 뉴스                    | collect-news                                                                                                                                                                                                                                                                             | 4시간                                              |
-| 감성                    | analyze-board-sentiment                                                                                                                                                                                                                                                                  | 일간                                               |
-| DART                    | collect-dart-audit (shard 8), collect-dart-labor                                                                                                                                                                                                                                         | 분기 / 일간                                        |
-| 매크로                  | collect-macro-outlook, collect-market-series, collect-market-series-live                                                                                                                                                                                                                 | 일간 / 주간 / 매시간                               |
-| 해운·철강               | collect-shipping, collect-steel-kr                                                                                                                                                                                                                                                       | 일간                                               |
-| 원자재                  | collect-dubai-oil                                                                                                                                                                                                                                                                        | 일간                                               |
-| 글로벌 스냅샷           | collect-global-snapshot                                                                                                                                                                                                                                                                  | 일간                                               |
-| 한세 종목토론           | collect-naver-board (GHA Node tsx 직접)                                                                                                                                                                                                                                                  | 30분                                               |
-| 한세 분봉               | collect-hansae-intraday (KIS)                                                                                                                                                                                                                                                            | 5분                                                |
-| OEM                     | collect-oem-model-outlook                                                                                                                                                                                                                                                                | 일간                                               |
-| OEM MarkLines Excel     | sync-oem-excel (판매량 `vehicle_sales`), sync-oem-production-excel (생산량 `vehicle_production`, 10분 뒤 — 같은 쿠키로 동시 세션을 열면 로그인이 무효화될 수 있어 순차)                                                                                                                  | 주 1회 (월 10:00 / 10:10 KST)                      |
-| OEM 우즈벡              | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전)                                                                                                                                                                    | 매월 20·28일                                       |
-| OEM 스텔란티스          | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments-ir (**primary** — stellantis.com IR 홈페이지 분기 출하, Playwright), collect-stellantis-shipments (**보완** — SEC EDGAR 북미 도매 출하, IR 직접값 보존 가드)                                       | IR: 1/4/7/10월 16·22·28일 · EDGAR: 2/5/8/11월 27일 |
-| 신차 재고 (Cox)         | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독)                                                                                                                                                                                                              | 매월 20일                                          |
-| MarkLines 임시 조사     | marklines-adhoc-fetch (`scripts/fetch_marklines_adhoc.py` — Secrets 쿠키로 페이지를 받아 **artifact `marklines-raw`** 로 내려보낸다. DB 미접근·읽기만. 유효 쿠키가 Secrets 에만 있고 값을 꺼낼 수 없어 만든 우회 통로 — 로컬 추출은 Chrome 127+ ABE·Chrome 150 CDP 차단으로 전부 막혔다) | 수동 (`workflow_dispatch` 전용)                    |
-| 보강                    | enrich-company                                                                                                                                                                                                                                                                           | 수동                                               |
-| 경영관리 엑셀 업로드    | sync-management (workflow_dispatch — dry-run/apply)                                                                                                                                                                                                                                      | 수동                                               |
-| 보고서 자동생성         | collect-yt-report (workflow_dispatch — `/reports/new` 유튜브 제출 시 텍스트 확정 후 `/api/posts`가 트리거, `--enrich`로 주요장면·차트 이미지 보강. 기본 활성`YT_AUTO_REPORT!=0`. ⚠️GHA IP 봇차단 잦아 `YOUTUBE_COOKIES` 없이는 이미지 대개 안 붙음→텍스트 유지)                          | 자동 트리거                                        |
-| 수집 계약 점검          | verify-fnguide (`scripts/verify_fnguide.py` — fnguide 신버전 JSON 계약·계정 코드·셀렉터 생존 확인. DB·시크릿 미사용 읽기 전용. 재무 수집이 분기 1회라 사이트 변경을 최대 3개월 늦게 아는 문제의 조기 경보)                                                                               | 주 1회 (월 09:00 KST)                              |
-| Vercel cron 대체 (curl) | cron-sentiment                                                                                                                                                                                                                                                                           | 일 1회                                             |
+<!-- prettier-ignore -->
+| 카테고리 | 워크플로 예시 | 주기 |
+| --- | --- | --- |
+| 가격 | collect-prices, collect-prices-live | 매시간 / 5분 |
+| 환율 | collect-fx, collect-fx-live | 매시간 / 5분 |
+| 재무 | collect-financials (4 job: listed/dart-audit×8/domestic/snapshot) | 분기 (1/4/7/10월 15일) |
+| 뉴스 | collect-news | 4시간 |
+| 감성 | analyze-board-sentiment | 일간 |
+| DART | collect-dart-audit (shard 8), collect-dart-labor | 분기 / 일간 |
+| 매크로 | collect-macro-outlook, collect-market-series, collect-market-series-live | 일간 / 주간 / 매시간 |
+| 해운·철강 | collect-shipping, collect-steel-kr | 일간 |
+| 원자재 | collect-dubai-oil | 일간 |
+| 글로벌 스냅샷 | collect-global-snapshot | 일간 |
+| 한세 종목토론 | collect-naver-board (GHA Node tsx 직접) | 30분 |
+| 한세 분봉 | collect-hansae-intraday (KIS) | 5분 |
+| OEM | collect-oem-model-outlook | 일간 |
+| OEM MarkLines Excel | sync-oem-excel (판매량 `vehicle_sales`), sync-oem-production-excel (생산량 `vehicle_production`, 10분 뒤 — 같은 쿠키로 동시 세션을 열면 로그인이 무효화될 수 있어 순차) | 주 1회 (월 10:00 / 10:10 KST) |
+| OEM 우즈벡 | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일 |
+| OEM 스텔란티스 | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments-ir (**primary** — stellantis.com IR 홈페이지 분기 출하, Playwright), collect-stellantis-shipments (**보완** — SEC EDGAR 북미 도매 출하, IR 직접값 보존 가드) | IR: 1/4/7/10월 16·22·28일 · EDGAR: 2/5/8/11월 27일 |
+| 신차 재고 (Cox) | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독) | 매월 20일 |
+| MarkLines 임시 조사 | marklines-adhoc-fetch (`scripts/fetch_marklines_adhoc.py` — Secrets 쿠키로 페이지를 받아 **artifact `marklines-raw`** 로 내려보낸다. DB 미접근·읽기만. 유효 쿠키가 Secrets 에만 있고 값을 꺼낼 수 없어 만든 우회 통로 — 로컬 추출은 Chrome 127+ ABE·Chrome 150 CDP 차단으로 전부 막혔다) | 수동 (`workflow_dispatch` 전용) |
+| 보강 | enrich-company | 수동 |
+| 경영관리 엑셀 업로드 | sync-management (workflow_dispatch — dry-run/apply) | 수동 |
+| 보고서 자동생성 | collect-yt-report (workflow_dispatch — `/reports/new` 유튜브 제출 시 텍스트 확정 후 `/api/posts`가 트리거, `--enrich`로 주요장면·차트 이미지 보강. 기본 활성`YT_AUTO_REPORT!=0`. ⚠️GHA IP 봇차단 잦아 `YOUTUBE_COOKIES` 없이는 이미지 대개 안 붙음→텍스트 유지) | 자동 트리거 |
+| 수집 계약 점검 | verify-fnguide (`scripts/verify_fnguide.py` — fnguide 신버전 JSON 계약·계정 코드·셀렉터 생존 확인. DB·시크릿 미사용 읽기 전용. 재무 수집이 분기 1회라 사이트 변경을 최대 3개월 늦게 아는 문제의 조기 경보) | 주 1회 (월 09:00 KST) |
+| Vercel cron 대체 (curl) | cron-sentiment | 일 1회 |
 
 ### cron-job.org 외부 트리거
 
@@ -668,17 +669,18 @@ python scripts/onboard_company.py --ticker 005380
 
 ## 11. 보안
 
-| 영역              | 정책                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **세션**          | Supabase Auth (쿠키), `proxy.ts`가 `PUBLIC_PATH_PREFIXES` 외 라우트는 세션 강제                                                                                                                                                                                                                                                                                                      |
-| **권한**          | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트                                                                                                                                                                                                                                                                                                                               |
-| **API 토큰**      | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드                                                                                                                                                                                                                                                                                                                |
-| **DB**            | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`)                                                                                                                                                                                                                                                                                                 |
+<!-- prettier-ignore -->
+| 영역 | 정책 |
+| --- | --- |
+| **세션** | Supabase Auth (쿠키), `proxy.ts`가 `PUBLIC_PATH_PREFIXES` 외 라우트는 세션 강제 |
+| **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
+| **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
+| **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
 | **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
-| **AI 외부 전송**  | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록                                                                                                                                                                                                                             |
-| **Secrets**       | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지**                                                                                                                                                                                                                                                                                                             |
-| **외부 입력**     | Zod 검증 (`lib/reports/dto/`)                                                                                                                                                                                                                                                                                                                                                        |
-| **SQL**           | postgrest 파라미터 바인딩만 (문자열 결합 금지)                                                                                                                                                                                                                                                                                                                                       |
+| **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
+| **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |
+| **외부 입력** | Zod 검증 (`lib/reports/dto/`) |
+| **SQL** | postgrest 파라미터 바인딩만 (문자열 결합 금지) |
 
 ## 12. 배포 파이프라인
 
