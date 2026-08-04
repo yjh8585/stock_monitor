@@ -70,21 +70,22 @@
 
 ### `/management` — `components/management/`
 
-| 탭         | 차트                                                                                                                       | 유형                                                                                                                                                                                                                                                             |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pnl        | `MarginScatter`                                                                                                            | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피)                                                                                                                                                                                                            |
-| pnl        | `CustomerParetoChart`                                                                                                      | 파레토(막대+누적%)                                                                                                                                                                                                                                               |
-| pnl        | `FixedVariableBep`                                                                                                         | 콤보(토글: 손익분기점·매출[억원] / 공헌이익률·고정비율[%] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리)                                                                                                                                                  |
-| pnl        | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer`                                                            | 막대/콤보                                                                                                                                                                                                                                                        |
-| plan       | `LongtermRevenueChart`                                                                                                     | 세로 그룹 막대 3계열(억원) + 기준 드롭다운. 값 전무 계열 자동 제외, 범례 `LegendRow`+`useHiddenSeries` 토글(기본 '한세 전망'만 ON), 색 `MGMT_BAR_COLORS`, 라벨 `MGMT_DATA_LABEL_STYLE`                                                                           |
-| plan       | `PlanAchievementChart`                                                                                                     | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축)                                                                                                                                                                                                                     |
-| plan       | `OrderFunnelChart`                                                                                                         | 퍼널                                                                                                                                                                                                                                                             |
-| stellantis | `StellantisMonthlyFlowChart`                                                                                               | 콤보(**월별** 북미 생산·소매 막대 + 갭 라인). 밀도 대응: `dot={false}`+`activeDot`(월 77개에 점 찍으면 구슬 목걸이), `minTickGap`으로 x축 라벨 자동 솎기, 라벨 없음                                                                                              |
-| stellantis | `StellantisGapChart`                                                                                                       | 콤보(**분기** 북미 출하·소매 막대 + 갭 라인). 차분 도출 출하·추정 소매는 **막대에 표시 안 함**(보조문구+툴팁으로 안내, 2026-07-17). 추정 최신 분기만 갭 선 **속 빈 점**으로 위치 표시                                                                            |
-| stellantis | ↑ 두 차트 공용                                                                                                             | **같은 질문에 다른 소스로 답하므로 시각 문법을 공유한다**(막대색·빨간 갭 선·0선 `ReferenceLine`). 갭 축 domain은 **선이 음수 가능**해 §4-F를 일반화한 `gapAxis.ts` `bandDomain()` 공용. 순서는 정확한 항등식(분기 출하)이 1번, 근사(월별 생산)가 2번(2026-07-16) |
-| stellantis | `StellantisKpiCards`                                                                                                       | 차트가 아니라 **KPI 카드 4종**. 소매·출하·매출은 YTD YoY %(▲초록/▼빨강) + 절대값 변화, 재고는 **신호등**(재고 증가→빨강). 개편 2026-07-16으로 옛 `DriverAnalysisSection`·`InventoryOutlookSection`(CSS 막대) 폐기                                                |
-| inventory  | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart`                                         | 스택 막대/콤보                                                                                                                                                                                                                                                   |
-| personnel  | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄)                                                                                                                                                                                                                                    |
+<!-- prettier-ignore -->
+| 탭 | 차트 | 유형 |
+| --- | --- | --- |
+| pnl | `MarginScatter` | 산점/버블(YoY×영업이익률, 사분면 음영, 라벨 충돌회피) |
+| pnl | `CustomerParetoChart` | 파레토(막대+누적%) |
+| pnl | `FixedVariableBep` | 콤보(토글: 손익분기점·매출[억원] / 공헌이익률·고정비율[%] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리) |
+| pnl | `YoyMonthlyCompare`, `YoyMonthlyFiltered`, `YoyProductCustomer` | 막대/콤보 |
+| plan | `LongtermRevenueChart` | 세로 그룹 막대 3계열(억원) + 기준 드롭다운. 값 전무 계열 자동 제외, 범례 `LegendRow`+`useHiddenSeries` 토글(기본 '한세 전망'만 ON), 색 `MGMT_BAR_COLORS`, 라벨 `MGMT_DATA_LABEL_STYLE` |
+| plan | `PlanAchievementChart` | 콤보(계획·실적 막대 + 달성율 라인, 이중 Y축) |
+| plan | `OrderFunnelChart` | 퍼널 |
+| stellantis | `StellantisMonthlyFlowChart` | 콤보(**월별** 북미 생산·소매 막대 + 갭 라인). 밀도 대응: `dot={false}`+`activeDot`(월 77개에 점 찍으면 구슬 목걸이), `minTickGap`으로 x축 라벨 자동 솎기, 라벨 없음 |
+| stellantis | `StellantisGapChart` | 콤보(**분기** 북미 출하·소매 막대 + 갭 라인). 차분 도출 출하·추정 소매는 **막대에 표시 안 함**(보조문구+툴팁으로 안내, 2026-07-17). 추정 최신 분기만 갭 선 **속 빈 점**으로 위치 표시 |
+| stellantis | ↑ 두 차트 공용 | **같은 질문에 다른 소스로 답하므로 시각 문법을 공유한다**(막대색·빨간 갭 선·0선 `ReferenceLine`). 갭 축 domain은 **선이 음수 가능**해 §4-F를 일반화한 `gapAxis.ts` `bandDomain()` 공용. 순서는 정확한 항등식(분기 출하)이 1번, 근사(월별 생산)가 2번(2026-07-16) |
+| stellantis | `StellantisKpiCards` | 차트가 아니라 **KPI 카드 4종**. 소매·출하·매출은 YTD YoY %(▲초록/▼빨강) + 절대값 변화, 재고는 **신호등**(재고 증가→빨강). 개편 2026-07-16으로 옛 `DriverAnalysisSection`·`InventoryOutlookSection`(CSS 막대) 폐기 |
+| inventory | `InventoryStatusChart`, `InventoryCountryStatusChart`, `InventoryAchievementChart` | 스택 막대/콤보 |
+| personnel | `PersonnelOverallChart`, `PersonnelMixChart`, `PersonnelFieldMixChart`, `PersonnelDomesticChart`, `PersonnelOverseasChart` | 스택 막대(막대 내부 라벨 2줄) |
 
 ### `/hansae` — `components/hansae/`
 
