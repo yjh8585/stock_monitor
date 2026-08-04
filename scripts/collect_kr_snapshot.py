@@ -19,6 +19,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
+from lib import fnguide_client as fng
 from lib.companies import get_kr_companies
 from lib.db import get_client
 from lib.fnguide_guard import is_fnguide_fallback
@@ -27,11 +28,9 @@ from lib.fnguide_guard import is_fnguide_fallback
 # 상수
 # ──────────────────────────────────────────────
 
-FNGUIDE_BASE_URL     = 'https://comp.fnguide.com'
-FNGUIDE_SNAPSHOT_URL = (
-  f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Main.asp'
-  '?pGB=1&gicode={gicode}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701'
-)
+# fnguide 신버전(wcomp). 구 comp.fnguide.com은 폐지돼 전 경로가 HTTP 200 안내 페이지다.
+# 기업개요 셀렉터(ul#bizSummaryContent, #giName)는 신버전에서도 그대로 유효하다.
+FNGUIDE_SNAPSHOT_URL = f'{fng.BASE_URL}/CompanyInfo/Snapshot?cmp_cd={{cmp_cd}}'
 FNGUIDE_PAGE_TIMEOUT = 30_000   # 30초 (ms)
 FNGUIDE_NAV_WAIT_MS  = 2_000    # 페이지 안정화 대기 (ms)
 
@@ -40,9 +39,9 @@ FNGUIDE_NAV_WAIT_MS  = 2_000    # 페이지 안정화 대기 (ms)
 # 유틸
 # ──────────────────────────────────────────────
 
-def _to_gicode(ticker: str) -> str:
-  """6자리 종목코드를 fnguide gicode 형식(A + 6자리)으로 변환한다."""
-  return f'A{ticker}'
+def _to_cmp_cd(ticker: str) -> str:
+  """종목코드를 fnguide 신버전 파라미터 형식(6자리, 접두어 없음)으로 정규화한다."""
+  return str(ticker).strip().zfill(6)
 
 
 def _load_company_id_map() -> dict[str, str]:
@@ -93,8 +92,7 @@ def _update_business_summary(company_id: str, summary: Optional[str]) -> None:
 
 def _scrape_company(page, ticker: str, company_id: str) -> None:
   """단일 회사 Snapshot 페이지에서 기업개요 추출 후 DB UPDATE."""
-  gicode       = _to_gicode(ticker)
-  snapshot_url = FNGUIDE_SNAPSHOT_URL.format(gicode=gicode)
+  snapshot_url = FNGUIDE_SNAPSHOT_URL.format(cmp_cd=_to_cmp_cd(ticker))
 
   try:
     page.goto(snapshot_url, timeout=FNGUIDE_PAGE_TIMEOUT)

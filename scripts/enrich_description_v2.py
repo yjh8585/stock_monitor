@@ -28,6 +28,7 @@ import anthropic  # noqa: E402
 import yfinance as yf  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
+from lib import fnguide_client as fng  # noqa: E402
 from lib.db import WriteSession  # noqa: E402
 from lib.fnguide_guard import is_fnguide_fallback  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
@@ -36,15 +37,14 @@ from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
 MIN_LEN_THRESHOLD = 100  # 1차 출처가 이 길이 미만이면 2차 보완 진행
 
-FNGUIDE_BASE_URL = 'https://comp.fnguide.com'
-FNGUIDE_SNAPSHOT_URL = (
-    f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Main.asp'
-    '?pGB=1&gicode={gicode}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701'
-)
+# fnguide 신버전(wcomp). 구 comp.fnguide.com은 폐지돼 전 경로가 HTTP 200 안내 페이지다.
+# 기업개요 셀렉터(ul#bizSummaryContent, #giName)는 신버전에서도 그대로 유효하다.
+FNGUIDE_SNAPSHOT_URL = f'{fng.BASE_URL}/CompanyInfo/Snapshot?cmp_cd={{cmp_cd}}'
 
 
-def _to_gicode(ticker: str) -> str:
-    return f'A{ticker.zfill(6)}'
+def _to_cmp_cd(ticker: str) -> str:
+    """종목코드를 fnguide 신버전 파라미터 형식(6자리, 접두어 없음)으로 정규화한다."""
+    return str(ticker).strip().zfill(6)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ def _to_gicode(ticker: str) -> str:
 def fetch_fnguide_summary(page, ticker: str) -> str | None:
     """fnguide Snapshot 페이지에서 회사 개요 텍스트 추출."""
     try:
-        url = FNGUIDE_SNAPSHOT_URL.format(gicode=_to_gicode(ticker))
+        url = FNGUIDE_SNAPSHOT_URL.format(cmp_cd=_to_cmp_cd(ticker))
         page.goto(url, timeout=30_000)
         page.wait_for_load_state('networkidle', timeout=20_000)
         page.wait_for_timeout(2500)

@@ -30,10 +30,9 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements-phase3.txt
 
-      - name: Playwright Chromium 설치
-        run: playwright install chromium --with-deps
-
-      - name: 재무 데이터 수집 (상장사 — fnguide + yfinance)
+      # fnguide 신버전(wcomp)은 재무제표를 JSON 엔드포인트로 주므로 브라우저가 필요 없다
+      # (2026-08 전환). Chromium 설치 단계를 제거해 매 실행 수 분을 아낀다.
+      - name: 재무 데이터 수집 (상장사 — fnguide JSON + yfinance)
         run: python collect_financials.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

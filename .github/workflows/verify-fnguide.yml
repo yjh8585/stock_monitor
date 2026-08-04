@@ -1,0 +1,40 @@
+name: fnguide 수집 계약 점검
+
+# 재무 수집(collect-financials.yml)은 분기 1회라, 사이트가 바뀌어도 최대 3개월간
+# 아무도 모른다. 실제로 2026-08 wcomp 이전을 3주 넘게 놓쳤다(구 도메인이 HTTP 200으로
+# 안내 페이지를 반환하는 조용한 실패). 이 워크플로가 주 1회 계약을 확인해 조기 경보한다.
+# DB·시크릿을 쓰지 않는 읽기 전용 점검이다.
+
+on:
+  schedule:
+    # 매주 월요일 KST 09:00 (UTC 월요일 00:00)
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 의존성 설치 (requests만 — DB 접근 없음)
+        run: pip install requests
+
+      - name: fnguide 계약 점검
+        run: python verify_fnguide.py
+
+      - name: 파서 회귀 테스트
+        run: |
+          pip install pytest
+          python -m pytest lib/test_fnguide_wcomp.py -q

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
 21개사 분기·연간 재무제표를 수집해 financials 테이블에 upsert한다.
-- fnguide.com Playwright: 한국 8개사 (로그인 불필요)
+- fnguide 신버전(wcomp) JSON 엔드포인트: 한국 상장사 (로그인·브라우저 불필요)
 - yfinance: 글로벌 13개사 (최근 5년 분기·연간)
 단위: 원본 통화 기준 백만(MILLION) 단위로 정규화 후 저장.
 """
-import re
 import sys
-from calendar import monthrange
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -26,8 +24,10 @@ from lib.accounts_map import (
   YF_CURRENT_LIABILITIES_KEY,
   YF_INCOME_TO_DB,
 )
+from lib import fnguide_client as fng
 from lib.companies import get_global_companies, get_kr_companies
 from lib.db import get_client, upsert_rows
+from lib.financial_sources import SOURCE_FNGUIDE, SOURCE_YFINANCE
 
 # ──────────────────────────────────────────────
 # 상수
@@ -35,77 +35,45 @@ from lib.db import get_client, upsert_rows
 
 MILLION = 1_000_000
 
-# fnguide 관련 상수 (2026-07 신규 레이아웃: 재무제표·투자지표 직접 URL).
-# 옛 Snapshot(SVD_Main) Financial Highlight는 익명 세션에 회사 무관 fallback을 반환해
-# 폐기. 구 GoMenu('103')/('105') JS 네비게이션도 미정의라 직접 URL로 대체.
-FNGUIDE_BASE_URL     = 'https://comp.fnguide.com'
-FNGUIDE_FINANCE_URL = (
-  f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Finance.asp'
-  '?pGB=1&gicode={gicode}&cID=&MenuYn=Y&ReportGB=&NewMenuID=103&stkGb=701'
-)
-FNGUIDE_INVEST_URL = (
-  f'{FNGUIDE_BASE_URL}/SVO2/ASP/SVD_Invest.asp'
-  '?pGB=1&gicode={gicode}&cID=&MenuYn=Y&ReportGB=&NewMenuID=105&stkGb=701'
-)
-FNGUIDE_PAGE_TIMEOUT = 30_000   # 30초 (ms)
-FNGUIDE_NAV_WAIT_MS  = 3_000   # 페이지 로드 후 networkidle 대기 (ms)
-
 # fnguide 억원 → 백만원 변환 승수
 FNGUIDE_UNIT_MULTIPLIER = 100.0
 
 # DB GENERATED ALWAYS AS 컬럼 — INSERT 페이로드에서 제외
 GENERATED_COLS = frozenset({'operating_margin', 'gross_margin', 'net_margin', 'debt_ratio'})
 
-# 단위 배수(억원→백만원)를 곱하지 않는 컬럼 (배수·원 단위)
-NO_UNIT_COLS = frozenset({'per', 'pbr', 'eps', 'bps', 'dps', 'cfps', 'ev_ebitda',
-                          'dividend_yield', 'psr', 'ev_ebit'})
-
-# fnguide 행 라벨 → DB 컬럼 매핑 (손익계산서 + 대차대조표 + Snapshot FH 지표)
-# 행 라벨은 split('\n')[0].strip() 정규화 후 매핑
-FNGUIDE_TO_DB: dict[str, str] = {
-  '매출액':               'revenue',
-  '매출원가':             'cogs',
-  '매출총이익':           'gross_profit',
-  '판매비와관리비':       'sga',
-  '영업이익':             'operating_income',
-  'EBITDA':               'ebitda',
-  '당기순이익':           'net_income',
-  '지배기업주주귀속순이익': 'net_income',
-  '자산총계':             'total_assets',
-  '부채총계':             'total_liabilities',
-  '자본총계':             'total_equity',
-  # SVD_Finance 재무상태표는 총계를 짧은 라벨로 표기 (자산총계→'자산' 등). 정확일치라
-  # '유동자산'·'자본금' 등 세부 계정은 안 잡힌다. (신규 레이아웃 2026-07)
-  '자산':                 'total_assets',
-  '부채':                 'total_liabilities',
-  '자본':                 'total_equity',
-  '재고자산':             'inventory',
-  # Snapshot Financial Highlight 추가 항목
-  'EPS':                  'eps',
-  'BPS':                  'bps',
-  'DPS':                  'dps',
-  'PER':                  'per',
-  'PBR':                  'pbr',
-  # current_ratio 계산용 (DB 직접 컬럼 없음)
-  '유동자산':             '_ca',
-  '유동부채':             '_cl',
+# fnguide 신버전 계정 코드(AC_CODE) → DB 컬럼.
+# 계정'명' 문자열이 아니라 회사 무관 표준 코드로 매칭한다 — 2026-07-18 감사에서
+# '부채총계'가 '부채및자본총계'를 집어 79개사 217행의 부채=자산이 된 부류의 사고를
+# 원천 차단하기 위함. 코드표 근거는 docs/fnguide-wcomp-migration.md.
+FNGUIDE_INCOME_CODES: dict[str, str] = {
+  '200000': 'revenue',           # 매출액(수익)
+  '200360': 'cogs',              # 매출원가
+  '200810': 'gross_profit',      # 매출총이익
+  '200820': 'sga',               # 판매비와관리비
+  '201370': 'operating_income',  # 영업이익
+  '203170': 'net_income',        # 당기순이익
 }
 
-# '전년동기' 계열 헤더는 period 파싱 불가 → 스킵
-FNGUIDE_SKIP_HEADERS = frozenset({'전년동기', '전년동기(%)'})
+FNGUIDE_BALANCE_CODES: dict[str, str] = {
+  '110000': 'total_assets',       # 자산총계
+  '130000': 'total_liabilities',  # 부채총계
+  '120000': 'total_equity',       # 자본총계
+  '112840': 'inventory',          # 재고자산
+  '112830': '_ca',                # 유동자산 — current_ratio 계산용
+  '131580': '_cl',                # 유동부채 — current_ratio 계산용
+}
 
-# fnguide 투자지표 탭 (GoMenu('105')) 행 → DB 컬럼
+# 투자지표(invValueIndex) 항목명 → DB 컬럼. 배수·원 단위라 단위 배수를 곱하지 않는다.
+# 신버전은 배당수익률·EV/EBIT를 제공하지 않는다(구버전에서도 실적재 0건이라 회귀 아님).
 FNGUIDE_INVEST_TO_DB: dict[str, str] = {
-  'EPS':       'eps',
-  'BPS':       'bps',
-  'DPS':       'dps',
-  'CFPS':      'cfps',
-  'PER':       'per',
-  'PBR':       'pbr',
-  'PSR':       'psr',
-  'EV/EBITDA': 'ev_ebitda',
-  'EV/EBIT':   'ev_ebit',
-  '배당수익률':  'dividend_yield',
+  'EPS':               'eps',
+  'BPS':               'bps',
+  'CFPS':              'cfps',
+  'PER':               'per',
+  'PBR':               'pbr',
+  'PSR':               'psr',
+  'EV/EBITDA':         'ev_ebitda',
+  '수정DPS(보통주,현금)': 'dps',
 }
 
 
@@ -118,36 +86,6 @@ def _month_to_quarter(month: int) -> int:
   return (month - 1) // 3 + 1
 
 
-def _parse_number(text: str) -> Optional[float]:
-  """숫자 문자열을 float으로 파싱한다. 빈 값·대시·N/A는 None 반환."""
-  s = str(text).strip().replace(',', '').replace(' ', '')
-  if s in ('', '-', 'N/A', 'NA', '--', 'None', 'null'):
-    return None
-  try:
-    return float(s)
-  except (ValueError, TypeError):
-    return None
-
-
-def _parse_period(header: str) -> Optional[date]:
-  """'2024/03', '2024.03', '2024-03' 형태를 해당 월 말일 date로 변환한다."""
-  m = re.search(r'(\d{4})[/.\-](\d{1,2})', header.strip())
-  if not m:
-    return None
-  try:
-    year, month = int(m.group(1)), int(m.group(2))
-    if not (1 <= month <= 12):
-      return None
-    return date(year, month, monthrange(year, month)[1])
-  except (ValueError, OverflowError):
-    return None
-
-
-def _to_gicode(ticker: str) -> str:
-  """6자리 종목코드를 fnguide gicode 형식(A + 6자리)으로 변환한다."""
-  return f'A{ticker}'
-
-
 def _load_company_maps() -> tuple[dict[str, str], dict[str, str]]:
   """DB에서 ticker → company_id, ticker → currency 매핑을 로드한다."""
   rows = get_client().table('companies').select('id,ticker,currency').execute().data
@@ -155,141 +93,6 @@ def _load_company_maps() -> tuple[dict[str, str], dict[str, str]]:
     {r['ticker']: r['id'] for r in rows},
     {r['ticker']: r['currency'] for r in rows},
   )
-
-
-# ──────────────────────────────────────────────
-# fnguide 테이블 파싱
-# ──────────────────────────────────────────────
-
-def _extract_fnguide_tables(page) -> list[dict]:
-  """페이지의 fnguide 재무 테이블(us_table_ty1)에서 headers/rows를 추출한다."""
-  return page.evaluate("""
-    () => Array.from(
-      document.querySelectorAll('table.us_table_ty1')
-    ).map(tbl => ({
-      headers: Array.from(
-        tbl.querySelectorAll('thead tr:last-child th, thead tr:last-child td')
-      ).map(el => el.innerText.trim()),
-      rows: Array.from(tbl.querySelectorAll('tbody tr')).map(tr =>
-        Array.from(tr.querySelectorAll('td, th')).map(td => td.innerText.trim())
-      ),
-    }))
-  """)
-
-
-def _parse_income_table(
-  tbl: dict,
-  unit: float,
-) -> dict[str, dict]:
-  """손익계산서 테이블을 period_end → {db_col: val} 딕셔너리로 파싱한다."""
-  period_data: dict[str, dict] = {}
-  headers = tbl.get('headers', [])
-
-  # Snapshot 테이블은 헤더[0]부터 날짜 — 재무제표 탭은 헤더[0]이 라벨 열 헤더
-  header_start = 0 if (headers and _parse_period(headers[0]) is not None) else 1
-
-  for row in tbl.get('rows', []):
-    if not row:
-      continue
-    # 여러 줄 라벨(예: 'EPS\n(원)')은 첫 줄만 사용
-    metric = row[0].split('\n')[0].strip()
-    db_col = FNGUIDE_TO_DB.get(metric)
-    if db_col is None or db_col in GENERATED_COLS:
-      continue
-
-    for i, hdr in enumerate(headers[header_start:], 1):
-      # 전년동기 계열 헤더 또는 추정치((E)/(P)) 헤더는 스킵
-      if hdr.strip() in FNGUIDE_SKIP_HEADERS:
-        continue
-      if '(E)' in hdr or '(P)' in hdr:
-        continue
-      if i >= len(row):
-        break
-      period_end = _parse_period(hdr)
-      if period_end is None:
-        continue
-      val = _parse_number(row[i])
-      if val is None:
-        continue
-
-      key = period_end.isoformat()
-      if key not in period_data:
-        period_data[key] = {'_period_end': period_end}
-      # 같은 period에 동일 db_col이 이미 있으면 첫 번째 값 우선 유지
-      if db_col not in period_data[key]:
-        # 배수·원 단위 컬럼은 unit 배수 없이 저장
-        multiplier = 1.0 if db_col in NO_UNIT_COLS else unit
-        period_data[key][db_col] = round(val * multiplier, 4)
-
-  return period_data
-
-
-def _merge_balance_table(
-  period_data: dict[str, dict],
-  tbl: dict,
-  unit: float,
-) -> None:
-  """대차대조표 테이블을 기존 period_data에 병합한다 (in-place)."""
-  headers = tbl.get('headers', [])
-
-  for row in tbl.get('rows', []):
-    if not row:
-      continue
-    metric = row[0].split('\n')[0].strip()
-    db_col = FNGUIDE_TO_DB.get(metric)
-    if db_col is None or db_col in GENERATED_COLS:
-      continue
-
-    for i, hdr in enumerate(headers[1:], 1):
-      if hdr.strip() in FNGUIDE_SKIP_HEADERS:
-        continue
-      if i >= len(row):
-        break
-      period_end = _parse_period(hdr)
-      if period_end is None:
-        continue
-      val = _parse_number(row[i])
-      if val is None:
-        continue
-
-      key = period_end.isoformat()
-      if key not in period_data:
-        period_data[key] = {'_period_end': period_end}
-      if db_col not in period_data[key]:
-        multiplier = 1.0 if db_col in NO_UNIT_COLS else unit
-        period_data[key][db_col] = round(val * multiplier, 4)
-
-
-def _build_invest_map(invest_tbl: dict) -> dict[str, dict]:
-  """투자지표 테이블을 period_end.isodate → {db_col: val} 딕셔너리로 변환한다."""
-  invest_map: dict[str, dict] = {}
-  if not invest_tbl or not invest_tbl.get('headers'):
-    return invest_map
-  headers = invest_tbl['headers']
-  for row in invest_tbl.get('rows', []):
-    if not row:
-      continue
-    metric = row[0].split('\n')[0].strip()
-    db_col = FNGUIDE_INVEST_TO_DB.get(metric)
-    if db_col is None:
-      continue
-    for i, hdr in enumerate(headers[1:], 1):
-      if hdr.strip() in FNGUIDE_SKIP_HEADERS:
-        continue
-      if i >= len(row):
-        break
-      period_end = _parse_period(hdr)
-      if period_end is None:
-        continue
-      val = _parse_number(row[i])
-      if val is None:
-        continue
-      key = period_end.isoformat()
-      if key not in invest_map:
-        invest_map[key] = {}
-      if db_col not in invest_map[key]:
-        invest_map[key][db_col] = val
-  return invest_map
 
 
 def _build_kr_rows(
@@ -331,6 +134,7 @@ def _build_kr_rows(
       'fiscal_quarter':  fiscal_quarter,
       'period_end_date': period_end.isoformat(),
       'currency':        currency,
+      'source':          SOURCE_FNGUIDE,
     }
 
     for col, val in vals.items():
@@ -366,120 +170,79 @@ def _build_kr_rows(
 
 
 # ──────────────────────────────────────────────
-# fnguide Playwright 수집
+# fnguide 신버전(wcomp) 수집
 # ──────────────────────────────────────────────
 
-def _finance_first_label(tbl: dict) -> str:
-  """테이블 첫 행 첫 셀 라벨(여러 줄이면 첫 줄)."""
-  rows = tbl.get('rows', [])
-  if not rows or not rows[0]:
-    return ''
-  return rows[0][0].split('\n')[0].strip()
+def _fetch_statements(
+  cmp_cd: str,
+  freq: str,
+  consol: str,
+  session,
+) -> dict[str, dict]:
+  """손익 + 재무상태를 한 기준(연간/분기 × 연결/별도)으로 받아 병합한다.
 
-
-def _table_period_kind(tbl: dict) -> str:
-  """SVD_Finance 테이블의 기간 종류를 날짜 헤더 간격으로 판정.
-
-  연간표는 열 간격이 ~12개월(연말 결산 반복), 분기표는 ~3개월. 결산월과 무관하게
-  간격만 보므로 비-12월 결산(예: 3월 결산)도 정상 판정한다. 전년동기/(E)/(P)/라벨
-  열은 무시. 파싱 가능한 날짜 2개 미만이면 'unknown'(peer·주주 표 배제).
+  손익이 비면 해당 기준에 데이터가 없다는 뜻이라 빈 dict를 돌려준다(별도 폴백 신호).
   """
-  dates: list[date] = []
-  for h in tbl.get('headers', []):
-    hs = h.strip()
-    if hs in FNGUIDE_SKIP_HEADERS or '(E)' in hs or '(P)' in hs:
-      continue
-    d = _parse_period(hs)
-    if d is not None:
-      dates.append(d)
-  if len(dates) < 2:
-    return 'unknown'
-  dates.sort()
-  gaps = [(b.year - a.year) * 12 + (b.month - a.month) for a, b in zip(dates, dates[1:])]
-  annual_gaps = sum(1 for g in gaps if g >= 6)
-  quarter_gaps = sum(1 for g in gaps if 0 < g < 6)
-  return 'annual' if annual_gaps >= quarter_gaps else 'quarterly'
+  income = fng.fetch_fin_dataset(cmp_cd, 'income', freq, consol, session=session)
+  if not fng.has_dataset_values(income):
+    return {}
+
+  period_data = fng.extract_accounts(
+    income, FNGUIDE_INCOME_CODES, freq, FNGUIDE_UNIT_MULTIPLIER
+  )
+  balance = fng.fetch_fin_dataset(cmp_cd, 'balance', freq, consol, session=session)
+  if balance:
+    for key, vals in fng.extract_accounts(
+      balance, FNGUIDE_BALANCE_CODES, freq, FNGUIDE_UNIT_MULTIPLIER
+    ).items():
+      period_data.setdefault(key, {'_period_end': vals['_period_end']}).update(
+        {k: v for k, v in vals.items() if k != '_period_end'}
+      )
+  return period_data
 
 
-def _classify_finance_tables(tables: list[dict]) -> dict:
-  """SVD_Finance 테이블에서 연간/분기 × 손익/재무상태 4종을 식별한다.
-
-  손익표=첫 행 라벨 '매출액', 재무상태표=첫 행 라벨 '자산'. 연간/분기는
-  _table_period_kind(열 간격)로 구분하고 각 슬롯은 첫 매치를 채택한다. 첫 행이
-  '매출액'이어도 날짜 헤더가 없으면(peer 비교표) 'unknown'이라 배제된다.
-  """
-  result: dict = {'annual_income': None, 'quarterly_income': None,
-                  'annual_balance': None, 'quarterly_balance': None}
-  for tbl in tables:
-    label = _finance_first_label(tbl)
-    if label == '매출액':
-      base = 'income'
-    elif label == '자산':
-      base = 'balance'
-    else:
-      continue
-    kind = _table_period_kind(tbl)
-    if kind not in ('annual', 'quarterly'):
-      continue
-    slot = f'{kind}_{base}'
-    if result.get(slot) is None:
-      result[slot] = tbl
-  return result
-
-
-def _scrape_company_financials(
-  page,
+def _fetch_company_financials(
   ticker: str,
   company_id: str,
   currency: str,
   fiscal_year_end_month: int = 12,
+  session=None,
 ) -> list[dict]:
-  """단일 회사의 연간·분기 재무제표를 fnguide SVD_Finance에서 스크레이핑한다.
+  """단일 회사의 연간·분기 재무제표를 fnguide 신버전 JSON에서 수집한다.
 
-  전략 (2026-07 신규 레이아웃):
-  - SVD_Finance.asp 직접 URL → 연간/분기 손익 + 재무상태 4종 테이블. 분기표가
-    discrete 분기값(정확한 Q4)을 직접 제공하므로 Q4=연간누적 오류가 원천 차단된다.
-  - SVD_Invest.asp 직접 URL → EPS/PER/BPS/PBR/EV_EBITDA 등 투자지표.
-  옛 Snapshot Financial Highlight(SVD_Main)는 익명 세션에 회사 무관 fallback을 반환해
-  쓰지 않는다. GoMenu()는 신규 페이지에서 미정의라 직접 URL로 대체.
+  전략 (2026-08 wcomp 이전):
+  - `getFinIncome`/`getFinBalance` JSON을 연간(Y)·분기(Q)로 각각 호출한다. 분기 응답이
+    discrete 분기값을 주므로 Q4=연간누적 오류가 원천 차단된다.
+  - 계정 식별은 계정명이 아니라 표준 `AC_CODE`로 한다.
+  - **연결(C) 우선, 연결 데이터가 없으면 별도(P)로 폴백**(종속회사 없는 회사).
+  - 투자지표는 Invest 페이지의 인라인 JSON(`invValueIndex`)에서 연간 기간에만 병합한다.
   """
-  gicode = _to_gicode(ticker)
+  session = session or fng.new_session()
   all_rows: list[dict] = []
-  U = FNGUIDE_UNIT_MULTIPLIER
 
   try:
-    # 재무제표(SVD_Finance) — 연간/분기 손익·재무상태
-    page.goto(FNGUIDE_FINANCE_URL.format(gicode=gicode), timeout=FNGUIDE_PAGE_TIMEOUT)
-    page.wait_for_load_state('networkidle', timeout=FNGUIDE_PAGE_TIMEOUT)
-    page.wait_for_timeout(FNGUIDE_NAV_WAIT_MS)
+    consol = fng.CONSOL_CONSOLIDATED
+    annual_data = _fetch_statements(ticker, fng.FREQ_ANNUAL, consol, session)
+    if not annual_data:
+      # 연결 재무제표가 없는 회사 — 별도로 폴백 (AGENTS.md: 연결 우선, 없으면 별도)
+      consol = fng.CONSOL_SEPARATE
+      annual_data = _fetch_statements(ticker, fng.FREQ_ANNUAL, consol, session)
+      if annual_data:
+        logger.info(f"KR {ticker}: 연결 데이터 없음 → 별도(consol_typ=P) 사용")
 
-    cls = _classify_finance_tables(_extract_fnguide_tables(page))
-    if cls['annual_income'] is None:
-      logger.warning(f"KR {ticker}: SVD_Finance 연간 손익 테이블 없음 — 스킵")
+    if not annual_data:
+      logger.warning(f"KR {ticker}: 연간 손익 데이터 없음 — 스킵")
       return []
 
-    # 억원 × 100 → 백만원. 연간표의 최신 분기 열(예: 2026/03)은 _build_kr_rows가
-    # period_end.month != 결산월로 스킵한다.
-    annual_data = _parse_income_table(cls['annual_income'], U)
-    if cls['annual_balance'] is not None:
-      _merge_balance_table(annual_data, cls['annual_balance'], U)
+    qtr_data = _fetch_statements(ticker, fng.FREQ_QUARTER, consol, session)
 
-    qtr_data: dict[str, dict] = {}
-    if cls['quarterly_income'] is not None:
-      qtr_data = _parse_income_table(cls['quarterly_income'], U)
-      if cls['quarterly_balance'] is not None:
-        _merge_balance_table(qtr_data, cls['quarterly_balance'], U)
-
-    # 투자지표(SVD_Invest) — EPS/PER/BPS/PBR/EV_EBITDA 등
     invest_map: dict[str, dict] = {}
     try:
-      page.goto(FNGUIDE_INVEST_URL.format(gicode=gicode), timeout=FNGUIDE_PAGE_TIMEOUT)
-      page.wait_for_load_state('networkidle', timeout=FNGUIDE_PAGE_TIMEOUT)
-      page.wait_for_timeout(FNGUIDE_NAV_WAIT_MS)
-      inv_tables = _extract_fnguide_tables(page)
-      invest_map = _build_invest_map(inv_tables[1] if len(inv_tables) > 1 else {})
+      invest_map = fng.extract_invest_map(
+        fng.fetch_invest_index(ticker, session=session), FNGUIDE_INVEST_TO_DB
+      )
     except Exception as e:
-      logger.warning(f"KR {ticker} 투자지표(SVD_Invest) 수집 실패: {e}")
+      logger.warning(f"KR {ticker} 투자지표 수집 실패: {e}")
 
     all_rows.extend(_build_kr_rows(
       company_id, currency, 'annual', annual_data, invest_map,
@@ -492,7 +255,7 @@ def _scrape_company_financials(
       ))
 
   except Exception as e:
-    logger.error(f"KR {ticker} 스크레이핑 실패: {e}")
+    logger.error(f"KR {ticker} 수집 실패: {e}")
 
   return all_rows
 
@@ -501,50 +264,30 @@ def _collect_kr_financials(
   id_map: dict[str, str],
   cur_map: dict[str, str],
 ) -> list[dict]:
-  """fnguide Playwright로 한국 8개사 연결 재무데이터를 수집한다."""
-  try:
-    from playwright.sync_api import sync_playwright
-  except ImportError:
-    logger.error("playwright 미설치 — pip install playwright && playwright install chromium")
-    return []
-
+  """fnguide 신버전 JSON으로 한국 상장사 재무데이터를 수집한다."""
   all_rows: list[dict] = []
+  session = fng.new_session()
 
-  with sync_playwright() as pw:
-    browser = pw.chromium.launch(headless=True)
-    context = browser.new_context(
-      user_agent=(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/124.0.0.0 Safari/537.36'
-      )
+  for company in get_kr_companies():
+    ticker     = company['ticker']
+    company_id = id_map.get(ticker)
+    if not company_id:
+      logger.warning(f"KR {ticker}: company_id 없음, 스킵")
+      continue
+
+    currency  = cur_map.get(ticker, 'KRW')
+    fye_month = int(company.get('fiscal_year_end_month') or 12)
+    rows = _fetch_company_financials(
+      ticker, company_id, currency,
+      fiscal_year_end_month=fye_month, session=session,
     )
-    page = context.new_page()
-
-    try:
-      for company in get_kr_companies():
-        ticker     = company['ticker']
-        company_id = id_map.get(ticker)
-        if not company_id:
-          logger.warning(f"KR {ticker}: company_id 없음, 스킵")
-          continue
-
-        currency  = cur_map.get(ticker, 'KRW')
-        fye_month = int(company.get('fiscal_year_end_month') or 12)
-        rows = _scrape_company_financials(
-          page, ticker, company_id, currency, fiscal_year_end_month=fye_month
-        )
-        all_rows.extend(rows)
-        logger.info(
-          f"KR {ticker} ({company['name_kr']}, 결산월 {fye_month}): "
-          f"{len(rows)}개 기간 수집"
-        )
-
-    finally:
-      browser.close()
+    all_rows.extend(rows)
+    logger.info(
+      f"KR {ticker} ({company['name_kr']}, 결산월 {fye_month}): "
+      f"{len(rows)}개 기간 수집"
+    )
 
   return all_rows
-
 
 # ──────────────────────────────────────────────
 # yfinance 글로벌 수집
@@ -584,6 +327,7 @@ def _build_yf_row(
     'fiscal_quarter':  fiscal_quarter,
     'period_end_date': period_end.isoformat(),
     'currency':        currency,
+    'source':          SOURCE_YFINANCE,
   }
   for yf_key, db_col in YF_INCOME_TO_DB.items():
     if db_col in GENERATED_COLS:
@@ -812,7 +556,8 @@ def collectFinancials() -> None:
   if structure_broken:
     logger.error(
       f"⚠️ fnguide 구조 변경 의심 — KR {kr_with_data}/{kr_attempted} 회사만 수집됨. "
-      "SVD_Finance 레이아웃/파서(_classify_finance_tables) 점검 필요."
+      "wcomp JSON 계약(getFinIncome/getFinBalance)·계정 코드 매핑 점검 필요 — "
+      "scripts/verify_fnguide.py 실행."
     )
 
   if all_rows:

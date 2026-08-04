@@ -10,6 +10,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import get_client, upsert_rows  # noqa: E402
+from lib.financial_sources import SOURCE_YFINANCE  # noqa: E402
 
 # 환경변수 TARGET_TICKERS로 override 가능 (콤마 분리)
 _env = os.environ.get('TARGET_TICKERS', '').strip()
@@ -103,6 +104,7 @@ for ticker in NEW_TICKERS:
         'fiscal_quarter': None,
         'period_end_date': period_end,
         'currency': fin_currency,
+        'source': SOURCE_YFINANCE,
         'revenue': round(rev_m, 4),
         'operating_income': round(op_m, 4) if op_m is not None else None,
         'net_income': round(ni_m, 4) if ni_m is not None else None,

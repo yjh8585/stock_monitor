@@ -40,8 +40,9 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-from collect_financials import _process_yf_frames, _scrape_company_financials  # noqa: E402
+from collect_financials import _fetch_company_financials, _process_yf_frames  # noqa: E402
 from lib.db import WriteSession, upsert_rows  # noqa: E402
+from lib.financial_sources import SOURCE_WEB_SEARCH  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -114,7 +115,8 @@ def _load_targets(client, page: str | None, target_tickers: set[str]) -> list[di
   """대상 회사 목록 로드. target_tickers 우선, 없으면 page 매핑된 active 회사."""
   q = client.table('companies').select(
     'id,ticker,name,name_kr,country,currency,data_source,status,'
-    'products,customers,business_summary,homepage_url,dart_corp_code'
+    'products,customers,business_summary,homepage_url,dart_corp_code,'
+    'fiscal_year_end_month'
   )
   if target_tickers:
     q = q.in_('ticker', list(target_tickers))
@@ -169,11 +171,16 @@ def _collect_yfinance(c: dict) -> list[dict]:
     return []
 
 
-def _collect_fnguide(c: dict, page) -> list[dict]:
-  ticker = c['ticker']
-  cid = c['id']
+def _collect_fnguide(c: dict) -> list[dict]:
+  """KR 상장사 재무 — fnguide 신버전(wcomp) JSON. 브라우저 불필요(2026-08 전환).
+
+  결산월을 넘기지 않으면 12월로 가정해 비-12월 결산사의 연간/분기 판정이 어긋난다.
+  """
   try:
-    return _scrape_company_financials(page, ticker, cid, c.get('currency') or 'KRW')
+    return _fetch_company_financials(
+      c['ticker'], c['id'], c.get('currency') or 'KRW',
+      fiscal_year_end_month=int(c.get('fiscal_year_end_month') or 12),
+    )
   except Exception as e:
     logger.error(f'  fnguide 실패: {e}')
     return []
@@ -261,6 +268,7 @@ def _collect_websearch_financial(llm, c: dict) -> list[dict]:
       'fiscal_quarter': None,
       'period_end_date': f'{fy}-12-31',
       'currency': (extracted.get('revenue_currency') or 'USD').upper(),
+      'source': SOURCE_WEB_SEARCH,
       'revenue': round(rev, 4),
       'operating_income': (
         round(float(extracted['operating_income_amount']) * multiplier, 4)
@@ -356,23 +364,10 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
       logger.info(f'[yfinance] {c["name_kr"]} ({c["ticker"]})')
       fin_rows.extend(_collect_yfinance(c))
 
-    # fnguide (Playwright 1번만 띄우고 처리)
-    fnguide_targets = by_source.get('fnguide', [])
-    if fnguide_targets:
-      try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as pw:
-          browser = pw.chromium.launch(headless=True)
-          ctx = browser.new_context(user_agent='Mozilla/5.0')
-          page = ctx.new_page()
-          try:
-            for c in fnguide_targets:
-              logger.info(f'[fnguide] {c["name_kr"]} ({c["ticker"]})')
-              fin_rows.extend(_collect_fnguide(c, page))
-          finally:
-            browser.close()
-      except ImportError:
-        logger.error('playwright 미설치 — fnguide skip')
+    # fnguide (신버전 JSON — 브라우저 없이 HTTP 요청만)
+    for c in by_source.get('fnguide', []):
+      logger.info(f'[fnguide] {c["name_kr"]} ({c["ticker"]})')
+      fin_rows.extend(_collect_fnguide(c))
 
     # DART 감사보고서 (KR 비상장사)
     for c in by_source.get('dart', []):

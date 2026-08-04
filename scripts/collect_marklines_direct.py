@@ -32,6 +32,7 @@ import requests  # noqa: E402
 from bs4 import BeautifulSoup  # noqa: E402
 
 from lib.db import get_client, upsert_rows  # noqa: E402
+from lib.financial_sources import SOURCE_MARKLINES  # noqa: E402
 
 SLUG_MAP_PATH = Path(__file__).parent / 'lib' / 'marklines_slugs.json'
 LOG_PATH = Path(__file__).parent / '_marklines_direct_log.json'
@@ -404,6 +405,7 @@ def main() -> None:
       'fiscal_quarter': None,
       'period_end_date': f'{fy}-12-31',
       'currency': currency,
+      'source': SOURCE_MARKLINES,
       'revenue': round(rev, 4),
       'operating_income': op,
       'net_income': ni,

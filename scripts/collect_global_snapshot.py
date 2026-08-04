@@ -26,6 +26,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.companies import get_global_companies
 from lib.db import WriteSession, get_client
+from lib.financial_sources import SOURCE_YFINANCE
 
 EOK = 100_000_000  # 1 억원 = 1e8 KRW
 TRANSLATE_MODEL = 'claude-haiku-4-5'
@@ -242,6 +243,10 @@ def _collect_global_snapshot_in_session(w, fx: dict[str, float], meta_map: dict[
                             'period_type': 'annual',
                             'fiscal_year': target_year,
                             'currency': fin_currency,
+                            # 신규 생성 행만 출처를 남긴다. 위 UPDATE 경로는 다른
+                            # 수집기(fnguide·dart)가 만든 행의 지표만 덧쓰므로
+                            # source를 건드리면 원 출처가 지워진다.
+                            'source': SOURCE_YFINANCE,
                             **fin_vals,
                         })
                         .execute()
