@@ -31,7 +31,7 @@
 - ☑ **P2-1 corp**: 베바스토코리아 corp→`00764214`(베바스토동희, DART 감사보고서 부재로 재무 공란), 서한이노빌리티 corp→`00258926`+**DART 재수집 성공**(FY2021~2025 자기값), 일진복합소재 **status=hidden**(사명변경=하이솔루스 확인)·일진하이솔루스 corp=`00972503` 설정.
 - ☑ **P2-2 두원공조**: DART 재수집 — FY2023 매출 1,546,398(감사값 일치)·FY2022 복원, FY2024는 감사값(1,535,344) 직접 보정(재수집이 sub_docs 버그로 가비지).
 - ☑ **P3-2 에스케이온**: DART 재수집 — FY2022 매출 7.62조(감사값 일치)·cogs<매출·A=L+E ✓.
-- ☑ **P3-3 동원금속**: `fiscal_year_end_month=3` 메타 정정(매출 복원은 아래 미해결 참조).
+- ☑ **P3-3 동원모빌리티(구 동원금속)**: `fiscal_year_end_month=3` 메타 정정(매출 복원은 아래 미해결 참조).
 - ☑ **P3-5 세진**: FY2021 음수자산(−7,223→132,059=TL+TE) 정정 + 유령 중복행 FY2024/FY2025 삭제.
 - ☑ **P4-2 청보**: 사명 더큐브앤→청보. ☑ **P4-3 상폐 4사**(창대정밀·대주코레스·삼보오토·세원이앤씨) 웹/pykrx 확인 후 **status=hidden**.
 - ☑ **P5-1 우수정기** 홈페이지→woosupm.com. ☑ **P5-2 에스에이치비** group='SL'.
@@ -131,7 +131,7 @@
 
 ### ☐ P3-3. 결산월 오설정 (fnguide 열 정렬 어긋남)
 
-- **동원금속**(018500): **3월 결산인데 `companies.fiscal_year_end_month=12`** → fnguide 열 정렬 어긋나 매출만 ~10배 과소(OI>매출). 실제 매출 6,262억(FY2025.3). **조치**: `fiscal_year_end_month=3` 설정 후 재수집. 부가로 FY2023~25 TL==TA도 동반(P1-2).
+- **동원모빌리티(구 동원금속)**(018500): **3월 결산인데 `companies.fiscal_year_end_month=12`** → fnguide 열 정렬 어긋나 매출만 ~10배 과소(OI>매출). 실제 매출 6,262억(FY2025.3). **조치**: `fiscal_year_end_month=3` 설정 후 재수집. 부가로 FY2023~25 TL==TA도 동반(P1-2).
 - **점검**: 다른 비-12월 결산사도 `fiscal_year_end_month` 오설정 없는지 확인.
 
 ### ☐ P3-4. 특정연도 매출 과소 (fnguide 초기연도)
@@ -185,14 +185,14 @@
 
 ## 부록: 근본원인 → 수정대상 요약
 
-| 근본원인                               | 성격         | 수정 대상                                                          | 영향        |
-| -------------------------------------- | ------------ | ------------------------------------------------------------------ | ----------- |
-| fnguide 분기 Q4=연간누적               | 코드         | `collect_financials.py` (L385~510)                                 | 153개사     |
-| fnguide 부채총계 오파싱                | 코드         | `collect_financials.py` (L75 계정맵 + BS 파싱, `_match_acct` 이식) | 79개사      |
-| market='KOSPI' 기본값                  | 코드         | `rematch_dart_unmatched.py:121`, `classify_new_marklines.py`       | 75개사      |
-| DART audit-HTML 천원 단위              | 코드         | `collect_dart_audit.py` `_table_unit_divider`·`_match_acct`        | 3+개사      |
-| 결산월 오설정                          | 데이터+코드  | `companies.fiscal_year_end_month`                                  | 동원금속 등 |
-| 레거시 corp 부분매칭 오배정            | 데이터       | DB `dart_corp_code` + `manual_dart_mapping.json`                   | 3개사       |
-| 복구 잔여 NULL                         | 데이터       | 재수집                                                             | 두원공조 등 |
-| `normalize_product_category` 매핑 부족 | 코드(트리거) | 마이그레이션                                                       | 다수(low)   |
-| 사명/상폐/이전상장 미반영              | 데이터       | DB                                                                 | ~6개사      |
+| 근본원인                               | 성격         | 수정 대상                                                          | 영향            |
+| -------------------------------------- | ------------ | ------------------------------------------------------------------ | --------------- |
+| fnguide 분기 Q4=연간누적               | 코드         | `collect_financials.py` (L385~510)                                 | 153개사         |
+| fnguide 부채총계 오파싱                | 코드         | `collect_financials.py` (L75 계정맵 + BS 파싱, `_match_acct` 이식) | 79개사          |
+| market='KOSPI' 기본값                  | 코드         | `rematch_dart_unmatched.py:121`, `classify_new_marklines.py`       | 75개사          |
+| DART audit-HTML 천원 단위              | 코드         | `collect_dart_audit.py` `_table_unit_divider`·`_match_acct`        | 3+개사          |
+| 결산월 오설정                          | 데이터+코드  | `companies.fiscal_year_end_month`                                  | 동원모빌리티 등 |
+| 레거시 corp 부분매칭 오배정            | 데이터       | DB `dart_corp_code` + `manual_dart_mapping.json`                   | 3개사           |
+| 복구 잔여 NULL                         | 데이터       | 재수집                                                             | 두원공조 등     |
+| `normalize_product_category` 매핑 부족 | 코드(트리거) | 마이그레이션                                                       | 다수(low)       |
+| 사명/상폐/이전상장 미반영              | 데이터       | DB                                                                 | ~6개사          |

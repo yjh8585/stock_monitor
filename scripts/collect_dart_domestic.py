@@ -30,6 +30,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import WriteSession, upsert_rows
+from lib.financial_sources import SOURCE_DART
 from collect_dart_audit import (
   MILLION,
   _fetch_tables,
@@ -203,6 +204,11 @@ def _collect_year(odr, corp_code: str, year: int) -> tuple[dict[str, dict[str, f
   return {}, ''
 
 
+# financials 행의 메타 키 개수(company_id·period_type·fiscal_year·fiscal_quarter·
+# period_end_date·currency·source). 실제 계정이 하나라도 붙었는지 판정하는 기준.
+_META_KEY_COUNT = 7
+
+
 def _build_rows(company_id: str, year: int, parsed: dict[str, dict[str, float | None]]) -> list[dict]:
   """parsed → financials 행(당기 + 가능하면 전기)."""
   rows: list[dict] = []
@@ -213,11 +219,14 @@ def _build_rows(company_id: str, year: int, parsed: dict[str, dict[str, float | 
     'fiscal_quarter': None,
     'period_end_date': f'{year}-12-31',
     'currency': 'KRW',
+    'source': SOURCE_DART,
   }
   for col, vals in parsed.items():
     if vals['current'] is not None:
       curr_row[col] = round(vals['current'], 4)
-  if len(curr_row) > 6:
+  # 키가 메타(위 7개)뿐이면 실제 수집된 계정이 없다는 뜻 → 빈 행 적재 방지.
+  # ⚠️ 위 메타 키를 늘리거나 줄이면 이 숫자도 함께 고칠 것.
+  if len(curr_row) > _META_KEY_COUNT:
     rows.append(curr_row)
 
   prior = {c: v['prior'] for c, v in parsed.items() if v['prior'] is not None}
@@ -229,10 +238,11 @@ def _build_rows(company_id: str, year: int, parsed: dict[str, dict[str, float | 
       'fiscal_quarter': None,
       'period_end_date': f'{year - 1}-12-31',
       'currency': 'KRW',
+      'source': SOURCE_DART,
     }
     for col, val in prior.items():
       prev_row[col] = round(val, 4)
-    if len(prev_row) > 6:
+    if len(prev_row) > _META_KEY_COUNT:
       rows.append(prev_row)
   return rows
 

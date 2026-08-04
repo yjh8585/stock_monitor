@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup  # noqa: E402
 import anthropic  # noqa: E402
 
 from lib.db import get_client, upsert_rows  # noqa: E402
+from lib.financial_sources import SOURCE_MARKLINES  # noqa: E402
 
 SLUG_MAP_PATH = Path(__file__).parent / 'lib' / 'marklines_slugs.json'
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -204,6 +205,7 @@ def main():
           'fiscal_quarter': None,
           'period_end_date': period_end,
           'currency': currency,
+          'source': SOURCE_MARKLINES,
           'revenue': round(rev_v, 4),
           'operating_income': round(op_v, 4) if op_v is not None else None,
           'net_income': round(ni_v, 4) if ni_v is not None else None,

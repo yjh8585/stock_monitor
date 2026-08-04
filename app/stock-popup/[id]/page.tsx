@@ -14,8 +14,13 @@ export async function generateStaticParams() {
   return [{ id: '0' }];
 }
 
+/**
+ * fnguide 기업정보 Snapshot URL.
+ * 구 comp.fnguide.com 은 2026-08 폐지돼 전 경로가 "페이지가 없습니다" 안내를 준다.
+ * 신버전은 종목을 gicode(A+6자리) 가 아니라 cmp_cd(6자리) 로 받는다.
+ */
 function getFnguideUrl(ticker: string): string {
-  return `https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A${ticker}&cID=AA&MenuYn=Y&ReportGB=&NewMenuID=11&stkGb=701`;
+  return `https://wcomp.fnguide.com/CompanyInfo/Snapshot?cmp_cd=${ticker}`;
 }
 
 /** 거래소(market) → TradingView 심볼 변환 후 widgetembed URL 반환 */

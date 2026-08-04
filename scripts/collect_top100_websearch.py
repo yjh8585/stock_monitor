@@ -21,6 +21,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import get_client, upsert_rows  # noqa: E402
+from lib.financial_sources import SOURCE_WEB_SEARCH  # noqa: E402
 
 UNRESOLVED_PATH = Path(__file__).parent / '_top100_unresolved.json'
 LOG_PATH = Path(__file__).parent / '_top100_websearch_log.json'
@@ -163,6 +164,7 @@ def main() -> None:
       'fiscal_quarter': None,
       'period_end_date': f'{fy}-12-31',
       'currency': rev_currency,
+      'source': SOURCE_WEB_SEARCH,
       'revenue': round(revenue_million, 4),
       'operating_income': round(op_million, 4) if op_million is not None else None,
       'net_income': round(ni_million, 4) if ni_million is not None else None,

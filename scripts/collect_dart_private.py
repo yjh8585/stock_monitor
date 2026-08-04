@@ -17,6 +17,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import get_client, upsert_rows
+from lib.financial_sources import SOURCE_DART
 
 DART_KEY = os.environ.get('DART_API_KEY', '')
 MILLION = 1_000_000
@@ -100,6 +101,7 @@ def _collect_company(dart, company_id: str, corp_code: str, years: list[int]) ->
         'fiscal_quarter': None,
         'period_end_date': f'{year}-12-31',
         'currency': 'KRW',
+        'source': SOURCE_DART,
       }
 
       for _, r in df.iterrows():

@@ -35,6 +35,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import get_client, upsert_rows
+from lib.financial_sources import SOURCE_DART
 
 DART_KEY = ''
 try:
@@ -903,6 +904,7 @@ def _collect_company(
       'period_end_date': f'{year}-12-31',
       'currency': 'KRW',
       'consolidation': consolidation,
+      'source': SOURCE_DART,
       '_report_fiscal_year': year,
     }
     for db_col, vals in parsed.items():
@@ -921,6 +923,7 @@ def _collect_company(
         'period_end_date': f'{year - 1}-12-31',
         'currency': 'KRW',
         'consolidation': consolidation,
+        'source': SOURCE_DART,
         '_report_fiscal_year': year,
       }
       for db_col, val in prior_vals.items():
