@@ -22,10 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 저장소 체크아웃
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Python 3.13 설정
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -37,7 +37,7 @@ jobs:
       - name: 결과 업로드
         # 수집이 실패해도 진단용으로 올린다(빈껍데기 HTML 도 원인 파악에 쓸모가 있다)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: marklines-raw
           path: out/

@@ -25,7 +25,7 @@
 | 로깅       | Pino                                                                          | 클라이언트 / Loguru: Python              |
 | AI SDK     | `@anthropic-ai/sdk` + `@google/genai`                                         | Claude·Gemini                            |
 | 수집       | Python 3.13 + `postgrest-py` + Playwright + pykrx + yfinance + OpenDartReader | venv                                     |
-| 배포       | Vercel + GitHub Actions (24 워크플로)                                         | Hobby 플랜                               |
+| 배포       | Vercel + GitHub Actions (42 워크플로)                                         | Hobby 플랜                               |
 | Cron       | GitHub Actions schedule + cron-job.org (5분 간격)                             | Vercel cron 미사용 (Hobby 제약)          |
 
 ## 3. 시스템 컨텍스트 다이어그램
@@ -40,7 +40,7 @@
                                   ▼
 ┌──────────────────┐    ┌────────────────────┐    ┌──────────────────┐
 │  GitHub Actions  │ ─▶ │  scripts/*.py      │ ─▶ │  Supabase        │
-│  24 워크플로     │    │  collect / enrich  │    │  PostgreSQL +    │
+│  42 워크플로     │    │  collect / enrich  │    │  PostgreSQL +    │
 │  (cron · manual) │    │  (postgrest-py)    │    │  Auth + Storage  │
 └──────────────────┘    └─────────┬──────────┘    └────────┬─────────┘
                                   │                         │
@@ -161,7 +161,7 @@ lib/                      # 도메인 모듈 + 공용 유틸
 scripts/                  # Python 수집 + onboarding
   lib/                    #   공용 모듈 (db.py, accounts_map, fx, revalidate)
 supabase/migrations/      # 시간순 SQL (YYYYMMDD000NNN_*.sql)
-.github/workflows/        # 24개 GHA 워크플로
+.github/workflows/        # 42개 GHA 워크플로 (2026-08-07 실측)
 proxy.ts                  # Next.js 16 미들웨어
 next.config.ts            # cacheComponents + staleTimes + serverExternalPackages
 vercel.json               # 배포 설정 (Vercel cron 미사용)
@@ -628,7 +628,7 @@ GHA runner: sync_management_excel.py (apply)
 
 ## 10. 자동화 (GitHub Actions + cron-job.org)
 
-### 24개 워크플로 카테고리
+### 42개 워크플로 카테고리 (2026-08-07 실측)
 
 <!-- prettier-ignore -->
 | 카테고리 | 워크플로 예시 | 주기 |
