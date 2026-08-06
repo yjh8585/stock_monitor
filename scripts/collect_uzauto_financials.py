@@ -6,7 +6,7 @@
   2. <a href*=".pdf"> 추출 + 링크 텍스트에서 (annual|half_year, fiscal_year) 파싱.
   3. 각 PDF에 대해 sha256 계산 → uzauto_pdf_cache 비교 → 변경된 것만 LLM 호출.
   4. 연도 오름차순 정렬(재진술 정책: 최신 보고서가 마지막 적재 → 자연 우선).
-  5. anthropic-sdk(claude-opus-4-7)에 PDF document + tool_use(submit_financials)로 구조화 추출.
+  5. anthropic-sdk(claude-sonnet-5)에 PDF document + tool_use(submit_financials)로 구조화 추출.
   6. WriteSession으로 financials + uzauto_pdf_cache upsert → revalidate 자동.
 
 매주 월요일 03:00 UTC에 .github/workflows/collect-uzauto-financials.yml 호출.
@@ -48,8 +48,9 @@ INVESTORS_URL = 'https://uzautomotors.com/investors'
 COMPANY_TICKER = 'UZMT'
 COMPANY_DATA_SOURCE = 'uzauto-pdf'
 CURRENCY = 'USD'
-ANTHROPIC_MODEL = os.environ.get('UZAUTO_FINANCIALS_MODEL', 'claude-opus-4-7')
-# Sonnet 4.6으로 비용 절감하고 싶으면 UZAUTO_FINANCIALS_MODEL=claude-sonnet-4-6 env var.
+# 비용 절감으로 Opus 4.7 → Sonnet 5 (입력 $5→$3, 출력 $25→$15/MTok. 2026-08-06).
+# 추출 정확도가 떨어지면 UZAUTO_FINANCIALS_MODEL=claude-opus-4-7 env var로 환원.
+ANTHROPIC_MODEL = os.environ.get('UZAUTO_FINANCIALS_MODEL', 'claude-sonnet-5')
 
 # 링크 텍스트 파싱. 페이지가 우즈벡어 기본이라 두 언어 모두 처리:
 #   영문: "IFRS ANNUAL REPORT 2024" / "IFRS HALF YEAR REPORT 2025"
@@ -239,6 +240,9 @@ def call_anthropic_for_pdf(
     msg = client.messages.create(
       model=ANTHROPIC_MODEL,
       max_tokens=2000,
+      # Sonnet 5는 thinking 생략 시 adaptive가 기본 on이라 명시적으로 끈다(Opus 4.7은 기본 off).
+      # 안 끄면 사고 토큰이 과금돼 절감이 상쇄되고, max_tokens(사고+응답 합산)를 잠식해 출력이 잘린다.
+      thinking={'type': 'disabled'},
       tools=[FINANCIALS_TOOL],
       tool_choice={'type': 'tool', 'name': 'submit_financials'},
       messages=[
