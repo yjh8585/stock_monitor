@@ -511,11 +511,13 @@ UNIQUE: (source, note_date)
 **인덱스**: created_at DESC, (user_id, created_at DESC), (tool_name, created_at DESC)
 **RLS**: 정책 없음 → service_role 전용. 보존 1년 (수동 운영 또는 별도 cron).
 
-#### `posts` (68행) — 보고서 본문
+#### `posts` (84행, 2026-08-06 실측) — 보고서 본문
 
-| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at |
+| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at | is_confidential |
 
 **인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
+
+**RLS**: `posts_select_public`(20260806000001) — anon·authenticated 는 **`is_confidential = false` 행만** SELECT. 그 전 정책 `posts_select_all`(USING(true))은 anon 키만으로 전 보고서를 덤프할 수 있어 사외비 문서를 담을 수 없었다. 사외비 행은 **service_role 로만** 조회되며, 열람 역할 게이트는 `lib/auth/permissions.ts`의 `canAccessConfidentialReports`(admin·holdings·mobility — 조직도와 동일 기준)가 담당한다. 목록·상세의 `'use cache'` 함수는 `includeConfidential` 를 **인자로 받아 캐시 키를 분리**하므로 역할 간에 목록이 새지 않는다.
 
 > 본문(`content`) **작성 규칙·게시 절차·마크다운 렌더 함정**은 [`report.md`](./report.md) 참고.
 

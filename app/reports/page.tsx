@@ -6,6 +6,8 @@ import { PostFilter } from '@/components/reports/post-filter';
 import { PostList } from '@/components/reports/post-list';
 import { PostPagination } from '@/components/reports/post-pagination';
 import { buttonVariants } from '@/components/ui/button';
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { canAccessConfidentialReports } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import type { PostSourceType } from '@/lib/reports/types';
 
@@ -51,6 +53,11 @@ interface ListArgs {
   category: string | undefined;
   sourceName: string | undefined;
   search: string | undefined;
+  /**
+   * 사외비 글 포함 여부. `'use cache'` 는 인자를 캐시 키에 포함하므로
+   * 권한자용(true)·일반용(false) 캐시 엔트리가 분리된다 — 목록이 역할 간에 새지 않는다.
+   */
+  includeConfidential: boolean;
 }
 
 /**
@@ -71,9 +78,10 @@ async function getPostsListData(args: ListArgs) {
       category: args.category,
       sourceName: args.sourceName,
       search: args.search,
+      includeConfidential: args.includeConfidential,
     }),
-    repo.getDistinctCategories(),
-    repo.getDistinctSourceNames(),
+    repo.getDistinctCategories(args.includeConfidential),
+    repo.getDistinctSourceNames(args.includeConfidential),
   ]);
   return { rows, total, categories, sourceNames };
 }
@@ -95,6 +103,11 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
   const sourceType = normalizeSourceType(rawSourceType);
   const search = rawSearch?.trim() || undefined;
 
+  // getCurrentUser 는 cookies() 를 쓰므로 'use cache' 함수 밖에서 호출한다.
+  // 판정 결과만 캐시 함수의 인자로 넘겨 역할별 캐시 엔트리를 분리한다.
+  const currentUser = await getCurrentUser();
+  const includeConfidential = currentUser ? canAccessConfidentialReports(currentUser.role) : false;
+
   const { rows, total, categories, sourceNames } = await getPostsListData({
     page,
     sort,
@@ -103,6 +116,7 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
     category,
     sourceName,
     search,
+    includeConfidential,
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);

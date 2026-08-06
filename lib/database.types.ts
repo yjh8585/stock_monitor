@@ -1639,6 +1639,7 @@ export type Database = {
           file_name: string | null;
           file_path: string | null;
           id: number;
+          is_confidential: boolean;
           key_scenes: Json | null;
           source_name: string | null;
           source_published_at: string | null;
@@ -1657,6 +1658,7 @@ export type Database = {
           file_name?: string | null;
           file_path?: string | null;
           id?: number;
+          is_confidential?: boolean;
           key_scenes?: Json | null;
           source_name?: string | null;
           source_published_at?: string | null;
@@ -1675,6 +1677,7 @@ export type Database = {
           file_name?: string | null;
           file_path?: string | null;
           id?: number;
+          is_confidential?: boolean;
           key_scenes?: Json | null;
           source_name?: string | null;
           source_published_at?: string | null;

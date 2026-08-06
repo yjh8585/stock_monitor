@@ -17,7 +17,8 @@
 - `title`, `source_name`(발행기관/저자), `source_url`(원문), `content`(**마크다운 본문**)
 - `source_published_at`(원문 작성일, 모르면 null), `category`, `thumbnail_url`
 - PDF 첨부형: `file_path`/`file_name`(Storage `reports` 버킷). 상세 페이지가 다운로드 링크 자동 생성.
-- 쓰기는 **service_role만**(RLS: SELECT 전체 허용, INSERT/UPDATE/DELETE 정책 없음).
+- `is_confidential`(기본 false): 사외비 여부. true 면 anon 키로는 조회되지 않고 열람 역할이 제한된다 — **↓ §2-C**.
+- 쓰기는 **service_role만**. RLS `posts_select_public` 은 anon·authenticated 에게 **`is_confidential = false` 행만** 허용(INSERT/UPDATE/DELETE 정책 없음).
 
 **카테고리**(필터 드롭다운): `로봇 · 기술 · 부품사 · 전기차 · 자율주행 · 시장 · OEM`. 해당 없으면 짧은 새 키워드 1개.
 
@@ -50,6 +51,17 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
    - 단, **컴포넌트 코드(렌더러) 변경은 배포(빌드)** 가 있어야 반영된다. 무효화는 데이터 변경용.
 
 > 직접 작성·적재 스크립트는 `scripts/_*` 임시로 만들고 작업 후 정리(폴더 `.gitignore`가 새 산출물 무시). DB 접근 env는 `.env.local`(`NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`).
+> ⚠️ 변환 산출 마크다운은 `.prettierignore`의 `scripts/_*.md`로 제외돼 있다 — **prettier 를 태우면 표에 패딩이 들어가 DB 적재본과 달라진다.**
+
+### 2-C. 사외비 보고서 (`is_confidential = true`)
+
+사내 전략 문서처럼 **외부 공유가 금지된 글**은 이 플래그를 켜서 넣는다. `/reports` 는 원래 로그인한 전 역할에게 열려 있고 `posts` 는 anon 키로도 읽히던 테이블이라, 플래그 없이 올리면 **비로그인 API 덤프로 본문이 빠져나간다**(2026-08-06 이전 정책 `posts_select_all` = `USING(true)`).
+
+- **차단은 2중**: (1) DB RLS 가 anon·authenticated 에게서 행 자체를 숨기고 (2) 앱이 `canAccessConfidentialReports(role)`(admin·holdings·mobility — 조직도와 동일)로 service_role 조회를 게이트한다. 권한 없는 역할이 URL 을 직접 쳐도 본문이 오지 않아 404 화면이 된다.
+- 적재는 §2-B 와 같되 `is_confidential: True` 를 넣는다. 목록·상세에 **사외비 배지**가 자동 표시된다(`post-confidential-badge.tsx`).
+- **원문 파일(HTML·엑셀 등)을 `reports` 버킷에 올리지 말 것** — 이 버킷은 `public` 이라 주소만 알면 로그인 없이 열린다. 첨부가 꼭 필요하면 비공개 버킷 + 인증 프록시(`org-charts` 방식)를 따로 만든다.
+- 검증은 SQL 로 정책만 읽지 말고 **anon 키로 REST 를 직접 때려** 0행을 확인한다(클라이언트 번들에 나가는 바로 그 키).
+- 열람 역할을 바꾸려면 `canAccessConfidentialReports` 한 곳만 고친다(화이트리스트라 새 역할은 기본 차단).
 
 ---
 
@@ -88,6 +100,7 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 렌더러는 `react-markdown` + `remark-gfm({ singleTilde: false })` + `remark-cjk-friendly` + **단독 줄 `<br>` 제거 전처리**로 설정돼 있다(`markdown-view.tsx`). 그래도 **작성 단계에서 아래를 지키면** raw 노출을 원천 차단한다(이 규칙들은 실제로 raw `**` 198건이 발생했던 원인이다).
 
 - **CJK 인접 강조**: `**'피지컬 AI'**가`처럼 닫는 `**` 앞이 부호(`'`·`%`·`)`)이고 뒤가 한글 조사면 CommonMark 규칙상 강조가 안 닫힌다. `remark-cjk-friendly`가 보정하지만, **가능하면 부호를 강조 밖으로**: `'**피지컬 AI**'` (권장) > `**'피지컬 AI'**`.
+  - 단 **원본 HTML을 기계 변환해 옮길 때는 `<b>` 경계를 그대로 두는 편이 낫다.** 실제 렌더 경로(react-markdown + remark-gfm + remark-cjk-friendly)로 측정한 결과 `**…(PRS)**는`·`**…“그림자”**를`·`**…(±5μm)**,` 등 **원본형 8종이 전부 정상으로 닫혔다**(raw `**` 노출 0건, 2026-08-06). 부호를 기계적으로 밖으로 빼면 오히려 `**…(30배 단축 필요**)` 처럼 **괄호·따옴표 짝이 깨져** 원문이 훼손된다.
 - **물결표 `~`**: 숫자 범위(`50~60`, `33~40%`)는 안전(`singleTilde:false`로 단일 `~`는 리터럴). 취소선은 **반드시 `~~취소선~~`**(쌍)으로만.
 - **백틱 금지**: 연도/숫자 앞에 백틱 쓰지 말 것(`` `24년 ``·`` `26~`30 `` → 인라인 코드로 오인돼 인접 마크다운을 삼킴). **작은따옴표**(`'24년`)나 그냥 `2024년`.
 - **단독 줄 `<br>` 지양**: 빈 줄로 문단을 나눈다. 단독 `<br>` 뒤에 빈 줄이 없으면 다음 문단이 HTML 블록으로 흡수돼 마크다운 전체가 무력화된다(전처리가 제거하지만 애초에 쓰지 않는 게 깔끔). **표 셀 안 줄바꿈**용 `<br>`는 보존되므로 사용 가능.
@@ -116,6 +129,29 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 - ` ```mermaid ` 코드펜스로 작성하면 `MermaidBlock`이 SVG로 렌더.
 - **한글 노드 박스 잘림은 컴포넌트에서 해결됨**(`htmlLabels:true` + 한글 글꼴 스택 + `useMaxWidth`). 노드 라벨에 한글·`<br>` 줄바꿈을 자유롭게 써도 박스가 내용에 맞춰 확장된다.
 - 자동 웹 요약(`report-web`)은 **원본 표/이미지 보존이 원칙이라 mermaid 재구성 금지**. 유튜브 요약·직접 작성 글에서는 흐름도/타임라인/파이 등 자유롭게 사용.
+
+---
+
+### 6-A. 유튜브 임베드 블록 (` ```youtube `)
+
+본문에서 **페이지를 떠나지 않고** 영상을 재생하고, 주요 장면 시각을 누르면 **그 자리에서 그 지점으로 점프**시키는 블록. Mermaid 와 같은 방식(코드펜스 + 커스텀 컴포넌트)이다 — `markdown-view.tsx` → `youtube-block.tsx`.
+
+    ```youtube
+    {
+     "id": "xLVm-QKEZSI",
+     "no": "①",
+     "title": "BMW 스파르탄버그 공장 Figure 02",
+     "meta": "BMW Group (공식) · 2:03 · 2024-08-06 · 조회 19만",
+     "silent": true,
+     "note": "영상 해설. **굵게** 만 서식으로 쓴다.",
+     "scenes": [{ "t": 104, "label": "1:44", "desc": "지그 근접 촬영", "star": true }]
+    }
+    ```
+
+- `id`(영상 ID)·`title` 필수, 나머지 선택. JSON 이 깨지면 조용히 사라지지 않고 원본이 그대로 표시된다.
+- `scenes[].t` = 재생 시작 **초**, `label` = 화면 표시(`1:44`), `star` = 원문 ★ 중요 장면(행이 앰버로 강조).
+- 처음엔 썸네일만 그리고 클릭 시 iframe 을 만든다 — 영상 30편짜리 글에서 iframe 을 전부 미리 만들면 페이지가 무거워진다. 썸네일은 유튜브 CDN(`i.ytimg.com`) 직접 참조라 Storage 업로드가 불필요하다.
+- `note`·`desc` 는 **마크다운 파서 밖**이라 `**굵게**` 만 처리된다. 목록·표·링크가 필요하면 블록 밖 본문에 쓸 것.
 
 ---
 
@@ -163,5 +199,6 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 - [ ] **(유튜브) 영상 내 차트·그래프·표·도해 전부 캡처·삽입(누락 0) + 주요 장면 포함 — 필수(§7-4)**. 차트 전수 재점검(§7-A) 완료
 - [ ] (유튜브) 프레임 캡처는 필요 구간만 다운로드, 라이브 채팅·플레이어 오버레이는 크롭(§7)
 - [ ] `status='completed'`, `category`·`source_published_at` 채움, `source_url` 중복 없음
+- [ ] **사외비 문서면 `is_confidential=true`**(§2-C) + **anon 키로 REST 직접 호출해 0행 확인**, 원문 파일은 public 버킷에 올리지 않음
 - [ ] 직접 작성/수동 변경이면 캐시 무효화(§2-B)
 - [ ] 로컬 dev(별도 포트)에서 시각 확인(이미지·표·Mermaid·강조)

@@ -10,8 +10,11 @@
 | 보호 라우트(`/management/*`) UI 검증                                   | 보호 라우트 UI Playwright 검증                                |
 | recharts 차트 개수·라벨이 0으로 측정됨                                 | 보호 라우트 UI Playwright 검증 (LazyMount·portal·headless 절) |
 | 사외비 화면 검증                                                       | 사외비 차트 검증 (금액 비노출 규칙)                           |
+| 권한 차단이 404인지 확인                                               | 권한 차단 검증을 HTTP 상태 코드로 하지 말 것                  |
 
 ---
+
+- **권한 차단 검증을 HTTP 상태 코드로 하지 말 것** (2026-08-06 실측): `cacheComponents`(PPR)는 정적 셸을 **먼저 200으로 흘려보내고** 본문을 스트리밍하므로, 페이지 안에서 `notFound()`가 걸려도 **응답은 200**이다(화면은 404로 보인다). `resp.status == 404`로 판정하면 멀쩡한 차단을 실패로 오진한다. 판정 기준은 **내용이 새는가** — 본문 컨테이너(`article.prose`) 유무·핵심 요소 개수·제목 문자열 포함 여부로 확인하고, 보조로 404 문구를 본다.
 
 - **dev 서버 종료는 포트 점유 PID를 직접 kill**: 래퍼(`npm run dev`)만 죽이면 자식 `next`가 포트를 물고 있어 재기동이 `⨯ Another next dev server is already running`으로 exit 1. `(Get-NetTCPConnection -LocalPort <port> -State Listen).OwningProcess` → `taskkill //PID <pid> //F`.
 
