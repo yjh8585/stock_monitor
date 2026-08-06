@@ -7,7 +7,7 @@
   3. 각 연도 페이지에서 Q1/Q2/Q3/Q4 4개 카드의 "실적 발표 자료" 버튼을 순서대로 click.
   4. `page.expect_download()`로 PDF 캡쳐 → `data/_hyundai_quarterly_downloads/{year}_q{n}.pdf`.
   5. sha256 계산 → DB에 저장된 pdf_sha256과 비교, 일치하면 LLM 호출 skip(cache hit).
-  6. Anthropic(claude-opus-4-7) + PDF document + tool_use(submit_earnings)로 구조화 추출.
+  6. Anthropic(claude-sonnet-5) + PDF document + tool_use(submit_earnings)로 구조화 추출.
   7. WriteSession으로 hyundai_quarterly_earnings upsert(PK 충돌 시 덮어쓰기 — 재진술 자연 수용).
 
 플래그:
@@ -49,7 +49,9 @@ DOWNLOAD_DIR = (
   Path(__file__).resolve().parent.parent / 'data' / '_hyundai_quarterly_downloads'
 )
 DEFAULT_YEAR_FROM = 2021
-ANTHROPIC_MODEL = os.environ.get('HYUNDAI_QUARTERLY_MODEL', 'claude-opus-4-7')
+# 비용 절감으로 Opus 4.7 → Sonnet 5 (입력 $5→$3, 출력 $25→$15/MTok. 2026-08-06).
+# 추출 정확도가 떨어지면 HYUNDAI_QUARTERLY_MODEL=claude-opus-4-7 env var로 환원.
+ANTHROPIC_MODEL = os.environ.get('HYUNDAI_QUARTERLY_MODEL', 'claude-sonnet-5')
 PLAYWRIGHT_TIMEOUT_MS = 60_000
 DOWNLOAD_TIMEOUT_MS = 60_000
 DROPDOWN_WAIT_MS = 2_500
@@ -231,6 +233,9 @@ def _call_llm_for_pdf(
     msg = client.messages.create(
       model=ANTHROPIC_MODEL,
       max_tokens=2000,
+      # Sonnet 5는 thinking 생략 시 adaptive가 기본 on이라 명시적으로 끈다(Opus 4.7은 기본 off).
+      # 안 끄면 사고 토큰이 과금돼 절감이 상쇄되고, max_tokens(사고+응답 합산)를 잠식해 출력이 잘린다.
+      thinking={'type': 'disabled'},
       tools=[EARNINGS_TOOL],
       tool_choice={'type': 'tool', 'name': 'submit_earnings'},
       messages=[{

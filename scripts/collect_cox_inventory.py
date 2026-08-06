@@ -120,7 +120,10 @@ COMMON_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 }
 
-ANTHROPIC_MODEL = os.environ.get('COX_INVENTORY_MODEL', 'claude-opus-4-7')
+# 비용 절감으로 Opus 4.7 → Sonnet 5 (입력 $5→$3, 출력 $25→$15/MTok. 2026-08-06).
+# 판독 정확도가 떨어지면 COX_INVENTORY_MODEL=claude-opus-4-7 env var로 환원.
+# 고해상도 비전(장변 2576px)은 두 모델 동일 티어라 차트 판독 조건은 바뀌지 않는다.
+ANTHROPIC_MODEL = os.environ.get('COX_INVENTORY_MODEL', 'claude-sonnet-5')
 LLM_MAX_TOKENS = 4000               # 브랜드 ~30개 × 짧은 객체 — 여유 포함
 
 # 업계 평균 막대(초록)의 라벨. 판독 성공 판정의 필수 조건이다.
@@ -675,7 +678,14 @@ def call_anthropic_for_chart(
   설령 가능했어도 temperature=0이 동일 출력을 보장한 적은 없다.
   → 재판독 흔들림은 upsert 직전 기존 DB 값 대조(diff_rows)로 잡는다. 그게 모델 무관하게 동작한다.
   COX_INVENTORY_MODEL로 구형 모델을 지정하면 temperature가 받아들여지지만,
-  기본값(claude-opus-4-7)에서 죽지 않는 쪽을 택한다.
+  기본값(claude-sonnet-5)에서 죽지 않는 쪽을 택한다.
+
+  **thinking을 명시적으로 끈다 — 빼면 안 된다.** Opus 4.7은 thinking 파라미터를 생략하면
+  사고 없이 동작했지만 Sonnet 5는 생략 시 adaptive thinking이 **기본 on**이다(2026-08-06
+  모델 전환 시 확인). 켜진 채로 두면 (a) 사고 토큰이 그대로 과금돼 전환 목적인 비용 절감이
+  상쇄되고 (b) max_tokens는 사고+응답 합산 상한이라 브랜드 ~30개 tool_use 출력이 잘린다.
+  tool_choice로 도구를 강제하므로 "thinking off 시 도구를 덜 쓴다"는 Sonnet 5의 알려진
+  경향에는 영향받지 않는다.
   """
   b64 = base64.standard_b64encode(image_bytes).decode('utf-8')
   year, month = divmod(year_month, 100)
@@ -700,6 +710,7 @@ def call_anthropic_for_chart(
     msg = client.messages.create(
       model=ANTHROPIC_MODEL,
       max_tokens=LLM_MAX_TOKENS,
+      thinking={'type': 'disabled'},
       tools=[BRAND_INVENTORY_TOOL],
       tool_choice={'type': 'tool', 'name': 'submit_brand_inventory'},
       messages=[
