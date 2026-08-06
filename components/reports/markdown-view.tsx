@@ -5,6 +5,7 @@ import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkGfm from 'remark-gfm';
 
 import { MermaidBlock } from './mermaid-block';
+import { YoutubeBlock } from './youtube-block';
 
 interface Props {
   content: string;
@@ -38,6 +39,11 @@ const components: Components = {
 
     if (language === 'mermaid') {
       return <MermaidBlock chart={value} />;
+    }
+
+    // ```youtube — 플레이어 + 주요 장면 표. 시각 클릭 시 제자리에서 그 지점으로 점프.
+    if (language === 'youtube') {
+      return <YoutubeBlock spec={value} />;
     }
 
     return (

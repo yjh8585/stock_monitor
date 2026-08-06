@@ -2,6 +2,7 @@ import Link from 'next/link';
 import dayjs from 'dayjs';
 import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react';
 
+import { PostConfidentialBadge } from '@/components/reports/post-confidential-badge';
 import { PostSourceBadge } from '@/components/reports/post-source-badge';
 import {
   Table,
@@ -160,6 +161,11 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
                 {row.category ?? '—'}
               </TableCell>
               <TableCell className="whitespace-normal">
+                {row.is_confidential ? (
+                  <div className="mb-1">
+                    <PostConfidentialBadge />
+                  </div>
+                ) : null}
                 <Link
                   href={`/reports/${row.id}`}
                   className="hover:text-primary line-clamp-2 font-medium break-words"

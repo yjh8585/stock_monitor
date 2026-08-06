@@ -17,7 +17,7 @@ const POSTS_TABLE = 'posts';
  * 상세 fetch(`findById`)는 select('*') 그대로 사용.
  */
 const POST_LIST_COLUMNS =
-  'id,source_type,title,source_name,source_url,file_path,file_name,thumbnail_url,status,error_message,source_published_at,category,created_at,updated_at';
+  'id,source_type,title,source_name,source_url,file_path,file_name,thumbnail_url,status,error_message,source_published_at,category,created_at,updated_at,is_confidential';
 
 /**
  * posts 테이블 접근 레이어. 쓰기는 service role, 읽기는 anon 키로 분리한다.
@@ -42,6 +42,17 @@ export class PostRepository {
     return this._write;
   }
 
+  /**
+   * 읽기 클라이언트 선택.
+   *
+   * - 기본(anon): RLS `posts_select_public` 이 사외비 행을 걸러낸다.
+   * - `includeConfidential`(service_role): RLS 를 우회하므로 **호출부가 반드시
+   *   `canAccessConfidentialReports(role)` 로 역할을 확인한 뒤** true 를 넘겨야 한다.
+   */
+  private reader(includeConfidential: boolean): SupabaseClient {
+    return includeConfidential ? this.write : this.read;
+  }
+
   async list(
     page: number,
     pageSize: number,
@@ -52,6 +63,7 @@ export class PostRepository {
       category?: string;
       sourceName?: string;
       search?: string;
+      includeConfidential?: boolean;
     }
   ): Promise<{ rows: PostListRow[]; total: number }> {
     const from = (page - 1) * pageSize;
@@ -60,7 +72,9 @@ export class PostRepository {
     const order = options?.order ?? 'desc';
     const ascending = order === 'asc';
 
-    let query = this.read.from(POSTS_TABLE).select(POST_LIST_COLUMNS, { count: 'exact' });
+    let query = this.reader(options?.includeConfidential ?? false)
+      .from(POSTS_TABLE)
+      .select(POST_LIST_COLUMNS, { count: 'exact' });
 
     if (options?.sourceType) query = query.eq('source_type', options.sourceType);
     if (options?.category) query = query.eq('category', options.category);
@@ -83,8 +97,8 @@ export class PostRepository {
   }
 
   /** 필터 드롭다운용 카테고리 목록 (NULL 제외, 가나다 정렬) */
-  async getDistinctCategories(): Promise<string[]> {
-    const { data, error } = await this.read
+  async getDistinctCategories(includeConfidential = false): Promise<string[]> {
+    const { data, error } = await this.reader(includeConfidential)
       .from(POSTS_TABLE)
       .select('category')
       .not('category', 'is', null)
@@ -95,8 +109,8 @@ export class PostRepository {
   }
 
   /** 필터 드롭다운용 출처 목록 (NULL 제외, 가나다 정렬) */
-  async getDistinctSourceNames(): Promise<string[]> {
-    const { data, error } = await this.read
+  async getDistinctSourceNames(includeConfidential = false): Promise<string[]> {
+    const { data, error } = await this.reader(includeConfidential)
       .from(POSTS_TABLE)
       .select('source_name')
       .not('source_name', 'is', null)
@@ -108,8 +122,12 @@ export class PostRepository {
     return [...set];
   }
 
-  async findById(id: number): Promise<PostRow | null> {
-    const { data, error } = await this.read
+  /**
+   * 상세 조회. 사외비 글은 `includeConfidential`(service_role) 없이는 RLS 에 막혀
+   * null 이 반환된다 → 호출부가 notFound() 로 이어 권한 없는 접근이 404 가 된다.
+   */
+  async findById(id: number, includeConfidential = false): Promise<PostRow | null> {
+    const { data, error } = await this.reader(includeConfidential)
       .from(POSTS_TABLE)
       .select('*')
       .eq('id', id)

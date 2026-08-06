@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import dayjs from 'dayjs';
 
 import { MarkdownView } from '@/components/reports/markdown-view';
+import { PostConfidentialBadge } from '@/components/reports/post-confidential-badge';
 import { PostDeleteButton } from '@/components/reports/post-delete-button';
 import { PostSourceBadge } from '@/components/reports/post-source-badge';
 import { PostStatusBadge } from '@/components/reports/post-status-badge';
@@ -13,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { isAdmin } from '@/lib/auth/permissions';
+import { canAccessConfidentialReports, isAdmin } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 
 /**
@@ -45,13 +46,13 @@ function buildReportDownloadUrl(filePath: string, fileName: string | null): stri
  * 게시글 상세를 Cache Components 로 캐싱.
  * cacheTag(`post:${id}`) — 상태 변경/삭제 시 revalidateTag 로 무효화.
  */
-async function getPostDetail(id: number) {
+async function getPostDetail(id: number, includeConfidential: boolean) {
   'use cache';
   cacheLife('hours');
   cacheTag(`post:${id}`);
 
   const repo = new PostRepository();
-  return repo.findById(id);
+  return repo.findById(id, includeConfidential);
 }
 
 async function ReportDetailBody({ params }: PageProps) {
@@ -59,12 +60,16 @@ async function ReportDetailBody({ params }: PageProps) {
   const postId = Number(id);
   if (!Number.isFinite(postId)) notFound();
 
-  const post = await getPostDetail(postId);
+  // getCurrentUser는 cookies()를 쓰므로 'use cache' 함수 외부에서만 호출 가능.
+  // 사외비 판정을 먼저 해서 캐시 인자로 넘긴다 — 권한이 없으면 anon 으로 조회되어
+  // RLS(posts_select_public)에 막혀 null → notFound(). 주소 직타도 404 가 된다.
+  const currentUser = await getCurrentUser();
+  const includeConfidential = currentUser ? canAccessConfidentialReports(currentUser.role) : false;
+
+  const post = await getPostDetail(postId, includeConfidential);
   if (!post) notFound();
 
   // 삭제 권한은 관리자만 — UI 가드와 DELETE API 가드 이중 보호.
-  // getCurrentUser는 cookies()를 쓰므로 'use cache' 함수 외부에서만 호출 가능.
-  const currentUser = await getCurrentUser();
   const canDelete = currentUser ? isAdmin(currentUser.role) : false;
 
   const reportFileUrl = post.file_path
@@ -80,6 +85,7 @@ async function ReportDetailBody({ params }: PageProps) {
           <div className="flex items-center gap-2">
             <PostSourceBadge sourceType={post.source_type} />
             <PostStatusBadge status={post.status} />
+            {post.is_confidential ? <PostConfidentialBadge /> : null}
             <span className="text-muted-foreground text-xs">#{post.id}</span>
           </div>
           <h1 className="text-2xl font-bold">{post.title}</h1>

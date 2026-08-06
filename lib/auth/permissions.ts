@@ -19,6 +19,20 @@ export function isAdmin(role: Role): boolean {
 }
 
 /**
+ * 사외비 보고서(`posts.is_confidential = true`) 열람 권한.
+ *
+ * 조직도(`/management/org-chart`)와 같은 기준 — 현장(hmobility)·게스트는 차단한다.
+ * 화이트리스트로 적어 새 역할이 추가돼도 기본은 차단되게 한다.
+ *
+ * 주의: 이 게이트는 `/reports` 라우트 자체를 막지 않는다(비사외비 글은 전 역할 공개).
+ * 사외비 행의 실제 차단은 DB RLS(`posts_select_public`)가 담당하고,
+ * 이 함수는 service_role 조회를 허용할지 결정한다.
+ */
+export function canAccessConfidentialReports(role: Role): boolean {
+  return role === 'admin' || role === 'holdings' || role === 'mobility';
+}
+
+/**
  * 역할별 라우트 접근 권한.
  *
  * - admin: 전체 허용

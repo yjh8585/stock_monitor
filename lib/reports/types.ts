@@ -29,6 +29,8 @@ export interface PostRow {
   category: string | null;
   created_at: string;
   updated_at: string;
+  /** 사외비 여부. true 면 RLS 가 anon 읽기를 차단해 service_role 경로로만 조회된다. */
+  is_confidential: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export interface PostInsert {
   category?: string | null;
   created_at?: string;
   updated_at?: string;
+  is_confidential?: boolean;
 }
 
 export interface PostUpdate {
@@ -72,4 +75,5 @@ export interface PostUpdate {
   source_published_at?: string | null;
   category?: string | null;
   updated_at?: string;
+  is_confidential?: boolean;
 }

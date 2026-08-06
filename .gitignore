@@ -102,6 +102,18 @@ data/report_*
 # scripts 수집 실행 로그 / e2e 산출물 (정식 매핑 _marklines_/_top100_ 은 추적 유지)
 scripts/_*_run_*.json
 scripts/_e2e_smoke_report.json
+
+# 일회성 스크립트·산출물 전반 (scripts/ 최상위의 _* 파일)
+# 2026-08-06: 그동안 개별 파일만 나열돼 있어 사외비 본문이 담긴 변환 산출물이
+# `git add .` 한 번에 저장소로 들어갈 수 있었다. 패턴으로 막는다.
+# `_*` 는 슬래시를 넘지 않으므로 추적 대상인 scripts/_archive/ 하위에는 영향이 없다.
+scripts/_*.py
+scripts/_*.md
+scripts/_*.mts
+scripts/_*.ts
+scripts/_*.json
+scripts/_*.log
+scripts/_*.txt
 # 코드 리뷰 입력 임시물 (정식 결과 .md 는 추적)
 review/*.diff
 review/*-full.txt
