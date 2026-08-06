@@ -9,6 +9,7 @@ import {
   FinancialCells,
   TD,
 } from '@/components/common/StockCells';
+import { useCompanySummary } from '@/components/common/useCompanySummary';
 import ProductCell from '@/components/related-stocks/ProductCell';
 import CustomerBadges from '@/components/related-stocks/CustomerBadges';
 import NewsModal from '@/components/related-stocks/NewsModal';
@@ -59,7 +60,8 @@ const DomesticRow = memo(function DomesticRow({
     setHighlighted((v) => !v);
   };
 
-  const summary = row.business_summary ?? '';
+  // 회사 설명은 ISR payload 에 없다 — 펼칠 때만 받아온다(docs/isr-write-optimization.md).
+  const { summary, loaded: summaryLoaded } = useCompanySummary(row.id, expanded);
 
   const frozenBg = highlighted
     ? 'color-mix(in oklch, oklch(95% 0.18 95) 60%, var(--background))'
@@ -140,7 +142,8 @@ const DomesticRow = memo(function DomesticRow({
         <FinancialCells row={row} latestYear={latestYear} />
       </tr>
 
-      {expanded && summary && (
+      {/* 설명이 없는 회사는 종전처럼 펼침 행 자체를 만들지 않는다 — 도착 후 판정한다. */}
+      {expanded && summaryLoaded && summary && (
         <ExpandedSummaryRow name_kr={row.name_kr} colCount={colCount} body={summary} />
       )}
     </>

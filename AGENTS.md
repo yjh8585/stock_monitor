@@ -24,6 +24,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)** — _Playwright·UI 검증 함정_. dev 서버 재기동·검증 산출물 위치·로그인 404 진단·보호 라우트 검증·recharts headless/portal·사외비 차트 규칙. **UI를 브라우저로 검증하기 전 정독.**
 - **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** — _국내 재무 수집 함정_. DART 계정명 부분매칭 금지·동명이인 엔티티 검증·비상장 `finstate_all` 무데이터·audit-HTML 파싱 스코프·2026-07-18 감사 계통 오류. **수집기 수정 전 정독.**
 - **[`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md)** — fnguide 신버전(wcomp) JSON 계약표·계정 코드·헤더 열 규칙.
+- **[`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)** — _Vercel ISR Write 한도 대응_. 측정 이력·과금 메커니즘·기각된 옵션. **주식 뷰 3종(`related`/`domestic`/`parts-top100`)의 payload·cacheTag 를 건드리기 전 정독** — `cacheTag('exchange_rates_live')` 를 되돌리거나 `financials_by_year` 트리밍을 풀면 한도가 다시 터진다. ⚠️ Vercel 경고 메일은 100%에서 문구가 고정되고 14일마다 재발송되므로 **진척 판단 근거가 못 된다**(대시보드 Usage 탭에서만 확인).
 
 > AGENTS.md는 "이 약속을 지켜라"만 다룬다. 구조 설명이 길어지면 Architecture.md로 옮기고 여기선 참조한다.
 >
@@ -114,7 +115,7 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 `app/api/`:
 
 - **공개 라우트**: `api/cron/*`, `api/revalidate*` — `proxy.ts`의 `PUBLIC_PATH_PREFIXES`와 반드시 일치.
-- **보호 라우트**(세션 필수): `api/news/search`, `api/stock-prices`, `api/posts/*`, `api/uploads/report`, `api/companies`, `api/chat`, `api/management/upload`, `api/management/upload/[jobId]`, `api/management/upload/[jobId]/apply`, `api/management/org-chart/image/[date]`.
+- **보호 라우트**(세션 필수): `api/news/search`, `api/stock-prices`, `api/posts/*`, `api/uploads/report`, `api/companies`, `api/companies/[id]/summary`, `api/chat`, `api/management/upload`, `api/management/upload/[jobId]`, `api/management/upload/[jobId]/apply`, `api/management/org-chart/image/[date]`.
 - `api/revalidate*`은 SSRF·쿠키 가드 패치 이력(commit `ea090be`). 회귀 주의.
 
 ### `components/`
@@ -286,15 +287,16 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 3. DB 변경이면 최신 `supabase/migrations/` 파일명·순서 확인
 4. 작업 유형이 아래에 해당하면 **시작 전** 해당 문서 정독 (본문은 자동 로드되지 않는다)
 
-| 작업                  | 먼저 읽을 문서                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| UI를 브라우저로 검증  | [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)                                        |
-| 국내 재무 수집기 수정 | [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)                                    |
-| fnguide 수집이 깨짐   | `scripts/verify_fnguide.py` 실행 → [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md) |
-| 차트 신규·수정        | [`docs/chart-guide.md`](./docs/chart-guide.md)                                                            |
-| 보고서 본문 작성      | [`report.md`](./report.md)                                                                                |
-| OEM 회사별 탭         | [`docs/oem-collection.md`](./docs/oem-collection.md)                                                      |
-| DB 스키마 확인        | [`Architecture.md`](./Architecture.md)                                                                    |
+| 작업                          | 먼저 읽을 문서                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| UI를 브라우저로 검증          | [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)                                        |
+| 국내 재무 수집기 수정         | [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)                                    |
+| fnguide 수집이 깨짐           | `scripts/verify_fnguide.py` 실행 → [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md) |
+| 차트 신규·수정                | [`docs/chart-guide.md`](./docs/chart-guide.md)                                                            |
+| 보고서 본문 작성              | [`report.md`](./report.md)                                                                                |
+| OEM 회사별 탭                 | [`docs/oem-collection.md`](./docs/oem-collection.md)                                                      |
+| DB 스키마 확인                | [`Architecture.md`](./Architecture.md)                                                                    |
+| 주식 뷰 payload·캐시태그 수정 | [`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)                                      |
 
 5. 작업 후 `npm run check-all` 통과 + UI는 dev 서버에서 직접 확인
 

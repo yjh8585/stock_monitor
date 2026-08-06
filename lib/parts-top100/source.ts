@@ -17,7 +17,8 @@ export async function getPartsTop100Data(): Promise<{
   'use cache';
   cacheLife('hours');
   cacheTag('parts_top100_stocks_view');
-  cacheTag('exchange_rates_live');
+  // 🔴 exchange_rates_live 태그를 붙이지 말 것.
+  // 이유·트레이드오프 → lib/related-stocks/source.ts, docs/isr-write-optimization.md
 
   const supabase = createSupabaseAnonClient();
   const [{ data: viewData, error: viewErr }, { data: fxData, error: fxErr }] = await Promise.all([
