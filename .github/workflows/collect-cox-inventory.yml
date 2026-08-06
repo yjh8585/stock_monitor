@@ -25,10 +25,10 @@ jobs:
 
     steps:
       - name: 저장소 체크아웃
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Python 3.13 설정
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -37,14 +37,15 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      # 캐시(data/_cox_inventory_cache)는 gitignore라 runner에 없다 → 매 실행이 LLM 1~3회.
-      # 이미지 1장 ≈ $0.1 수준이라 월 1회 cron에선 캐시 없이도 무시할 만하다.
+      # 캐시(data/_cox_inventory_cache)는 gitignore라 runner에 없다 → 판독한 달만큼 매번 LLM 호출.
+      # 그래서 cron 기본값은 1개월(신규분만) — 3이면 이미 적재된 달까지 매월 다시 판독한다
+      # (2026-08-06 비용 절감). 소급 수정 재적재는 workflow_dispatch에서 months=3으로 수동 실행.
       - name: Cox 브랜드 재고일수 수집
         run: |
           if [ "${{ inputs.reprocess_all }}" = "true" ]; then
             python collect_cox_inventory.py --months "${{ inputs.months || '3' }}" --reprocess-all
           else
-            python collect_cox_inventory.py --months "${{ inputs.months || '3' }}"
+            python collect_cox_inventory.py --months "${{ inputs.months || '1' }}"
           fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
