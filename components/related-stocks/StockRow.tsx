@@ -10,6 +10,7 @@ import {
   FinancialCells,
   TD,
 } from '@/components/common/StockCells';
+import { useCompanySummary } from '@/components/common/useCompanySummary';
 import ProductCell from './ProductCell';
 import CustomerBadges from './CustomerBadges';
 import NewsModal from './NewsModal';
@@ -33,7 +34,12 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount, frozenCount
     setHighlighted((v) => !v);
   };
 
-  const description = useMemo(() => buildDescription(row, latestYear), [row, latestYear]);
+  // 회사 설명은 ISR payload 에 없다 — 펼칠 때만 받아온다(docs/isr-write-optimization.md).
+  const { summary: businessSummary, loaded: summaryLoaded } = useCompanySummary(row.id, expanded);
+  const description = useMemo(
+    () => buildDescription(row, latestYear, businessSummary),
+    [row, latestYear, businessSummary]
+  );
 
   const frozenBg = highlighted
     ? 'color-mix(in oklch, oklch(95% 0.18 95) 60%, var(--background))'
@@ -122,7 +128,11 @@ const StockRow = memo(function StockRow({ row, latestYear, colCount, frozenCount
           colCount={colCount}
           body={
             <>
-              {description.summary}
+              {summaryLoaded ? (
+                description.summary
+              ) : (
+                <span className="text-muted-foreground">회사 설명을 불러오는 중…</span>
+              )}
               {description.financial && <span className="block mt-2">{description.financial}</span>}
             </>
           }

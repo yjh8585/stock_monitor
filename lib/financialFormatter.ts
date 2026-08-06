@@ -93,8 +93,18 @@ export function buildKoreanFinancialSection(
   return `${latestYear}년 결산: ${parts.join(', ')}.`;
 }
 
-/** 행 클릭 시 표시할 회사 설명(summary) + 재무 요약(financial) */
-export function buildDescription(row: RelatedStockRow, latestYear: string): DescriptionParts {
+/**
+ * 행 클릭 시 표시할 회사 설명(summary) + 재무 요약(financial).
+ *
+ * `businessSummary` 는 row 가 아니라 인자로 받는다 — 표 payload 에서 빼고 펼칠 때
+ * useCompanySummary 훅이 가져오기 때문(ISR write 절감, docs/isr-write-optimization.md).
+ * 아직 안 받았으면 null 을 넘기면 되고, 그때는 미수집 안내 문구가 나온다.
+ */
+export function buildDescription(
+  row: RelatedStockRow,
+  latestYear: string,
+  businessSummary: string | null
+): DescriptionParts {
   const fy = row.financials_by_year;
   const lq = row.latest_quarter;
 
@@ -123,7 +133,7 @@ export function buildDescription(row: RelatedStockRow, latestYear: string): Desc
 
   return {
     summary:
-      row.business_summary ??
+      businessSummary ??
       (row.country === 'KR' && row.market
         ? '회사 설명이 아직 수집되지 않았습니다. (수집 예정)'
         : '회사 설명이 아직 수집되지 않았습니다.'),

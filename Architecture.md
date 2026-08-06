@@ -130,7 +130,7 @@
 **API 라우트 분류**:
 
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만)
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
 

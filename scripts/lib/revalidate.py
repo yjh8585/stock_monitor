@@ -47,12 +47,14 @@ COLUMN_TO_TAGS = {
     'stock_prices': ['stock_prices', 'related_stocks_view'],
     'stock_quotes_5min': ['stock_quotes_5min', 'related_stocks_view'],
     # 환율
-    'exchange_rates_live': [
-        'exchange_rates_live',
-        'related_stocks_view',
-        'domestic_stocks_view',
-        'parts_top100_stocks_view',
-    ],
+    # 🔴 여기에 뷰 태그(related/domestic/parts_top100)를 넣지 말 것.
+    # FX 수집이 하루 ~5회 도는데, 그때마다 무거운 주식 라우트 3개(합 1.5MB)가 통째로
+    # 재기록돼 ISR write 를 크게 먹는다(ISR write = payload 크기 8KB 단위 과금).
+    # 환산 시총·매출은 주가·재무 무효화나 cacheLife 만료로 최대 1시간 내 따라오고,
+    # 사용자가 주시하는 주가·등락률은 각 뷰 태그로 즉시 갱신되므로 영향 없다.
+    # 짝이 되는 source.ts 의 cacheTag('exchange_rates_live') 도 함께 제거돼 있다
+    # (한쪽만 되돌리면 조용히 원상복구된다). 배경 → docs/isr-write-optimization.md
+    'exchange_rates_live': ['exchange_rates_live'],
     'exchange_rates': ['exchange_rates'],
     # 매크로·시계열
     'market_series': ['market_series'],

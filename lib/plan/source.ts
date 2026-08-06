@@ -70,7 +70,9 @@ export async function getPlanData(): Promise<PlanData> {
   cacheLife('days');
   cacheTag('pnl_plan');
   cacheTag('pnl_entries');
-  cacheTag('exchange_rates_live');
+  // 🔴 exchange_rates_live 태그를 붙이지 말 것 — cacheLife('days') 로 오래 살려 둔
+  // 캐시를 FX 수집이 하루 ~5회 깨뜨리고 있었다(의도와 정반대).
+  // 이유·트레이드오프 → lib/related-stocks/source.ts, docs/isr-write-optimization.md
   cacheTag('longterm_revenue_plan');
 
   const supabase = createSupabaseAnonClient();

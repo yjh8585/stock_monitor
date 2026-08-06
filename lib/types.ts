@@ -7,16 +7,20 @@ export interface StockCompany {
   country: string;
 }
 
-/** 연간 재무 데이터 (financials 테이블 annual 행) */
+/**
+ * 연간 재무 데이터 (financials 테이블 annual 행).
+ *
+ * 뷰의 `financials_by_year` jsonb 는 이보다 많은 필드(eps·total_liabilities·
+ * total_equity)를 담고 있지만 화면이 읽지 않는다. mapper 의 trimFinancialYears()
+ * 가 잘라내므로 여기엔 실제로 쓰는 것만 선언한다 — ISR write 는 payload 크기
+ * 기준 과금이라 안 쓰는 바이트가 그대로 비용이 된다(docs/isr-write-optimization.md).
+ */
 export interface FinancialYear {
   revenue: number | null;
   operating_income: number | null;
   operating_margin: number | null;
-  total_liabilities: number | null;
-  total_equity: number | null;
   debt_ratio: number | null;
   inventory: number | null;
-  eps: number | null;
   per: number | null;
   pbr: number | null;
   ev_ebitda: number | null;
@@ -66,8 +70,11 @@ export interface RelatedStockRow {
   last_change_pct: number | null;
   last_updated_at: string | null;
   market_cap: number | null;
-  business_summary: string | null;
-  summary_updated_at: string | null;
+  /**
+   * ⚠️ business_summary·summary_updated_at 는 여기 두지 않는다.
+   * 펼침 행에서만 쓰는데 전 행에 실으면 ISR payload 가 커진다(3뷰 합 283KB).
+   * 펼칠 때 useCompanySummary 훅이 받아온다 → docs/isr-write-optimization.md
+   */
   homepage_url: string | null;
   /** 주가/시총 환산용 — companies.currency 기준 (1단위 → KRW) */
   fx_to_krw: number | null;
@@ -111,8 +118,11 @@ export interface DomesticStockRow {
   last_change_pct: number | null;
   last_updated_at: string | null;
   market_cap: number | null;
-  business_summary: string | null;
-  summary_updated_at: string | null;
+  /**
+   * ⚠️ business_summary·summary_updated_at 는 여기 두지 않는다.
+   * 펼침 행에서만 쓰는데 전 행에 실으면 ISR payload 가 커진다(3뷰 합 283KB).
+   * 펼칠 때 useCompanySummary 훅이 받아온다 → docs/isr-write-optimization.md
+   */
   homepage_url: string | null;
   fx_to_krw: number | null;
   fx_fin_to_krw: number | null;
@@ -165,6 +175,56 @@ export interface NewsItem {
 // ============================================================
 import type { ViewRow } from './database.types';
 
+/** 화면이 실제로 읽는 재무 필드. 이 목록 밖은 ISR payload 에서 제외한다. */
+const FINANCIAL_FIELDS = [
+  'revenue',
+  'operating_income',
+  'operating_margin',
+  'debt_ratio',
+  'inventory',
+  'per',
+  'pbr',
+  'ev_ebitda',
+] as const satisfies readonly (keyof FinancialYear)[];
+
+/** 표가 읽는 연도 폭 — StockCells 의 fallbackYears(최신·-1·-2·-3)와 같아야 한다. */
+const FINANCIAL_YEAR_SPAN = 4;
+
+/**
+ * `financials_by_year` 를 화면이 실제로 읽는 범위로 축소한다 (ISR payload 절감).
+ *
+ * 뷰는 평균 4.9개년 × 11필드를 담는데 표는 4개년 × 8필드만 쓴다. 나머지는 캐시
+ * payload 를 키울 뿐이고, ISR write 는 8KB 단위 크기 기준 과금이라 재기록마다
+ * 곱연산으로 비용이 된다. 3개 뷰 합산 645KB → 374KB (2026-08-06 실측).
+ *
+ * 🔴 연도 폭을 좁히지 말 것: FinancialCells 의 부채비율·재고회전율이 최신-3년까지
+ * fallback 한다. 또 stockSort.getFinancialSortValue 는 `rev_${latestYear}` 정렬에서
+ * **전 연도를 훑어** 매출이 있는 가장 최근 연도를 찾으므로, 그 연도가 4년 폭 밖이면
+ * 함께 보존해야 정렬이 안 바뀐다(현재 해당 회사 0곳이나 데이터가 변하면 생긴다).
+ */
+export function trimFinancialYears(
+  fy: Record<string, FinancialYear> | null
+): Record<string, FinancialYear> | null {
+  if (!fy) return null;
+  const years = Object.keys(fy).filter((y) => /^\d{4}$/.test(y));
+  if (years.length === 0) return fy;
+
+  const cutoff = Math.max(...years.map(Number)) - (FINANCIAL_YEAR_SPAN - 1);
+  const revenueYears = years.filter((y) => fy[y]?.revenue != null).map(Number);
+  const latestRevenueYear = revenueYears.length > 0 ? Math.max(...revenueYears) : null;
+
+  const trimmed: Record<string, FinancialYear> = {};
+  for (const year of years) {
+    const n = Number(year);
+    if (n < cutoff && n !== latestRevenueYear) continue;
+    const source = fy[year] as Partial<FinancialYear> | null;
+    const kept = {} as FinancialYear;
+    for (const field of FINANCIAL_FIELDS) kept[field] = source?.[field] ?? null;
+    trimmed[year] = kept;
+  }
+  return trimmed;
+}
+
 /** related_stocks_view → RelatedStockRow */
 export function mapRelatedStockRow(r: ViewRow<'related_stocks_view'>): RelatedStockRow {
   return {
@@ -184,12 +244,12 @@ export function mapRelatedStockRow(r: ViewRow<'related_stocks_view'>): RelatedSt
     last_change_pct: r.last_change_pct,
     last_updated_at: r.last_updated_at,
     market_cap: r.market_cap,
-    business_summary: r.business_summary,
-    summary_updated_at: r.summary_updated_at,
     homepage_url: r.homepage_url,
     fx_to_krw: r.fx_to_krw,
     fx_fin_to_krw: r.fx_fin_to_krw,
-    financials_by_year: r.financials_by_year as Record<string, FinancialYear> | null,
+    financials_by_year: trimFinancialYears(
+      r.financials_by_year as Record<string, FinancialYear> | null
+    ),
     latest_quarter: r.latest_quarter as LatestQuarter | null,
   };
 }
@@ -215,12 +275,12 @@ export function mapDomesticStockRow(
     last_change_pct: r.last_change_pct,
     last_updated_at: r.last_updated_at,
     market_cap: r.market_cap,
-    business_summary: r.business_summary,
-    summary_updated_at: r.summary_updated_at,
     homepage_url: r.homepage_url,
     fx_to_krw: r.fx_to_krw,
     fx_fin_to_krw: r.fx_fin_to_krw,
-    financials_by_year: r.financials_by_year as Record<string, FinancialYear> | null,
+    financials_by_year: trimFinancialYears(
+      r.financials_by_year as Record<string, FinancialYear> | null
+    ),
     latest_quarter: r.latest_quarter as LatestQuarter | null,
     latest_revenue_krw: r.latest_revenue_krw,
     sales_rank: r.sales_rank,

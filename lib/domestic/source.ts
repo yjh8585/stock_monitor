@@ -19,7 +19,9 @@ export async function getDomesticData(): Promise<{
   'use cache';
   cacheLife('hours');
   cacheTag('domestic_stocks_view');
-  cacheTag('exchange_rates_live');
+  // 🔴 exchange_rates_live 태그를 붙이지 말 것 — 이 라우트가 3개 중 가장 무거워
+  // (1,089KB) FX 수집마다 재기록하면 ISR write 를 가장 크게 먹는다.
+  // 상세 이유·트레이드오프 → lib/related-stocks/source.ts, docs/isr-write-optimization.md
 
   const supabase = createSupabaseAnonClient();
   const [{ data: viewData, error: viewErr }, { data: fxData, error: fxErr }] = await Promise.all([

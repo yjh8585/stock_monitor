@@ -26,7 +26,11 @@ export async function getRelatedStocksData(): Promise<{
   'use cache';
   cacheLife('hours');
   cacheTag('related_stocks_view');
-  cacheTag('exchange_rates_live');
+  // 🔴 exchange_rates_live 태그를 붙이지 말 것 — FX 수집(하루 ~5회)마다 이 무거운
+  // 라우트가 통째로 재기록된다(ISR write 는 payload 크기 기준 과금). 환율맵은 아래에서
+  // 계속 읽지만 무효화 대상에서만 뺀다 → 환산값은 주가·재무 무효화나 cacheLife 만료로
+  // 최대 1시간 내 따라오고, 사용자가 보는 주가·등락률은 위 뷰 태그로 즉시 갱신된다.
+  // 함수 분리로는 해결되지 않는다(라우트가 여전히 await → 재기록). docs/isr-write-optimization.md
 
   const supabase = createSupabaseAnonClient();
   const [{ data: viewData, error: viewErr }, { data: fxData, error: fxErr }] = await Promise.all([
