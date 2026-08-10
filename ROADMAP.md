@@ -87,21 +87,22 @@
   - 시가총액, 기업개요, 대주주/주주구분, 신용등급(CP/Bond) 수집
 - [x] `scripts/collect_financials.py` — fnguide 재무제표·투자지표로 교체
   - GoMenu('103') 재무제표, GoMenu('105') 투자지표 수집
-  - ⚠️ 2026-07: fnguide 레이아웃 변경(Snapshot fallback·통합표)으로 재작성 → `SVD_Finance.asp`/`SVD_Invest.asp` 직접 URL + 구조 변경 감지 가드. 상세 → AGENTS.md `collect_financials.py`
+  - ⚠️ 2026-07: fnguide 레이아웃 변경(Snapshot fallback·통합표)으로 재작성 → `SVD_Finance.asp`/`SVD_Invest.asp` 직접 URL + 구조 변경 감지 가드. 상세 → `docs/gotchas-data-collection.md`(2026-08-10 AGENTS.md 에서 이관)
   - ⚠️ 2026-08: fnguide 도메인 이전(`comp` → `wcomp`)으로 재작성 → JSON 엔드포인트 + `AC_CODE` 매칭 + Playwright 제거, 주간 계약 점검(`verify-fnguide.yml`) 추가. 상세 → `docs/fnguide-wcomp-migration.md`
 - [ ] 스크립트 실행 테스트 및 데이터 정합성 확인
 
 ---
 
-## Phase 4 — 뉴스 수집
+## Phase 4 — 뉴스 수집 ✅ 완료
 
 **목표**: 자동차 업계 주요 뉴스 자동 수집
 
-- [ ] `scripts/collect_news.py`
-  - yfinance 뉴스 피드 (글로벌)
-  - Naver Finance RSS (한국 기업)
-  - 4시간 주기 수집
-- [ ] GitHub Actions: `collect-news.yml` (4시간 주기)
+- [x] `scripts/collect_news.py`
+  - yfinance 뉴스 피드 (글로벌 상장사 `Ticker.news`)
+  - Naver 종목 뉴스 API (한국 상장사) + Google News RSS (비상장사는 회사명 검색)
+- [x] GitHub Actions: `collect-news.yml` — **6시간 주기**(`0 */6 * * *`, 설계 당시 '4시간'에서 변경됨)
+
+> 2026-08-10 실측으로 완료 확인(체크박스가 낡아 미완으로 남아 있었다): 스크립트·워크플로 존재 + 정기 실행 성공.
 
 ---
 
