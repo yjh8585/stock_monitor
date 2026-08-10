@@ -27,9 +27,13 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
 
-      - name: 의존성 설치 (requests만 — DB 접근 없음)
-        run: pip install requests
+      # 회귀 테스트가 collect_financials.py 를 통째로 로드하므로 pandas·yfinance 등
+      # 수집기 의존성이 모두 필요하다(requests 만 깔면 import 단계에서 죽는다).
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
 
       - name: fnguide 계약 점검
         run: python verify_fnguide.py
