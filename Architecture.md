@@ -100,6 +100,12 @@
   1. **분기** 북미 출하·소매 막대 + 갭 꺾은선 콤보 (출하는 Stellantis 공식 IR, 소매는 MarkLines — 공식 소매가 미국분만이라 북미 스코프를 못 맞춤). 차분 도출 분기(Q2·Q4)·추정 분기는 **막대에 표시하지 않고 보조문구+툴팁으로 안내**(2026-07-17, 옛 빗금 제거). **소매 미도착 최신 분기는 추정치로 채워 표시**하고 갭 선 **속 빈 점**으로 위치 표시(`buildProjectedGapQuarter`)
   2. **월별** 북미 생산·소매 막대 + 갭 꺾은선 콤보 (MarkLines 단일 소스). **2021.01부터** 그린다 — 원본은 2020.01부터 있으나 차트 1(분기 출하, 2021-Q1~)과 시작 연도를 맞춤(`CHART_START_MONTH`, 사용자 지시 2026-07-17)
   - 두 차트는 **같은 시각 문법 공유**(막대색·빨간 갭 선·이중축 밴드 `gapAxis.ts`). **선이 음수(재고 소진) 가능**해 §4-F 공식을 일반화한 domain + 0선 `ReferenceLine`(chart-guide §4-F). 차트 순서는 정확한 항등식(분기 출하)이 1번(사용자 지시 2026-07-16)
+  - **⚠️ 데이터 해석 함정 3종**(`lib/stellantis-forecast/`를 수정하기 전에 반드시 읽는다):
+    (1) **생산의 `country`는 공장 국가, 소매의 `country`는 판매 시장**이다 — 의미가 정반대인데 이름이 같다. 차감하면 북미 밖 수출입이 갭에 섞인다(실측 2024.01~2026.05 북미 생산 = 북미 소매의 +3.1%). **방향만** 읽고 절대 수준은 읽지 말 것.
+    (2) **MarkLines는 국가별 도착 시점이 다르고, 생산과 소매가 서로 다르게 늦는다**(소매는 캐나다가, 생산은 멕시코가 앞섬) → 생산·소매 **공통** 최신월까지만 쓴다(`lastCompleteMonth`), 분기는 `lastCompleteQuarter`. 그냥 합산하면 최신 기간 소매가 과소집계돼 **재고 축적을 과대평가**한다(이 페이지가 판정하려는 바로 그것이라 치명적).
+    (3) **스코프 정합** — IR North America 세그먼트는 **마세라티 제외**(별도 세그먼트)라 소매도 `MASERATI_MODELS` 제외로 맞춘다. MarkLines가 페라리 `SF90 Stradale` 7대를 2020년 FCA에 잘못 붙여 놨으므로 같이 배제. 북미 공장은 마세라티를 안 만들어 생산 쪽은 자동 정합. 그룹 라벨은 2020년 `FCA` / 2021년~ `Stellantis` **둘 다** 받아야 시계열이 끊기지 않는다.
+  - **KPI는 세는 것만 한다**(구조 개편 2026-07-16): 옛 `analyzeDrivers`·`buildInventoryOutlook`(회귀·시차 상관·Wilson 조건부 빈도)은 "그럴듯한 숫자"라는 사용자 판정으로 삭제했다. 되살리지 말 것.
+  - 구성: `source.ts`(공개 4종은 anon, **자사 매출은 `confidentialDb`**) + `aggregate.ts`(pure) + `plant-events.ts`(**공장 이벤트 수동 큐레이션 상수** — DB 아님). 공장 동향의 '재고' 항목만 Cox 딜러 재고일수에서 자동 생성(`buildCoxInventoryEvents`, 사용자 지시 2026-07-17 — "재고만 자동"), 같은 달 수동 '재고' 항목이 있으면 자동 스킵(수동 우선). 설계 상세 → `docs/superpowers/specs/2026-07-16-stellantis-rework-design.md`
   3. **공장 동향**(`PlantEventsSection`, client) — 가동 중단·설비 전환·시프트 증감 이벤트에 **직전 6개월 누적 갭**을 붙여 대조. 이벤트가 재고 과잉의 *결과*인지 보려는 것이라 시작월 **이전**만 씀(이벤트가 만든 감산을 창에 넣으면 순환 논리). **데이터 소스 2원화**(사용자 지시 2026-07-17): 공장 가동 이벤트는 **수동 큐레이션 상수** `plant-events.ts`(출처 URL 필수), **'재고'(딜러 재고일수)는 `cox_brand_inventory`에서 자동 생성**(`buildCoxInventoryEvents` — 매월 자동 누적, 같은 달에 수동 '재고' 항목이 있으면 수동 우선·자동 스킵). '재고'(eventType `inventory`)는 **앰버 음영**으로 강조하고, **최근 24개월+예정 이벤트만 표시**(데이터는 계속 누적, 화면만 제한), **묶음 분류 드롭다운**(전체/감산/증산/설비 전환/재고/기타)으로 필터
   - 소스 `lib/stellantis-forecast/`(`source.ts` + pure `aggregate.ts` + `plant-events.ts`). 공개 4종(`oem_production_model_country_month`·`stellantis_shipments`·`oem_sales_model_country_month`·`cox_brand_inventory`)은 anon, **자사 매출(`pnl_entries` customer='Stellantis NA')만 `confidentialDb`**. MarkLines는 국가별 도착 시점이 다르고 **생산·소매가 서로 다르게 늦으므로** 공통 최신월까지만 집계(`lastCompleteMonth`) + 분기는 `lastCompleteQuarter`. **생산 country=공장 국가 / 소매 country=판매 시장**이라 갭은 근사(북미 생산=북미 소매의 +3.1%) — 제약은 페이지 각주로 상시 노출. 권한은 `/management` 분기 자동 적용(guest·hmobility 차단) — `permissions.ts` 수정 불필요.
 - **inventory** — 재고 KPI 5개 + 차트 6종:
@@ -130,9 +136,10 @@
 **API 라우트 분류**:
 
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만)
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
+**이 목록이 라우트 분류의 정본이다** — 새 `app/api/**/route.ts`를 만들면 여기와 `proxy.ts`를 함께 갱신한다(AGENTS.md 는 이 규칙만 싣고 목록은 중복하지 않는다). `/api/revalidate*`은 SSRF·쿠키 가드 패치 이력이 있어 회귀에 주의한다(commit `ea090be`).
 
 **AI 챗봇 (`/api/chat`)**:
 
@@ -146,7 +153,7 @@
 
 ## 6. 디렉토리 구조 (요약)
 
-> 상세: AGENTS.md "디렉터리 지도" 섹션 참고.
+> 폴더별 **약속·컨벤션**(무엇을 지켜야 하나)은 AGENTS.md "디렉터리 지도", **모듈 구성**(무엇이 어디 있나)은 이 절이 정본이다.
 
 ```
 app/                      # Next App Router (라우트별 페이지)
@@ -166,6 +173,21 @@ proxy.ts                  # Next.js 16 미들웨어
 next.config.ts            # cacheComponents + staleTimes + serverExternalPackages
 vercel.json               # 배포 설정 (Vercel cron 미사용)
 ```
+
+**`lib/<domain>/` 도메인 모듈** — 각각 `source.ts`로 fetch+cache+mapping 을 격리하고 페이지는 호출만 한다(약속은 AGENTS.md).
+
+| 모듈                                                                                                                                 | 소스 · 구성                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnl/`                                                                                                                               | 사외비 — `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`. `getFixedVariable()`가 고정비/변동비 비용구조 표(`FixedVariableStructure`) 소스                                                                                         |
+| `plan/`                                                                                                                              | 사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX                                                                                                                                                                      |
+| `inventory/`                                                                                                                         | 사외비 — `inventory_entries` + `aggregate.ts` pure 빌더 8종(vitest 25). USD→억원 `value × fx_rate / 100`                                                                                                                                  |
+| `personnel/`                                                                                                                         | 사외비 — `personnel_entries` + pure 빌더 5종(vitest 14). 시점은 `period_date`(과거=연말, 현재=최신)                                                                                                                                       |
+| `finance/`                                                                                                                           | 사외비 — `finance_entries` 대차대조표 + pure 빌더 3종(vitest 17). 억원=`value_mwon/100`, 과거=연말(annual)·당해=최신월(YTD). `loan_entries` 대여금은 `loan-aggregate.ts`(억원 원본 `loan_eok`, 차트는 `InventoryAchievementChart` 재사용) |
+| `stellantis-forecast/`                                                                                                               | 경영관리 스텔란티스 탭 — 구성·해석 함정은 §5-A                                                                                                                                                                                            |
+| `org-chart/`                                                                                                                         | 사외비 — `org_charts` 조직도 메타(`use cache` + confidentialDb)                                                                                                                                                                           |
+| `companies/`                                                                                                                         | 회사 마스터 — `/management/companies`·`/api/companies` 입구(anon client)                                                                                                                                                                  |
+| `related-stocks/` · `domestic/` · `parts-top100/` · `oem/` · `oem-companies/<slug>/` · `hansae/` · `naver/` · `sentiment/` · `chat/` | 페이지별 `source.ts`(+ 일부 `aggregate.ts` pure + 단위 테스트)                                                                                                                                                                            |
+| `reports/`                                                                                                                           | **레이어드** — `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller 가 `PostRepository` 직접, 라이프사이클만 `PostService`                                                                                  |
 
 ## 7. 데이터 모델 (DB 스키마 상세)
 

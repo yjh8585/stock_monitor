@@ -101,4 +101,15 @@
 
 ## UzAuto Motors IFRS PDF 재무 (참고: PDF-only 회사 패턴)
 
-우즈벡 탭과 별개로, UzAuto Motors는 재무도 PDF에서 수집한다. `collect_uzauto_financials.py`: `/investors` HTML 파싱(우즈벡어/영문 정규식) → PDF sha256 캐시(`uzauto_pdf_cache`, 마이그레이션 `20260526000001`) → 변경분만 Anthropic API(`claude-opus-4-7`) PDF document + `tool_use(submit_financials)` → financials upsert. **연도 오름차순 처리**로 재진술 정책 자연 보장. 플래그: `--reprocess-all`/`--dry-run`. cron `collect-uzauto-financials.yml` 매주 월요일 03:00 UTC.
+우즈벡 탭과 별개로, UzAuto Motors는 재무도 PDF에서 수집한다. `collect_uzauto_financials.py`: `/investors` HTML 파싱(우즈벡어/영문 정규식) → PDF sha256 캐시(`uzauto_pdf_cache`, 마이그레이션 `20260526000001`) → 변경분만 Anthropic API(`claude-sonnet-5` — 2026-08-06 Opus 4.7 에서 비용 전환, env `UZAUTO_FINANCIALS_MODEL` 로 환원 가능) PDF document + `tool_use(submit_financials)` → financials upsert. **연도 오름차순 처리**로 재진술 정책 자연 보장. 플래그: `--reprocess-all`/`--dry-run`. cron `collect-uzauto-financials.yml` 매주 월요일 03:00 UTC.
+
+---
+
+## MarkLines Excel sync — 판매량과 생산량은 다른 페이지·다른 레이아웃
+
+`/oem` 대시보드의 원천 2종은 회사별 탭과 달리 **MarkLines 사이트에서 Excel 을 받아 적재**한다. 둘은 같은 세션 쿠키(`MARKLINES_COOKIE`)를 쓰지만 **페이지도 레이아웃도 다르므로 한쪽 코드를 그대로 복제하지 말 것.**
+
+- **판매량** — `sync_oem_excel.py`(다운로드) + `import_oem_sales.py`(적재).
+- **생산량** — `sync_oem_production_excel.py` + `import_oem_production.py`. 판매량과 **같은 쿠키·다른 페이지(`vehicle_production`)·다른 레이아웃**(메타 6열, PowerTrain 없음). ⚠️ **파일명이 `product_data`(≠`production_data`)** 라서 링크 탐지가 `EXPECTED_FILE_TOKEN` 으로 판매 링크를 배제한다 — 이름이 헷갈려 판매 파일을 생산으로 집는 사고를 막는 장치이니 지우지 말 것. 이력 파일은 `참고/oem 생산량/*_20NN_en.xlsx`, 최신은 롤링 `MarkLines_product_data_en.xlsx`(2024.01~)로 판매와 동일 구조다.
+
+적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 이 옛 값을 조용히 보여준다). 쿠키는 만료되면 워크플로가 exit 1(로그 '쿠키 만료')로 실패하며, **MarkLines 단일 디바이스 정책상 사람이 로컬에서 로그인하면 CI 쿠키가 조용히 무효화**될 수 있다(OEM sync 실패의 흔한 원인).
