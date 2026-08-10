@@ -112,4 +112,4 @@
 - **판매량** — `sync_oem_excel.py`(다운로드) + `import_oem_sales.py`(적재).
 - **생산량** — `sync_oem_production_excel.py` + `import_oem_production.py`. 판매량과 **같은 쿠키·다른 페이지(`vehicle_production`)·다른 레이아웃**(메타 6열, PowerTrain 없음). ⚠️ **파일명이 `product_data`(≠`production_data`)** 라서 링크 탐지가 `EXPECTED_FILE_TOKEN` 으로 판매 링크를 배제한다 — 이름이 헷갈려 판매 파일을 생산으로 집는 사고를 막는 장치이니 지우지 말 것. 이력 파일은 `참고/oem 생산량/*_20NN_en.xlsx`, 최신은 롤링 `MarkLines_product_data_en.xlsx`(2024.01~)로 판매와 동일 구조다.
 
-적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 이 옛 값을 조용히 보여준다). 쿠키는 만료되면 워크플로가 exit 1(로그 '쿠키 만료')로 실패하며, **MarkLines 단일 디바이스 정책상 사람이 로컬에서 로그인하면 CI 쿠키가 조용히 무효화**될 수 있다(OEM sync 실패의 흔한 원인).
+적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 이 옛 값을 조용히 보여준다). 쿠키 만료·단일 디바이스 정책은 AGENTS.md 「Python 스크립트 규칙」이 정본.
