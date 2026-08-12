@@ -30,12 +30,23 @@ DOCS = [
   'AGENTS.md', 'CLAUDE.md', 'Architecture.md', 'ROADMAP.md', 'report.md',
   'docs/chart-guide.md', 'docs/oem-collection.md', 'docs/data-audit-2026-07-18.md',
   'docs/fnguide-wcomp-migration.md', 'docs/gotchas-playwright-ui.md',
-  'docs/gotchas-data-collection.md', 'docs/isr-write-optimization.md',
+  'docs/gotchas-data-collection.md', 'docs/gotchas-ci-deploy.md',
+  'docs/isr-write-optimization.md',
 ]
 
 # AGENTS.md는 매 세션 자동 로드되므로 분량 상한을 둔다.
 AUTOLOAD_DOC = 'AGENTS.md'
-AUTOLOAD_WARN_BYTES = 70_000   # 넘으면 gotchas 분리를 검토할 시점
+# 🔴 상한은 "직전 다이어트 결과 + 약 5%"로 조인다. 넉넉히 잡으면 검사가 무력해진다.
+#    2026-08-12 실측: 상한이 70,000이라 55,936B에도 계속 OK가 떴고, 08-04에 65.4KB로 줄인 뒤
+#    68.8KB까지 자라는 동안 내내 통과였다 — 두 번 다이어트하고 두 번 되돌아온 구조적 원인이다.
+#    (같은 사용자의 agents 레포도 같은 이유로 16KB→71KB로 복원됐다.)
+#    ⚠ 늘리고 싶으면 상한을 올리지 말고 서술을 docs/gotchas-*.md·Architecture.md로 옮길 것.
+#    2026-08-12 이관 후 재측정: 56,276 → 37,134B 가 **품질을 해치지 않는 바닥**이었다.
+#    남은 것은 전부 약속·금지사항·실행 명령이고 더 깎으려면 규칙 자체를 지워야 한다
+#    (`.range()` 정렬 필수 · `WriteSession` 강제 · 사외비 5-step · 역할 추가 3파일 등).
+#    그래서 상한을 실측 바닥 + 5% 로 다시 잡는다. 35,000 은 이관 **전에** 세운 희망치였다.
+#    🔴 이 값을 다시 올리려거든 먼저 "옮길 곳이 정말 없나"를 증명할 것.
+AUTOLOAD_WARN_BYTES = 39_000   # 넘으면 gotchas 분리를 검토할 시점
 PADDING_WARN_RATIO = 0.10      # 표 정렬 공백이 파일의 10% 넘으면 경고
 
 # 이스케이프되지 않은 파이프만 셀 경계로 본다.

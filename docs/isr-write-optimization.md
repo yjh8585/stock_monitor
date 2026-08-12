@@ -120,3 +120,26 @@ Fast Origin Transfer 2.42GB/10GB. **초과 지표는 ISR Writes 하나뿐.**
 
 - 200K 아래로 내려갔으면 종료 — 다만 §1 의 트래픽 감소 주의사항을 함께 볼 것.
 - 여전히 초과면 §5 순서로.
+
+---
+
+## 진척 판단·배포 스킵 (AGENTS.md에서 이관, 2026-08-12)
+
+### 🔴 Vercel 경고 메일은 진척 판단의 근거가 못 된다
+
+ISR Write 한도 경고 메일은 **100%에서 문구가 고정되고 14일마다 재발송된다.** 즉 사용량을 절반으로
+줄였어도 같은 메일이 같은 문구로 또 온다. **"메일이 또 왔으니 안 고쳐진 것"이라고 읽으면 오진이다.**
+
+→ 실제 수치는 **대시보드 Usage 탭에서만** 확인한다(Vercel MCP 에는 usage/과금 조회 도구가 없다).
+
+### `vercel.json` `ignoreCommand` 가 제거하는 것 = baseline write
+
+`ignoreCommand` 는 `data/backups` 외에 diff 가 없는 커밋(= 일일 백업 봇의
+`chore(backup): daily JSONB snapshot`)의 프로덕션 배포를 스킵한다.
+
+이게 왜 한도에 영향을 주냐면 — **배포마다 ISR 캐시가 배포 단위로 리셋되고, 그러면 전 라우트가
+dedup 없이 full-payload 로 재기록된다.** 이 "배포할 때마다 한 번씩 무조건 발생하는 쓰기"가
+baseline write 이고, 백업 봇 커밋을 스킵해서 그 baseline 을 통째로 제거한 것이다.
+
+⚠️ 부작용: **재배포를 트리거하려고 빈 커밋을 밀어도 소용없다**(diff 가 없으면 스킵된다).
+실제 변경 diff 가 있어야 빌드가 돈다 → [`gotchas-ci-deploy.md`](./gotchas-ci-deploy.md) §2.

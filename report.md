@@ -188,6 +188,19 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 - **개별 영상 N편은 영상당 1편(source_url=watch URL)**, 재생목록만 주제별 묶음. 중복 가드는 개별영상=`source_url` 단독으로 충분.
 - **차트 전수 재점검(2차 패스) — 필수**: 1차 선별에서 드롭됐거나 애초에 안 잡은 차트가 남을 수 있다(차트가 화자 발화보다 몇 초 어긋나 뜨거나, 창 안에서 토킹헤드 프레임에 걸림). 게시 전/후 **영상별 에이전트가 자막을 다시 훑어 미포함 차트 지점을 발굴** → **넓은 창(±10초, 6프레임)으로 재캡처** → **vision으로 실제 차트인 것만 채택** → 본문에 추가하고 게시글을 UPDATE한다. 이미 게시된 글도 `source_url`로 매칭해 `content`·`thumbnail_url`을 UPDATE + revalidate.
 
+### 7-B. 재사용 툴킷 `scripts/yt_report/` (커밋됨 — 매번 새로 짜지 말 것)
+
+(AGENTS.md에서 이관, 2026-08-12)
+
+§7 절차의 스크립트는 **일회성이 아니라 커밋된 툴킷**으로 정리돼 있다. 새로 작성하지 말고 이것을 쓴다.
+
+- 구성: `fetch_subs` · `capture` · `montage` · `crop` · `finalize` · `upload.ts` · `publish.ts` · `verify.py` + 공용 `_common.py`
+- **절차·데이터 계약의 정본은 `scripts/yt_report/README.md`** 이고, 본문 내용 규칙은 이 문서 §7(주요 장면·차트 필수).
+- 일회성 **산출물**(자막·프레임·png·중간 json)만 `scripts/_yt_report/`(`.gitignore`, 환경변수 `RUN_DIR`)에 떨어진다.
+  🔴 툴킷(`yt_report/`)과 산출물(`_yt_report/`)은 **다른 폴더**다 — 밑줄 하나 차이라 헷갈리기 쉽다.
+- **본문 작성·프레임 선별·차트 발굴은 에이전트/서브에이전트 단계**로 남겨 둔 수동 고품질 경로(Opus)다.
+  완전 자동 버전(`collect_yt_report.py`, Haiku)은 §2-A 를 볼 것.
+
 ---
 
 ## 8. 체크리스트 (게시 전)

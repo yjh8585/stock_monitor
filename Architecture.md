@@ -73,19 +73,19 @@
 
 ## 5. 페이지·라우트 맵
 
-| 라우트              | 목적                            | 데이터 소스                                 |
-| ------------------- | ------------------------------- | ------------------------------------------- |
-| `/related-stocks`   | 21개사 메인 표                  | `related_stocks_view`                       |
-| `/compare`          | 다중 회사 비교                  | `compareData`, `compareMetrics`             |
-| `/domestic`         | 국내자동차 (421개사 + 매크로)   | `domestic_stocks_view`                      |
-| `/oem`              | OEM + 모델 outlook              | `oem_sales_*` 7개 테이블                    |
-| `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                  |
-| `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                       |
-| `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`       |
-| `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴     |
-| `/management`       | 경영관리 (탭 구조 → §5-A)       | 사외비 5종 (`pnl_entries` 등, §7-G)         |
-| `/login`            | 세션 로그인                     | Supabase Auth                               |
-| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts` |
+| 라우트              | 목적                            | 데이터 소스                                             |
+| ------------------- | ------------------------------- | ------------------------------------------------------- |
+| `/related-stocks`   | 21개사 메인 표                  | `related_stocks_view`                                   |
+| `/compare`          | 다중 회사 비교                  | `compareData`, `compareMetrics`                         |
+| `/domestic`         | 국내자동차 (421개사 + 매크로)   | `domestic_stocks_view`                                  |
+| `/oem`              | OEM + 모델 outlook              | `oem_sales_*` 7개 테이블                                |
+| `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
+| `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
+| `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`                   |
+| `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴                 |
+| `/management`       | 경영관리 (탭 구조 → §5-A)       | 사외비 테이블 (명단 정본 = `CONFIDENTIAL_TABLES`, §7-G) |
+| `/login`            | 세션 로그인                     | Supabase Auth                                           |
+| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts`             |
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
@@ -756,3 +756,71 @@ runner Python venv → postgrest-py → Supabase
 - 그룹 분류 50개 정리 (사람인 NICE 기반)
 - **homepage_url** enrich_company에 수집 추가 + onboard_company.py 도입
 - **챗봇 PnL 외부 전송 차단** (2026-05-23): `query_pnl` 도구 + system-prompt PnL 카탈로그(고객사·공장·제품 명단) 완전 제거. `pnl_entries`·`pnl_cost_structure` RLS 정책 삭제(anon 차단) + admin client 전용 전환 (20260523000002). `chat_audit_log` 신규 — 모든 챗봇 도구 호출 1년 보존 (20260523000003). 챗봇 입력창에 외부 전송 경고 배너 추가.
+
+---
+
+## 부록 B. AGENTS.md에서 이관 (2026-08-12)
+
+AGENTS.md 를 매 세션 자동 로드 분량 안으로 줄이면서 옮겨 온 **구성 정보**다.
+AGENTS.md 에는 각 항목의 **약속 한 줄**만 남아 있다.
+
+### B-1. 회사 마스터 트리거 (§7-J 보완)
+
+- **`companies_normalize_customers`**(BEFORE, `20260522000001`/`2`/`4`) — `customers` 를
+  `expand_customer_name()→text[]` 로 자동 정규화하고 `customers_updated_at` 도 SET 한다.
+  **자동차 OEM 화이트리스트(~90)만 통과**하고 부품사·반도체·placeholder 는 폐기된다.
+  예: "현대기아"→`['현대차','기아']`, "GM대우"/"대우자동차"→`한국지엠`, "재규어·랜드로버"→`JLR`.
+  🔴 신규 별칭을 추가할 때는 `expand_customer_name` 과 `lib/customerLogos.ts` 를 **함께** 갱신한다.
+- **`companies_normalize_products`**(`20260522000003`) — `products[].category` 를
+  `normalize_product_category()` 로 정규화한다(매핑이 없으면 `'기타'`).
+  같은 마이그레이션에서 `company_type` 컬럼 DEFAULT 가 `'부품사'` 이고 **OEM 만 명시 입력**한다.
+- **`companies_auto_page_mapping`**(AFTER INSERT, `20260522000005`/`20260526000001`) —
+  `data_source` 별 기본 page 를 등록한다: dart/fnguide→`domestic`, yfinance/marklines→`parts-top100`,
+  **uzauto-pdf→`related-stocks`**. `related-stocks` 는 그 외에는 **수동 등록**(큐레이션)이며,
+  이 트리거가 page 매핑 누락(예: HL클레무브)을 막는다.
+- **`financials_auto_set_dart_status`**(`20260522000007`) — `period_type='annual' AND
+fiscal_year >= 올해-2` 인 행이 들어오면 `dart_collection_status='success'` 를 자동 SET 한다.
+
+### B-2. 역할·권한을 늘릴 때 밟는 순서
+
+**5역할**(admin / holdings / mobility / hmobility / guest)의 정의는 `lib/auth/roles.ts` 가 SSOT 다
+(server-only 가 아니라서 `proxy.ts`·`session.ts` 에서 import 할 수 있다).
+
+역할을 하나 추가하면 **세 파일을 모두** 고쳐야 한다.
+
+1. `roles.ts` 의 `ROLES`
+2. `users.ts` — env 계정 + exhaustive `getDisplayNameByRole`
+3. `permissions.ts` — `canAccess`·landing 헬퍼
+
+decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신을 빠뜨리면 세션이 거부돼
+`/login` 무한 리다이렉트**가 된다.
+
+- 계정은 역할별 **distinct env 키**를 쓴다 — 키가 중복되면 dotenv 가 마지막 값만 채택해 로그인이 깨진다.
+- 신규 계정은 **optional**(env 가 둘 다 있을 때만 추가)로 넣는다 → Vercel env 미설정 상태에서도
+  기존 로그인이 유지된다.
+- 접근 불가 역할을 추가할 때 랜딩(`/`·`/management`)은 **role-aware redirect** 로 만든다
+  (고정 redirect 는 무한 루프).
+- `/management` 탭 노출은 `ALL_TABS` + `canAccess` **자동 필터**라 신규 탭에 `permissions.ts` 수정이
+  필요 없다(guest·hmobility 자동 차단). 더 좁은 권한만 명시한다 —
+  `/management/upload` 는 admin 전용(`ADMIN_ONLY_PATHS`), 조직도는 admin·holdings·mobility.
+
+### B-3. `_archive/` 로 보내지 않고 유지하는 정기 재실행 스크립트 12종
+
+`seed_*`/`import_*`/`sync_*`/`gen_*`/`normalize_*`/`migrate_*.ts` 는 원칙적으로 일회성이라 종료 후
+`scripts/_archive/` 로 옮기지만, **아래는 정기 재실행이라 유지**한다.
+
+| 스크립트                                                                                                                                                 | 비고                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `sync_oem_excel.py` · `import_oem_sales.py`                                                                                                              | MarkLines 판매량                                                             |
+| `sync_oem_production_excel.py` · `import_oem_production.py`                                                                                              | MarkLines 생산량 — 판매량과 **페이지·레이아웃·파일명이 달라** 코드 복제 금지 |
+| `sync_pnl_excel.py` · `sync_pnl_plan.py` · `sync_inventory.py` · `sync_personnel.py` · `sync_pnl_fixed_variable.py` · `sync_finance.py` · `sync_loan.py` | 월별손익 사외비 sync                                                         |
+| `sync_management_excel.py`                                                                                                                               | 위 8종 오케스트레이터 (GHA `workflow_dispatch` 전용)                         |
+| `sync_org_chart.py`                                                                                                                                      | 조직도 — **로컬 전용**(Excel COM 의존, Vercel/GHA 렌더 불가)                 |
+| `sync_longterm_revenue.py`                                                                                                                               | 중장기 매출 전망 — **별도 엑셀**이라 오케스트레이터에 등록하지 않는다        |
+
+### B-4. 챗봇 감사 로그 스키마
+
+`chat_audit_log`(`20260523000003`) 컬럼: `user_id` / `user_role` / `tool_name` / `input_json` /
+`row_count` / `is_error` / `error_msg`. RLS 정책 없음(service_role 전용), 보존 1년(cron 미구현).
+`lib/chat/loop.ts` 가 도구 실행 직후 `logToolCall()` 을 부르며 **await 하지 않는다**
+(감사 기록이 실패해도 사용자 응답은 정상 반환).
