@@ -113,3 +113,27 @@
 - **생산량** — `sync_oem_production_excel.py` + `import_oem_production.py`. 판매량과 **같은 쿠키·다른 페이지(`vehicle_production`)·다른 레이아웃**(메타 6열, PowerTrain 없음). ⚠️ **파일명이 `product_data`(≠`production_data`)** 라서 링크 탐지가 `EXPECTED_FILE_TOKEN` 으로 판매 링크를 배제한다 — 이름이 헷갈려 판매 파일을 생산으로 집는 사고를 막는 장치이니 지우지 말 것. 이력 파일은 `참고/oem 생산량/*_20NN_en.xlsx`, 최신은 롤링 `MarkLines_product_data_en.xlsx`(2024.01~)로 판매와 동일 구조다.
 
 적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 이 옛 값을 조용히 보여준다). 쿠키 만료·단일 디바이스 정책은 AGENTS.md 「Python 스크립트 규칙」이 정본.
+
+---
+
+## `marklines-adhoc-fetch.yml` — 쿠키를 꺼낼 수 없을 때의 우회 통로
+
+(AGENTS.md에서 이관, 2026-08-12 · `workflow_dispatch` 전용 · DB 미접근)
+
+유효한 MarkLines 쿠키는 GitHub Secrets `MARKLINES_COOKIE` 에만 있고 **Secrets 는 write-only 라 값을
+조회할 수 없다.** 로컬에서 다시 뽑는 것도 전멸했다:
+
+- Edge — 쿠키 없음
+- **Chrome 127+ ABE**(App-Bound Encryption) — 복호화 불가
+- **Chrome 150** — 기본 프로필에 대한 CDP 접속 거부
+
+그래서 **쿠키를 빼오는 대신 Actions 안에서 페이지를 받아 artifact 로 회수**한다.
+
+```
+gh workflow run marklines-adhoc-fetch.yml
+gh run download <id> -n marklines-raw
+```
+
+- 스케줄이 없어 저절로 돌지 않으므로 **남겨 둬도 부작용이 없다.**
+- ⚠ **로그인 판정을 HTTP 200 으로 하지 말 것** — 로그인 안 된 상태도 **200 에 144KB 짜리 껍데기**를
+  돌려준다. `<table>` 존재·천단위 수치 유무로 판정해야 한다.

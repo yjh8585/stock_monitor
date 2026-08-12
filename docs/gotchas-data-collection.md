@@ -40,3 +40,121 @@
 - **사외비 월별손익 sync 8종의 적재 세부** (`sync_pnl_excel`·`sync_pnl_plan`·`sync_inventory`·`sync_personnel`·`sync_pnl_cost_structure`·`sync_pnl_fixed_variable`·`sync_finance`·`sync_loan`) — **"stdout에 금액·인원수 비노출"이라는 약속 자체는 AGENTS.md에 남아 있다.** 여기엔 실행 세부만 적는다. `sync_inventory.py`는 4분류합 vs 전체재고 검증(mismatch 행수만 보고, 임계 0.5%), `sync_finance.py`는 자산==부채+자본 항등식 검증(mismatch 시점수만 보고, 임계 0.5%) + '재무' 시트 '연간' 텍스트/월=12를 annual(연말)로, 월=1~11을 monthly로 정규화하고 PK 중복행(`자본` 중복 등)을 dedupe. `sync_loan.py`는 '이인텔리전스' 시트→`loan_entries`(억원, kind '계획'/'실적' 한글 그대로, 공란→null). WriteSession 자동 revalidate(`NEXT_REVALIDATE_URL` — 로컬은 localhost). **로컬 수동 실행은 프로덕션 캐시가 안 비워지므로 `--revalidate-prod` 플래그로 추가 무효화**(`NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET`, 적재 성공 후 1회). `pnl_cost_structure` 포함 5종 테이블은 `lib/revalidate.py` `COLUMN_TO_TAGS`에 매핑(누락 시 무효화 no-op). **엑셀에서 행 삭제·차원(실/부문/공장/제품/거래처) 변경 시 단순 resync로는 옛 PK 행이 DB에 잔존**(sync는 8차원 충돌키 upsert-only, delete 안 함) → 해당 행 DB delete 후 resync 필수(메모리 `project_pnl_dimension_change_resync`). **거래처의 실(sil) 소속이 바뀌면 엑셀 수정을 기다리지 말고 `sync_pnl_excel.py`의 `SIL_BY_CUSTOMER`에 한 줄 추가**(현재 `UZ Auto → 2실`, 사용자 지시 2026-07-30) — `sil`이 충돌키에 포함돼 엑셀이 옛 실로 남으면 옛/새 실 양쪽에 행이 생겨 합계가 이중 계산된다. 정정은 `normalize_sil()`이 `merge_by_pk` 전에 적용되어 옛·새 실 행이 같은 PK로 합산되고, 정정 건수는 **시트당 경고 1줄**로 업로드 화면 경고 목록에 뜬다. 기존 DB 행은 마이그레이션으로 1회 UPDATE(예 `20260730000001`). 회귀 `scripts/lib/test_sync_pnl_sil.py`.
 
 - **`sync_longterm_revenue.py`는 위 8개와 별개다** — 입력이 월별손익이 아니라 **영업본부 중장기 매출 계획 엑셀**(`LONGTERM_EXCEL_PATH` env 우선, 없으면 `참고/영업계획/*.xlsx` 최신 glob)이라 **`sync_management_excel.py` 오케스트레이터에 등록하지 않는다**(등록 시 dry-run이 `unrecognized arguments`가 아니라 엉뚱한 파일을 읽어 통째 실패). 분기 1회 로컬 수동 실행 + `--revalidate-prod`. stdout은 (기준·계열)별 행수·연도·null 카운트만 — 금액 비노출. 시트 레이아웃(B3/D3/계열 라벨/기준 라벨 형식)이 어긋나면 exit 2로 즉시 실패(조용한 오적재 방지).
+
+---
+
+## 적재·파싱·진단 함정 (AGENTS.md에서 이관, 2026-08-12)
+
+### 🔴 `.range()` 페이지네이션은 결정적 정렬이 없으면 행을 잃는다
+
+1000행을 넘겨 여러 페이지로 fetch 할 때는 **반드시 `.order()`를 동반**한다(가급적 PK 전체).
+
+`.in()`/필터가 걸린 조회는 인덱스 스캔이라 **정렬이 없으면 페이지 경계에서 행이 누락·중복된다.**
+실제 사례: `lib/oem/source.ts` 의 `fetchModelRows` 가 전 국가를 fetch 하면서 정렬이 없어
+**특정 연도가 통째로 누락**됐고, 그 결과 차트가 near-zero 로 그려졌다.
+
+- WHERE 없는 `fetchAll` 은 seq-scan 이라 정렬 없이도 안정적이다(그래서 더 헷갈린다).
+- **증상으로 알아보는 법**: 연간 합계는 정상인데 **차트만 특정 구간이 낮다** → 집계 버그가 아니라
+  fetch 누락을 의심할 것.
+
+### 집계 뷰의 `SUM`은 문자열로 온다
+
+`SUM(int/bigint)` 은 Postgres 에서 `numeric` 이고, PostgREST(@supabase/supabase-js)가 `numeric` 을
+**문자열로 직렬화**한다 → JS 산술이 조용히 깨진다(`"12" + 1 === "121"`).
+
+→ 뷰 정의에서 `SUM(x)::bigint`(값 범위가 맞으면 `::int`)로 캐스팅해 number 로 반환시킨다.
+예: `oem_sales_country_group_year`. **개별 int 컬럼은 number 로 정상 도착**하므로
+`SUM`/`AVG` 등 **집계만** 해당한다.
+
+### fnguide 는 도메인·구조를 자주 갈아엎는다
+
+2026-07 과 2026-08, **두 번 다 KR 상장사 재무가 0행**이 됐다. 원인은 매번 fnguide 쪽 개편이었다.
+
+- fnguide 접근은 **반드시 `scripts/lib/fnguide_client.py` 경유**(URL 을 스크립트에 직접 박지 말 것).
+- **계약이 깨졌는지는 `scripts/verify_fnguide.py` 로 먼저 확인**한다(주 1회 `verify-fnguide.yml` 자동 실행).
+  수집기를 뜯기 전에 이것부터 돌린다.
+
+### `financials.source` 를 지우는 두 가지 경로
+
+값은 `scripts/lib/financial_sources.py` 의 상수만 쓴다. 한 회사에 **여러 출처 행이 공존**하므로
+(예: 상장사에 fnguide 행과 dart 행이 같이 있다) 출처가 비면 값이 틀렸을 때 **어느 수집기를 고칠지
+특정할 수 없다.**
+
+- ⚠️ **기존 행의 지표만 덧쓰는 UPDATE 경로에서는 `source` 를 건드리지 말 것** — 원 출처가 지워진다.
+  `collect_global_snapshot.py` 의 PER/PBR 갱신이 그 사례라서, `source` 주입을 **INSERT 경로에만** 넣었다.
+- ⚠️ **행 dict 의 키 개수로 "실데이터 유무"를 판정하는 코드가 있다**
+  (`collect_dart_domestic._build_rows` 의 `_META_KEY_COUNT`). 메타 키를 늘리면 **그 상수도 함께** 고칠 것.
+
+### LLM 추출 수집기는 로컬에서 돌아간다 (문서가 반대로 적혀 있었다)
+
+`collect_uzauto_financials.py`·현대 분기 IR·`collect_cox_inventory.py` 등은 **로컬 실행 가능**하다.
+
+`ANTHROPIC_API_KEY` 가 `scripts/.env` 엔 없지만 **프로젝트 루트 `.env.local` 에 있고**,
+`lib/bootstrap.py` 의 `init_script()` 가 `scripts/.env` 와 `<root>/.env.local` 을 **둘 다** 로드한다
+(2026-07-15 실측 정정 — 그 전까지 AGENTS.md 는 "로컬 실행 불가"라고 **잘못** 적고 있었다).
+
+구식 스크립트가 `scripts/.env` 만 로드한다면 그건 그 스크립트의 boilerplate 문제이니
+`init_script` 로 교체할 것. GHA Secrets 에도 같은 키가 있어 워크플로 실행도 가능하다.
+
+### 스캔 PDF 는 텍스트 추출이 0자다
+
+UzAuto IFRS 등 **스캔본**은 `pypdf`/`pdfplumber` 텍스트 추출이 0자이고, Read 도구의 PDF 렌더도
+`pdftoppm`(poppler) 미설치로 실패한다.
+
+→ venv `pymupdf`(fitz)로 페이지를 이미지로 렌더한 뒤 Read(vision)로 판독한다:
+`fitz.open(p)[n].get_pixmap(dpi=200).save(png)`
+
+### openpyxl `read_only=True` 단독 결과를 신뢰하지 말 것
+
+손익·사외비 엑셀을 파싱 디버깅할 때, `read_only=True` 는 **행/열 인덱싱이 어긋나는 경우가 있다** —
+부문값이 제품열로 읽히는 오진을 실제로 관측했다.
+
+→ `read_only=False`(`ws.cell`) 또는 sync 의 `parse_sheet()` 를 직접 호출해 **교차검증**한다.
+
+### Excel COM 시트→이미지 렌더는 대상 시트가 뒤바뀐다
+
+`wb.ExportAsFixedFormat`(워크북 단위)은 **활성 시트 또는 전체 시트**를 내보내서 엉뚱한 시트가 나온다.
+
+→ `ws.Activate()` + **`ws.ExportAsFixedFormat`(워크시트 단위)** 를 쓴다.
+PrintArea 를 `UsedRange` 로만 잡으면 **셀 밖 도형(변경요약 박스 등)이 잘리므로**
+도형(`ws.Shapes[].BottomRightCell`)까지 포함해 범위를 잡고 여백을 0 으로 준다.
+
+### 🔴 렌더 산출물 검증은 실제로 열어볼 것
+
+이미지/PDF 는 **"픽셀 해시가 다르다"만 보면 *내용이 뒤바뀐 것*을 못 잡는다.**
+조직도 시트 swap 버그를 정확히 이 함정으로 놓쳤다.
+
+→ Read(vision)로 **제목·구조·매핑을 눈으로** 확인한다.
+사외비면 제목/구조만 보고 실명은 전사하지 않는다.
+
+### Storage REST 업로드는 `apikey` 헤더도 필요하다
+
+이 프로젝트의 `SUPABASE_SERVICE_ROLE_KEY` 는 신형 `sb_secret_...` 키라서
+`Authorization: Bearer` 외에 **`apikey` 헤더도 함께** 보내야 한다.
+(JS admin client 는 알아서 처리하므로 무관 — Python `requests` 로 직접 업로드할 때만 걸린다)
+
+### 경영관리 업로드 적재 실패는 GHA 로그로 알 수 없다
+
+`sync_management_excel.py` 오케스트레이터는 8개 사외비 sync 를 subprocess 로 순차 실행하는데,
+**GHA 로그엔 오케스트레이터 라인만 보인다.**
+
+→ 어떤 sync 가 왜 실패했는지는 `management_uploads.summary->'scripts'`(Supabase SQL)의
+`exit_code`·`output`(각 sync stdout 캡처)으로 확인한다.
+
+또한 엑셀 경로는 8개 모두 `MANAGEMENT_EXCEL_PATH` env 우선
+(`scripts/lib/management_excel.py` 의 `resolve_excel_path`, 없으면 `참고/손익` glob).
+
+### dry-run 정합성 경고는 staleness 아티팩트일 수 있다
+
+`sync_pnl_fixed_variable` 은 업로드 엑셀의 '고정비' 시트를 DB `pnl_cost_structure`(**적재 전이라
+한 업로드 뒤처진 상태**)와 대조한다. 그래서 진행연도 YTD 월수 차이 때문에 mismatch 경고가 떠도
+**적재 후에는 0% 로 reconcile 된다.** 경고만 내고 차단하지 않는다 — 이걸 실패로 오인하지 말 것.
+
+### GHA revalidate 시크릿 이름 오타는 조용히 스킵된다
+
+수집 워크플로는 revalidate 시크릿을 **`NEXT_REVALIDATE_SECRET`** 으로 넘겨야 한다
+(`lib/revalidate.py` 가 읽는 이름). `sync-oem-excel.yml`·`sync-oem-production-excel.yml` 이
+`REVALIDATE_SECRET` 오타여서 **GHA 캐시 무효화가 조용히 스킵**되던 것을 2026-07-17 에 교정했다.
+
+증상: **적재는 정상인데 화면만 `cacheLife` TTL 로 뒤늦게 갱신된다.**
+신규 워크플로를 만들 때 이름을 정확히 확인할 것.
