@@ -1,8 +1,8 @@
-name: 북미·기타 OEM 차종 AI 평가 수집 (주 1회)
+name: 핵심 차종 경쟁 분석 수집 (월 1회)
 
 on:
   schedule:
-    - cron: '30 21 * * 0' # KST 월요일 06:30 (UTC 일요일 21:30) — Claude Haiku 10×52/년
+    - cron: '30 21 20 * *' # KST 매월 21일 06:30 (UTC 20일 21:30) — Sonnet 5 + Perplexity, 회당 약 $0.73
   workflow_dispatch:
 
 jobs:
@@ -26,9 +26,12 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
+      # PERPLEXITY_API_KEY 가 없으면 웹 검색만 조용히 건너뛰고 실행은 성공한다
+      # (실패가 아니라 분석 품질 저하로만 나타나므로 Secret 등록 여부를 놓치기 쉽다)
       - name: oem_model_outlook 수집
         run: python collect_oem_model_outlook.py
         env:
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}

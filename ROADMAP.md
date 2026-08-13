@@ -138,6 +138,11 @@
 
 ### Page 4: OEM (예정)
 
+- [x] `/oem/competition` — 핵심 차종 10종 경쟁 분석 (2026-08-13)
+  - 경쟁군 정의 SSOT `oem_competitor_set` + 세그먼트 매핑 `oem_model_segment`
+  - 근거: MarkLines 판매 실적 · 경쟁군 점유율 · Perplexity 웹검색 · NHTSA 리콜 · Cox 재고일수(북미)
+  - Claude Sonnet 5 종합, 월 1회(매월 21일) 자동 갱신
+
 ### Page 5: 부품사 TOP100 (예정)
 
 ### Page 6: 한세그룹 (예정)

@@ -78,7 +78,8 @@
 | `/related-stocks`   | 21개사 메인 표                  | `related_stocks_view`                                   |
 | `/compare`          | 다중 회사 비교                  | `compareData`, `compareMetrics`                         |
 | `/domestic`         | 국내자동차 (421개사 + 매크로)   | `domestic_stocks_view`                                  |
-| `/oem`              | OEM + 모델 outlook              | `oem_sales_*` 7개 테이블                                |
+| `/oem`              | OEM 전체 (MarkLines 대시보드)   | `oem_sales_*` 7개 테이블                                |
+| `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)   | `oem_model_outlook` v2 (§7-E)                           |
 | `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
 | `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
 | `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`                   |
@@ -86,6 +87,11 @@
 | `/management`       | 경영관리 (탭 구조 → §5-A)       | 사외비 테이블 (명단 정본 = `CONFIDENTIAL_TABLES`, §7-G) |
 | `/login`            | 세션 로그인                     | Supabase Auth                                           |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts`             |
+
+`/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
+
+- **`/oem/competition`** (신규 2026-08-13) — 차종 카드 그리드(`components/oem/CompetitionCards.tsx`, GREEN/YELLOW/RED 신호등). 카드 구성은 시장별 현황(판매·YoY·경쟁군 내 점유율) → 판매 추이 → 경쟁 현황 → 소비자 평가 → 판매 전망 → 라벨 근거 → 접이식 출처 목록. 소스 `lib/oem-competition/source.ts`, 적재는 월 1회 `collect_oem_model_outlook.py`(§10).
+- 옛 AI 평가 카드(`ModelOutlookCards`)는 같은 개편에서 삭제됐고 `/oem` 메인은 MarkLines 대시보드만 남는다.
 
 ### 5-A. 경영관리(`/management`) 탭 구조
 
@@ -166,7 +172,7 @@ lib/                      # 도메인 모듈 + 공용 유틸
   supabase/               #   클라이언트 4종 (server/client/admin/anon)
   auth/                   #   세션·권한·사용자
 scripts/                  # Python 수집 + onboarding
-  lib/                    #   공용 모듈 (db.py, accounts_map, fx, revalidate, perplexity_client, nhtsa_client, competition_metrics, outlook_prompt)
+  lib/                    #   공용 모듈 (db.py, accounts_map, fx, revalidate, bootstrap, fnguide_client … 차종 경쟁 5종은 아래 표)
 supabase/migrations/      # 시간순 SQL (YYYYMMDD000NNN_*.sql)
 .github/workflows/        # 42개 GHA 워크플로 (2026-08-07 실측)
 proxy.ts                  # Next.js 16 미들웨어
@@ -176,18 +182,36 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 
 **`lib/<domain>/` 도메인 모듈** — 각각 `source.ts`로 fetch+cache+mapping 을 격리하고 페이지는 호출만 한다(약속은 AGENTS.md).
 
-| 모듈                                                                                                                                                      | 소스 · 구성                                                                                                                                                                                                                               |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnl/`                                                                                                                                                    | 사외비 — `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`. `getFixedVariable()`가 고정비/변동비 비용구조 표(`FixedVariableStructure`) 소스                                                                                         |
-| `plan/`                                                                                                                                                   | 사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX                                                                                                                                                                      |
-| `inventory/`                                                                                                                                              | 사외비 — `inventory_entries` + `aggregate.ts` pure 빌더 8종(vitest 25). USD→억원 `value × fx_rate / 100`                                                                                                                                  |
-| `personnel/`                                                                                                                                              | 사외비 — `personnel_entries` + pure 빌더 5종(vitest 14). 시점은 `period_date`(과거=연말, 현재=최신)                                                                                                                                       |
-| `finance/`                                                                                                                                                | 사외비 — `finance_entries` 대차대조표 + pure 빌더 3종(vitest 17). 억원=`value_mwon/100`, 과거=연말(annual)·당해=최신월(YTD). `loan_entries` 대여금은 `loan-aggregate.ts`(억원 원본 `loan_eok`, 차트는 `InventoryAchievementChart` 재사용) |
-| `stellantis-forecast/`                                                                                                                                    | 경영관리 스텔란티스 탭 — 구성·해석 함정은 §5-A                                                                                                                                                                                            |
-| `org-chart/`                                                                                                                                              | 사외비 — `org_charts` 조직도 메타(`use cache` + confidentialDb)                                                                                                                                                                           |
-| `companies/`                                                                                                                                              | 회사 마스터 — `/management/companies`·`/api/companies` 입구(anon client)                                                                                                                                                                  |
-| `related-stocks/` · `domestic/` · `parts-top100/` · `oem/` · `oem-companies/<slug>/` · `oem-competition/` · `hansae/` · `naver/` · `sentiment/` · `chat/` | 페이지별 `source.ts`(+ 일부 `aggregate.ts` pure + 단위 테스트)                                                                                                                                                                            |
-| `reports/`                                                                                                                                                | **레이어드** — `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller 가 `PostRepository` 직접, 라이프사이클만 `PostService`                                                                                  |
+| 모듈                                                                                                                                 | 소스 · 구성                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnl/`                                                                                                                               | 사외비 — `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`. `getFixedVariable()`가 고정비/변동비 비용구조 표(`FixedVariableStructure`) 소스                                                                                         |
+| `plan/`                                                                                                                              | 사외비 — `pnl_plan` + 차트 2·3 실적은 `getPreparedPnl()` 재사용 + FX                                                                                                                                                                      |
+| `inventory/`                                                                                                                         | 사외비 — `inventory_entries` + `aggregate.ts` pure 빌더 8종(vitest 25). USD→억원 `value × fx_rate / 100`                                                                                                                                  |
+| `personnel/`                                                                                                                         | 사외비 — `personnel_entries` + pure 빌더 5종(vitest 14). 시점은 `period_date`(과거=연말, 현재=최신)                                                                                                                                       |
+| `finance/`                                                                                                                           | 사외비 — `finance_entries` 대차대조표 + pure 빌더 3종(vitest 17). 억원=`value_mwon/100`, 과거=연말(annual)·당해=최신월(YTD). `loan_entries` 대여금은 `loan-aggregate.ts`(억원 원본 `loan_eok`, 차트는 `InventoryAchievementChart` 재사용) |
+| `stellantis-forecast/`                                                                                                               | 경영관리 스텔란티스 탭 — 구성·해석 함정은 §5-A                                                                                                                                                                                            |
+| `org-chart/`                                                                                                                         | 사외비 — `org_charts` 조직도 메타(`use cache` + confidentialDb)                                                                                                                                                                           |
+| `companies/`                                                                                                                         | 회사 마스터 — `/management/companies`·`/api/companies` 입구(anon client)                                                                                                                                                                  |
+| `oem-competition/`                                                                                                                   | `/oem/competition` — `oem_model_outlook` v2 컬럼 매핑(`types.ts`) + 차종별 최신 `note_date` 1건 선별(`pickLatestPerModel`, vitest)                                                                                                        |
+| `related-stocks/` · `domestic/` · `parts-top100/` · `oem/` · `oem-companies/<slug>/` · `hansae/` · `naver/` · `sentiment/` · `chat/` | 페이지별 `source.ts`(+ 일부 `aggregate.ts` pure + 단위 테스트)                                                                                                                                                                            |
+| `reports/`                                                                                                                           | **레이어드** — `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller 가 `PostRepository` 직접, 라이프사이클만 `PostService`                                                                                  |
+
+**`scripts/lib/` 차종 경쟁 분석 파이프라인 모듈** (신규 2026-08-13, 전부 `test_*.py` 동반) — 계산·조립은 Python 한 곳에서만 하고 결과를 `oem_model_outlook`(JSONB 포함)에 저장한다. TS 쪽은 표시만 하므로 로직이 두 언어로 갈리지 않는다.
+
+| 모듈                     | 역할                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `model_segment.py`       | MarkLines 판매 엑셀 메타 7열 → `oem_model_segment` upsert 행 (pure, `'N/A'` 제외) |
+| `competition_metrics.py` | 최근 N개월 판매·YoY·경쟁군 내 점유율·경쟁차 표 (pure, DB 접근 없음)               |
+| `perplexity_client.py`   | Perplexity Search API — 차종당 고정 검색어 3종                                    |
+| `nhtsa_client.py`        | NHTSA 리콜·소비자 불만 (무료·무인증, 모델연도 폴백)                               |
+| `outlook_prompt.py`      | 위 입력들을 하나의 프롬프트 다이제스트로 조립 + `SYSTEM_PROMPT`                   |
+
+#### 상세
+
+- **`competition_metrics.py`** — `compute_market_metrics()`/`compute_competitor_table()` 둘 다 **공통 기준월(`anchor`)** 을 받는다. 대상 차종과 경쟁군이 각자의 `max(year_month)`를 쓰면 비교 기간이 어긋나 점유율이 왜곡되므로, `anchor` 미지정 시 양쪽 최신월 중 **더 이른 쪽**을 자동 선택한다. 산출한 `anchor_month`는 프롬프트 헤더와 화면에 "언제 기준 수치인지"로 노출된다.
+- **`perplexity_client.py`** — Claude 내장 웹검색 대신 쓰는 이유는 **검색어를 고정**할 수 있어 매 회차 같은 관점의 결과가 보장되기 때문(모델 자율 검색은 회차마다 검색어가 달라져 편차가 크다). 가격도 절반($5/1,000 vs $10/1,000). 최신성 필터는 API가 받지 않아 검색어의 연도 표기로 확보한다. 키 `PERPLEXITY_API_KEY`가 없으면 **빈 리스트로 조용히 흡수**하고 평가 자체는 진행한다.
+- **`nhtsa_client.py`** — `NHTSA_MODEL_MAP`이 `model_key` → (make, 모델 리스트). MarkLines 표기와 달라 수동 매핑이며 `ram_truck`(1500/2500/3500)·`rivian_r1`(R1T/R1S)은 합산한다. 미국 미판매 차종(`avante_china`)은 매핑에서 제외. 모델연도가 아직 등록 전이면 Count 0/HTTP 400이 오므로 최신 연도부터 폴백한다.
+- **`outlook_prompt.py`** — v1 실패 원인은 입력이 '모회사 주식 뉴스 헤드라인 8개'뿐이라 모델이 사전지식만 쓴 것이었다(그래서 매주 돌려도 내용이 안 바뀌었다). v2는 DB 실적·경쟁표·생산-판매 갭·Cox 재고일수·NHTSA·웹검색을 블록으로 넣고, 시스템 프롬프트가 **입력에 있는 숫자만 쓸 것**과 "경쟁차 A가 +40%인 동안 대상은 −6%" 식의 **대비 구조**를 강제한다.
 
 ## 7. 데이터 모델 (DB 스키마 상세)
 
@@ -355,7 +379,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 | `segment`      | text   | MarkLines `Segment` 컬럼 (예: `SUV-D`)                             |
 | `powertrains`  | text[] | 동일 (model, country)에 등장한 PowerTrain 값 집합 (예: `{HV,ICE}`) |
 
-`oem_sales_model_country_month`(92만 행)를 직접 UPDATE하지 않기 위해 분리한 별도 매핑 테이블(20260803000002 `skip_identical_update` 트리거 재사용). 적재는 `scripts/import_oem_model_segment.py`가 `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개(2020~2023 연도별 + 최신)를 병합해 수행(멱등, `(model, country)` upsert, 'N/A' 모델 제외). RLS enable + anon SELECT 정책(공개 데이터). OEM 차종 경쟁 분석(`/oem/competition`, 진행 중) 기능의 세그먼트 기반 경쟁군 구성·점유율 계산 근거 테이블.
+`oem_sales_model_country_month`(92만 행)를 직접 UPDATE하지 않기 위해 분리한 별도 매핑 테이블(20260803000002 `skip_identical_update` 트리거 재사용). 적재는 `scripts/import_oem_model_segment.py`가 `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개(2020~2023 연도별 + 최신)를 병합해 수행(멱등, `(model, country)` upsert, 'N/A' 모델 제외). RLS enable + anon SELECT 정책(공개 데이터). `/oem/competition` 경쟁군 구성·점유율 계산의 세그먼트 근거 테이블(파싱은 `scripts/lib/model_segment.py`).
 
 #### `oem_competitor_set` (14행, 신규 `20260813000002` + 모델명 정정 `20260813000004`~`20260813000006`) — 차종×시장 경쟁군 정의 (수동 SSOT)
 
@@ -409,11 +433,15 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 - `brand`는 `BRAND_ALIASES` 정규화 후 값(Cox가 202602부터 `Mercedes-Benz` → `Mercedes`로 라벨 변경). 업계 평균 행은 `NATION`.
 - 과거치가 **소급 수정**되므로 최근 3개월 재적재. 적재 전 기존 DB 값과 대조해 변경분을 경고한다.
 
-#### `oem_model_outlook` (10행) — 모델 outlook 노트
+#### `oem_model_outlook` (10행, `20260513000002` + v2 `20260813000003`) — 핵심 차종 경쟁 분석 (`/oem/competition`)
 
 | model_key | model_name | oem_group | region | note_date | label | consumer_view | outlook | rationale | sources_used |
 
+- **PK `(model_key, note_date)`** — 회차마다 행이 쌓인다. 화면은 차종별 최신 `note_date` 1건만 쓴다(`lib/oem-competition/source.ts::pickLatestPerModel`). 인덱스 `note_date DESC`. RLS anon read / service_role write(공개 데이터).
 - **v2 확장**(`20260813000003`, 전부 nullable 추가 컬럼 — 기존 3개 서술 컬럼은 유지): `competitive_view`(경쟁 현황 서술) · `sales_trend`(판매 추이 서술) · `market_breakdown`(jsonb, `[{market,label,share_pct,sales,yoy_pct,comment}]`) · `metrics`(jsonb, AI 계산 지표 원본) · `sources`(jsonb, `[{title,url,date}]` Perplexity 출처).
+- `metrics`는 **감사·재현용 원본**이다 — 화면에 그리는 값(`market_breakdown`)이 어떤 기준월·기간에서 나왔는지 나중에 되짚을 수 있게 AI에 넘긴 계산 결과를 그대로 남긴다.
+- `region`은 `'North America' | 'Global'` 2값 체계를 유지한다. 시장 코드(USA/India/…)를 여기 넣으면 한 컬럼에 두 체계가 섞이므로 **시장별 세부는 `market_breakdown`이 담당**한다.
+- 적재는 `scripts/collect_oem_model_outlook.py`(§10) — 차종 메타(표시명·OEM 그룹·Cox 브랜드·region)만 스크립트 상수 `MODEL_META`에 두고 **경쟁군·시장은 `oem_competitor_set`(위)이 정본**이다.
 
 #### `uzbekistan_auto_stats` — 우즈베키스탄 자동차 (`/oem/uzbekistan`)
 
@@ -705,7 +733,7 @@ GHA runner: sync_management_excel.py (apply)
 | 글로벌 스냅샷 | collect-global-snapshot | 일간 |
 | 한세 종목토론 | collect-naver-board (GHA Node tsx 직접) | 30분 |
 | 한세 분봉 | collect-hansae-intraday (KIS) | 5분 |
-| OEM | collect-oem-model-outlook | 일간 |
+| OEM 차종 경쟁 분석 | collect-oem-model-outlook (**핵심 차종 경쟁 분석 수집** — 핵심 차종 10종에 대해 MarkLines 판매 + `oem_competitor_set` 경쟁군 비교 + Perplexity 웹검색 + NHTSA 리콜 + Cox 재고일수를 Claude Sonnet 5 에 넣어 `oem_model_outlook` 적재. `PERPLEXITY_API_KEY` 미설정 시 **웹검색만 조용히 스킵하고 exit 0** — 실패가 아니라 분석 품질 저하로만 나타나 놓치기 쉽다. 회당 약 $0.73 → 연 $8.8) | 매월 21일 06:30 KST (`30 21 20 * *`) — 판매(MarkLines)·재고(Cox)가 월 1회 갱신이라 주 1회는 같은 숫자에 문장만 바뀌는 노이즈였다. 21일인 이유는 전월 판매와 Cox 수집(20일)이 끝난 뒤라서 |
 | OEM MarkLines Excel | sync-oem-excel (판매량 `vehicle_sales`), sync-oem-production-excel (생산량 `vehicle_production`, 10분 뒤 — 같은 쿠키로 동시 세션을 열면 로그인이 무효화될 수 있어 순차) | 주 1회 (월 10:00 / 10:10 KST) |
 | OEM 우즈벡 | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일 |
 | OEM 스텔란티스 | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments-ir (**primary** — stellantis.com IR 홈페이지 분기 출하, Playwright), collect-stellantis-shipments (**보완** — SEC EDGAR 북미 도매 출하, IR 직접값 보존 가드) | IR: 1/4/7/10월 16·22·28일 · EDGAR: 2/5/8/11월 27일 |
