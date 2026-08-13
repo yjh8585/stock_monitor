@@ -111,6 +111,8 @@ UzAuto IFRS 등 **스캔본**은 `pypdf`/`pdfplumber` 텍스트 추출이 0자�
 
 → `read_only=False`(`ws.cell`) 또는 sync 의 `parse_sheet()` 를 직접 호출해 **교차검증**한다.
 
+🔴 **더 심한 변형: `read_only=True`가 0행을 반환**(2026-08-13, `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개 파일 전부 재현). 시트 XML의 `<dimension ref="A1"/>` 태그가 실제 데이터 범위를 반영하지 않으면(생성 툴 버그로 추정) `read_only=True`의 `iter_rows(min_row=3, ...)` 최적화 경로가 행을 전혀 안 내놓는다 — 에러 없이 조용히 빈 리스트. `ws.max_row`도 `1`로 잘못 보고돼 증상을 숨긴다. → 이 경우도 `read_only=False`로 전체 로드하면 정상 동작(5.8MB 파일 기준 24,688행, 약 27초).
+
 ### Excel COM 시트→이미지 렌더는 대상 시트가 뒤바뀐다
 
 `wb.ExportAsFixedFormat`(워크북 단위)은 **활성 시트 또는 전체 시트**를 내보내서 엉뚱한 시트가 나온다.
