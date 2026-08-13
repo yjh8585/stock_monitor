@@ -6,6 +6,9 @@ export interface MarketBreakdown {
   yoy_pct: number | null;
   share_pct: number | null;
   prev_share_pct: number | null;
+  /** 집계 기준월(YYYYMM)과 누계 개월 수 — 2026-08-13 이전 적재분에는 없다. */
+  anchor_month?: number | null;
+  months?: number | null;
   comment: string;
 }
 

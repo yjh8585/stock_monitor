@@ -208,7 +208,7 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 
 #### 상세
 
-- **`competition_metrics.py`** — `compute_market_metrics()`/`compute_competitor_table()` 둘 다 **공통 기준월(`anchor`)** 을 받는다. 대상 차종과 경쟁군이 각자의 `max(year_month)`를 쓰면 비교 기간이 어긋나 점유율이 왜곡되므로, `anchor` 미지정 시 양쪽 최신월 중 **더 이른 쪽**을 자동 선택한다. 산출한 `anchor_month`는 프롬프트 헤더와 화면에 "언제 기준 수치인지"로 노출된다.
+- **`competition_metrics.py`** — `compute_market_metrics()`/`compute_competitor_table()` 둘 다 **공통 기준월(`anchor`)** 을 받는다. 대상 차종과 경쟁군이 각자의 `max(year_month)`를 쓰면 비교 기간이 어긋나 점유율이 왜곡되므로, `anchor` 미지정 시 양쪽 최신월 중 **더 이른 쪽**을 자동 선택한다. 산출한 `anchor_month`는 프롬프트 헤더와 `market_breakdown`(→ 카드의 "2026.07 기준 12개월")에 "언제 기준 수치인지"로 노출된다 — 없으면 12개월 누계가 월간 실적으로 오해된다.
 - **`perplexity_client.py`** — Claude 내장 웹검색 대신 쓰는 이유는 **검색어를 고정**할 수 있어 매 회차 같은 관점의 결과가 보장되기 때문(모델 자율 검색은 회차마다 검색어가 달라져 편차가 크다). 가격도 절반($5/1,000 vs $10/1,000). 최신성 필터는 API가 받지 않아 검색어의 연도 표기로 확보한다. 키 `PERPLEXITY_API_KEY`가 없으면 **빈 리스트로 조용히 흡수**하고 평가 자체는 진행한다.
 - **`nhtsa_client.py`** — `NHTSA_MODEL_MAP`이 `model_key` → (make, 모델 리스트). MarkLines 표기와 달라 수동 매핑이며 `ram_truck`(1500/2500/3500)·`rivian_r1`(R1T/R1S)은 합산한다. 미국 미판매 차종(`avante_china`)은 매핑에서 제외. 모델연도가 아직 등록 전이면 Count 0/HTTP 400이 오므로 최신 연도부터 폴백한다.
 - **`outlook_prompt.py`** — v1 실패 원인은 입력이 '모회사 주식 뉴스 헤드라인 8개'뿐이라 모델이 사전지식만 쓴 것이었다(그래서 매주 돌려도 내용이 안 바뀌었다). v2는 DB 실적·경쟁표·생산-판매 갭·Cox 재고일수·NHTSA·웹검색을 블록으로 넣고, 시스템 프롬프트가 **입력에 있는 숫자만 쓸 것**과 "경쟁차 A가 +40%인 동안 대상은 −6%" 식의 **대비 구조**를 강제한다.

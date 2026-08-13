@@ -187,7 +187,6 @@ export async function getOemData() {
   cacheTag('oem_sales_group_country_month');
   cacheTag('oem_sales_type_seg_month');
   cacheTag('oem_sales_model_country_month');
-  cacheTag('oem_model_outlook');
 
   const supabase = createSupabaseAnonClient();
   const [

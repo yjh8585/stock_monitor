@@ -200,9 +200,15 @@ def main() -> int:
       continue
 
     competitor_names = [c['model'] for c in (markets[0].get('competitors') or [])][:3]
-    web_results = []
+    # 검색어 3종이 같은 차종을 겨냥하므로 같은 기사가 겹칠 수 있다. 중복을 남기면 카드의
+    # "출처 N건" 이 부풀고 React key(url) 가 충돌한다.
+    web_results, seen_urls = [], set()
     for q in build_model_queries(model_name, competitor_names):
-      web_results += search(q, max_results=4, recency_days=120)
+      for r in search(q, max_results=4, recency_days=120):
+        if r['url'] in seen_urls:
+          continue
+        seen_urls.add(r['url'])
+        web_results.append(r)
 
     safety = fetch_safety(model_key, years=MODEL_YEARS)
     inventory = _load_inventory(client, cox_brand)
@@ -223,6 +229,9 @@ def main() -> int:
       'yoy_pct': m['metrics']['yoy_pct'],
       'share_pct': m['metrics']['share_pct'],
       'prev_share_pct': m['metrics']['prev_share_pct'],
+      # 판매량이 "언제 기준 몇 개월 누계"인지 — 없으면 화면에서 월간 실적으로 오해된다
+      'anchor_month': m['metrics'].get('anchor_month'),
+      'months': m['metrics'].get('months'),
       'comment': comments.get(m['market']) or comments.get(m['label']) or '',
     } for m in markets]
 
@@ -240,7 +249,8 @@ def main() -> int:
       'sales_trend': result['sales_trend'],
       'market_breakdown': breakdown,
       'metrics': {'markets': markets, 'safety': safety, 'inventory': inventory},
-      'sources': web_results,
+      # snippet 은 프롬프트 입력용이라 저장하지 않는다(화면은 title/url/date 만 쓴다)
+      'sources': [{k: v for k, v in r.items() if k != 'snippet'} for r in web_results],
       'sources_used': f'perplexity×{len(web_results)} nhtsa={bool(safety)} cox={bool(inventory)}',
     })
     logger.success(f'{model_key}: {result["label"]}')
