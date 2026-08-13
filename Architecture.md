@@ -345,6 +345,18 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 인덱스: (model, year_month) · (country, year_month) · (oem_group, country, year_month). RLS enable + anon SELECT 정책(공개 데이터).
 
+#### `oem_model_segment` (24,688행, 신규 `20260813000001`) — MarkLines Type/Segment/PowerTrain 매핑
+
+| 컬럼           | 타입   | 비고                                                               |
+| -------------- | ------ | ------------------------------------------------------------------ |
+| `model`        | text   | PK                                                                 |
+| `country`      | text   | PK                                                                 |
+| `vehicle_type` | text   | MarkLines `Type` 컬럼 (예: `Light Trucks`)                         |
+| `segment`      | text   | MarkLines `Segment` 컬럼 (예: `SUV-D`)                             |
+| `powertrains`  | text[] | 동일 (model, country)에 등장한 PowerTrain 값 집합 (예: `{HV,ICE}`) |
+
+`oem_sales_model_country_month`(92만 행)를 직접 UPDATE하지 않기 위해 분리한 별도 매핑 테이블(20260803000002 `skip_identical_update` 트리거 재사용). 적재는 `scripts/import_oem_model_segment.py`가 `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개(2020~2023 연도별 + 최신)를 병합해 수행(멱등, `(model, country)` upsert, 'N/A' 모델 제외). RLS enable + anon SELECT 정책(공개 데이터). OEM 차종 경쟁 분석(`/oem/competition`, 진행 중) 기능의 세그먼트 기반 경쟁군 구성·점유율 계산 근거 테이블.
+
 - **⚠️ `country`가 판매 테이블과 의미가 정반대다** — 여기선 **생산국**, `oem_sales_*`에선 **판매 시장**. 이름이 같아 차감하기 쉽지만 그러면 국가 간 수출입이 결과에 섞인다. `/management/stellantis` 차트 1이 이 차감을 하고 있고, 그래서 "항등식이 아니라 근사"라고 화면에 밝힌다.
 - 소스는 MarkLines **`vehicle_production`** export(판매와 **다른 페이지·다른 레이아웃** — 메타 6열, PowerTrain 컬럼 없음, 월은 인덱스 6부터). 파일명이 `product_data`(≠`production_data`).
 - 판매(92만 행)의 1/7 크기라 앱 전량 fetch가 가능 — 집계 뷰 불필요.
