@@ -68,4 +68,9 @@ def search(query: str, *, max_results: int = 5, recency_days: int | None = None)
   if r.status_code != 200:
     logger.warning(f'Perplexity HTTP {r.status_code} — {r.text[:200]}')
     return []
-  return parse_search_response(r.json())
+  try:
+    data = r.json()
+  except (ValueError, requests.exceptions.JSONDecodeError) as e:
+    logger.warning(f'Perplexity JSON 파싱 실패 — {e} / {r.text[:200]}')
+    return []
+  return parse_search_response(data)
