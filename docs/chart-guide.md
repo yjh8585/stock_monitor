@@ -63,6 +63,26 @@
 
 > ⚠️ 콤보 차트 `XAxis interval={11}`은 **월이 12개씩 연속**임을 가정. 시리즈에 결측월/중간 출시가 있으면 연도 틱 라벨이 어긋남(집계는 결측월 zero-fill 안 함 — 존재 월만 정렬). 다중 페이지 fetch로 행이 누락돼도 같은 증상 → `lib/oem/source.ts` 정렬 규칙 참고.
 
+### `/oem/competition` — `components/oem/competition/`
+
+한 차종의 한 시장(`CompetitionMarket`)을 props 로 받는 차트 7종 + 요약 조각들. **공용 토큰은 `shared.tsx`** — 대상 차종은 항상 `TARGET_COLOR`(파랑), 경쟁은 `rivalColor(i)`(회색 계열)라 대상이 어느 차트에서나 같은 색으로 도드라진다. 카드 껍데기는 `ChartCard`, 빈 데이터는 `EmptyChart`.
+
+| 컴포넌트                            | 유형                                                           |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `SalesTrendChart`                   | 다중 라인(대상 + 상위 3 경쟁, 24개월 월별)                     |
+| `CompetitorRankChart`               | 가로 막대 + `Cell` 개별 색 + YoY 라벨                          |
+| `ShareDumbbell`                     | 커스텀 덤벨(전년 → 현재 점유율)                                |
+| `PositionBubble`                    | 산점/버블(`ScatterChart`+`ZAxis`, `MarginScatter` 패턴 재사용) |
+| `ConsumerRadar`                     | 레이더(5축, `domain=[0,5]` 고정)                               |
+| `InventoryChart`                    | 가로 막대 + 60일 `ReferenceLine`                               |
+| `SafetyChart`                       | 콤보 이중축(리콜 건수 vs 불만 건수 — 스케일이 10~20배 차이)    |
+| `CompetitionScoreboard`, `KpiStrip` | 차트 아닌 표·타일(신호등 `SignalDot`)                          |
+
+- 🔴 **레이더 `PolarRadiusAxis domain`은 `[0,5]` 고정**. 자동 스케일이면 4.0 vs 3.8 이 화면 절반 차이로 벌어져 격차가 과장된다.
+- 🔴 **`SafetyChart`는 한 축에 두 지표를 겹치지 않는다** — 리콜 0~8건과 불만 20~200건을 같은 축에 두면 리콜 막대가 사라진다(§4-F 규칙).
+- `ShareDumbbell`의 경쟁 차종 전년 점유율은 **YoY 로 역산**한 값이다(저장돼 있지 않다). 부제에 그 사실을 밝힌다.
+- 신호등 색은 `shared.tsx`의 `SIGNAL_COLORS`, 임계값은 `lib/oem-competition/signals.ts`의 `SIGNAL_THRESHOLDS`. **툴팁 문구에 숫자를 다시 적지 말 것**(상수에서 만든다).
+
 ### `/oem/<slug>` — `components/oem-companies/`
 
 - **공통**(`common/`): `CompanyTimeSeriesChart`(연 막대/월 영역 토글), `CompanyPowertrainMixChart`, `ShipmentStackedHBarChart`(내수·수출·해외 가로 스택)

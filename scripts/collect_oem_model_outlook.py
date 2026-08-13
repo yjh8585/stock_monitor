@@ -39,7 +39,7 @@ from lib.competition_metrics import (  # noqa: E402
   compute_market_metrics,
 )
 from lib.db import WriteSession, get_client, upsert_rows  # noqa: E402
-from lib.nhtsa_client import fetch_safety  # noqa: E402
+from lib.nhtsa_client import fetch_competitor_safety, fetch_safety  # noqa: E402
 from lib.outlook_prompt import SYSTEM_PROMPT, build_digest  # noqa: E402
 from lib.perplexity_client import build_model_queries, search  # noqa: E402
 
@@ -47,6 +47,9 @@ ANTHROPIC_MODEL = os.environ.get('OEM_MODEL_OUTLOOK_MODEL', 'claude-sonnet-5')
 KST = timezone(timedelta(hours=9))
 METRIC_MONTHS = 12
 MODEL_YEARS = [2026, 2025, 2024]
+# 시장별로 경쟁 지표(재고일수·리콜·소비자 점수)를 붙일 경쟁 차종 수. 판매 상위부터.
+# 전부 붙이면 레이더·막대가 읽히지 않고 NHTSA 호출 수도 폭증한다.
+TOP_RIVALS = 3
 
 # 차종 메타 (표시명, OEM 그룹, Cox 브랜드, region).
 # 경쟁군·시장은 DB(oem_competitor_set)가 정본이라 여기 두지 않는다.
@@ -95,11 +98,47 @@ RESPONSE_SCHEMA = {
         'additionalProperties': False,
       },
     },
+    # 화면의 레이더 차트 입력. 서술(consumer_view)만으로는 "경쟁 대비 어디가 낫고 어디가
+    # 밀리는지"가 한눈에 안 잡혀 5축 점수로도 받는다.
+    'consumer_scores': {
+      'type': 'array',
+      'description': '시장별 소비자 평가 점수. 각 시장마다 대상 차종 1개 + 그 시장 판매 상위 '
+                     '경쟁차종 3개를 채점한다(경쟁차종이 3개 미만이면 있는 만큼).',
+      'items': {
+        'type': 'object',
+        'properties': {
+          'market': {'type': 'string', 'description': '시장 코드(USA/India/Korea/China/Europe/GLOBAL)'},
+          'scores': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'model': {'type': 'string', 'description': '입력 데이터의 차종 표기 그대로'},
+                'is_target': {'type': 'boolean'},
+                'design': {'type': 'integer', 'description': '상품성·디자인 (1~5)'},
+                'price': {'type': 'integer', 'description': '가격 경쟁력 (1~5)'},
+                'quality': {'type': 'integer', 'description': '품질·신뢰도 (1~5)'},
+                'efficiency': {'type': 'integer', 'description': '연비·전동화 (1~5)'},
+                'brand': {'type': 'integer', 'description': '브랜드·잔존가치 (1~5)'},
+              },
+              'required': ['model', 'is_target', 'design', 'price', 'quality', 'efficiency',
+                           'brand'],
+              'additionalProperties': False,
+            },
+          },
+        },
+        'required': ['market', 'scores'],
+        'additionalProperties': False,
+      },
+    },
   },
   'required': ['label', 'sales_trend', 'competitive_view', 'consumer_view', 'outlook',
-               'rationale', 'market_comments'],
+               'rationale', 'market_comments', 'consumer_scores'],
   'additionalProperties': False,
 }
+
+# 레이더 축 정의 — 화면(lib/oem-competition/types.ts CONSUMER_AXES)과 키가 일치해야 한다.
+CONSUMER_AXIS_KEYS = ('design', 'price', 'quality', 'efficiency', 'brand')
 
 
 def _fetch_model_rows(client, models: list[str], countries: list[str] | None) -> list[dict]:
@@ -153,15 +192,104 @@ def _load_markets(client, model_key: str) -> list[dict]:
   return markets
 
 
-def _load_inventory(client, brand: str | None) -> dict | None:
-  if not brand:
-    return None
-  rows = (client.table('cox_brand_inventory').select('*')
-          .eq('brand', brand).order('year_month', desc=True).limit(1).execute().data or [])
-  if not rows:
-    return None
-  r = rows[0]
-  return {'brand': brand, 'days_supply': r.get('days_supply'), 'year_month': r['year_month']}
+def _load_inventory_by_brand(client, brands: list[str]) -> dict[str, dict]:
+  """브랜드별 **최신 non-null** 재고일수.
+
+  🔴 `order(desc).limit(1)` 로 최신 1행만 집으면 안 된다 — Cox 는 값이 업계평균을 크게 벗어나면
+  그 달을 비워 둔다. 실측(2026-08-13): Ram 202606=NULL 이지만 202605=144 가 있는데도 최신
+  1행만 보던 옛 구현이 "재고 데이터 없음"으로 저장하고 있었다.
+  """
+  brands = sorted({b for b in brands if b})
+  if not brands:
+    return {}
+  rows = (client.table('cox_brand_inventory').select('brand,year_month,days_supply')
+          .in_('brand', brands).not_.is_('days_supply', 'null')
+          .order('year_month', desc=True).execute().data or [])
+  out: dict[str, dict] = {}
+  for r in rows:  # year_month 내림차순이므로 브랜드별 첫 행이 최신
+    if r['brand'] not in out:
+      out[r['brand']] = {'brand': r['brand'], 'days_supply': r['days_supply'],
+                         'year_month': r['year_month']}
+  return out
+
+
+def _load_model_brands(client, models: list[str]) -> dict[str, str]:
+  """MarkLines 모델명 → Cox 브랜드(oem_model_brand). 미등록 모델은 결과에 없다."""
+  models = sorted({m for m in models if m})
+  if not models:
+    return {}
+  rows = (client.table('oem_model_brand').select('model,cox_brand')
+          .in_('model', models).execute().data or [])
+  return {r['model']: r['cox_brand'] for r in rows}
+
+
+def _top_rivals(market: dict) -> list[str]:
+  """그 시장 판매 상위 경쟁 차종 이름(compute_competitor_table 이 이미 내림차순 정렬)."""
+  return [c['model'] for c in (market.get('competitors') or [])][:TOP_RIVALS]
+
+
+def _load_competitor_context(client, markets: list[dict],
+                             safety_cache: dict[str, dict | None]) -> tuple[list[dict], list[dict]]:
+  """시장별 상위 경쟁 차종의 재고일수·리콜.
+
+  같은 경쟁 차종이 여러 시장·여러 대상 차종에 걸쳐 나오므로 NHTSA 결과는 caller 가 넘긴
+  캐시에 모아 재조회를 막는다(호출 수가 배로 뛴다).
+  """
+  wanted = sorted({m for mk in markets for m in _top_rivals(mk)})
+  brand_of = _load_model_brands(client, wanted)
+  inv_of = _load_inventory_by_brand(client, list(brand_of.values()))
+
+  inventory_out, safety_out = [], []
+  for mk in markets:
+    rivals = _top_rivals(mk)
+    inv_rows = []
+    for name in rivals:
+      brand = brand_of.get(name)
+      inv = inv_of.get(brand) if brand else None
+      if inv:
+        inv_rows.append({'model': name, **inv})
+    saf_rows = []
+    for name in rivals:
+      if name not in safety_cache:
+        safety_cache[name] = fetch_competitor_safety(name, years=MODEL_YEARS)
+      s = safety_cache[name]
+      if s:
+        saf_rows.append({'model': name, 'model_year': s['model_year'],
+                         'recall_count': s['recalls']['count'],
+                         'complaint_count': s['complaint_count']})
+    if inv_rows:
+      inventory_out.append({'market': mk['market'], 'models': inv_rows})
+    if saf_rows:
+      safety_out.append({'market': mk['market'], 'models': saf_rows})
+  return inventory_out, safety_out
+
+
+def _normalize_consumer_scores(raw: object, markets: list[dict]) -> list[dict]:
+  """AI 가 준 5축 점수를 화면이 믿고 쓸 수 있는 형태로 정리한다.
+
+  JSON Schema 로는 값 범위를 강제하지 않았으므로(모델별 지원 편차) 여기서 1~5 로 자른다.
+  정의에 없는 시장, 축이 빠진 항목, 대상 차종이 없는 시장은 버린다 — 레이더 차트는 대상과
+  경쟁을 겹쳐 그리는 것이 전부라 대상이 빠지면 의미가 없다.
+  """
+  known = {m['market'] for m in markets}
+  out = []
+  for block in raw if isinstance(raw, list) else []:
+    if not isinstance(block, dict) or block.get('market') not in known:
+      continue
+    rows = []
+    for s in block.get('scores') or []:
+      if not isinstance(s, dict) or not s.get('model'):
+        continue
+      if any(not isinstance(s.get(k), int) for k in CONSUMER_AXIS_KEYS):
+        continue
+      rows.append({
+        'model': str(s['model']),
+        'is_target': bool(s.get('is_target')),
+        **{k: max(1, min(5, int(s[k]))) for k in CONSUMER_AXIS_KEYS},
+      })
+    if any(r['is_target'] for r in rows) and len(rows) >= 2:
+      out.append({'market': block['market'], 'scores': rows})
+  return out
 
 
 def _evaluate(anthropic: Anthropic, model_name: str, digest: str) -> dict | None:
@@ -231,6 +359,7 @@ def main() -> int:
   today = datetime.now(KST).date().isoformat()
 
   rows = []
+  safety_cache: dict[str, dict | None] = {}  # 경쟁 차종 NHTSA 결과 — 차종 간 재사용
   for model_key, (model_name, oem_group, cox_brand, region) in targets.items():
     logger.info(f'{model_key} 시작')
     markets = _load_markets(client, model_key)
@@ -238,7 +367,7 @@ def main() -> int:
       logger.warning(f'{model_key}: 경쟁군 정의 없음 — 스킵')
       continue
 
-    competitor_names = [c['model'] for c in (markets[0].get('competitors') or [])][:3]
+    competitor_names = _top_rivals(markets[0])
     # 검색어 3종이 같은 차종을 겨냥하므로 같은 기사가 겹칠 수 있다. 중복을 남기면 카드의
     # "출처 N건" 이 부풀고 React key(url) 가 충돌한다.
     web_results, seen_urls = [], set()
@@ -250,15 +379,23 @@ def main() -> int:
         web_results.append(r)
 
     safety = fetch_safety(model_key, years=MODEL_YEARS)
-    inventory = _load_inventory(client, cox_brand)
+    inventory = (_load_inventory_by_brand(client, [cox_brand]).get(cox_brand)
+                 if cox_brand else None)
+    rival_inventory, rival_safety = _load_competitor_context(client, markets, safety_cache)
 
     digest = build_digest(
       model_name=model_name, markets=markets, production_gap=None,
       safety=safety, inventory=inventory, web_results=web_results,
+      rival_inventory=rival_inventory, rival_safety=rival_safety,
     )
     result = _evaluate(anthropic, model_name, digest)
     if not result:
       continue
+
+    scores = _normalize_consumer_scores(result.get('consumer_scores'), markets)
+    if len(scores) < len(markets):
+      # 레이더가 빈 시장이 생긴다. 조용히 넘어가면 화면에서만 뒤늦게 드러난다.
+      logger.warning(f'{model_key}: 소비자 점수 {len(scores)}/{len(markets)} 시장만 유효')
 
     comments = {c['market']: c['comment'] for c in result.get('market_comments') or []}
     breakdown = [{
@@ -287,10 +424,19 @@ def main() -> int:
       'competitive_view': result['competitive_view'],
       'sales_trend': result['sales_trend'],
       'market_breakdown': breakdown,
-      'metrics': {'markets': markets, 'safety': safety, 'inventory': inventory},
+      'metrics': {
+        'markets': markets,
+        'safety': safety,
+        'inventory': inventory,
+        'competitor_inventory': rival_inventory,
+        'competitor_safety': rival_safety,
+        'consumer_scores': scores,
+      },
       # snippet 은 프롬프트 입력용이라 저장하지 않는다(화면은 title/url/date 만 쓴다)
       'sources': [{k: v for k, v in r.items() if k != 'snippet'} for r in web_results],
-      'sources_used': f'perplexity×{len(web_results)} nhtsa={bool(safety)} cox={bool(inventory)}',
+      'sources_used': f'perplexity×{len(web_results)} nhtsa={bool(safety)} cox={bool(inventory)}'
+                      f' rivals(inv={len(rival_inventory)} saf={len(rival_safety)})'
+                      f' scores={len(scores)}',
     })
     logger.success(f'{model_key}: {result["label"]}')
 

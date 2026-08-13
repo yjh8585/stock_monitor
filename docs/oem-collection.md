@@ -113,13 +113,15 @@
 - **생산량** — `sync_oem_production_excel.py` + `import_oem_production.py`. 판매량과 **같은 쿠키·다른 페이지(`vehicle_production`)·다른 레이아웃**(메타 6열, PowerTrain 없음). ⚠️ **파일명이 `product_data`(≠`production_data`)** 라서 링크 탐지가 `EXPECTED_FILE_TOKEN` 으로 판매 링크를 배제한다 — 이름이 헷갈려 판매 파일을 생산으로 집는 사고를 막는 장치이니 지우지 말 것. 이력 파일은 `참고/oem 생산량/*_20NN_en.xlsx`, 최신은 롤링 `MarkLines_product_data_en.xlsx`(2024.01~)로 판매와 동일 구조다.
 - **세그먼트 매핑** — `import_oem_model_segment.py` 가 같은 판매 엑셀들(`참고/oem 판매량/MarkLines_sales_data*.xlsx` 전부)의 메타 7열(Country·Group·Maker/Brand·Type·Segment·Model·PowerTrain)을 `oem_model_segment`(PK `model`+`country`, 파서는 순수 함수 `scripts/lib/model_segment.py`)에 적재한다. 92만 행짜리 `oem_sales_model_country_month` 를 UPDATE 하지 않으려고 **별도 테이블로 분리**했다(전 행 UPDATE 는 WAL 을 폭증시킨다 — 2026-08-03 Supabase 용량 사고 이력). 멱등이라 재실행 안전. ⚠️ 이 엑셀은 `read_only=True` 로 열면 **조용히 0행**이 나온다 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
 
-적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 이 옛 값을 조용히 보여준다). 쿠키 만료·단일 디바이스 정책은 AGENTS.md 「Python 스크립트 규칙」이 정본.
+적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 과 `/oem/competition` 판매 추이가 옛 값을 조용히 보여준다. 이 RPC 가 갱신하는 구체화 뷰는 3종). 쿠키 만료·단일 디바이스 정책은 AGENTS.md 「Python 스크립트 규칙」이 정본.
 
 ---
 
 ## 핵심 차종 경쟁 분석 — `collect_oem_model_outlook.py` (월 1회)
 
-`/oem` 의 "AI 차종 평가"가 부실하다는 지적에서 출발해 2026-08-13 에 전면 재작성한 파이프라인이다. 옛 버전은 입력이 **모회사 주식 뉴스 헤드라인 8개**뿐이라 모델이 사전지식으로만 썼고, 그래서 매주 돌려도 내용이 안 바뀌었다. v2 는 판매 실적·경쟁군·웹검색·리콜을 근거로 넣는다. 적재처는 `oem_model_outlook`(v2 컬럼 = `competitive_view`·`sales_trend`·`market_breakdown`·`metrics`·`sources`, 마이그레이션 `20260813000003`), 화면은 `/oem/competition` 카드.
+`/oem` 의 "AI 차종 평가"가 부실하다는 지적에서 출발해 2026-08-13 에 전면 재작성한 파이프라인이다. 옛 버전은 입력이 **모회사 주식 뉴스 헤드라인 8개**뿐이라 모델이 사전지식으로만 썼고, 그래서 매주 돌려도 내용이 안 바뀌었다. v2 는 판매 실적·경쟁군·웹검색·리콜을 근거로 넣는다. 적재처는 `oem_model_outlook`(v2 컬럼 = `competitive_view`·`sales_trend`·`market_breakdown`·`metrics`·`sources`, 마이그레이션 `20260813000003`), 화면은 `/oem/competition`.
+
+> **2026-08-13 화면 재구성**: 카드 나열에서 **스코어보드 + 차종별 차트 7종**으로 바꿨다. 이때 `metrics` 가 화면의 1차 데이터원이 됐다(그전에는 감사용으로만 저장하고 화면이 쓰지 않았다). 차트가 필요로 하는 월별 시계열은 **구체화 뷰** `oem_competition_monthly_view`(`20260813000007` 생성 → `20260813000009` 구체화)가 공급한다 — 경쟁군 정의를 따라 96.9만 행을 3,010행으로 미리 걸러 둔 것으로, **갱신은 아래 `refresh_oem_agg_views()` 에 얹혀 있다**(일반 뷰로 뒀더니 4.9초가 걸려 anon statement timeout 에 걸렸고 차트가 조용히 비었다 → [`Architecture.md §7`](../Architecture.md)).
 
 ### 경쟁군 정의의 SSOT 는 `oem_competitor_set` 테이블
 
@@ -155,10 +157,12 @@
 | 리콜 · 소비자 불만 | NHTSA 공개 API `nhtsa_client.py`             |
 | 딜러 재고일수      | `cox_brand_inventory` (미국 딜러 · 브랜드별) |
 
+- **경쟁 차종까지 확장(2026-08-13)** — 재고일수·리콜·불만을 **대상 차종만이 아니라 시장별 판매 상위 3 경쟁 차종**(`TOP_RIVALS`)에 대해서도 모은다. 화면이 "경쟁 대비 어떤가"를 차트로 보이기 위한 것이고, 결과는 `metrics.competitor_inventory` · `metrics.competitor_safety` 에 시장별로 담긴다. 경쟁 차종 → Cox 브랜드 매핑은 **`oem_model_brand` 테이블**(마이그레이션 `20260813000008`)이 정본이다.
 - **판매 실적** — 시장별 최근 12개월 판매·YoY·경쟁군 내 점유율(현재/전년) + 경쟁 차종별 판매·YoY 표.
 - **웹 검색** — 차종당 고정 검색어 3종(신형/소비자 반응/경쟁 비교, `build_model_queries`)을 각 4건. Claude 내장 웹검색 대신 쓰는 이유는 **검색어를 우리가 고정할 수 있어 매달 같은 관점의 결과가 보장**되기 때문이다(모델 자율 검색은 실행마다 검색어가 달라져 편차가 크다). 가격도 절반($5/1,000 vs $10/1,000).
-- **NHTSA** — 미국 등록 차량 한정이라 미국 미판매(`avante_china`)는 제외. 모델연도 폴백 `[2026, 2025, 2024]`.
-- **Cox 딜러 재고일수** — `MODEL_META` 에 Cox 브랜드가 매핑된 차종만 조회한다(10종 중 8종. `rivian_r1` 은 Cox 로스터에 Rivian 이 없고 `avante_china` 는 미국 미판매라 둘 다 `None`). **차종이 아니라 브랜드 단위 최신 1개월** 값이고 **미국 딜러 기준**이라, 북미 4종(Jeep·Ram·Chrysler·Volkswagen) 밖에서는 미국 시장 신호로만 읽어야 한다. Cox 자체 함정(값 감춤·파일명 불규칙)은 [`gotchas-data-collection.md`](./gotchas-data-collection.md).
+- **NHTSA** — 미국 등록 차량 한정이라 미국 미판매(`avante_china`)는 제외. 모델연도 폴백 `[2026, 2025, 2024]`. 🔴 **모델명은 접두 매칭으로 푼다** — 정확 일치는 파생형(`niro hev`·`ram 1500 crew cab`)을 놓치고 **0건을 "안전한 차"로 보이게** 만든다. 매핑 오류를 0건과 구분하려면 `_resolve` 의 경고 로그를 확인할 것 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
+- **Cox 딜러 재고일수** — `MODEL_META` 에 Cox 브랜드가 매핑된 차종만 조회한다(10종 중 8종. `rivian_r1` 은 Cox 로스터에 Rivian 이 없고 `avante_china` 는 미국 미판매라 둘 다 `None`). **차종이 아니라 브랜드 단위**이고 **미국 딜러 기준**이라, 북미 4종(Jeep·Ram·Chrysler·Volkswagen) 밖에서는 미국 시장 신호로만 읽어야 한다. 🔴 **최신 1행이 아니라 최신 non-null 을 쓴다** — Cox 가 이상치 달을 비워 두기 때문(실측: Ram 202606=NULL, 202605=144일). Cox 자체 함정은 [`gotchas-data-collection.md`](./gotchas-data-collection.md).
+- **소비자 평가 5축 점수(2026-08-13 추가)** — AI 가 시장마다 대상 + 상위 3 경쟁을 `상품성·디자인`/`가격 경쟁력`/`품질·신뢰도`/`연비·전동화`/`브랜드·잔존가치` 5축 1~5점으로 채점해 `metrics.consumer_scores` 에 담는다(화면 레이더 차트 입력). **3점이 그 시장 동급 평균**이라는 상대 평가 규칙을 시스템 프롬프트에 명시했다. 축 키는 수집기 `CONSUMER_AXIS_KEYS` 와 화면 `lib/oem-competition/types.ts` 의 `CONSUMER_AXES` 가 **일치해야** 한다. 값 범위는 스키마가 아니라 `_normalize_consumer_scores()` 가 1~5로 자른다.
 - **생산-판매 갭은 1차 범위에서 뺐다** — 생산과 판매의 `country` 의미가 정반대라 국가별 차감이 무의미하기 때문 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
 
 ### 실행 · 비용
