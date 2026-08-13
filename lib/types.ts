@@ -357,20 +357,6 @@ export interface ModelMonthlySeries {
   data: { ym: number; ymLabel: string; sales: number; yoy: number | null }[];
 }
 
-/** oem_model_outlook 한 행 (AI 시장 평가) */
-export interface OemModelOutlook {
-  model_key: string;
-  model_name: string;
-  oem_group: string;
-  region: string;
-  note_date: string;
-  label: 'GREEN' | 'YELLOW' | 'RED';
-  consumer_view: string;
-  outlook: string;
-  rationale: string;
-  sources_used: string | null;
-}
-
 /** OEM 순위 행 (TOP30 YTD / TOP40 등 공통) */
 export interface OemRankRow {
   rank: number;

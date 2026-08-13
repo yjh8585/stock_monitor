@@ -30,14 +30,18 @@ export function mapOutlookRow(row: OutlookRow): CompetitionOutlook {
     modelName: row.model_name,
     oemGroup: row.oem_group,
     noteDate: row.note_date,
-    label: (row.label as CompetitionOutlook['label']) ?? 'YELLOW',
+    label: row.label as CompetitionOutlook['label'],
     salesTrend: row.sales_trend,
     competitiveView: row.competitive_view,
     consumerView: row.consumer_view,
     outlook: row.outlook,
     rationale: row.rationale,
     markets: asArray<MarketBreakdown>(row.market_breakdown),
-    sources: asArray<OutlookSource>(row.sources),
+    // 적재분에는 프롬프트용 snippet(최대 700자 × 12건)이 섞여 있다. 화면은 title/url/date 만
+    // 쓰므로 여기서 잘라내지 않으면 차종당 약 8KB 가 RSC 페이로드·캐시에 그대로 실린다.
+    sources: asArray<OutlookSource & { snippet?: string }>(row.sources).map(
+      ({ title, url, date }) => ({ title, url, date })
+    ),
   };
 }
 
@@ -60,9 +64,13 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   cacheTag('oem_model_outlook');
 
   const supabase = createSupabaseAnonClient();
+  // `metrics`(경쟁군 표·NHTSA·Cox 원본)는 감사용이라 화면이 쓰지 않는다. `select('*')` 로
+  // 끌어오면 200행분 blob 을 받아 10행만 남기고 버리게 되므로 컬럼을 명시한다.
   const { data, error } = await supabase
     .from('oem_model_outlook')
-    .select('*')
+    .select(
+      'model_key,model_name,oem_group,note_date,label,sales_trend,competitive_view,consumer_view,outlook,rationale,market_breakdown,sources'
+    )
     .order('note_date', { ascending: false })
     .limit(200);
 

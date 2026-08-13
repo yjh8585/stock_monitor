@@ -26,11 +26,23 @@ function fmtPct(value: number | null): string {
   return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
 }
 
+/** "2026.07 기준 12개월" — 판매량이 월간 실적으로 오해되지 않게 기간을 밝힌다. */
+function fmtPeriod({ anchor_month, months }: MarketBreakdown): string | null {
+  if (!months) return null;
+  if (!anchor_month) return `최근 ${months}개월`;
+  const ym = String(anchor_month);
+  return `${ym.slice(0, 4)}.${ym.slice(4, 6)} 기준 ${months}개월`;
+}
+
 function MarketRow({ market }: { market: MarketBreakdown }) {
+  const period = fmtPeriod(market);
   return (
     <div className="border-t border-border/50 pt-2">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-medium text-sm">{market.label}</span>
+        <span className="font-medium text-sm">
+          {market.label}
+          {period && <span className="text-muted-foreground font-normal ml-1.5">· {period}</span>}
+        </span>
         <span className="text-sm tabular-nums text-muted-foreground">
           {market.sales.toLocaleString()}대 · YoY {fmtPct(market.yoy_pct)}
           {market.share_pct !== null && (
