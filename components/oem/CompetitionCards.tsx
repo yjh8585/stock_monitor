@@ -83,6 +83,13 @@ export default function CompetitionCards({ outlooks }: { outlooks: CompetitionOu
                 </div>
               )}
 
+              {o.salesTrend && (
+                <div>
+                  <div className="text-sm text-muted-foreground font-medium mb-1">판매 추이</div>
+                  <p className="leading-relaxed">{o.salesTrend}</p>
+                </div>
+              )}
+
               {o.competitiveView && (
                 <div>
                   <div className="text-sm text-muted-foreground font-medium mb-1">경쟁 현황</div>
@@ -112,7 +119,7 @@ export default function CompetitionCards({ outlooks }: { outlooks: CompetitionOu
                     출처 {o.sources.length}건
                   </summary>
                   <ul className="mt-2 space-y-1">
-                    {o.sources.slice(0, 8).map((s) => (
+                    {o.sources.map((s) => (
                       <li key={s.url} className="text-sm">
                         <a
                           href={s.url}

@@ -1,5 +1,5 @@
 import 'server-only';
-import { cacheTag } from 'next/cache';
+import { cacheLife, cacheTag } from 'next/cache';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import logger from '@/lib/logger';
 import type { CompetitionOutlook, MarketBreakdown, OutlookSource } from './types';
@@ -56,6 +56,7 @@ export function pickLatestPerModel<T extends { model_key: string; note_date: str
 /** `/oem/competition` 카드 데이터. 수집기가 revalidate 태그를 쳐서 갱신한다. */
 export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   'use cache';
+  cacheLife('days');
   cacheTag('oem_model_outlook');
 
   const supabase = createSupabaseAnonClient();
