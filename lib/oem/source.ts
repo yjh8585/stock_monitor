@@ -13,7 +13,6 @@ import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import type { Database, TableRow } from '@/lib/database.types';
 import type {
   OemCountryGroupYear,
-  OemModelOutlook,
   OemSalesGroupMonth,
   OemSalesGroupPtMonth,
   OemSalesModelCountryMonth,
@@ -31,9 +30,6 @@ import {
   OTHER_MODEL_TARGETS,
   TARGET_YEAR,
 } from './aggregate';
-
-/** 기타 핵심 차종 AI 평가 카드 model_key 집합 (북미/기타 outlook 분리 기준). */
-const OTHER_OUTLOOK_KEYS = new Set(OTHER_MODEL_TARGETS.map((t) => t.key));
 
 const SUPABASE_PAGE_SIZE = 1000;
 // 나머지 페이지 병렬 fetch 상한 (Supabase 커넥션 보호 + 프리렌더 타임아웃 여유)
@@ -182,28 +178,6 @@ async function fetchUsaGroupMonth(supabase: AnonClient): Promise<OemUsaGroupMont
   return out;
 }
 
-/** AI 평가 카드 최신본 — 모델별 최근 1건씩 fetch. */
-async function fetchLatestOutlooks(supabase: AnonClient): Promise<OemModelOutlook[]> {
-  const { data, error } = await supabase
-    .from('oem_model_outlook')
-    .select('*')
-    .order('note_date', { ascending: false })
-    .limit(200);
-  if (error) {
-    logger.error({ err: error }, 'oem_model_outlook 조회 실패 — 빈 배열 반환');
-    return [];
-  }
-  if (!data) return [];
-  const seen = new Set<string>();
-  const out: OemModelOutlook[] = [];
-  for (const row of data as unknown as OemModelOutlook[]) {
-    if (seen.has(row.model_key)) continue;
-    seen.add(row.model_key);
-    out.push(row);
-  }
-  return out;
-}
-
 /** OEM 페이지 props — 6개 테이블 fetch + 4개 사전 가공. Cache Components 적용 (cacheLife='days', 수집 시 무효화). */
 export async function getOemData() {
   'use cache';
@@ -213,7 +187,6 @@ export async function getOemData() {
   cacheTag('oem_sales_group_country_month');
   cacheTag('oem_sales_type_seg_month');
   cacheTag('oem_sales_model_country_month');
-  cacheTag('oem_model_outlook');
 
   const supabase = createSupabaseAnonClient();
   const [
@@ -224,7 +197,6 @@ export async function getOemData() {
     typeSegMonthRaw,
     modelRows,
     otherModelRows,
-    outlooks,
   ] = await Promise.all([
     fetchAll(supabase, 'oem_sales_group_month'),
     fetchAll(supabase, 'oem_sales_group_pt_month'),
@@ -240,7 +212,6 @@ export async function getOemData() {
       supabase,
       OTHER_MODEL_TARGETS.flatMap((t) => t.models)
     ),
-    fetchLatestOutlooks(supabase),
   ]);
 
   const groupMonth: OemSalesGroupMonth[] = groupMonthRaw;
@@ -256,10 +227,6 @@ export async function getOemData() {
   const otherModelSeries = aggregateOtherModelSeries(otherModelRows);
   const oemGroupCount = new Set(groupMonth.map((r) => r.oem_group)).size;
 
-  // AI 평가 카드는 북미/기타 섹션이 분리 노출 — model_key 집합으로 나눈다.
-  const otherOutlooks = outlooks.filter((o) => OTHER_OUTLOOK_KEYS.has(o.model_key));
-  const naOutlooks = outlooks.filter((o) => !OTHER_OUTLOOK_KEYS.has(o.model_key));
-
   return {
     groupMonth,
     groupPtMonth,
@@ -269,8 +236,6 @@ export async function getOemData() {
     usaOemSeries,
     naModelSeries,
     otherModelSeries,
-    naOutlooks,
-    otherOutlooks,
     oemGroupCount,
   };
 }

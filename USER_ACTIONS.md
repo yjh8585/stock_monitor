@@ -58,6 +58,12 @@ git push -u origin master
 | `VALLEY_EMAIL`              | valley.town 로그인 이메일   |
 | `VALLEY_PASSWORD`           | valley.town 로그인 비밀번호 |
 
+> **🔴 `PERPLEXITY_API_KEY`** — `/oem/competition` 차종 경쟁 분석의 웹 검색(신형 출시·소비자 반응)에 필요.
+> 값은 로컬 `scripts/.env`에 이미 들어 있는 것과 같은 키를 그대로 등록한다.
+> **없어도 워크플로는 성공한다** — 검색만 조용히 건너뛰고 분석이 판매 실적·리콜만으로 작성돼
+> 품질이 떨어진다. 즉 실패가 아니라 **품질 저하로만** 나타나므로 등록 여부를 놓치기 쉽다.
+> 수집은 월 1회(매월 21일 06:30 KST)라 등록이 늦으면 그달치 분석이 통째로 얕아진다.
+
 > **(선택) `YOUTUBE_COOKIES`** — `/reports` 유튜브 자동 보고서에 **이미지(주요 장면·차트)**를 붙이려면 필요.
 > GHA 러너 IP는 유튜브가 봇 차단해서, 이 쿠키가 없으면 이미지가 대개 안 붙고 **텍스트로만** 완성된다(글이 실패하진 않음).
 > 값: 로그인한 브라우저에서 "Get cookies.txt LOCALLY" 확장으로 유튜브 `cookies.txt`를 export한 **파일 내용 전체**를 붙여넣는다.

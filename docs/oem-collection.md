@@ -111,8 +111,62 @@
 
 - **판매량** — `sync_oem_excel.py`(다운로드) + `import_oem_sales.py`(적재).
 - **생산량** — `sync_oem_production_excel.py` + `import_oem_production.py`. 판매량과 **같은 쿠키·다른 페이지(`vehicle_production`)·다른 레이아웃**(메타 6열, PowerTrain 없음). ⚠️ **파일명이 `product_data`(≠`production_data`)** 라서 링크 탐지가 `EXPECTED_FILE_TOKEN` 으로 판매 링크를 배제한다 — 이름이 헷갈려 판매 파일을 생산으로 집는 사고를 막는 장치이니 지우지 말 것. 이력 파일은 `참고/oem 생산량/*_20NN_en.xlsx`, 최신은 롤링 `MarkLines_product_data_en.xlsx`(2024.01~)로 판매와 동일 구조다.
+- **세그먼트 매핑** — `import_oem_model_segment.py` 가 같은 판매 엑셀들(`참고/oem 판매량/MarkLines_sales_data*.xlsx` 전부)의 메타 7열(Country·Group·Maker/Brand·Type·Segment·Model·PowerTrain)을 `oem_model_segment`(PK `model`+`country`, 파서는 순수 함수 `scripts/lib/model_segment.py`)에 적재한다. 92만 행짜리 `oem_sales_model_country_month` 를 UPDATE 하지 않으려고 **별도 테이블로 분리**했다(전 행 UPDATE 는 WAL 을 폭증시킨다 — 2026-08-03 Supabase 용량 사고 이력). 멱등이라 재실행 안전. ⚠️ 이 엑셀은 `read_only=True` 로 열면 **조용히 0행**이 나온다 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
 
 적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 이 옛 값을 조용히 보여준다). 쿠키 만료·단일 디바이스 정책은 AGENTS.md 「Python 스크립트 규칙」이 정본.
+
+---
+
+## 핵심 차종 경쟁 분석 — `collect_oem_model_outlook.py` (월 1회)
+
+`/oem` 의 "AI 차종 평가"가 부실하다는 지적에서 출발해 2026-08-13 에 전면 재작성한 파이프라인이다. 옛 버전은 입력이 **모회사 주식 뉴스 헤드라인 8개**뿐이라 모델이 사전지식으로만 썼고, 그래서 매주 돌려도 내용이 안 바뀌었다. v2 는 판매 실적·경쟁군·웹검색·리콜을 근거로 넣는다. 적재처는 `oem_model_outlook`(v2 컬럼 = `competitive_view`·`sales_trend`·`market_breakdown`·`metrics`·`sources`, 마이그레이션 `20260813000003`), 화면은 `/oem/competition` 카드.
+
+### 경쟁군 정의의 SSOT 는 `oem_competitor_set` 테이블
+
+- 수집기에 하드코딩돼 있던 경쟁군 목록은 **삭제됐다.** 수집기는 DB 에서 읽는다 — `collect_oem_model_outlook.py` 의 `MODEL_META` 에는 표시명·OEM 그룹·Cox 브랜드·`region` 만 남았다.
+- **경쟁차종·시장을 바꾸려면 새 마이그레이션을 쓴다**(기존 시드 파일 수정 금지). 시드 = `supabase/migrations/20260813000002_oem_competitor_set.sql`, 컬럼 = `model_key`·`market`·`market_label`·`display_order`·`countries text[]`·`target_models text[]`·`competitor_models text[]`·`segment_note`.
+- MarkLines `Segment` 를 자동 분류로 쓰지 않고 이 표를 **수동 정본**으로 두는 이유는 시드 주석에 있다(Grand Cherokee 는 SUV-E, Explorer·Atlas 는 SUV-D 로 갈리지만 실제로는 같은 시장에서 경쟁한다).
+- 🔴 **모델명은 `oem_sales_model_country_month.model` 의 실제 표기와 정확히 일치해야 한다** — 한 글자만 달라도 에러 없이 0행이 되어 경쟁군에서 조용히 빠진다. 대조 검증은 `scripts/lib/test_competitor_set.py`(DB 실측).
+- ⚠️ **교정 마이그레이션에서 배열을 통째로 갈아끼우지 말 것.** `..._04_fix_models.sql` 이 `competitor_models`/`target_models` 를 배열째 UPDATE 하면서 멀쩡한 `Captur`·`Elantra Yuedong` 을 함께 지웠고, 복원 마이그레이션 2개(`...05`·`...06`)를 더 써야 했다. **검증 쿼리의 기간도 넓게 잡을 것** — `year_month >= 202501` 만 본 탓에 2023 년까지만 존재하는 표기를 "없음"으로 오판한 것이 원인이었다.
+
+### 10개 차종 × 시장별 처리
+
+한 차종이 여러 시장을 가지면 **시장마다 지표를 따로 계산**한다(경쟁군도 시장별로 다르다). 시장 선정 근거(2025.01~2026.07 실측 판매 비중)는 시드 주석 참조.
+
+| model_key                                                 | 시장 (`market`)              |
+| --------------------------------------------------------- | ---------------------------- |
+| grand_cherokee · ram_truck · pacifica · rivian_r1 · atlas | USA (북미 5종, 미국 89~93%)  |
+| porsche_911                                               | GLOBAL (지배 시장 없음)      |
+| seltos                                                    | India · USA · Korea          |
+| avante_ex_china                                           | USA · Korea                  |
+| avante_china                                              | China                        |
+| niro                                                      | USA · Europe (서유럽 14개국) |
+
+- 아반떼는 **중국/중국 외로 카드 자체가 갈린다**(`avante_china` · `avante_ex_china`) — 중국은 전기·PHEV 전환이 최대 변수라 같은 잣대로 볼 수 없다.
+- `MODEL_META` 의 `region` 은 `'North America' | 'Global'` 두 값만 쓴다(기존 행과 체계를 맞춘 것). **여기에 시장 코드(USA/India/…)를 넣지 말 것** — 같은 컬럼에 두 체계가 섞인다. 시장별 세부는 `market_breakdown` 이 담당한다.
+- 지표 계산은 `scripts/lib/competition_metrics.py`(순수 함수, DB 접근 없음) 한 곳에서만 하고 결과를 `metrics` JSONB 에 저장한다 → TypeScript 는 표시만 하므로 계산이 두 언어로 갈리지 않는다. 🔴 **대상 차종과 경쟁군의 기준월 동기화**가 이 모듈의 핵심 함정이다 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
+
+### 근거 데이터 4종 (+ 북미 한정 1종)
+
+| 근거               | 출처 / 모듈                                  |
+| ------------------ | -------------------------------------------- |
+| 판매 실적 · 점유율 | `oem_sales_model_country_month` (MarkLines)  |
+| 웹 검색            | Perplexity Search API `perplexity_client.py` |
+| 리콜 · 소비자 불만 | NHTSA 공개 API `nhtsa_client.py`             |
+| 딜러 재고일수      | `cox_brand_inventory` (미국 딜러 · 브랜드별) |
+
+- **판매 실적** — 시장별 최근 12개월 판매·YoY·경쟁군 내 점유율(현재/전년) + 경쟁 차종별 판매·YoY 표.
+- **웹 검색** — 차종당 고정 검색어 3종(신형/소비자 반응/경쟁 비교, `build_model_queries`)을 각 4건. Claude 내장 웹검색 대신 쓰는 이유는 **검색어를 우리가 고정할 수 있어 매달 같은 관점의 결과가 보장**되기 때문이다(모델 자율 검색은 실행마다 검색어가 달라져 편차가 크다). 가격도 절반($5/1,000 vs $10/1,000).
+- **NHTSA** — 미국 등록 차량 한정이라 미국 미판매(`avante_china`)는 제외. 모델연도 폴백 `[2026, 2025, 2024]`.
+- **Cox 딜러 재고일수** — `MODEL_META` 에 Cox 브랜드가 매핑된 차종만 조회한다(10종 중 8종. `rivian_r1` 은 Cox 로스터에 Rivian 이 없고 `avante_china` 는 미국 미판매라 둘 다 `None`). **차종이 아니라 브랜드 단위 최신 1개월** 값이고 **미국 딜러 기준**이라, 북미 4종(Jeep·Ram·Chrysler·Volkswagen) 밖에서는 미국 시장 신호로만 읽어야 한다. Cox 자체 함정(값 감춤·파일명 불규칙)은 [`gotchas-data-collection.md`](./gotchas-data-collection.md).
+- **생산-판매 갭은 1차 범위에서 뺐다** — 생산과 판매의 `country` 의미가 정반대라 국가별 차감이 무의미하기 때문 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
+
+### 실행 · 비용
+
+- **월 1회**: `.github/workflows/collect-oem-model-outlook.yml` cron `'30 21 20 * *'` = **KST 매월 21일 06:30**. 주 1회가 아닌 이유는 판매(MarkLines)·재고(Cox)가 월 1회 갱신이라 주간 실행이 *같은 숫자에 문장만 바뀌는 노이즈*가 되기 때문이고, 21일인 이유는 전월 판매 데이터와 Cox 수집(20일)이 끝난 뒤이기 때문이다.
+- 모델 **Claude Sonnet 5**(env `OEM_MODEL_OUTLOOK_MODEL` 로 환원 가능), `output_config` 의 `json_schema` 로 응답 형식을 강제. **회당 약 $0.73**(Sonnet 5 $0.58 + Perplexity $0.15) → 연 $8.8.
+- ⚠️ 이 수집기는 다른 LLM 수집기와 달리 `thinking` 을 **adaptive 로 켠다**(추출이 아니라 분석이라 사고가 품질에 기여한다). 비용 절감 목적으로 `disabled` 로 바꾸지 말 것 — Sonnet 5 의 thinking 기본값 함정과는 별개의 의도된 설정이다.
+- 🔴 **`PERPLEXITY_API_KEY` 가 없으면 웹 검색만 조용히 건너뛰고 실행은 성공한다.** 실패가 아니라 **분석 품질 저하로만** 나타나므로 Secret 등록 누락을 놓치기 쉽다. 적재 행의 `sources_used`(`perplexity×N nhtsa=… cox=…`)와 `sources` 배열이 비었는지로 확인한다.
 
 ---
 

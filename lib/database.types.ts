@@ -1246,10 +1246,46 @@ export type Database = {
           },
         ];
       };
+      oem_competitor_set: {
+        Row: {
+          competitor_models: string[];
+          countries: string[] | null;
+          display_order: number;
+          market: string;
+          market_label: string;
+          model_key: string;
+          segment_note: string | null;
+          target_models: string[];
+        };
+        Insert: {
+          competitor_models: string[];
+          countries?: string[] | null;
+          display_order: number;
+          market: string;
+          market_label: string;
+          model_key: string;
+          segment_note?: string | null;
+          target_models: string[];
+        };
+        Update: {
+          competitor_models?: string[];
+          countries?: string[] | null;
+          display_order?: number;
+          market?: string;
+          market_label?: string;
+          model_key?: string;
+          segment_note?: string | null;
+          target_models?: string[];
+        };
+        Relationships: [];
+      };
       oem_model_outlook: {
         Row: {
+          competitive_view: string | null;
           consumer_view: string;
           label: string;
+          market_breakdown: Json | null;
+          metrics: Json | null;
           model_key: string;
           model_name: string;
           note_date: string;
@@ -1257,11 +1293,16 @@ export type Database = {
           outlook: string;
           rationale: string;
           region: string;
+          sales_trend: string | null;
+          sources: Json | null;
           sources_used: string | null;
         };
         Insert: {
+          competitive_view?: string | null;
           consumer_view: string;
           label: string;
+          market_breakdown?: Json | null;
+          metrics?: Json | null;
           model_key: string;
           model_name: string;
           note_date: string;
@@ -1269,11 +1310,16 @@ export type Database = {
           outlook: string;
           rationale: string;
           region?: string;
+          sales_trend?: string | null;
+          sources?: Json | null;
           sources_used?: string | null;
         };
         Update: {
+          competitive_view?: string | null;
           consumer_view?: string;
           label?: string;
+          market_breakdown?: Json | null;
+          metrics?: Json | null;
           model_key?: string;
           model_name?: string;
           note_date?: string;
@@ -1281,7 +1327,33 @@ export type Database = {
           outlook?: string;
           rationale?: string;
           region?: string;
+          sales_trend?: string | null;
+          sources?: Json | null;
           sources_used?: string | null;
+        };
+        Relationships: [];
+      };
+      oem_model_segment: {
+        Row: {
+          country: string;
+          model: string;
+          powertrains: string[];
+          segment: string;
+          vehicle_type: string;
+        };
+        Insert: {
+          country: string;
+          model: string;
+          powertrains?: string[];
+          segment: string;
+          vehicle_type: string;
+        };
+        Update: {
+          country?: string;
+          model?: string;
+          powertrains?: string[];
+          segment?: string;
+          vehicle_type?: string;
         };
         Relationships: [];
       };

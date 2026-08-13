@@ -57,3 +57,6 @@ session-report-*.html
 
 # superpowers 작업 산출물 (plans/specs — 매 작업 생성)
 docs/superpowers/
+
+# subagent-driven-development 워크스페이스 (ledger·브리프·리포트·diff — git 미추적)
+.superpowers/
