@@ -17,6 +17,7 @@
 - **Cox 재고일수는 북미 4종에만 적용한다** — `cox_brand_inventory`에 Rivian 브랜드가 없고, 데이터가 미국 시장 한정이며 2개월 지연된다(최신 202606).
 - **NHTSA는 미국 판매 차종에만 적용하고 모델연도 폴백을 둔다** — 2026년형이 미등록이면 2025 → 2024 순으로 재시도.
 - 모델명 집계에서 **`'N/A'` 모델은 반드시 제외**한다(MarkLines 미분류 행이 각국 판매 1위로 잡힌다).
+- **`oem_sales_model_country_month.country` 에 대륙 값(`'Europe'` 등)은 없다**(실측 확인). 시장별 집계는 `oem_competitor_set.countries`(국가 배열)로 `.in_()` 필터한다. `GLOBAL` 만 `NULL`(전 국가). 대륙명을 country 로 넘기면 조용히 0행이 나온다.
 - **수집 주기는 월 1회(매월 21일 06:30 KST)** — cron `'30 21 20 * *'`. 주 1회 아님.
 - **생산-판매 갭은 1차 범위에서 제외**한다. `compute_production_gap`을 만들지 않는다(YAGNI).
 - `oem_model_outlook.region` 은 기존 값 체계(`'North America'` | `'Global'`)를 유지한다. 시장 코드(USA/India/…)를 넣지 않는다 — 시장별 세부는 `market_breakdown`이 담당한다.
@@ -298,11 +299,16 @@ git commit -m "feat(oem): MarkLines Segment/Type/PowerTrain 매핑 테이블 신
 --    Atlas 는 SUV-D 로 갈리지만 실제로는 같은 시장에서 경쟁한다. 그래서 자동 분류가 아니라
 --    이 표를 수동 정본으로 둔다.
 
+-- ⚠️ `countries` 가 실제 집계 필터다. oem_sales_model_country_month.country 에는 'Europe' 같은
+--    대륙 값이 없고 개별 국가만 있다(실측 확인). 'Europe' 을 country 로 넘기면 0행이 나오거나
+--    전 국가 합산으로 뭉개진다. GLOBAL 만 NULL(전 국가)이고 나머지는 국가 배열을 명시한다.
+
 CREATE TABLE IF NOT EXISTS oem_competitor_set (
   model_key         text NOT NULL,
-  market            text NOT NULL,
+  market            text NOT NULL,   -- 논리적 시장 코드 (USA/India/Korea/China/Europe/GLOBAL)
   market_label      text NOT NULL,
   display_order     int  NOT NULL,
+  countries         text[],          -- 집계 대상 국가. NULL = 전 국가(GLOBAL)
   target_models     text[] NOT NULL,
   competitor_models text[] NOT NULL,
   segment_note      text,
@@ -312,74 +318,80 @@ CREATE TABLE IF NOT EXISTS oem_competitor_set (
 ALTER TABLE oem_competitor_set ENABLE ROW LEVEL SECURITY;
 CREATE POLICY oem_competitor_set_read ON oem_competitor_set FOR SELECT TO anon, authenticated USING (true);
 
+-- 유럽 집계 국가 — NIRO 판매 실측 상위(Spain 18.0k · UK 17.6k · France 9.4k · Netherlands 8.8k ·
+-- Italy 3.1k · Sweden 2.4k · Germany 2.2k · Poland 1.4k)에 인접 서유럽 시장을 더한 집합.
+-- 대상 차종과 경쟁 차종에 같은 집합을 적용해야 점유율이 공정하다.
+
 INSERT INTO oem_competitor_set
-  (model_key, market, market_label, display_order, target_models, competitor_models, segment_note)
+  (model_key, market, market_label, display_order, countries, target_models, competitor_models, segment_note)
 VALUES
-  ('grand_cherokee', 'USA', '미국', 1,
+  ('grand_cherokee', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['Grand Cherokee (Jeep (2009-))'],
    ARRAY['Explorer','Traverse','Grand Highlander','Telluride','Palisade','Honda Pilot','Highlander'],
    'SUV-E 이지만 실질 경쟁은 SUV-D 3열 SUV'),
 
-  ('ram_truck', 'USA', '미국', 1,
+  ('ram_truck', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['Ram P/U'],
    ARRAY['Ford F-Series','Silverado','GMC Sierra','Tundra','Nissan Titan'],
    'Pickup Truck 풀사이즈'),
 
-  ('pacifica', 'USA', '미국', 1,
+  ('pacifica', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['Pacifica (Chrysler (2009-))'],
    ARRAY['Odyssey','Sienna','Carnival (Sedona)'],
    'MPV(미니밴)'),
 
-  ('rivian_r1', 'USA', '미국', 1,
+  ('rivian_r1', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['R1T','R1S'],
    ARRAY['Model X','Cybertruck','Hummer SUV','Hummer Pickup','Lucid Air','EV9','IONIQ 5'],
    '프리미엄 전기 SUV/픽업 — MarkLines 세그먼트로 안 잡혀 수동 지정'),
 
-  ('atlas', 'USA', '미국', 1,
+  ('atlas', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['VW Atlas'],
    ARRAY['Explorer','Traverse','Grand Highlander','Telluride','Palisade','Honda Pilot','Highlander','Grand Cherokee (Jeep (2009-))'],
    'SUV-D 3열 SUV'),
 
-  ('porsche_911', 'GLOBAL', '글로벌', 1,
+  ('porsche_911', 'GLOBAL', '글로벌', 1, NULL,
    ARRAY['Porsche 911'],
    ARRAY['Corvette','Boxster/Cayman','Supra','Nissan Z','F-Type'],
    'Segment F 스포츠카 — 미국 33%/독일 21%로 지배 시장 없음'),
 
-  ('seltos', 'India', '인도', 1,
+  ('seltos', 'India', '인도', 1, ARRAY['India'],
    ARRAY['SELTOS'],
    ARRAY['Creta (ix25)','Venue','Nexon','Brezza','Sonet','XUV 3XO'],
    'SUV-C'),
-  ('seltos', 'USA', '미국', 2,
+  ('seltos', 'USA', '미국', 2, ARRAY['USA'],
    ARRAY['SELTOS'],
    ARRAY['HR-V','Kona','Crosstrek','Corolla Cross','Trailblazer'],
    'SUV-C'),
-  ('seltos', 'Korea', '한국', 3,
+  ('seltos', 'Korea', '한국', 3, ARRAY['Korea'],
    ARRAY['SELTOS'],
    ARRAY['Kona','Casper','EV3','Trailblazer'],
    'SUV-C'),
 
-  ('avante_ex_china', 'USA', '미국', 1,
+  ('avante_ex_china', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['Avante (Elantra)','Avante'],
    ARRAY['Civic','Corolla','Sentra','Jetta','K4'],
    '준중형 세단'),
-  ('avante_ex_china', 'Korea', '한국', 2,
+  ('avante_ex_china', 'Korea', '한국', 2, ARRAY['Korea'],
    ARRAY['Avante (Elantra)','Avante'],
    ARRAY['K5','Sonata/YF Sonata/LF Sonata','Casper'],
    '준중형 세단'),
 
-  ('avante_china', 'China', '중국', 1,
+  ('avante_china', 'China', '중국', 1, ARRAY['China'],
    ARRAY['Elantra/Yuedong/Langdong/Elantra 2016','Elantra Yuedong'],
    ARRAY['Bluebird Sylphy/Sylphy','Lavida','Sagitar','Qin PLUS','Qin L'],
    '중국 준중형 세단 — 전기·PHEV 전환이 최대 변수'),
 
-  ('niro', 'USA', '미국', 1,
+  ('niro', 'USA', '미국', 1, ARRAY['USA'],
    ARRAY['NIRO'],
    ARRAY['HR-V','Kona','Corolla Cross','Crosstrek'],
    'SUV-C 하이브리드/EV'),
   ('niro', 'Europe', '유럽', 2,
+   ARRAY['Germany','UK','France','Italy','Spain','Netherlands','Sweden','Poland',
+         'Belgium','Austria','Norway','Denmark','Portugal','Switzerland'],
    ARRAY['NIRO'],
    ARRAY['Kona','Captur','Puma','2008'],
-   'SUV-C — 스페인·영국·독일 등 합산')
+   'SUV-C — 서유럽 14개국 합산')
 ON CONFLICT (model_key, market) DO NOTHING;
 ```
 
@@ -405,19 +417,32 @@ def test_모든_경쟁군_모델이_판매테이블에_존재한다():
   from lib.db import get_client
 
   c = get_client()
-  sets = c.table('oem_competitor_set').select('model_key,market,target_models,competitor_models').execute().data
+  sets = c.table('oem_competitor_set').select('*').execute().data
   assert sets, 'oem_competitor_set 이 비어 있다'
+  assert len(sets) == 14, f'시장 정의는 14개여야 하는데 {len(sets)}개'
 
   missing = []
   for s in sets:
+    countries = s.get('countries')  # NULL = 전 국가(GLOBAL)
     for model in list(s['target_models']) + list(s['competitor_models']):
-      country = None if s['market'] in ('GLOBAL', 'Europe') else s['market']
       q = c.table('oem_sales_model_country_month').select('model').eq('model', model).gte('year_month', 202501)
-      if country:
-        q = q.eq('country', country)
+      if countries:
+        q = q.in_('country', countries)
       if not (q.limit(1).execute().data or []):
         missing.append(f"{s['model_key']}/{s['market']}: {model}")
   assert not missing, '판매 테이블에 없는 모델명:\n' + '\n'.join(missing)
+
+
+def test_GLOBAL_외의_시장은_countries가_채워져_있다():
+  """'Europe' 같은 값을 country 로 직접 넘기면 0행이 나온다 — countries 배열이 실제 필터다."""
+  from lib.db import get_client
+
+  c = get_client()
+  for s in c.table('oem_competitor_set').select('model_key,market,countries').execute().data:
+    if s['market'] == 'GLOBAL':
+      assert not s['countries'], f"{s['model_key']}/GLOBAL 은 countries 가 NULL 이어야 한다"
+    else:
+      assert s['countries'], f"{s['model_key']}/{s['market']} 에 countries 가 비어 있다"
 ```
 
 - [ ] **Step 3: 마이그레이션 적용 후 테스트 실행**
@@ -1129,8 +1154,11 @@ RESPONSE_SCHEMA = {
 }
 
 
-def _fetch_model_rows(client, models: list[str], country: str | None) -> list[dict]:
-  """지정 모델들의 월별 판매 행. country=None 이면 전 국가 합산."""
+def _fetch_model_rows(client, models: list[str], countries: list[str] | None) -> list[dict]:
+  """지정 모델들의 월별 판매 행. countries=None 이면 전 국가 합산(GLOBAL).
+
+  ⚠️ 'Europe' 같은 대륙 값은 country 컬럼에 존재하지 않는다 — 반드시 국가 배열을 넘긴다.
+  """
   out: list[dict] = []
   frm = 0
   while True:
@@ -1138,8 +1166,8 @@ def _fetch_model_rows(client, models: list[str], country: str | None) -> list[di
          .select('model,country,year_month,sales')
          .in_('model', models)
          .order('oem_group').order('country').order('model').order('year_month'))
-    if country:
-      q = q.eq('country', country)
+    if countries:
+      q = q.in_('country', countries)
     rows = q.range(frm, frm + 999).execute().data or []
     out += rows
     if len(rows) < 1000:
@@ -1154,9 +1182,9 @@ def _load_markets(client, model_key: str) -> list[dict]:
           .eq('model_key', model_key).order('display_order').execute().data or [])
   markets = []
   for s in sets:
-    country = None if s['market'] in ('GLOBAL', 'Europe') else s['market']
-    target_rows = _fetch_model_rows(client, list(s['target_models']), country)
-    rival_rows = _fetch_model_rows(client, list(s['competitor_models']), country)
+    countries = s.get('countries')  # NULL = 전 국가(GLOBAL). 'Europe' 은 국가 배열로 정의돼 있다
+    target_rows = _fetch_model_rows(client, list(s['target_models']), countries)
+    rival_rows = _fetch_model_rows(client, list(s['competitor_models']), countries)
     by_model: dict[str, list[dict]] = {}
     for r in rival_rows:
       by_model.setdefault(r['model'], []).append(r)
