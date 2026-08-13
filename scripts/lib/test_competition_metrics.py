@@ -71,3 +71,53 @@ def test_window_월경계_offset_years1_최신202603_months6():
   result = _window(rows, months=6, offset_years=1)
   assert len(result) == 6
   assert [r['year_month'] for r in result] == [202410, 202411, 202412, 202501, 202502, 202503]
+
+
+def test_앵커_미지정_시_자동으로_min_최신월_선택():
+  """대상과 경쟁군 최신월이 다르면, 더 이른 쪽(min)을 기준으로 통일한다"""
+  target = [_row(202601, 100), _row(202602, 100), _row(202603, 100)]  # 최신 202603
+  rivals = [_row(202601, 300, 'R'), _row(202602, 300, 'R')]  # 최신 202602
+  m = compute_market_metrics(target, rivals, months=2)
+  # 앵커는 min(202603, 202602) = 202602
+  # 양쪽 모두 202601~202602 기간을 쓴다
+  assert m['anchor_month'] == 202602
+  assert m['recent_sales'] == 200  # target 202601+202602 = 100+100
+  assert m['competitor_sales'] == 600  # rivals 202601+202602 = 300+300
+
+
+def test_앵커_명시_시_해당_값으로_기간_고정():
+  """anchor를 명시하면 그 값으로 기간을 고정한다"""
+  target = [_row(202601, 100), _row(202602, 100), _row(202603, 100)]
+  rivals = [_row(202601, 300, 'R'), _row(202602, 300, 'R')]
+  m = compute_market_metrics(target, rivals, months=2, anchor=202602)
+  # 명시된 앵커 202602 사용
+  assert m['anchor_month'] == 202602
+  assert m['recent_sales'] == 200
+
+
+def test_앵커_반환되고_경쟁표에_적용():
+  """compute_competitor_table도 anchor를 받아 모든 모델이 같은 기간 사용"""
+  # target이 202603 기준이라고 해서 전달한 anchor
+  anchor = 202602
+  rows_by_model = {
+    'A': [_row(202601, 10), _row(202602, 20), _row(202603, 30)],
+    'B': [_row(202601, 50), _row(202602, 60)],  # 202602까지만 있음
+  }
+  out = compute_competitor_table(rows_by_model, months=2, anchor=anchor)
+  # 양쪽 모두 anchor(202602) 기준 2개월 (202601+202602) 사용
+  models = {row['model']: row['sales'] for row in out}
+  assert models['A'] == 30  # 202601(10) + 202602(20)
+  assert models['B'] == 110  # 202601(50) + 202602(60)
+
+
+def test_anchor_None일_때_자동계산():
+  """anchor=None 이면 각 행의 최신월 중 min을 자동 계산"""
+  rows_by_model = {
+    'A': [_row(202601, 10), _row(202602, 20), _row(202603, 30)],  # max 202603
+    'B': [_row(202601, 50), _row(202602, 60)],  # max 202602
+  }
+  out = compute_competitor_table(rows_by_model, months=2)
+  # 자동 앵커 = min(202603, 202602) = 202602
+  models = {row['model']: row['sales'] for row in out}
+  assert models['A'] == 30  # 202601(10) + 202602(20)
+  assert models['B'] == 110  # 202601(50) + 202602(60)
