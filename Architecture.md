@@ -357,7 +357,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 `oem_sales_model_country_month`(92만 행)를 직접 UPDATE하지 않기 위해 분리한 별도 매핑 테이블(20260803000002 `skip_identical_update` 트리거 재사용). 적재는 `scripts/import_oem_model_segment.py`가 `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개(2020~2023 연도별 + 최신)를 병합해 수행(멱등, `(model, country)` upsert, 'N/A' 모델 제외). RLS enable + anon SELECT 정책(공개 데이터). OEM 차종 경쟁 분석(`/oem/competition`, 진행 중) 기능의 세그먼트 기반 경쟁군 구성·점유율 계산 근거 테이블.
 
-#### `oem_competitor_set` (14행, 신규 `20260813000002` + 모델명 정정 `20260813000004`·`20260813000005`) — 차종×시장 경쟁군 정의 (수동 SSOT)
+#### `oem_competitor_set` (14행, 신규 `20260813000002` + 모델명 정정 `20260813000004`~`20260813000006`) — 차종×시장 경쟁군 정의 (수동 SSOT)
 
 | 컬럼                | 타입   | 비고                                                                |
 | ------------------- | ------ | ------------------------------------------------------------------- |
@@ -373,9 +373,13 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **수동** 정본(자동 분류 아님) — MarkLines `Segment`를 그대로 쓰면 Grand Cherokee(SUV-E)와 Explorer·Traverse·Atlas(SUV-D)가 갈리지만 실제로는 같은 시장에서 경쟁하기 때문. RLS enable + anon SELECT 정책(공개 데이터).
 
 - **⚠️ `countries`가 실제 집계 필터다.** `oem_sales_model_country_month.country`엔 `'Europe'` 같은 대륙 값이 없고 개별 국가만 있다 — 유럽 시장(`niro`)은 서유럽 14개국 배열로 정의. `GLOBAL`만 `countries IS NULL`(전 국가).
-- 모델명은 브리프 초안 대비 실측 오타 5건을 `20260813000004`로 정정: `avante_ex_china/USA`는 `'Avante (Elantra)'`만 존재(`'Avante'`는 Korea 전용 표기), `avante_ex_china/Korea`는 반대로 `'Avante'`만 존재, `avante_china/China`는 `'Elantra Yuedong'` 단독 표기가 없고 `'Elantra/Yuedong/Langdong/Elantra 2016'`으로 통합, `niro/Europe` 경쟁모델은 `'Puma'`→`'Ford Puma'`·`'2008'`→`'Peugeot 2008'`.
-- 🔴 **배열째 교체하는 UPDATE는 손대지 않을 항목까지 삭제할 수 있다** — `20260813000004`가 `niro/Europe`의 `competitor_models`를 통째로 `ARRAY['Kona','Ford Puma','Peugeot 2008']`로 바꾸며 원래 유효했던 `'Captur'`(르노 캡처, 유럽 14개국 중 10개국에서 202501~ 판매 데이터 존재)가 조용히 빠졌다(코드 리뷰 Critical). `20260813000005`로 `ARRAY['Kona','Captur','Ford Puma','Peugeot 2008']`로 복원. 배열 UPDATE는 "바꿀 항목만"이 아니라 **전체 항목을 다시 나열**해야 하므로, 교정 전 원본 배열을 옆에 두고 작성할 것.
-- 검증은 `scripts/lib/test_competitor_set.py`(DB 실접속 필요, `SUPABASE_URL` 없으면 스킵)가 14개 시장 전부의 `target_models`·`competitor_models` 실존과 `countries` 채움 여부를 확인. `test_경쟁군에서_유효한_모델이_누락되지_않았다`는 `niro/Europe`의 정확한 구성(4종)을 고정값으로 대조해 위 사고의 재발을 막는다.
+- 모델명은 브리프 초안 대비 실측 표기 불일치 4건을 `20260813000004`로 정정: `avante_ex_china/USA`는 `'Avante (Elantra)'`만 존재(`'Avante'`는 Korea 전용 표기), `avante_ex_china/Korea`는 반대로 `'Avante'`만 존재, `niro/Europe` 경쟁모델은 `'Puma'`→`'Ford Puma'`·`'2008'`→`'Peugeot 2008'`.
+- 🔴 **배열째 교체하는 UPDATE는 손대지 않을 항목까지 삭제할 수 있다** — 같은 `20260813000004`가 각 행의 `target_models`/`competitor_models`를 통째로 재작성하며 실제로는 유효한 항목 2건이 함께 빠졌다(코드 리뷰 2건, 모두 재검토자가 DB 직접 조회로 확정):
+  - `niro/Europe`의 `'Captur'`(르노 캡처, 유럽 14개국 중 10개국에서 202501~ 데이터 존재) — `20260813000005`로 `ARRAY['Kona','Captur','Ford Puma','Peugeot 2008']`로 복원.
+  - `avante_china/China`의 `'Elantra Yuedong'`(오타가 아니라 MarkLines 상 별개 항목 — `'Elantra/Yuedong/Langdong/Elantra 2016'`과 202001~202312 41개월간 서로 다른 판매수치로 공존, `lib/oem/aggregate.ts`의 `OTHER_MODEL_TARGETS`도 이미 두 표기를 합산) — `20260813000006`로 `ARRAY['Elantra/Yuedong/Langdong/Elantra 2016','Elantra Yuedong']`로 복원.
+  - 배열 UPDATE는 "바꿀 항목만"이 아니라 **전체 항목을 다시 나열**해야 하므로, 교정 전 원본 배열을 옆에 두고 작성할 것.
+- 🔴 **모델 실존 확인에 최근 기간 필터(`gte year_month`)를 쓰면 과거 전용 표기를 "없음"으로 오판한다** — `'Elantra Yuedong'`이 202312에서 끊겨 `.gte('year_month', 202501)` 필터에 걸리자 "China엔 없음"으로 오판해 위 누락이 발생했다. 모델 실존 확인은 **연도 필터 없이 전 기간**으로 해야 한다.
+- 검증은 `scripts/lib/test_competitor_set.py`(DB 실접속 필요, `SUPABASE_URL` 없으면 스킵). `test_모든_경쟁군_모델이_판매테이블에_존재한다`는 연도 필터 없이 전 기간 실존을 확인하고, `test_경쟁군에서_유효한_모델이_누락되지_않았다`는 14개 시장 **전부**의 `target_models`·`competitor_models`를 `EXPECTED_COMPETITOR_SETS` 정본과 집합 대조해 배열째 교체 UPDATE로 인한 조용한 누락 재발을 막는다.
 
 - **⚠️ `country`가 판매 테이블과 의미가 정반대다** — 여기선 **생산국**, `oem_sales_*`에선 **판매 시장**. 이름이 같아 차감하기 쉽지만 그러면 국가 간 수출입이 결과에 섞인다. `/management/stellantis` 차트 1이 이 차감을 하고 있고, 그래서 "항등식이 아니라 근사"라고 화면에 밝힌다.
 - 소스는 MarkLines **`vehicle_production`** export(판매와 **다른 페이지·다른 레이아웃** — 메타 6열, PowerTrain 컬럼 없음, 월은 인덱스 6부터). 파일명이 `product_data`(≠`production_data`).
