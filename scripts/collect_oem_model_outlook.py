@@ -66,7 +66,11 @@ RESPONSE_SCHEMA = {
   'type': 'object',
   'properties': {
     'label': {'type': 'string', 'enum': ['GREEN', 'YELLOW', 'RED']},
-    'sales_trend': {'type': 'string'},
+    'sales_trend': {
+      'type': 'string',
+      'description': '차종 전체의 판매 흐름. 시장이 여럿이면 시장 간 대조·엇갈림을 쓴다. '
+                     '단일 시장이면 월별 흐름·추세 전환처럼 market_comments 에 없는 각도로 쓴다.',
+    },
     'competitive_view': {'type': 'string'},
     'consumer_view': {'type': 'string'},
     'outlook': {'type': 'string'},
@@ -75,7 +79,13 @@ RESPONSE_SCHEMA = {
       'type': 'array',
       'items': {
         'type': 'object',
-        'properties': {'market': {'type': 'string'}, 'comment': {'type': 'string'}},
+        'properties': {
+          'market': {'type': 'string'},
+          'comment': {
+            'type': 'string',
+            'description': '그 시장 하나에 국한된 해설. 다른 시장이나 차종 전체 흐름은 쓰지 않는다.',
+          },
+        },
         'required': ['market', 'comment'],
         'additionalProperties': False,
       },
