@@ -142,6 +142,11 @@
   - 경쟁군 정의 SSOT `oem_competitor_set` + 세그먼트 매핑 `oem_model_segment`
   - 근거: MarkLines 판매 실적 · 경쟁군 점유율 · Perplexity 웹검색 · NHTSA 리콜 · Cox 재고일수(북미)
   - Claude Sonnet 5 종합, 월 1회(매월 21일) 자동 갱신
+- [x] `/oem/competition` 화면 재구성 — 카드 → **스코어보드 + 차종별 차트 7종** (2026-08-13, 사용자 지시)
+  - 항목별 신호등 5종(판매·점유·재고·안전·소비자) 수치 규칙 판정 `lib/oem-competition/signals.ts`
+  - 소비자 평가 5축 AI 점수 + 경쟁 차종 재고·리콜까지 수집 확장, 다중 시장은 시장 탭
+  - 월별 시계열 구체화 뷰 `oem_competition_monthly_view`(일반 뷰는 4.9초로 anon timeout → 23ms)
+  - 부수 수정: NHTSA 접두 매칭(Ram 주력 1500 누락 복구) · Cox 최신 non-null 재고
 
 ### Page 5: 부품사 TOP100 (예정)
 

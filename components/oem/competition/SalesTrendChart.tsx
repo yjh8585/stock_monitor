@@ -1,0 +1,160 @@
+'use client';
+
+/**
+ * 대상 차종 vs 판매 상위 경쟁 3종의 월별 판매 추이(한 축에 겹친 라인).
+ *
+ * 이 페이지의 다른 숫자는 전부 "N개월 누계"라 수준(level)만 보여 준다. 누계는 정의상 완만해서
+ * 최근 두세 달의 반전이 묻히고, 경쟁차가 치고 올라오는 시점도 드러나지 않는다. 그래서 이 카드만
+ * 월별 원계열을 쓰고, 부제에 "누계 아님"을 못 박아 다른 카드와 헷갈리지 않게 한다.
+ */
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
+import { fmtFull, fmtUnits } from '@/components/oem/helpers';
+import type { CompetitionMarket, ModelSeries } from '@/lib/oem-competition/types';
+import { useChartHeight } from '@/lib/useChartHeight';
+import {
+  ChartCard,
+  EmptyChart,
+  fmtYm,
+  fmtYmFull,
+  rivalColor,
+  shortModel,
+  TARGET_COLOR,
+} from './shared';
+
+interface SalesTrendChartProps {
+  market: CompetitionMarket;
+}
+
+/** 라인 하나의 렌더 정보. 데이터(rows)와 분리해 색·굵기·순서 규칙을 한곳에 모은다. */
+interface LineMeta {
+  key: string;
+  name: string;
+  color: string;
+  strokeWidth: number;
+  isTarget: boolean;
+}
+
+/** x축 한 칸. 시리즈 값은 결측월에 null 이 들어간다(0 이 아니다 — buildTrend 주석 참고). */
+type TrendRow = Record<string, number | null> & { ym: number };
+
+function buildTrend(series: ModelSeries[]): { lines: LineMeta[]; rows: TrendRow[] } {
+  // 대상이 먼저 그려져야 범례·툴팁의 첫 줄을 차지한다. series[0]=대상 계약에 기대지 않고 isTarget 으로 가른다.
+  const ordered = [...series].sort((a, b) => Number(b.isTarget) - Number(a.isTarget));
+
+  let rivalIndex = 0;
+  const lines: LineMeta[] = ordered.map((s, i) => ({
+    // 차종명을 dataKey 로 쓰면 'GLE 3.0' 처럼 점이 든 이름을 recharts 가 중첩 경로로 해석해 라인이 통째로 빈다.
+    key: `s${i}`,
+    name: shortModel(s.model),
+    color: s.isTarget ? TARGET_COLOR : rivalColor(rivalIndex++),
+    strokeWidth: s.isTarget ? 2.5 : 1.5,
+    isTarget: s.isTarget,
+  }));
+
+  // 경쟁차마다 결측월이 달라, 한 시리즈의 월 축을 그대로 쓰면 다른 차종의 달이 잘려 나간다 → 합집합 축.
+  const months = [...new Set(ordered.flatMap((s) => s.points.map((p) => p.yearMonth)))].sort(
+    (a, b) => a - b
+  );
+
+  const lookups = ordered.map((s) => new Map(s.points.map((p) => [p.yearMonth, p.sales])));
+  const rows: TrendRow[] = months.map((ym) => {
+    const row: TrendRow = { ym };
+    lines.forEach((l, i) => {
+      // 미수집 월은 null. 0 으로 채우면 "그 달에 한 대도 못 팔았다"는 전혀 다른 사실이 된다.
+      row[l.key] = lookups[i].get(ym) ?? null;
+    });
+    return row;
+  });
+
+  return { lines, rows };
+}
+
+/**
+ * x축 눈금을 3~5개월 간격(interval 2~4)으로 솎는다.
+ * 24개월치를 전부 찍으면 "24.08" 라벨이 서로 겹쳐 축이 읽히지 않는다.
+ */
+function tickInterval(monthCount: number): number {
+  return Math.min(4, Math.max(2, Math.ceil(monthCount / 8) - 1));
+}
+
+export default function SalesTrendChart({ market }: SalesTrendChartProps) {
+  const height = useChartHeight(220, 280, 320);
+  const { lines, rows } = buildTrend(market.series);
+  const title = `판매 추이 비교 · ${market.label}`;
+
+  if (rows.length === 0) {
+    return (
+      <ChartCard title={title} subtitle="월별 판매량">
+        <EmptyChart reason="월별 판매 시계열이 없습니다. 이 시장은 누계 집계만 수집돼 있습니다." />
+      </ChartCard>
+    );
+  }
+
+  const subtitle = `월별 판매량(누계 아님) · ${fmtYmFull(rows[0].ym)}~${fmtYmFull(
+    rows[rows.length - 1].ym
+  )} ${rows.length}개월`;
+
+  return (
+    <ChartCard title={title} subtitle={subtitle}>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={rows} margin={{ top: 5, right: 20, bottom: 5, left: 5 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            className="stroke-border"
+            strokeOpacity={GRID_STROKE_OPACITY}
+            vertical={false}
+          />
+          <XAxis
+            dataKey="ym"
+            tick={{ fontSize: 14 }}
+            tickFormatter={(v) => fmtYm(Number(v))}
+            interval={tickInterval(rows.length)}
+          />
+          <YAxis tick={{ fontSize: 14 }} tickFormatter={(v) => fmtUnits(Number(v))} width={48} />
+          <Tooltip
+            contentStyle={TOOLTIP_CONTENT_STYLE}
+            cursor={{ strokeDasharray: '3 3' }}
+            labelFormatter={(label) => fmtYmFull(Number(label))}
+            // 기본값(true)은 결측 시리즈를 툴팁에서 지워 "경쟁차가 안 팔렸다"로 읽히게 한다.
+            // 비교가 목적인 차트라 그 달의 전 차종을 남기고 미수집만 따로 표기한다.
+            filterNull={false}
+            formatter={(value, name) => [
+              value == null ? '데이터 없음' : `${fmtFull(Number(value))}대`,
+              name,
+            ]}
+          />
+          <Legend
+            verticalAlign="top"
+            align="center"
+            wrapperStyle={{ fontSize: '14px', paddingBottom: 6 }}
+          />
+          {lines.map((l) => (
+            <Line
+              key={l.key}
+              type="monotone"
+              dataKey={l.key}
+              name={l.name}
+              stroke={l.color}
+              strokeWidth={l.strokeWidth}
+              // 대상만 점을 찍는다 — 라인 4개에 전부 찍으면 24개월치가 뭉개진다.
+              dot={l.isTarget ? { r: 2 } : false}
+              activeDot={{ r: 4 }}
+              connectNulls
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}

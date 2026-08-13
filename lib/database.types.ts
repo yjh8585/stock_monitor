@@ -1246,6 +1246,21 @@ export type Database = {
           },
         ];
       };
+      oem_model_brand: {
+        Row: {
+          cox_brand: string;
+          model: string;
+        };
+        Insert: {
+          cox_brand: string;
+          model: string;
+        };
+        Update: {
+          cox_brand?: string;
+          model?: string;
+        };
+        Relationships: [];
+      };
       oem_competitor_set: {
         Row: {
           competitor_models: string[];
@@ -2287,6 +2302,19 @@ export type Database = {
           oem_group: string | null;
           sales: number | null;
           year: number | null;
+        };
+        Relationships: [];
+      };
+      oem_competition_monthly_view: {
+        Row: {
+          display_order: number | null;
+          is_target: boolean | null;
+          market: string | null;
+          market_label: string | null;
+          model: string | null;
+          model_key: string | null;
+          sales: number | null;
+          year_month: number | null;
         };
         Relationships: [];
       };

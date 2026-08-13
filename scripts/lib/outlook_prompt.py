@@ -28,7 +28,21 @@ def _fmt_market(m: dict) -> str:
   return '\n'.join(lines)
 
 
-def build_digest(*, model_name, markets, production_gap, safety, inventory, web_results) -> str:
+def _fmt_rival_block(title: str, blocks: list[dict], fmt_row) -> list[str]:
+  """시장별 경쟁 차종 표 (재고일수·리콜 공용)."""
+  out = []
+  for b in blocks or []:
+    rows = b.get('models') or []
+    if not rows:
+      continue
+    out.append(f"[{title} · {b['market']} 시장 경쟁 차종]")
+    out += [f'  - {fmt_row(r)}' for r in rows]
+    out.append('')
+  return out
+
+
+def build_digest(*, model_name, markets, production_gap, safety, inventory, web_results,
+                 rival_inventory=None, rival_safety=None) -> str:
   """차종 1개의 프롬프트 입력 블록."""
   parts = [f'차종: {model_name}', '']
   for m in markets or []:
@@ -48,15 +62,24 @@ def build_digest(*, model_name, markets, production_gap, safety, inventory, web_
       + ('  ※ Cox 가 업계평균 2배 초과로 값을 감춤(위험 신호)' if inventory.get('days_supply') is None else '')
     )
     parts.append('')
+  parts += _fmt_rival_block(
+    '미국 딜러 재고일수 · 브랜드 기준', rival_inventory,
+    lambda r: f"{r['model']} ({r['brand']}): {r['days_supply']}일 [{r['year_month']}]")
   if safety:
     rec = safety['recalls']
     comps = ', '.join(f'{c}({n}건)' for c, n in rec.get('top_components') or [])
+    # complaint_count 는 조회 실패 시 None(=알 수 없음)이다. "0건"으로 쓰면 AI 가 무결점으로 읽는다.
+    cc = safety.get('complaint_count')
     parts.append(
       f"[NHTSA {safety['model_year']}년형]\n"
       f"  리콜 {rec['count']}건 {('— ' + comps) if comps else ''}\n"
-      f"  소비자 불만 {safety['complaint_count']}건"
+      f"  소비자 불만 {f'{cc}건' if cc is not None else '조회 실패(알 수 없음)'}"
     )
     parts.append('')
+  parts += _fmt_rival_block(
+    'NHTSA 리콜·불만', rival_safety,
+    lambda r: f"{r['model']} ({r['model_year']}년형): 리콜 {r['recall_count']}건 · 불만 "
+              + (f"{r['complaint_count']}건" if r.get('complaint_count') is not None else '알 수 없음'))
   if web_results:
     parts.append('[최근 웹 검색 결과]')
     for w in web_results:
@@ -82,4 +105,18 @@ SYSTEM_PROMPT = """당신은 자동차 산업 애널리스트입니다. 주어�
 - `sales_trend` = 차종 **전체**의 판매 흐름. 시장이 여럿이면 시장 간 대조를, 하나뿐이면
   월별 흐름·추세 전환 등 시장 코멘트에 없는 각도를 쓴다.
 - `competitive_view` = 경쟁차 대비 구조. `rationale` = 라벨(GREEN/YELLOW/RED) 판단 근거 요약.
+
+`consumer_scores` (레이더 차트 입력) 채점 규칙:
+- **입력에 나온 시장마다 하나씩** 블록을 만든다. 시장이 3개면 블록도 3개다.
+- 각 블록에는 **대상 차종 1개(`is_target`=true) + 그 시장 "경쟁 차종 동기간 판매" 목록의 상위
+  3개**를 넣는다. 경쟁 차종이 3개 미만이면 있는 만큼만 넣는다.
+- `model` 은 **입력 데이터에 쓰인 표기 그대로** 옮긴다(임의로 바꾸면 화면이 매칭에 실패한다).
+- 5개 축 모두 **1~5 정수**로 채운다. 축의 뜻:
+  · design = 상품성·디자인 (실내외 완성도, 편의사양, 공간)
+  · price = 가격 경쟁력 (동급 대비 가격·인센티브·가성비)
+  · quality = 품질·신뢰도 (리콜·불만 건수, 내구성 평판)
+  · efficiency = 연비·전동화 (연비, 하이브리드/EV 선택지)
+  · brand = 브랜드·잔존가치 (브랜드 파워, 중고 잔존가)
+- **3점을 그 시장 동급 평균**으로 삼고 상대 평가한다. 전부 4~5점을 주면 비교가 무의미해진다.
+- 리콜·불만 수치가 입력에 있으면 `quality` 는 그 수치와 어긋나지 않게 준다.
 """

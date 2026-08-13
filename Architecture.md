@@ -90,7 +90,12 @@
 
 `/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
 
-- **`/oem/competition`** (신규 2026-08-13) — 차종 카드 그리드(`components/oem/CompetitionCards.tsx`, GREEN/YELLOW/RED 신호등). 카드 구성은 시장별 현황(판매·YoY·경쟁군 내 점유율) → 판매 추이 → 경쟁 현황 → 소비자 평가 → 판매 전망 → 라벨 근거 → 접이식 출처 목록. 소스 `lib/oem-competition/source.ts`, 적재는 월 1회 `collect_oem_model_outlook.py`(§10).
+- **`/oem/competition`** (신규 2026-08-13, 같은 날 차트 중심으로 재구성) — **종합 스코어보드 + 차종별 섹션 10개**(`components/oem/competition/`). 소스 `lib/oem-competition/source.ts`, 적재는 월 1회 `collect_oem_model_outlook.py`(§10).
+  - **스코어보드**(`CompetitionScoreboard`) — 10종 × 5항목(판매 증감·점유율·재고일수·안전성·소비자 평가) 신호등 표. 행 클릭 시 해당 섹션으로 앵커 이동. 다중 시장 차종은 **가장 나쁜 시장**의 등급을 표시(`worstSignal` — 평균은 한 시장의 위험을 지운다).
+  - **차종 섹션**(`ModelSection`) — 다중 시장(셀토스 3·아반떼 2·니로 2)은 **시장 탭**으로 가른다(시장마다 경쟁군이 완전히 다르다). 각 시장에 KPI 4타일 + 차트 7종 + 접이식 서술(`ModelNarrative`).
+  - **차트 7종** — 판매 추이 멀티라인 · 경쟁차종 순위 가로막대 · 점유율 덤벨 · 경쟁 지형도 버블 · 소비자 평가 레이더 · 재고일수 막대 · 리콜/불만 이중축. 공용 토큰은 `components/oem/competition/shared.tsx`(대상=파랑 `TARGET_COLOR`, 경쟁=회색 계열).
+  - **항목별 신호등 판정은 `lib/oem-competition/signals.ts`가 정본**(순수 함수 + vitest). 임계값 `SIGNAL_THRESHOLDS` 하나에서 판정과 툴팁 문구를 모두 만든다 — 문구에 숫자를 다시 적으면 갈린다. 종합 라벨은 **AI 판단을 그대로** 쓰고 항목별로 덮어쓰지 않는다(근거의 성격이 다르다).
+  - 표시 순서는 사용자 지정(`MODEL_DISPLAY_ORDER`): 스텔란티스(그랜드체로키→램→퍼시피카) → 아틀라스 → 리비안 → 포르쉐 → 현대기아. **region 기준 정렬로 되돌리지 말 것.**
 - 옛 AI 평가 카드(`ModelOutlookCards`)는 같은 개편에서 삭제됐고 `/oem` 메인은 MarkLines 대시보드만 남는다.
 
 ### 5-A. 경영관리(`/management`) 탭 구조
@@ -439,9 +444,28 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 
 - **PK `(model_key, note_date)`** — 회차마다 행이 쌓인다. 화면은 차종별 최신 `note_date` 1건만 쓴다(`lib/oem-competition/source.ts::pickLatestPerModel`). 인덱스 `note_date DESC`. RLS anon read / service_role write(공개 데이터).
 - **v2 확장**(`20260813000003`, 전부 nullable 추가 컬럼 — 기존 3개 서술 컬럼은 유지): `competitive_view`(경쟁 현황 서술) · `sales_trend`(판매 추이 서술) · `market_breakdown`(jsonb, `[{market,label,share_pct,sales,yoy_pct,comment}]`) · `metrics`(jsonb, AI 계산 지표 원본) · `sources`(jsonb, `[{title,url,date}]` Perplexity 출처).
-- `metrics`는 **감사·재현용 원본**이다 — 화면에 그리는 값(`market_breakdown`)이 어떤 기준월·기간에서 나왔는지 나중에 되짚을 수 있게 AI에 넘긴 계산 결과를 그대로 남긴다.
+- 🔴 `metrics`는 **감사용이 아니라 화면의 1차 데이터원이다**(2026-08-13 재구성). 경쟁 차종별 판매·YoY 표, 경쟁 브랜드 재고일수, 경쟁 차종 리콜·불만, 소비자 평가 5축 점수가 전부 여기 들어 있고 `/oem/competition` 차트가 이것을 그린다. 페이로드 키: `markets[]`(경쟁표·세그먼트 주석) · `safety` · `inventory` · `competitor_inventory[]` · `competitor_safety[]` · `consumer_scores[]`. 뒤 3개는 `[{market, models|scores}]` 형태로 **시장별**이다.
+- `consumer_scores`의 축 키(`design`·`price`·`quality`·`efficiency`·`brand`)는 수집기 `CONSUMER_AXIS_KEYS`와 화면 `lib/oem-competition/types.ts`의 `CONSUMER_AXES`가 **일치해야** 한다 — 한쪽만 고치면 레이더가 조용히 빈다.
 - `region`은 `'North America' | 'Global'` 2값 체계를 유지한다. 시장 코드(USA/India/…)를 여기 넣으면 한 컬럼에 두 체계가 섞이므로 **시장별 세부는 `market_breakdown`이 담당**한다.
 - 적재는 `scripts/collect_oem_model_outlook.py`(§10) — 차종 메타(표시명·OEM 그룹·Cox 브랜드·region)만 스크립트 상수 `MODEL_META`에 두고 **경쟁군·시장은 `oem_competitor_set`(위)이 정본**이다.
+
+#### `oem_competition_monthly_view` (3,010행, **구체화 뷰** — `20260813000007` 생성 → `20260813000009` 전환) — 경쟁군 월별 판매 시계열
+
+| model_key | market | market_label | display_order | model | is_target | year_month | sales |
+
+- `oem_competitor_set` × `oem_sales_model_country_month`(96.9만 행) 조인을 **경쟁군 정의로 미리 걸러** 최근 36개월만 남긴다. `/oem/competition` 판매 추이 차트가 쓴다.
+- 🔴 **일반 뷰로 만들었다가 같은 날 구체화 뷰로 갈아탔다.** 일반 뷰는 전체 조회 **4,867ms** 로 PostgREST anon statement timeout(57014)에 걸려 **판매 추이 차트가 에러 없이 전부 비었다**. 원인은 ①`MAX(year_month)` 서브쿼리(48만 행 스캔 780ms) ②`model=ANY(배열)` 조인 뒤 `country` 필터가 인덱스를 못 타 루프마다 2,413행 폐기. 구체화 후 **23ms**. `/oem` 집계 뷰(§7-E)가 2026-08-03에 겪은 것과 **같은 실패 모드**다.
+- **갱신은 기존 `refresh_oem_agg_views()` 에 얹었다** — 유일한 원본 적재 스크립트 `import_oem_sales.py` 가 적재 후 이미 이 RPC를 호출하므로 새 배관이 없다. 🔴 다른 경로로 원본을 적재하면 이 RPC를 반드시 부를 것(안 부르면 옛 값을 조용히 보여준다).
+- `SUM(sales)::bigint` 캐스팅 필수(유럽처럼 한 논리 시장이 여러 국가면 합산이 일어난다). 유니크 인덱스 `(model_key, market, model, year_month)` — `REFRESH … CONCURRENTLY` 여지를 남긴 것. 구체화 뷰는 RLS가 적용되지 않아 anon/authenticated GRANT로 노출한다(공개 MarkLines 데이터, 기존 OEM 집계 뷰 2종과 같은 정책).
+- 화면은 대상 + 판매 상위 3 경쟁만 잘라 쓴다(`lib/oem-competition/source.ts::buildSeries`) — 경쟁군 전량(최대 8종)은 RSC 페이로드도 크고 차트도 읽히지 않는다.
+
+#### `oem_model_brand` (42행, `20260813000008`) — MarkLines 모델명 → Cox 브랜드
+
+| model (PK) | cox_brand |
+
+- 경쟁 차종의 재고일수를 붙이기 위한 매핑. `oem_sales_model_country_month.oem_group`은 그룹(GM)이라 Cox 브랜드(Chevrolet·GMC)와 입도가 달라 별도 표가 필요하다.
+- **`oem_competitor_set`의 배열 컬럼이 아니라 별도 표**인 이유: 같은 모델이 여러 경쟁군에 등장한다(Explorer는 `grand_cherokee`·`atlas` 양쪽). 배열이면 중복 입력이 생겨 갈린다.
+- ⚠️ **Cox 미보유 브랜드(Tesla·Rivian·Lucid·Jaguar)는 등록하지 않는다** — 매핑이 없는 모델은 재고 비교에서 조용히 빠지고 화면이 "데이터 없음"으로 처리한다. 그래서 리비안 경쟁군은 재고 비교가 나오지 않는다.
 
 #### `uzbekistan_auto_stats` — 우즈베키스탄 자동차 (`/oem/uzbekistan`)
 

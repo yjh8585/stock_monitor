@@ -102,11 +102,11 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 
 #### `/oem/competition` 상세
 
-10종 경쟁 분석 카드(`components/oem/CompetitionCards.tsx`). 수집 흐름 → [`docs/oem-collection.md`](./docs/oem-collection.md). 약속만:
+스코어보드 + 차트 7종(`components/oem/competition/`). 화면 → [`Architecture.md §5`](./Architecture.md) · 수집 → [`docs/oem-collection.md`](./docs/oem-collection.md) · 차트 → [`docs/chart-guide.md §3`](./docs/chart-guide.md). 약속만:
 
-- 🔴 **경쟁군 정의의 SSOT는 `oem_competitor_set` 테이블**이다. 코드에 경쟁차종 목록을 다시 박지 말 것 — 바꾸려면 새 마이그레이션.
-- 다중 시장 차종은 **시장별로 따로** 집계한다. `country`에 대륙 값이 없어 유럽은 `countries` 배열로 필터.
-- Cox 재고일수는 **브랜드 단위**(차종 아님)라 같은 브랜드 두 차종에 같은 값이 쓰인다. 현재는 프롬프트 입력으로만 쓰고 화면에 숫자를 띄우지 않는다 — **띄우게 되면 브랜드 기준임을 문구에 남길 것.**
+- 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
+- 다중 시장은 시장별 집계 + **시장 탭**으로 가른다(유럽은 `countries` 배열 필터).
+- 🔴 Cox·NHTSA는 **미국·브랜드 단위**(차종 아님) — 문구에 남기고 대상 값은 **USA·GLOBAL 탭에만**. `metrics` JSONB가 **화면의 1차 데이터원**이라 키를 바꾸면 차트가 조용히 빈다(`types.ts`와 같이 고칠 것). 순서 = `MODEL_DISPLAY_ORDER`.
 
 #### `/reports` 상세
 
@@ -133,7 +133,7 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 
 - `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - `layout/`, `common/`, `charts/` — 공용 / 나머지는 페이지별(`related-stocks/`, `oem/`, `hansae/`, `management/` 등)
-- **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"`에 마운트한다 — 제거·이동 금지**(없으면 `toast.*()`가 조용히 무시되고, 우하단은 챗봇 버튼이 점유한다). **자리 옆에 붙어야 의미가 있는 검증 오류는 toast 말고 인라인 `<p role="alert">`**. 경위 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
+- **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 
 ### `lib/`
 
@@ -142,7 +142,7 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 - 공용 유틸·React 훅 목록 → [`Architecture.md §6`](./Architecture.md). **표 행 클릭 강조는 `useRowHighlight` 훅을 재사용**(인라인 재구현 금지 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. sticky 셀은 행 bg를 명시적으로 덮어야 따라온다)
 - `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
   - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅. 🔴 명단은 여기 나열하지 않는다)
-  - **`.range()` 다중 페이지 fetch는 `.order()` 필수**(없으면 페이지 경계에서 행 누락·중복) · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수**(안 하면 문자열로 와서 JS 산술이 깨진다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
+  - **`.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
 - `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT. 🔴 **역할을 추가하면 `roles.ts`·`users.ts`·`permissions.ts` 3곳을 모두 갱신**해야 한다(빠뜨리면 세션 거부 → `/login` 무한 리다이렉트). 계정 env 키·랜딩 redirect 주의 → [`Architecture.md 부록 B-2`](./Architecture.md). 새 라우트 권한은 `permissions.ts`.
 - **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만). 폴더 목록·모듈 구성 정본 = [`Architecture.md §6`](./Architecture.md). 약속만:
   - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.
