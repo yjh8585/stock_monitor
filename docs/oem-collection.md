@@ -167,6 +167,7 @@
 - 모델 **Claude Sonnet 5**(env `OEM_MODEL_OUTLOOK_MODEL` 로 환원 가능), `output_config` 의 `json_schema` 로 응답 형식을 강제. **회당 약 $0.73**(Sonnet 5 $0.58 + Perplexity $0.15) → 연 $8.8.
 - ⚠️ 이 수집기는 다른 LLM 수집기와 달리 `thinking` 을 **adaptive 로 켠다**(추출이 아니라 분석이라 사고가 품질에 기여한다). 비용 절감 목적으로 `disabled` 로 바꾸지 말 것 — Sonnet 5 의 thinking 기본값 함정과는 별개의 의도된 설정이다.
 - 🔴 **`PERPLEXITY_API_KEY` 가 없으면 웹 검색만 조용히 건너뛰고 실행은 성공한다.** 실패가 아니라 **분석 품질 저하로만** 나타나므로 Secret 등록 누락을 놓치기 쉽다. 적재 행의 `sources_used`(`perplexity×N nhtsa=… cox=…`)와 `sources` 배열이 비었는지로 확인한다.
+- **일부 차종만 재수집**: `--only ram_truck`(공백으로 여러 개 지정 가능). 한 종이 실패해도 전체를 다시 돌릴 필요가 없다. 🔴 **성공 판정은 워크플로의 exit code 가 아니라 `note_date` 가 당일인 행이 10종인지**로 한다 — 한 종만 잘려 빠져도 실행은 `success` 로 끝난다(경위·처방 → [`gotchas-data-collection.md`](./gotchas-data-collection.md)).
 
 ---
 

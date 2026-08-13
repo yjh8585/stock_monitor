@@ -12,7 +12,12 @@ v2 (2026-08-13): 입력을 대폭 보강했다.
 주 1회가 아닌 이유: 판매(MarkLines)·재고(Cox)가 월 1회 갱신이라 주간 실행은 같은 숫자에
 문장만 바뀌는 노이즈가 된다. 21일인 이유: 전월 판매 데이터와 Cox 수집(20일)이 끝난 뒤.
 비용: 1회 약 $0.73 (Sonnet 5 $0.58 + Perplexity $0.15) → 연 $8.8.
+
+일부 차종만 다시 채우려면 `--only` 를 쓴다(전체 재실행은 멀쩡한 차종까지 덮어쓴다):
+  python collect_oem_model_outlook.py --only ram_truck
+  python collect_oem_model_outlook.py --only ram_truck niro
 """
+import argparse
 import json
 import os
 import sys
@@ -187,16 +192,46 @@ def _evaluate(anthropic: Anthropic, model_name: str, digest: str) -> dict | None
     return None
 
 
+def _parse_args() -> argparse.Namespace:
+  p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  p.add_argument(
+    '--only',
+    nargs='+',
+    metavar='MODEL_KEY',
+    help='이 차종만 수집한다(생략 시 전체). 예: --only ram_truck',
+  )
+  return p.parse_args()
+
+
+def _select_targets(only: list[str] | None) -> dict | None:
+  """--only 로 대상을 좁힌다. 알 수 없는 키가 있으면 None(= 중단)."""
+  if not only:
+    return MODEL_META
+  unknown = [k for k in only if k not in MODEL_META]
+  if unknown:
+    logger.error(f'알 수 없는 model_key: {unknown} — 가능한 값: {list(MODEL_META)}')
+    return None
+  # 중복 입력은 무시하되 사용자가 준 순서를 유지한다
+  return {k: MODEL_META[k] for k in dict.fromkeys(only)}
+
+
 def main() -> int:
+  args = _parse_args()
   if not os.environ.get('ANTHROPIC_API_KEY'):
     logger.error('ANTHROPIC_API_KEY 미설정')
     return 1
+  targets = _select_targets(args.only)
+  if targets is None:
+    return 1
+  if args.only:
+    logger.info(f'--only 지정 — {len(targets)}종만 수집: {list(targets)}')
+
   anthropic = Anthropic()
   client = get_client()
   today = datetime.now(KST).date().isoformat()
 
   rows = []
-  for model_key, (model_name, oem_group, cox_brand, region) in MODEL_META.items():
+  for model_key, (model_name, oem_group, cox_brand, region) in targets.items():
     logger.info(f'{model_key} 시작')
     markets = _load_markets(client, model_key)
     if not markets:

@@ -243,5 +243,14 @@ MarkLines 판매 데이터에는 미분류 행이 `N/A`(및 `N/A (Trucks)`) 모�
 경고와 JSON 파싱 ERROR 를 남기지만 **전체 실행은 성공**하고, 화면에는 옛 데이터가 그대로 보인다.
 → 적재 후 확인은 행 수가 아니라 **`note_date` 가 오늘인 행이 대상 종수와 같은지**로 한다.
 
-**1종만 다시 채우려면** 전체 재실행($0.73) 대신 `MODEL_META` 를 그 종으로 좁혀 `main()` 을
-호출하는 임시 스크립트를 쓴다(수집기에 단일 차종 옵션은 없다).
+**일부 차종만 다시 채우려면** 전체 재실행($0.73, 멀쩡한 차종까지 덮어씀) 대신 `--only` 를 쓴다:
+
+```powershell
+scripts/venv/Scripts/python.exe scripts/collect_oem_model_outlook.py --only ram_truck
+scripts/venv/Scripts/python.exe scripts/collect_oem_model_outlook.py --only ram_truck niro
+```
+
+알 수 없는 `model_key` 를 주면 가능한 값을 찍고 **아무것도 적재하지 않은 채** 중단한다.
+🔴 로컬 실행은 `scripts/.env` 의 `NEXT_REVALIDATE_URL` 이 dev 를 가리켜 **프로덕션 캐시가
+갱신되지 않는다**(로그에 revalidate 404). 프로덕션에 반영하려면 `/api/revalidate` 를
+`{"tags":["oem_model_outlook"]}` 로 직접 호출한다.
