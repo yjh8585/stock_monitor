@@ -357,6 +357,25 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 `oem_sales_model_country_month`(92만 행)를 직접 UPDATE하지 않기 위해 분리한 별도 매핑 테이블(20260803000002 `skip_identical_update` 트리거 재사용). 적재는 `scripts/import_oem_model_segment.py`가 `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개(2020~2023 연도별 + 최신)를 병합해 수행(멱등, `(model, country)` upsert, 'N/A' 모델 제외). RLS enable + anon SELECT 정책(공개 데이터). OEM 차종 경쟁 분석(`/oem/competition`, 진행 중) 기능의 세그먼트 기반 경쟁군 구성·점유율 계산 근거 테이블.
 
+#### `oem_competitor_set` (14행, 신규 `20260813000002` + 모델명 정정 `20260813000004`) — 차종×시장 경쟁군 정의 (수동 SSOT)
+
+| 컬럼                | 타입   | 비고                                                                |
+| ------------------- | ------ | ------------------------------------------------------------------- |
+| `model_key`         | text   | PK                                                                  |
+| `market`            | text   | PK. 논리적 시장 코드(USA/India/Korea/China/Europe/GLOBAL)           |
+| `market_label`      | text   | 화면 표시용 한글 라벨                                               |
+| `display_order`     | int    | 동일 `model_key` 내 시장 표시 순서                                  |
+| `countries`         | text[] | 집계 대상 국가 배열. **NULL = 전 국가**(`GLOBAL`인 `porsche_911`만) |
+| `target_models`     | text[] | 대상 차종의 판매 테이블 실제 표기(복수 가능)                        |
+| `competitor_models` | text[] | 경쟁 차종의 판매 테이블 실제 표기                                   |
+| `segment_note`      | text   | 세그먼트·시장 선정 근거 메모                                        |
+
+Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **수동** 정본(자동 분류 아님) — MarkLines `Segment`를 그대로 쓰면 Grand Cherokee(SUV-E)와 Explorer·Traverse·Atlas(SUV-D)가 갈리지만 실제로는 같은 시장에서 경쟁하기 때문. RLS enable + anon SELECT 정책(공개 데이터).
+
+- **⚠️ `countries`가 실제 집계 필터다.** `oem_sales_model_country_month.country`엔 `'Europe'` 같은 대륙 값이 없고 개별 국가만 있다 — 유럽 시장(`niro`)은 서유럽 14개국 배열로 정의. `GLOBAL`만 `countries IS NULL`(전 국가).
+- 모델명은 브리프 초안 대비 실측 오타 5건을 `20260813000004`로 정정: `avante_ex_china/USA`는 `'Avante (Elantra)'`만 존재(`'Avante'`는 Korea 전용 표기), `avante_ex_china/Korea`는 반대로 `'Avante'`만 존재, `avante_china/China`는 `'Elantra Yuedong'` 단독 표기가 없고 `'Elantra/Yuedong/Langdong/Elantra 2016'`으로 통합, `niro/Europe` 경쟁모델은 `'Puma'`→`'Ford Puma'`·`'2008'`→`'Peugeot 2008'`.
+- 검증은 `scripts/lib/test_competitor_set.py`(DB 실접속 필요, `SUPABASE_URL` 없으면 스킵)가 14개 시장 전부의 `target_models`·`competitor_models` 실존과 `countries` 채움 여부를 확인.
+
 - **⚠️ `country`가 판매 테이블과 의미가 정반대다** — 여기선 **생산국**, `oem_sales_*`에선 **판매 시장**. 이름이 같아 차감하기 쉽지만 그러면 국가 간 수출입이 결과에 섞인다. `/management/stellantis` 차트 1이 이 차감을 하고 있고, 그래서 "항등식이 아니라 근사"라고 화면에 밝힌다.
 - 소스는 MarkLines **`vehicle_production`** export(판매와 **다른 페이지·다른 레이아웃** — 메타 6열, PowerTrain 컬럼 없음, 월은 인덱스 6부터). 파일명이 `product_data`(≠`production_data`).
 - 판매(92만 행)의 1/7 크기라 앱 전량 fetch가 가능 — 집계 뷰 불필요.
