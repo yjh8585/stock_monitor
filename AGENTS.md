@@ -87,7 +87,8 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 | `/related-stocks`   | 21개사 메인 표(`related_stocks_view`). **컬럼 추가는 뷰부터 수정** |
 | `/compare`          | 다중 회사 비교                                                     |
 | `/domestic`         | 국내자동차 (421개사 + 매크로)                                      |
-| `/oem`              | OEM "전체" 탭 — MarkLines 대시보드 + 모델 outlook                  |
+| `/oem`              | OEM "전체" 탭 — MarkLines 대시보드                                 |
+| `/oem/competition`  | 핵심 차종 경쟁 분석 (10종 · 월 1회 갱신) — **↓ 상세**              |
 | `/oem/<slug>`       | OEM 회사별 차종 판매 — **↓ 상세**                                  |
 | `/parts-top100`     | 부품사 TOP100 (Marklines 매핑)                                     |
 | `/hansae`           | 한세그룹 대시보드 + intraday                                       |
@@ -98,6 +99,14 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                    |
 
 `/oem` 탭 네비는 `app/oem/layout.tsx`, 차트 카탈로그는 `docs/chart-guide.md`. **`/oem/<slug>`(hyundai·kia·kg-mobility·stellantis-na·uzbekistan) 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md).** `/management`는 `confidentialDb` 필수, `/reports`는 `'use cache'`+`generateStaticParams`+`updateTag`.
+
+#### `/oem/competition` 상세
+
+10종 경쟁 분석 카드(`components/oem/CompetitionCards.tsx`). 수집 흐름 → [`docs/oem-collection.md`](./docs/oem-collection.md). 약속만:
+
+- 🔴 **경쟁군 정의의 SSOT는 `oem_competitor_set` 테이블**이다. 코드에 경쟁차종 목록을 다시 박지 말 것 — 바꾸려면 새 마이그레이션.
+- 다중 시장 차종은 **시장별로 따로** 집계한다. `country`에 대륙 값이 없어 유럽은 `countries` 배열로 필터.
+- Cox 재고일수는 **브랜드 단위**(차종 아님) — 같은 브랜드 두 차종에 같은 값이 쓰이니 화면 문구에 남길 것.
 
 #### `/reports` 상세
 
@@ -141,6 +150,7 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
   - `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
   - `lib/oem-companies/<slug>/` — `source.ts`(`'use cache'`+`cacheTag`) + `aggregate.ts`(pure) + 테스트. 상세 → `docs/oem-collection.md`
+  - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
 
 ### `scripts/` — Python 데이터 수집
 
@@ -157,7 +167,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
 
-- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수, DB 접근 없음) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `bootstrap.py`(boilerplate `init_script(__file__)`)
+- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `bootstrap.py`(boilerplate `init_script(__file__)`)
 
 ### `supabase/migrations/`
 

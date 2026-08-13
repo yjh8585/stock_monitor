@@ -15,6 +15,7 @@
 | Stellantis 북미 출하 수집 수정            | 출하 수집기 2종(IR primary · EDGAR 보완)       |
 | Cox 딜러 재고일수 수집 실패               | 슬러그·파일명 불규칙 · outlier 제외 규칙       |
 | 사외비 월별손익 sync 수정                 | 사외비 적재 세부(검증·dedupe·실 정정)          |
+| OEM 차종 경쟁 분석 수집 수정              | `country` 의미 · 지표 앵커월 · NHTSA 조회      |
 
 관련 문서: [`data-audit-2026-07-18.md`](./data-audit-2026-07-18.md)(정정 실행 결과) ·
 [`fnguide-wcomp-migration.md`](./fnguide-wcomp-migration.md)(fnguide 신버전 계약)
@@ -160,3 +161,67 @@ PrintArea 를 `UsedRange` 로만 잡으면 **셀 밖 도형(변경요약 박스 
 
 증상: **적재는 정상인데 화면만 `cacheLife` TTL 로 뒤늦게 갱신된다.**
 신규 워크플로를 만들 때 이름을 정확히 확인할 것.
+
+---
+
+## OEM 차종 경쟁 분석 수집 함정 (2026-08-13)
+
+`collect_oem_model_outlook.py` v2 재작성에서 **실제로 터진** 것들이다.
+파이프라인 자체의 설명(경쟁군 SSOT·시장 구성·주기·비용)은
+[`oem-collection.md`](./oem-collection.md) 「핵심 차종 경쟁 분석」 절이 정본이다.
+
+### 🔴 생산과 판매의 `country` 는 의미가 정반대다
+
+- `oem_production_model_country_month.country` = **공장 국가**(어디서 만들었나)
+- `oem_sales_model_country_month.country` = **판매 시장**(어디서 팔렸나)
+
+그래서 국가별로 생산 − 판매를 차감하면 수출입이 통째로 섞여 **무의미한 숫자**가 나온다
+(멕시코 공장 생산 → 미국 판매가 양쪽 국가에서 각각 큰 갭으로 잡힌다).
+
+→ 생산-판매 갭 지표는 **1차 범위에서 제외**했다. `build_digest(production_gap=...)` 인자와
+포맷 코드는 남아 있지만 수집기는 항상 `None` 을 넘긴다. 되살린다면 **글로벌 합계 근사로만**
+의미가 있고, 국가별 차감은 하지 말 것.
+
+### `country` 에 대륙 값이 없다 — 'Europe' 로 필터하면 0행
+
+니로의 **유럽 시장**을 `country = 'Europe'` 으로 잡으려 했으나 그런 값이 아예 없다(개별 국가만
+있다). 필터를 빼면 이번엔 전 국가 합산이라 **유럽 시장이 글로벌로 뭉개진다** — 첫 구현이 실제로
+그렇게 뭉개진 채 지표를 냈다.
+
+→ `oem_competitor_set.countries text[]` 에 **서유럽 14개국을 명시**해 필터한다(Germany · UK ·
+France · Italy · Spain · Netherlands · Sweden · Poland · Belgium · Austria · Norway · Denmark ·
+Portugal · Switzerland). `countries IS NULL` 은 **GLOBAL(전 국가)** 이라는 의미로만 쓴다.
+🔴 대상 차종과 경쟁 차종에 **같은 국가 집합**을 적용해야 점유율이 공정하다.
+
+### MarkLines 의 `'N/A'` 모델을 반드시 제외한다
+
+MarkLines 판매 데이터에는 미분류 행이 `N/A`(및 `N/A (Trucks)`) 모델명으로 들어 있고, 이게
+**각국 판매 1위로 잡힌다.** 상위 모델을 뽑는 쿼리·스크립트를 새로 짤 때마다 같은 필터가 필요하다.
+
+→ `scripts/lib/model_segment.py` 의 `EXCLUDED_MODELS` + `startswith('N/A')` 로 제외한다.
+
+### 🔴 경쟁 지표의 기준월을 두 데이터셋에서 동기화해야 한다
+
+대상 차종과 경쟁군은 MarkLines 도착 시점이 달라 **최신월이 어긋난다.** 각자의
+`max(year_month)` 를 기준으로 12개월 창을 잡으면 서로 다른 기간을 비교하게 되고, 점유율이
+**조용히 왜곡된다** — 에러도 경고도 나지 않는다.
+
+→ 공통 앵커 = 두 최신월 중 **min**. `compute_market_metrics()` 가 앵커를 계산해
+`anchor_month` 로 돌려주고, caller 가 그 값을 `compute_competitor_table(..., anchor=...)` 에
+그대로 넘긴다(`_load_markets`). 프롬프트·화면에도 "언제 기준 수치인지"를 노출한다
+(`outlook_prompt._fmt_market` 의 시장 헤더). 회귀 `scripts/lib/test_competition_metrics.py`.
+
+**선례**: `lib/stellantis-forecast` 의 `lastCompleteMonth` — 생산·소매 도착 시점이 달라 공통
+최신월까지만 쓴다. 도착 시점이 다른 두 시계열을 비교할 때마다 같은 처방이 필요하다.
+
+### NHTSA 는 모델 리스트로 조회해 합산해야 하고, HTTP 400 은 정상이다
+
+- **단일 모델명으로만 조회하면 형제 모델이 통째로 빠진다.** `ram_truck` 을 `'1500'` 하나로
+  조회하면 2500·3500 이 누락되고(실측: 리콜 **3건 → 15건**), `rivian_r1` 도 `'r1s'` 만
+  조회하면 R1T 가 빠진다. → `NHTSA_MODEL_MAP` 은 **단일 모델도 리스트로 통일**하고 한 모델연도
+  안에서 전 모델을 조회해 합산한다.
+- **'데이터 없음'에도 HTTP 400 을 준다.** 아직 등록되지 않은 모델연도(예: 2026)를 조회하면
+  Count 0 이 아니라 400 이 온다. 이걸 오류로 로깅하면 **정상 폴백마다 경고가 쏟아진다.**
+  → `_get()` 은 비-200 을 조용히 `None` 으로 흡수하고, `MODEL_YEARS = [2026, 2025, 2024]` 로
+  **모델연도 폴백**해 데이터가 처음 잡히는 연도를 쓴다(전 연도가 비면 `None` = 근거 미포함).
+  네트워크 예외·JSON 파싱 실패만 `logger.warning` 대상이다.

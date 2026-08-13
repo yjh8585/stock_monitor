@@ -1246,6 +1246,39 @@ export type Database = {
           },
         ];
       };
+      oem_competitor_set: {
+        Row: {
+          competitor_models: string[];
+          countries: string[] | null;
+          display_order: number;
+          market: string;
+          market_label: string;
+          model_key: string;
+          segment_note: string | null;
+          target_models: string[];
+        };
+        Insert: {
+          competitor_models: string[];
+          countries?: string[] | null;
+          display_order: number;
+          market: string;
+          market_label: string;
+          model_key: string;
+          segment_note?: string | null;
+          target_models: string[];
+        };
+        Update: {
+          competitor_models?: string[];
+          countries?: string[] | null;
+          display_order?: number;
+          market?: string;
+          market_label?: string;
+          model_key?: string;
+          segment_note?: string | null;
+          target_models?: string[];
+        };
+        Relationships: [];
+      };
       oem_model_outlook: {
         Row: {
           competitive_view: string | null;
@@ -1297,6 +1330,30 @@ export type Database = {
           sales_trend?: string | null;
           sources?: Json | null;
           sources_used?: string | null;
+        };
+        Relationships: [];
+      };
+      oem_model_segment: {
+        Row: {
+          country: string;
+          model: string;
+          powertrains: string[];
+          segment: string;
+          vehicle_type: string;
+        };
+        Insert: {
+          country: string;
+          model: string;
+          powertrains?: string[];
+          segment: string;
+          vehicle_type: string;
+        };
+        Update: {
+          country?: string;
+          model?: string;
+          powertrains?: string[];
+          segment?: string;
+          vehicle_type?: string;
         };
         Relationships: [];
       };
