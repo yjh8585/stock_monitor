@@ -43,3 +43,17 @@ def test_GLOBAL_외의_시장은_countries가_채워져_있다():
       assert not s['countries'], f"{s['model_key']}/GLOBAL 은 countries 가 NULL 이어야 한다"
     else:
       assert s['countries'], f"{s['model_key']}/{s['market']} 에 countries 가 비어 있다"
+
+
+def test_경쟁군에서_유효한_모델이_누락되지_않았다():
+  """배열 교체형 UPDATE 로 유효 항목이 조용히 빠지는 사고를 막는다(2026-08-13 Captur 누락)."""
+  from lib.db import get_client
+
+  c = get_client()
+  expected = {
+    ('niro', 'Europe'): {'Kona', 'Captur', 'Ford Puma', 'Peugeot 2008'},
+  }
+  for (mk, market), want in expected.items():
+    row = (c.table('oem_competitor_set').select('competitor_models')
+           .eq('model_key', mk).eq('market', market).single().execute().data)
+    assert set(row['competitor_models']) == want, f'{mk}/{market} 경쟁군이 달라졌다'
