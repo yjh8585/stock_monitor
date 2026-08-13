@@ -25,8 +25,6 @@ export default async function OemPage() {
         usaOemSeries={data.usaOemSeries}
         naModelSeries={data.naModelSeries}
         otherModelSeries={data.otherModelSeries}
-        naOutlooks={data.naOutlooks}
-        otherOutlooks={data.otherOutlooks}
       />
     </>
   );
