@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 const OEM_TABS = [
   { label: '전체', href: '/oem' },
+  { label: '경쟁 분석', href: '/oem/competition' },
   { label: 'Stellantis USA', href: '/oem/stellantis-na' },
   { label: 'KG모빌리티', href: '/oem/kg-mobility' },
   { label: '현대차', href: '/oem/hyundai' },
