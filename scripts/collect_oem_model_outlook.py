@@ -163,7 +163,11 @@ def _evaluate(anthropic: Anthropic, model_name: str, digest: str) -> dict | None
   try:
     msg = anthropic.messages.create(
       model=ANTHROPIC_MODEL,
-      max_tokens=4000,
+      # 🔴 max_tokens 는 사고+응답 합산 상한이다. adaptive thinking 이 대부분을 쓰므로
+      # 4000 에서는 서술이 긴 차종(ram_truck = 1500/2500/3500 합산)이 JSON 중간에서 잘려
+      # 파싱에 실패하고 그 차종만 조용히 빠졌다(워크플로는 success). 실제 과금은 사용량
+      # 기준이라 상한을 올려도 안 쓰면 비용이 늘지 않는다.
+      max_tokens=16000,
       thinking={'type': 'adaptive'},
       output_config={'effort': 'high', 'format': {'type': 'json_schema', 'schema': RESPONSE_SCHEMA}},
       system=SYSTEM_PROMPT,

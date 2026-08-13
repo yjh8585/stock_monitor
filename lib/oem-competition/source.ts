@@ -15,9 +15,19 @@ type OutlookRow = {
   consumer_view: string;
   outlook: string;
   rationale: string;
+  region: string;
   market_breakdown: unknown;
   sources: unknown;
 };
+
+/** 카드 표시 순서 — 북미 차종 먼저, 그 안에서는 model_key 사전순. */
+export function compareForDisplay(
+  a: Pick<OutlookRow, 'region' | 'model_key'>,
+  b: Pick<OutlookRow, 'region' | 'model_key'>
+): number {
+  const rank = (r: string) => (r === 'North America' ? 0 : 1);
+  return rank(a.region) - rank(b.region) || a.model_key.localeCompare(b.model_key);
+}
 
 /** JSONB 컬럼은 null 이거나 형태가 어긋날 수 있으므로 배열이 아니면 버린다. */
 function asArray<T>(value: unknown): T[] {
@@ -69,7 +79,7 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   const { data, error } = await supabase
     .from('oem_model_outlook')
     .select(
-      'model_key,model_name,oem_group,note_date,label,sales_trend,competitive_view,consumer_view,outlook,rationale,market_breakdown,sources'
+      'model_key,model_name,oem_group,region,note_date,label,sales_trend,competitive_view,consumer_view,outlook,rationale,market_breakdown,sources'
     )
     .order('note_date', { ascending: false })
     .limit(200);
@@ -78,5 +88,8 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
     logger.error({ err: error }, 'oem_model_outlook 조회 실패');
     return [];
   }
-  return pickLatestPerModel((data ?? []) as OutlookRow[]).map(mapOutlookRow);
+  // 정렬하지 않으면 카드 순서가 DB 반환 순서를 따라 실행마다 뒤바뀐다
+  return pickLatestPerModel((data ?? []) as OutlookRow[])
+    .sort(compareForDisplay)
+    .map(mapOutlookRow);
 }
