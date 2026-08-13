@@ -413,6 +413,8 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 
 | model_key | model_name | oem_group | region | note_date | label | consumer_view | outlook | rationale | sources_used |
 
+- **v2 확장**(`20260813000003`, 전부 nullable 추가 컬럼 — 기존 3개 서술 컬럼은 유지): `competitive_view`(경쟁 현황 서술) · `sales_trend`(판매 추이 서술) · `market_breakdown`(jsonb, `[{market,label,share_pct,sales,yoy_pct,comment}]`) · `metrics`(jsonb, AI 계산 지표 원본) · `sources`(jsonb, `[{title,url,date}]` Perplexity 출처).
+
 #### `uzbekistan_auto_stats` — 우즈베키스탄 자동차 (`/oem/uzbekistan`)
 
 PK `(kind, period_type, year_period, company, brand, vehicle_model, source_type)`. 마이그레이션 `20260527000004` 생성, `20260601000001` CHECK 확장.
