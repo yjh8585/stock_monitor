@@ -16,12 +16,14 @@ export default async function CompetitionPage() {
   }
 
   return (
-    <div className="space-y-4">
+    // 좌우 여백은 OEM 다른 탭과 같은 px-6 — 없으면 카드가 화면 가장자리에 붙는다(사용자 지적 2026-08-14).
+    <div className="space-y-4 px-6 py-4">
       <div>
         <h2 className="text-lg font-semibold">핵심 차종 경쟁 분석</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          MarkLines 판매 실적 + 지역별 경쟁차종 비교 + Cox 딜러 재고 + NHTSA 리콜·불만 + 웹
-          검색(신형 출시·소비자 반응)을 근거로 Claude Sonnet 5 가 종합 · 매월 21일 자동 갱신
+          MarkLines 판매 실적 + 지역별 경쟁차종 비교 + Cox 딜러 유통재고(미국) + NHTSA 리콜·불만
+          (미국) + 웹 검색(신형 출시·소비자 반응)을 근거로 Claude Sonnet 5 가 종합 · 매월 21일 자동
+          갱신
         </p>
       </div>
 

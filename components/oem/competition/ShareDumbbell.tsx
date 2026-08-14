@@ -1,28 +1,37 @@
 'use client';
 
 /**
- * 경쟁군 내 점유율의 전년 대비 이동 — 차종 한 줄에 덤벨 하나.
+ * 경쟁군 내 점유율의 이동 — 차종 한 줄에 덤벨 하나, 현재 쪽 끝은 **화살촉**이다.
  *
  * 전년·현재를 막대 두 개로 세우면 "얼마나 움직였나"를 눈으로 빼야 하지만, 덤벨은 이동 자체가
- * 선분의 길이·색으로 바로 읽힌다. recharts 에는 덤벨 프리미티브가 없어 산점+에러바로 흉내 내야
- * 하는데, 행마다 차종명과 정확한 수치를 붙이는 이 레이아웃에서는 div/CSS 가 더 짧고 정확하다.
+ * 선분의 길이·색으로 바로 읽힌다. 다만 점 두 개만으로는 어느 쪽이 현재인지 매번 범례를 봐야 해서
+ * 현재 끝을 화살촉으로 바꿨다(사용자 선택 2026-08-14) — 방향이 곧 상승/하락이다.
+ *
+ * recharts 에는 덤벨 프리미티브가 없어 산점+에러바로 흉내 내야 하는데, 행마다 차종명과 정확한
+ * 수치를 붙이는 이 레이아웃에서는 div/CSS 가 더 짧고 정확하다.
  * (docs/chart-guide.md §7-2 의 "카테고리 축" 레시피가 다루지 못하는 형태)
  */
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits } from '@/components/oem/helpers';
-import type { CompetitionMarket } from '@/lib/oem-competition/types';
+import type { CompetitionMarket, PeriodAggregate } from '@/lib/oem-competition/types';
 import { useChartHeight } from '@/lib/useChartHeight';
 import {
+  basisPeriodLabel,
   ChartCard,
   EmptyChart,
+  fmtLevel,
   fmtPct,
-  periodLabel,
+  fmtPp,
   rivalColor,
+  SegmentedToggle,
   shortModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
+  targetModelName,
+  usePeriodBasis,
 } from './shared';
 
 /** 점유율 상승은 신호등의 GREEN 과 같은 뜻이라 색을 새로 만들지 않고 그대로 쓴다. */
@@ -31,7 +40,8 @@ const FALL_COLOR = SIGNAL_COLORS.RED;
 
 /** 세 열의 폭은 본문 행과 축 행이 정확히 같아야 눈금이 점과 어긋나지 않는다. */
 const LABEL_COL = 'w-20 shrink-0 sm:w-28';
-const VALUE_COL = 'w-24 shrink-0 sm:w-44';
+/** "12.3% → 14.1% (+1.8%p)" 를 접지 않고 다 싣기 위한 폭(사용자 지시 2026-08-14). */
+const VALUE_COL = 'w-36 shrink-0 sm:w-52';
 const TRACK_COL = 'min-w-0 flex-1 px-2';
 
 /** 축 최대값 후보. 어느 값을 골라도 절반이 정수라 눈금 라벨이 지저분해지지 않는다. */
@@ -41,10 +51,12 @@ interface ShareRow {
   model: string;
   isTarget: boolean;
   sales: number;
+  /** 전년 동기 판매. 역산으로도 못 구하면 null. */
+  prevSales: number | null;
   yoyPct: number | null;
   /** 현재 점유율(%) */
   cur: number;
-  /** 전년 점유율(%). 경쟁 차종은 YoY 가 없으면 역산이 불가능해 null. */
+  /** 전년 점유율(%). 전년 실적을 모르면 null. */
   prev: number | null;
   color: string;
 }
@@ -58,15 +70,26 @@ function prevSalesFromYoy(sales: number, yoyPct: number | null): number | null {
   return sales / (1 + yoyPct / 100);
 }
 
-/** 대상 차종 이름은 CompetitionMarket 에 직접 없다 — 시계열·소비자평가에 붙은 이름을 빌린다. */
-function targetModelName(market: CompetitionMarket): string {
-  const name =
-    market.series.find((s) => s.isTarget)?.model ??
-    market.consumerScores.find((s) => s.is_target)?.model;
-  return name ? shortModel(name) : '대상 차종';
+/**
+ * 월별 뷰 재집계에서 바로 만든다 — 전년 판매·점유율을 **실제로 알고 있어** 역산이 필요 없다.
+ * (아래 폴백 경로는 저장 스냅샷뿐일 때만 쓰이고, 거기서는 YoY 로 되돌린 근사값이다.)
+ */
+function rowsFromPeriod(active: PeriodAggregate, targetName: string): ShareRow[] {
+  let rivalIndex = 0;
+  return active.models.map((m) => ({
+    model: shortModel(m.isTarget ? targetName : m.model),
+    isTarget: m.isTarget,
+    sales: m.sales,
+    prevSales: m.prevSales,
+    yoyPct: m.yoyPct,
+    cur: m.sharePct,
+    prev: m.prevSharePct,
+    color: m.isTarget ? TARGET_COLOR : rivalColor(rivalIndex++),
+  }));
 }
 
-function buildRows(market: CompetitionMarket, total: number): ShareRow[] {
+/** 월별 뷰에 이 시장이 없을 때의 폴백 — 저장 스냅샷 + YoY 역산. */
+function rowsFromSnapshot(market: CompetitionMarket, total: number): ShareRow[] {
   const { sharePct, prevSharePct } = market;
   // competitors 와 share_pct 는 서로 다른 JSONB 컬럼에서 오므로 "경쟁군은 비었는데 점유율은 있는"
   // 상태가 실제로 나온다. 그대로 그리면 대상 혼자 선 덤벨에 "경쟁군 합계 = 대상 판매량"이 붙는다.
@@ -95,6 +118,7 @@ function buildRows(market: CompetitionMarket, total: number): ShareRow[] {
       model: targetModelName(market),
       isTarget: true,
       sales: market.sales,
+      prevSales: targetPrevSales,
       yoyPct: market.yoyPct,
       // 대상만은 저장값을 쓴다 — 여기서 다시 계산하면 KPI·스코어보드와 반올림 한 자리가 갈린다.
       cur: sharePct,
@@ -107,6 +131,7 @@ function buildRows(market: CompetitionMarket, total: number): ShareRow[] {
         model: shortModel(c.model),
         isTarget: false,
         sales: c.sales,
+        prevSales,
         yoyPct: c.yoy_pct,
         cur: (c.sales / total) * 100,
         prev: prevSales !== null && prevTotal !== null ? (prevSales / prevTotal) * 100 : null,
@@ -124,16 +149,6 @@ function emptyReason(market: CompetitionMarket, total: number): string {
   if (!Number.isFinite(total) || total <= 0)
     return '경쟁군 판매량 합계가 0이라 점유율을 계산할 수 없습니다.';
   return '전년 점유율이 없어 점유율 변화를 그릴 수 없습니다.';
-}
-
-/** 점유율 '수준' 표기. fmtPct 는 양수에 +를 붙이는 증감용이라 수준값에는 쓸 수 없다. */
-function fmtLevel(value: number | null): string {
-  return value === null ? '—' : `${value.toFixed(1)}%`;
-}
-
-function fmtDeltaPp(delta: number | null): string {
-  if (delta === null) return '(전년 —)';
-  return `(${delta > 0 ? '+' : ''}${delta.toFixed(1)}%p)`;
 }
 
 function Dot({ left, color, size }: { left: number; color: string; size: number }) {
@@ -155,6 +170,41 @@ function Dot({ left, color, size }: { left: number; color: string; size: number 
   );
 }
 
+/**
+ * 현재 위치 표식 — 이동 방향으로 향한 화살촉.
+ *
+ * clip-path 로 삼각형을 만든다. border 트릭보다 크기·색을 한 곳에서 다루기 쉽고, 방향 전환이
+ * 폴리곤 좌표 한 줄이라 좌우 두 벌을 따로 관리하지 않아도 된다.
+ */
+function ArrowHead({
+  left,
+  color,
+  size,
+  dir,
+}: {
+  left: number;
+  color: string;
+  size: number;
+  dir: 'right' | 'left';
+}) {
+  return (
+    <span
+      className="absolute"
+      style={{
+        left: `${left}%`,
+        top: '50%',
+        width: size,
+        height: size,
+        marginLeft: dir === 'right' ? -size * 0.65 : -size * 0.35,
+        marginTop: -size / 2,
+        backgroundColor: color,
+        clipPath:
+          dir === 'right' ? 'polygon(0 0, 100% 50%, 0 100%)' : 'polygon(100% 0, 0 50%, 100% 100%)',
+      }}
+    />
+  );
+}
+
 function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
   return (
     <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -166,7 +216,7 @@ function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
 
 function LegendBar({ color }: { color: string }) {
   return (
-    <span className="inline-block h-[3px] w-4 rounded-full" style={{ backgroundColor: color }} />
+    <span className="inline-block h-[4px] w-4 rounded-full" style={{ backgroundColor: color }} />
   );
 }
 
@@ -180,6 +230,15 @@ function LegendDot({ color }: { color: string }) {
   );
 }
 
+function LegendArrow({ color }: { color: string }) {
+  return (
+    <span
+      className="inline-block h-2.5 w-2.5"
+      style={{ backgroundColor: color, clipPath: 'polygon(0 0, 100% 50%, 0 100%)' }}
+    />
+  );
+}
+
 export interface ShareDumbbellProps {
   market: CompetitionMarket;
 }
@@ -187,35 +246,72 @@ export interface ShareDumbbellProps {
 export default function ShareDumbbell({ market }: ShareDumbbellProps) {
   // 행 수가 경쟁군 크기(최대 9종)에 따라 달라져 총 높이를 고정할 수 없다 → 한 줄 높이를 폭에 맞춘다.
   const rowHeight = useChartHeight(34, 38, 42);
+  const { active, options, basis, setBasis } = usePeriodBasis(market.periods);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
 
-  const total = market.sales + market.competitors.reduce((acc, c) => acc + c.sales, 0);
-  const rows = buildRows(market, total);
-  const period = periodLabel(market);
+  const snapshotTotal = market.sales + market.competitors.reduce((acc, c) => acc + c.sales, 0);
+  const allRows = active
+    ? rowsFromPeriod(active, targetModelName(market))
+    : rowsFromSnapshot(market, snapshotTotal);
+  const rows = allRows.filter((r) => !hidden.has(r.isTarget ? 'target' : 'rival'));
 
-  if (rows.length === 0) {
+  const total = active ? active.totalSales : snapshotTotal;
+  const prevTotal = active ? active.prevTotalSales : null;
+
+  const periodToggle = (
+    <SegmentedToggle options={options} value={basis} onChange={setBasis} ariaLabel="집계 기준" />
+  );
+
+  if (allRows.length === 0) {
     return (
-      <ChartCard title="경쟁군 내 점유율 변화" subtitle={period || undefined}>
-        <EmptyChart reason={emptyReason(market, total)} />
+      <ChartCard
+        title="경쟁군 내 점유율 변화"
+        subtitle={basisPeriodLabel(market, active) || undefined}
+        actions={periodToggle}
+      >
+        <EmptyChart reason={emptyReason(market, snapshotTotal)} />
       </ChartCard>
     );
   }
 
   // prev 가 없는 행은 축 계산에서 아예 뺀다 — 0 을 대신 넣으면 '전년 점유율 0%'를 사실처럼 다루게 된다.
-  const maxShare = Math.max(...rows.flatMap((r) => (r.prev === null ? [r.cur] : [r.cur, r.prev])));
+  const maxShare = Math.max(
+    ...allRows.flatMap((r) => (r.prev === null ? [r.cur] : [r.cur, r.prev]))
+  );
   const axisMax = AXIS_STEPS.find((s) => s >= maxShare) ?? 100;
   const ticks = [0, axisMax / 2, axisMax];
   const pos = (value: number) => (value / axisMax) * 100;
 
-  const subtitle = `${period ? `${period} · ` : ''}경쟁군 합계 ${fmtUnits(total)}대 대비 · 경쟁 차종의 전년 점유율은 YoY로 역산한 값`;
+  // 비교 대상이 무엇인지 숫자로 못 박는다 — "합계 대비"만 쓰면 분모가 작년 것인지 올해 것인지
+  // 알 수 없다(사용자 지시 2026-08-14).
+  const subtitle = `${basisPeriodLabel(market, active)} · 경쟁군 합계 ${fmtUnits(total)}대${
+    prevTotal !== null && prevTotal > 0 ? ` (전년 동기 ${fmtUnits(prevTotal)}대)` : ''
+  } 대비${active ? '' : ' · 경쟁 차종의 전년 점유율은 YoY로 역산한 값'}`;
+
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const legendItems = [
+    { key: 'target', label: '대상 차종', shape: 'rect' as const, color: TARGET_COLOR },
+    ...(allRows.length > 1
+      ? [{ key: 'rival', label: '경쟁 차종', shape: 'rect' as const, color: rivalColor(0) }]
+      : []),
+  ];
 
   return (
-    <ChartCard title="경쟁군 내 점유율 변화" subtitle={subtitle}>
+    <ChartCard title="경쟁군 내 점유율 변화" subtitle={subtitle} actions={periodToggle}>
+      <LegendRow items={legendItems} hidden={hidden} onToggle={toggle} />
       <div
-        className="mb-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1"
-        style={{ fontSize: 14 }}
+        className="mt-1 mb-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1"
+        style={{ fontSize: 13 }}
       >
-        <LegendItem swatch={<LegendDot color="var(--muted-foreground)" />} label="전년" />
-        <LegendItem swatch={<LegendDot color={TARGET_COLOR} />} label="현재" />
+        <LegendItem swatch={<LegendDot color="var(--muted-foreground)" />} label="과거" />
+        <LegendItem swatch={<LegendArrow color={TARGET_COLOR} />} label="현재(화살촉)" />
         <LegendItem swatch={<LegendBar color={RISE_COLOR} />} label="상승" />
         <LegendItem swatch={<LegendBar color={FALL_COLOR} />} label="하락" />
       </div>
@@ -260,12 +356,13 @@ export default function ShareDumbbell({ market }: ShareDumbbellProps) {
                   ))}
                   {row.prev !== null && (
                     <div
-                      className="absolute h-[3px] rounded-full"
+                      className="absolute rounded-full"
                       style={{
                         left: `${pos(Math.min(row.prev, row.cur))}%`,
                         width: `${Math.abs(pos(row.cur) - pos(row.prev))}%`,
                         top: '50%',
-                        marginTop: -1.5,
+                        height: 4,
+                        marginTop: -2,
                         backgroundColor: lineColor,
                       }}
                     />
@@ -273,20 +370,29 @@ export default function ShareDumbbell({ market }: ShareDumbbellProps) {
                   {row.prev !== null && (
                     <Dot left={pos(row.prev)} color="var(--muted-foreground)" size={9} />
                   )}
-                  <Dot left={pos(row.cur)} color={row.color} size={row.isTarget ? 13 : 11} />
+                  {/* 이동이 없거나 전년을 모르면 방향이 없다 → 화살촉 대신 점을 찍는다. */}
+                  {delta === null || delta === 0 ? (
+                    <Dot left={pos(row.cur)} color={row.color} size={row.isTarget ? 13 : 11} />
+                  ) : (
+                    <ArrowHead
+                      left={pos(row.cur)}
+                      color={row.color}
+                      size={row.isTarget ? 15 : 12}
+                      dir={delta > 0 ? 'right' : 'left'}
+                    />
+                  )}
                 </div>
               </div>
 
-              <div className={`${VALUE_COL} flex items-center justify-end gap-1 tabular-nums`}>
-                <span className="text-[11px] sm:text-xs">
-                  {/* 좁은 화면에선 전년 수치를 접는다 — 툴팁에 같은 값이 그대로 남는다. */}
-                  <span className="hidden text-muted-foreground sm:inline">
-                    {fmtLevel(row.prev)} →{' '}
-                  </span>
-                  {fmtLevel(row.cur)}
-                </span>
+              <div
+                className={`${VALUE_COL} flex items-center justify-end gap-1 text-[11px] tabular-nums sm:text-xs`}
+              >
+                {/* 과거 → 현재 (증감) 를 좁은 화면에서도 접지 않는다(사용자 지시 2026-08-14). */}
+                <span className="text-muted-foreground">{fmtLevel(row.prev)}</span>
+                <span className="text-muted-foreground">→</span>
+                <span className={row.isTarget ? 'font-semibold' : ''}>{fmtLevel(row.cur)}</span>
                 <span
-                  className="text-[11px] font-medium sm:text-xs"
+                  className="font-medium"
                   style={{
                     color:
                       delta === null
@@ -296,7 +402,7 @@ export default function ShareDumbbell({ market }: ShareDumbbellProps) {
                           : RISE_COLOR,
                   }}
                 >
-                  {fmtDeltaPp(delta)}
+                  ({fmtPp(delta)})
                 </span>
               </div>
 
@@ -306,10 +412,11 @@ export default function ShareDumbbell({ market }: ShareDumbbellProps) {
               >
                 <div className="font-medium">{row.model}</div>
                 <div className="text-muted-foreground">
-                  판매 {fmtFull(row.sales)}대 · YoY {fmtPct(row.yoyPct)}
+                  판매 {row.prevSales !== null ? `${fmtFull(Math.round(row.prevSales))}대 → ` : ''}
+                  {fmtFull(row.sales)}대 · YoY {fmtPct(row.yoyPct)}
                 </div>
                 <div className="text-muted-foreground">
-                  점유율 {fmtLevel(row.prev)} → {fmtLevel(row.cur)}
+                  점유율 {fmtLevel(row.prev)} → {fmtLevel(row.cur)} {fmtPp(delta)}
                 </div>
               </div>
             </div>

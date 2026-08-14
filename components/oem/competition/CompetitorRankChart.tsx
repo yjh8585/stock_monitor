@@ -7,7 +7,7 @@
  * 세로 막대가 아니라 가로 막대다. 차종명이 길어 세로축에 눕히면 라벨이 회전 없이 읽히고,
  * 위→아래 순서가 곧 순위가 된다.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -30,14 +30,18 @@ import { fmtFull, fmtUnits } from '@/components/oem/helpers';
 import type { CompetitionMarket } from '@/lib/oem-competition/types';
 import { useChartHeight } from '@/lib/useChartHeight';
 import {
+  basisPeriodLabel,
   ChartCard,
   EmptyChart,
   fmtPct,
-  periodLabel,
+  modelRows,
   rivalColor,
+  SegmentedToggle,
   shortModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
+  usePeriodBasis,
+  type ModelRow,
 } from './shared';
 
 /** 경쟁 차종은 전부 같은 회색이라야 파란 대상 막대가 순위표에서 즉시 튄다. */
@@ -73,20 +77,7 @@ interface RankRow {
   yoyFlat?: string;
 }
 
-function buildRows(market: CompetitionMarket): RankRow[] {
-  // 대상 차종 이름의 출처는 소비자 평가뿐이다. 점수 수집이 실패해도 순위 자체는 그려야 하므로 폴백을 둔다.
-  const targetName = market.consumerScores.find((s) => s.is_target)?.model ?? '대상 차종';
-
-  const raw = [
-    { model: targetName, sales: market.sales, yoyPct: market.yoyPct, isTarget: true },
-    ...market.competitors.map((c) => ({
-      model: c.model,
-      sales: c.sales,
-      yoyPct: c.yoy_pct,
-      isTarget: false,
-    })),
-  ];
-
+function buildRows(raw: ModelRow[]): RankRow[] {
   return raw
     .filter((r) => Number.isFinite(r.sales))
     .sort((a, b) => b.sales - a.sales)
@@ -110,38 +101,58 @@ function buildRows(market: CompetitionMarket): RankRow[] {
 export default function CompetitorRankChart({ market }: { market: CompetitionMarket }) {
   // 훅은 조기 반환보다 먼저 — 데이터 유무에 따라 호출 수가 달라지면 안 된다.
   const h = useChartHeight(280, 360, 440);
-  const rows = useMemo(() => buildRows(market), [market]);
+  const { active, options, basis, setBasis } = usePeriodBasis(market.periods);
+  // 범례 클릭으로 경쟁 차종을 통째로 접어 대상만 남길 수 있게 한다(chart-guide 규칙 6).
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const allRows = useMemo(() => buildRows(modelRows(market, active)), [market, active]);
+  const rows = useMemo(
+    () => allRows.filter((r) => !hidden.has(r.isTarget ? 'target' : 'rival')),
+    [allRows, hidden]
+  );
+
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const periodToggle = (
+    <SegmentedToggle options={options} value={basis} onChange={setBasis} ariaLabel="집계 기준" />
+  );
 
   // 막대 하나짜리 순위표는 "몇 위인가"에 답하지 못한다. 그릴 바에 이유를 밝힌다.
   // 원본 competitors 길이가 아니라 **걸러내고 남은 행**으로 판정한다 — 경쟁 차종이 들어 있어도
   // sales 가 결측이면 Number.isFinite 필터에서 전부 빠져 "1종 중 1위"만 남는다.
-  if (rows.every((r) => r.isTarget)) {
+  if (allRows.every((r) => r.isTarget)) {
     return (
-      <ChartCard title="경쟁군 판매 순위" subtitle={market.label}>
+      <ChartCard title="경쟁군 판매 순위" subtitle={market.label} actions={periodToggle}>
         <EmptyChart reason="경쟁 차종 판매 데이터가 없어 순위를 낼 수 없습니다." />
       </ChartCard>
     );
   }
 
-  if (rows.every((r) => r.sales <= 0)) {
+  if (allRows.every((r) => r.sales <= 0)) {
     return (
-      <ChartCard title="경쟁군 판매 순위" subtitle={market.label}>
+      <ChartCard title="경쟁군 판매 순위" subtitle={market.label} actions={periodToggle}>
         <EmptyChart reason="경쟁군 전체의 누계 판매량이 0입니다." />
       </ChartCard>
     );
   }
 
-  const targetRank = rows.findIndex((r) => r.isTarget) + 1;
+  // 순위는 숨김과 무관하게 **전체 기준**으로 센다 — 경쟁을 접었다고 "1종 중 1위"가 되면 안 된다.
+  const targetRank = allRows.findIndex((r) => r.isTarget) + 1;
   const subtitle = [
     market.label,
-    periodLabel(market),
-    targetRank > 0 ? `${rows.length}종 중 ${targetRank}위` : null,
+    basisPeriodLabel(market, active),
+    targetRank > 0 ? `${allRows.length}종 중 ${targetRank}위` : null,
   ]
     .filter(Boolean)
     .join(' · ');
 
   return (
-    <ChartCard title="경쟁군 판매 순위" subtitle={subtitle}>
+    <ChartCard title="경쟁군 판매 순위" subtitle={subtitle} actions={periodToggle}>
       <ResponsiveContainer width="100%" height={h}>
         <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 8 }}>
           <CartesianGrid
@@ -171,7 +182,7 @@ export default function CompetitorRankChart({ market }: { market: CompetitionMar
             verticalAlign="top"
             align="center"
             wrapperStyle={{ paddingBottom: 8 }}
-            content={() => <LegendRow items={LEGEND_ITEMS} />}
+            content={() => <LegendRow items={LEGEND_ITEMS} hidden={hidden} onToggle={toggle} />}
           />
           {/* 차종 수가 적으면 막대가 과하게 두꺼워져 순위표로 안 읽힌다. */}
           <Bar dataKey="sales" name="누계 판매" radius={[0, 4, 4, 0]} maxBarSize={32}>

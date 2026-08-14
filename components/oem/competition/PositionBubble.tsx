@@ -23,21 +23,30 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts';
+import { useState } from 'react';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull, fmtUnits } from '@/components/oem/helpers';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { CompetitionMarket } from '@/lib/oem-competition/types';
 import {
+  basisPeriodLabel,
   ChartCard,
   EmptyChart,
   fmtPct,
-  periodLabel,
+  modelRows,
   rivalColor,
+  SegmentedToggle,
   shortModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
+  usePeriodBasis,
 } from './shared';
+
+/** 범례 항목 이름이 곧 hide 토글 키다 — Scatter 에는 dataKey 가 없어 name 이 키로 쓰인다. */
+const TARGET_SERIES = '대상 차종';
+const RIVAL_SERIES = '경쟁 차종';
 
 interface BubblePoint {
   /** 차트에 찍는 라벨(축약형). 툴팁은 fullName 을 쓴다. */
@@ -65,22 +74,20 @@ function paddedDomain(lo: number, hi: number, ratio = 0.12): [number, number] {
   return [lo - pad, hi + pad];
 }
 
-/**
- * 대상 차종 이름 — market 에는 이름 필드가 따로 없어 시계열/소비자평가의 대상 플래그에서 꺼낸다.
- * 둘 다 비어 있어도 점 하나는 그려야 하므로 마지막에 총칭으로 떨어진다.
- */
-function targetName(market: CompetitionMarket): string {
-  return (
-    market.series.find((s) => s.isTarget)?.model ??
-    market.consumerScores.find((s) => s.is_target)?.model ??
-    '대상 차종'
-  );
-}
-
 export default function PositionBubble({ market }: { market: CompetitionMarket }) {
   const h = useChartHeight(280, 380, 460);
+  const { active, options, basis, setBasis } = usePeriodBasis(market.periods);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
-  const rivals = market.competitors;
+  const source = modelRows(market, active);
+  const rivals = source.filter((r) => !r.isTarget);
   /**
    * 점유율 분모는 "대상 + 모든 경쟁"이다. 증감률이 없어 차트에서 빠지는 차종도 분모에는 남긴다 —
    * 빼면 남은 차종의 점유율이 실제보다 부풀려져 KPI(market.sharePct)와 어긋난다.
@@ -89,28 +96,19 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
    * 그대로 더하면 합계가 NaN 이 되고, `NaN > 0` 이 false 라 **모든 점유율이 조용히 0** 으로
    * 떨어진다(= 모르는 값을 0 으로 뭉갠다). 유한한 값만 더해 그 경로를 막는다.
    */
-  const total = [market.sales, ...rivals.map((c) => c.sales)]
+  const total = source
+    .map((r) => r.sales)
     .filter((n) => Number.isFinite(n))
     .reduce((sum, n) => sum + n, 0);
 
-  const raw: Omit<BubblePoint, 'labelBelow'>[] = [
-    {
-      name: shortModel(targetName(market)),
-      fullName: targetName(market),
-      yoy: market.yoyPct ?? Number.NaN,
-      share: total > 0 ? (market.sales / total) * 100 : 0,
-      sales: market.sales,
-      isTarget: true,
-    },
-    ...rivals.map((c) => ({
-      name: shortModel(c.model),
-      fullName: c.model,
-      yoy: c.yoy_pct ?? Number.NaN,
-      share: total > 0 ? (c.sales / total) * 100 : 0,
-      sales: c.sales,
-      isTarget: false,
-    })),
-  ];
+  const raw: Omit<BubblePoint, 'labelBelow'>[] = source.map((r) => ({
+    name: shortModel(r.model),
+    fullName: r.model,
+    yoy: r.yoyPct ?? Number.NaN,
+    share: total > 0 ? (r.sales / total) * 100 : 0,
+    sales: r.sales,
+    isTarget: r.isTarget,
+  }));
 
   // 증감률이 null 이면 x 좌표 자체가 없다. 0 으로 놓으면 "보합"이라는 없는 사실을 그리게 된다.
   // 판매량이 숫자가 아니면 원 크기(z)를 정할 수 없고 maxSales 까지 NaN 으로 만들므로 같이 뺀다.
@@ -138,16 +136,24 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
   const rivalPoints = points.filter((p) => !p.isTarget);
   const maxSales = Math.max(1, ...points.map((p) => p.sales));
 
+  const period = basisPeriodLabel(market, active);
   const subtitle = (
     <>
       가로 = 판매 증감률 · 세로 = 경쟁군 내 점유율 · 원 크기 = 판매량
-      {periodLabel(market) ? ` · ${periodLabel(market)}` : ''}
+      {period ? ` · ${period}` : ''}
     </>
+  );
+  const periodToggle = (
+    <SegmentedToggle options={options} value={basis} onChange={setBasis} ariaLabel="집계 기준" />
   );
 
   if (rivals.length === 0) {
     return (
-      <ChartCard title={`시장 내 위치 · ${market.label}`} subtitle={subtitle}>
+      <ChartCard
+        title={`시장 내 위치 · ${market.label}`}
+        subtitle={subtitle}
+        actions={periodToggle}
+      >
         <EmptyChart reason="경쟁 차종 데이터가 없어 시장 내 위치를 그릴 수 없습니다." />
       </ChartCard>
     );
@@ -155,14 +161,22 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
   // 조건을 뒤집어 둔 것은 NaN 때문이다 — `NaN <= 0` 은 false 라 그대로 두면 빈 차트를 그린다.
   if (!(total > 0)) {
     return (
-      <ChartCard title={`시장 내 위치 · ${market.label}`} subtitle={subtitle}>
+      <ChartCard
+        title={`시장 내 위치 · ${market.label}`}
+        subtitle={subtitle}
+        actions={periodToggle}
+      >
         <EmptyChart reason="경쟁군 판매량 합계가 0이라 점유율을 계산할 수 없습니다." />
       </ChartCard>
     );
   }
   if (points.length === 0) {
     return (
-      <ChartCard title={`시장 내 위치 · ${market.label}`} subtitle={subtitle}>
+      <ChartCard
+        title={`시장 내 위치 · ${market.label}`}
+        subtitle={subtitle}
+        actions={periodToggle}
+      >
         <EmptyChart
           reason={`판매 증감률·판매량을 함께 아는 차종이 없습니다(${raw.length}종 전부 미상).`}
         />
@@ -175,7 +189,7 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
   const fmtAxis = (v: number, span: number) => `${v.toFixed(span < 10 ? 1 : 0)}%`;
 
   return (
-    <ChartCard title={`시장 내 위치 · ${market.label}`} subtitle={subtitle}>
+    <ChartCard title={`시장 내 위치 · ${market.label}`} subtitle={subtitle} actions={periodToggle}>
       <ResponsiveContainer width="100%" height={h}>
         <ScatterChart margin={{ top: 16, right: 24, bottom: 10, left: 10 }}>
           {/* 오른쪽 위(성장 + 균등 이상 점유) 파랑, 왼쪽 아래(역성장 + 균등 미만) 빨강 */}
@@ -256,18 +270,43 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
             }}
           />
           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<BubbleTooltip />} />
+          {/*
+            기본 <Legend> 는 payload 순서를 제 마음대로 잡아 **"경쟁 → 대상"으로 뒤집힌다**
+            (2026-08-14 화면 확인). 읽는 순서는 대상이 먼저라 LegendRow 로 직접 통제한다.
+          */}
           <Legend
             verticalAlign="top"
             align="center"
-            wrapperStyle={{ fontSize: '14px', paddingBottom: 4 }}
+            wrapperStyle={{ paddingBottom: 4 }}
+            content={() => (
+              <LegendRow
+                items={[
+                  {
+                    key: TARGET_SERIES,
+                    label: TARGET_SERIES,
+                    shape: 'line' as const,
+                    color: TARGET_COLOR,
+                  },
+                  {
+                    key: RIVAL_SERIES,
+                    label: RIVAL_SERIES,
+                    shape: 'line' as const,
+                    color: rivalColor(0),
+                  },
+                ]}
+                hidden={hidden}
+                onToggle={toggle}
+              />
+            )}
           />
           {/*
             대상을 먼저 선언해 범례가 "대상 → 경쟁" 순서로 나오게 한다(읽는 순서와 일치).
             그만큼 경쟁 원이 위에 그려지므로 경쟁은 반투명으로 두어 대상이 가려지지 않게 한다.
           */}
           <Scatter
-            name="대상 차종"
+            name={TARGET_SERIES}
             data={targetPoints}
+            hide={hidden.has(TARGET_SERIES)}
             fill={TARGET_COLOR}
             stroke="var(--foreground)"
             strokeWidth={2}
@@ -276,8 +315,9 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
             <LabelList dataKey="name" content={makeLabelRenderer(targetPoints)} />
           </Scatter>
           <Scatter
-            name="경쟁 차종"
+            name={RIVAL_SERIES}
             data={rivalPoints}
+            hide={hidden.has(RIVAL_SERIES)}
             fill={rivalColor(0)}
             fillOpacity={0.85}
             shape="circle"
