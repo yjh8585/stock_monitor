@@ -14,12 +14,14 @@ import { evaluateMarket } from '@/lib/oem-competition/signals';
 import CompetitorRankChart from './CompetitorRankChart';
 import ConsumerRadar from './ConsumerRadar';
 import InventoryChart from './InventoryChart';
+import InventoryTrendChart from './InventoryTrendChart';
 import KpiStrip from './KpiStrip';
 import ModelNarrative from './ModelNarrative';
 import PositionBubble from './PositionBubble';
 import SafetyChart from './SafetyChart';
 import SalesTrendChart from './SalesTrendChart';
 import ShareChangeBars from './ShareChangeBars';
+import ShareTrendChart from './ShareTrendChart';
 import { SIGNAL_COLORS, SignalDot } from './shared';
 
 /** 시장 하나에 딸린 차트 전부. 탭을 바꾸면 이 덩어리만 갈린다. */
@@ -56,16 +58,19 @@ function MarketPanel({
         ))}
       </div>
 
+      {/* 배치 규칙: **같은 질문에 답하는 두 카드를 이웃에** 둔다(2열이라 좌우로 붙는다).
+          판매 추이↔순위 · 점유율 변화↔점유율 추이 · 재고 최신↔재고 추이 — "지금 얼마인가"와
+          "어디로 가는가"를 나란히 봐야 수준과 방향을 함께 읽는다. */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <SalesTrendChart market={market} />
         <CompetitorRankChart market={market} />
         <ShareChangeBars market={market} />
+        <ShareTrendChart market={market} />
+        <InventoryChart market={market} />
+        <InventoryTrendChart market={market} />
         <PositionBubble market={market} />
+        <SafetyChart market={market} />
         <ConsumerRadar market={market} noteDate={outlook.noteDate} />
-        <div className="grid grid-cols-1 gap-4">
-          <InventoryChart market={market} />
-          <SafetyChart market={market} />
-        </div>
       </div>
     </div>
   );

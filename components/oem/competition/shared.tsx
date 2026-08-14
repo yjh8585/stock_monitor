@@ -43,6 +43,13 @@ export function rivalDistinctColor(index: number): string {
   return RIVAL_DISTINCT_COLORS[index % RIVAL_DISTINCT_COLORS.length];
 }
 
+/**
+ * 재고 카드 2종(최신 막대 · 추이 라인)이 함께 긋는 업계 관행선.
+ * 🔴 두 카드가 **같은 지표를 다르게 그으면** 어느 쪽이 맞는지 알 수 없다 → 상수는 한 곳에만 둔다.
+ * 신호등 임계값(75/110일, `signals.ts`)과는 별개의 값이다.
+ */
+export const INDUSTRY_NORMAL_DAYS = 60;
+
 export const SIGNAL_COLORS: Record<Signal, string> = {
   GREEN: '#16a34a',
   YELLOW: '#f59e0b',

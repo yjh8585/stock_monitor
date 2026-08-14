@@ -145,6 +145,44 @@ export interface ModelSeries {
 }
 
 /**
+ * 점유율 시계열 1점 — **12개월 이동 누계 기준**이다.
+ *
+ * 단월 점유율을 쓰면 경쟁차 한 종이 그달 실적을 아직 안 올렸을 때 분모가 줄어 대상 점유율이
+ * 가짜로 치솟는다. 이동 누계는 그 결측을 12개월에 나눠 흡수하고, 계절성도 상쇄되며,
+ * 무엇보다 KPI·스코어보드가 쓰는 L12M 정의와 **같은 수치**가 된다(끝점이 KPI와 일치한다).
+ */
+export interface ShareTrendPoint {
+  yearMonth: number;
+  /** 12개월 창이 다 차지 않은 구간은 null(0 으로 그리면 "점유율 0%"가 사실처럼 보인다). */
+  sharePct: number | null;
+}
+
+export interface ModelShareTrend {
+  model: string;
+  isTarget: boolean;
+  points: ShareTrendPoint[];
+}
+
+/**
+ * 브랜드 재고일수 시계열 1점.
+ * `daysSupply=null` + `outlierExcluded=true` 는 "모른다"가 아니라 **평균 2배 초과라 Cox 가
+ * 값을 감췄다**는 뜻이다 — 선을 끊고 그 구간을 따로 표시해야 한다.
+ */
+export interface InventoryTrendPoint {
+  yearMonth: number;
+  daysSupply: number | null;
+  outlierExcluded: boolean;
+}
+
+export interface BrandInventoryTrend {
+  brand: string;
+  /** 경쟁 차종만 — 대상은 브랜드만 안다. */
+  model?: string;
+  isTarget: boolean;
+  points: InventoryTrendPoint[];
+}
+
+/**
  * 시장 하나에 필요한 모든 표시 데이터.
  * 서술(comment)·집계(sales/share)·비교(competitors/inventory/safety/scores)를 한 덩어리로 묶어
  * 컴포넌트가 여러 소스를 다시 짜맞추지 않게 한다.
@@ -168,6 +206,10 @@ export interface CompetitionMarket {
   consumerScores: ConsumerScore[];
   /** 대상 + 판매 상위 경쟁 3종의 월별 추이. */
   series: ModelSeries[];
+  /** 같은 4종의 **경쟁군 내 점유율** 추이(12개월 이동 누계). 월별 뷰가 없으면 빈 배열. */
+  shareTrend: ModelShareTrend[];
+  /** 대상 브랜드 + 경쟁 브랜드의 유통재고일수 추이. 미국 기준 시장에서만 채워진다. */
+  inventoryTrend: BrandInventoryTrend[];
   /** 기준별 재집계(월별 뷰 기반). 뷰에 그 시장 데이터가 없으면 빈 배열. */
   periods: PeriodAggregate[];
   /**

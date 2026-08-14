@@ -3,6 +3,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import logger from '@/lib/logger';
 import type {
+  BrandInventoryTrend,
   CompetitionMarket,
   CompetitionOutlook,
   CompetitorSales,
@@ -11,6 +12,7 @@ import type {
   InventoryPoint,
   MarketBreakdown,
   ModelSeries,
+  ModelShareTrend,
   OutlookSource,
   PeriodAggregate,
   PeriodBasis,
@@ -197,7 +199,8 @@ function withCoxState(
 export function mapOutlookRow(
   row: OutlookRow,
   monthly: MonthlyRow[] = [],
-  cox: Map<string, BrandInventoryState> = new Map()
+  cox: Map<string, BrandInventoryState> = new Map(),
+  coxSeries: Map<string, CoxRow[]> = new Map()
 ): CompetitionOutlook {
   const metrics = asRecord(row.metrics);
   const breakdown = asArray<MarketBreakdown>(row.market_breakdown);
@@ -291,6 +294,8 @@ export function mapOutlookRow(
       safety,
       consumerScores: scores.get(b.market) ?? [],
       series: buildSeries(marketRows, competitors),
+      shareTrend: buildShareTrend(marketRows, competitors),
+      inventoryTrend: buildInventoryTrend(inventory, coxSeries),
       periods: buildPeriods(marketRows),
       // 미국 시장이면 그 시장의 사실, 글로벌이면 미국 참고치(판정 제외). 데이터가 없으면 null.
       usMetricsBasis:
@@ -375,6 +380,128 @@ export function buildSeries(rows: MonthlyRow[], competitors: CompetitorSales[]):
   const order = (s: ModelSeries) =>
     s.isTarget ? -1 : competitors.findIndex((c) => c.model === s.model);
   return out.sort((a, b) => order(a) - order(b));
+}
+
+/**
+ * 경쟁군 내 점유율의 **12개월 이동 누계** 추이.
+ *
+ * 왜 이동 누계인가: 단월 점유율은 경쟁차 한 종이 그달 실적을 아직 안 올리면 분모가 줄어 대상이
+ * 가짜로 치솟는다(MarkLines 도착 시점이 차종마다 다르다). 12개월 창은 그 결측을 흡수하고, 계절성도
+ * 없애며, KPI·스코어보드가 쓰는 L12M 정의와 **같은 값**이라 끝점이 KPI 와 맞아떨어진다.
+ *
+ * 분모는 대상 + **경쟁군 전체**다(라인으로 그리는 상위 3종만이 아니다) — 그래야 화면 다른 곳의
+ * 점유율과 같은 모집단이 된다.
+ */
+export function buildShareTrend(
+  rows: MonthlyRow[],
+  competitors: CompetitorSales[]
+): ModelShareTrend[] {
+  if (rows.length === 0) return [];
+  const latest = Math.max(...rows.map((r) => r.year_month));
+  const cutoff = cutoffMonth(latest, TREND_MONTHS);
+
+  // 모델별 월 판매 + 월별 경쟁군 전체 합계를 한 번에 만든다.
+  const byModel = new Map<
+    string,
+    { model: string; isTarget: boolean; byMonth: Map<number, number> }
+  >();
+  const totalByMonth = new Map<number, number>();
+  for (const r of rows) {
+    const key = r.is_target ? TARGET_BUCKET : r.model;
+    let s = byModel.get(key);
+    if (!s) {
+      s = { model: r.model, isTarget: r.is_target, byMonth: new Map() };
+      byModel.set(key, s);
+    }
+    s.byMonth.set(r.year_month, (s.byMonth.get(r.year_month) ?? 0) + r.sales);
+    totalByMonth.set(r.year_month, (totalByMonth.get(r.year_month) ?? 0) + r.sales);
+  }
+
+  /**
+   * ym 에서 뒤로 12개월 누계. **없는 달은 0 으로 센다.**
+   *
+   * 🔴 처음에는 창 안에 빈 달이 하나라도 있으면 null 을 냈는데, 그러면 **모든 선이 통째로 비었다**
+   * (2026-08-14 화면 확인). 경쟁 차종은 안 팔린 달에 아예 행이 없어서 12개월 연속인 차종이 거의
+   * 없기 때문이다. 그 달의 판매는 실제로 0 이므로 0 으로 세는 편이 사실에 맞다.
+   * "창이 덜 찼다"는 판정은 아래 `windowComplete` 가 **데이터 시작월**로 따로 한다.
+   */
+  const sumWindow = (byMonth: Map<number, number>, ym: number): number => {
+    let sum = 0;
+    for (let i = 0; i < 12; i += 1) sum += byMonth.get(addMonths(ym, -i)) ?? 0;
+    return sum;
+  };
+
+  const minMonth = Math.min(...totalByMonth.keys());
+  /** 창의 첫 달이 데이터 시작 이전이면 누계가 덜 찬 것 — 그 구간은 값을 내지 않는다. */
+  const windowComplete = (ym: number) => addMonths(ym, -11) >= minMonth;
+
+  const months = [...totalByMonth.keys()].filter((ym) => ym >= cutoff).sort((a, b) => a - b);
+  const keep = new Set(competitors.slice(0, TREND_RIVALS).map((c) => c.model));
+
+  const out: ModelShareTrend[] = [];
+  for (const [key, s] of byModel) {
+    if (key !== TARGET_BUCKET && !keep.has(s.model)) continue;
+    out.push({
+      model: s.model,
+      isTarget: s.isTarget,
+      points: months.map((ym) => {
+        if (!windowComplete(ym)) return { yearMonth: ym, sharePct: null };
+        const den = sumWindow(totalByMonth, ym);
+        return {
+          yearMonth: ym,
+          sharePct: den > 0 ? round1((sumWindow(s.byMonth, ym) * 100) / den) : null,
+        };
+      }),
+    });
+  }
+
+  const order = (s: ModelShareTrend) =>
+    s.isTarget ? -1 : competitors.findIndex((c) => c.model === s.model);
+  return out.sort((a, b) => order(a) - order(b));
+}
+
+/**
+ * 브랜드 재고일수 추이 — 화면에 이미 붙은 `inventory`(대상+경쟁)의 브랜드만 Cox 원본에서 뽑는다.
+ *
+ * `days_supply=null` 행을 버리지 않는 이유: 그 달은 **평균 2배 초과로 값이 감춰진** 달일 수 있고,
+ * 그 사실 자체가 가장 중요한 신호다. 값은 null 로 두고 플래그를 함께 넘겨 화면이 구간을 표시한다.
+ */
+export function buildInventoryTrend(
+  inventory: InventoryPoint[],
+  coxByBrand: Map<string, CoxRow[]>
+): BrandInventoryTrend[] {
+  const out: BrandInventoryTrend[] = [];
+  const seen = new Set<string>();
+  for (const inv of inventory) {
+    if (!inv.brand || seen.has(inv.brand)) continue;
+    seen.add(inv.brand);
+    const rows = coxByBrand.get(inv.brand);
+    if (!rows || rows.length === 0) continue;
+    out.push({
+      brand: inv.brand,
+      ...(inv.model ? { model: inv.model } : {}),
+      // `inventory[0]` 이 대상이라는 규칙에 기대지 않는다 — model 이 없는 쪽이 대상이다.
+      isTarget: !inv.model,
+      points: rows.map((r) => ({
+        yearMonth: r.year_month,
+        daysSupply: r.days_supply,
+        outlierExcluded: r.is_outlier_excluded === true,
+      })),
+    });
+  }
+  return out;
+}
+
+/** 브랜드별 Cox 원본(월 오름차순). 추이 차트가 쓰는 형태. */
+export function buildCoxSeries(rows: CoxRow[]): Map<string, CoxRow[]> {
+  const out = new Map<string, CoxRow[]>();
+  for (const r of rows) {
+    const list = out.get(r.brand);
+    if (list) list.push(r);
+    else out.set(r.brand, [r]);
+  }
+  for (const list of out.values()) list.sort((a, b) => a.year_month - b.year_month);
+  return out;
 }
 
 /** YYYYMM 에 delta 개월을 더한 YYYYMM(음수면 과거). 예: (202601, -12) → 202501 */
@@ -589,5 +716,6 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
     else byKey.set(r.model_key, [r]);
   }
   const cox = buildBrandInventory(coxRows);
-  return latest.map((row) => mapOutlookRow(row, byKey.get(row.model_key) ?? [], cox));
+  const coxSeries = buildCoxSeries(coxRows);
+  return latest.map((row) => mapOutlookRow(row, byKey.get(row.model_key) ?? [], cox, coxSeries));
 }
