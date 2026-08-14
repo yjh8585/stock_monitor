@@ -128,15 +128,15 @@ function RadarPanel({
   }));
 
   return (
-    <div className="rounded-md border border-border/70 px-2 pt-2 pb-1">
-      <div className="flex items-baseline justify-between gap-2 px-1">
-        <div className="flex min-w-0 items-baseline gap-1.5">
+    <div className="rounded-md border border-border/70 px-1 pt-1 pb-0">
+      <div className="flex items-baseline justify-between gap-1 px-1">
+        <div className="flex min-w-0 items-baseline gap-1">
           <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+            className="inline-block h-2 w-2 shrink-0 rounded-full"
             style={{ backgroundColor: panel.color }}
           />
           <span
-            className={`truncate text-sm ${isTarget ? 'font-semibold' : ''}`}
+            className={`truncate text-xs ${isTarget ? 'font-semibold' : ''}`}
             style={isTarget ? { color: panel.color } : undefined}
             title={panel.score.model}
           >
@@ -148,21 +148,23 @@ function RadarPanel({
             </span>
           )}
         </div>
-        <div className="shrink-0 text-xs tabular-nums">
+        <div className="shrink-0 text-[11px] tabular-nums">
           <span className="font-medium">{panel.avg.toFixed(1)}점</span>{' '}
           <DeltaText
             value={panel.gap}
             text={`평균 ${panel.gap > 0 ? '+' : ''}${panel.gap.toFixed(1)}`}
-            className="text-[11px]"
+            className="text-[10px]"
           />
         </div>
       </div>
 
+      {/* 여백을 최대한 줄인다(사용자 지시 2026-08-14: "한눈에 다 보이게"). 좌우 여백은 축
+          라벨('브랜드'·'상품성')이 잘리지 않을 최소치까지만 남긴다. */}
       <ResponsiveContainer width="100%" height={height}>
         <RadarChart
           data={rows}
-          outerRadius="75%"
-          margin={{ top: 6, right: 26, bottom: 6, left: 26 }}
+          outerRadius="80%"
+          margin={{ top: 2, right: 20, bottom: 2, left: 20 }}
         >
           <PolarGrid
             className="stroke-border"
@@ -223,8 +225,10 @@ export default function ConsumerRadar({
   market: CompetitionMarket;
   noteDate?: string;
 }) {
-  // 패널이 여러 개라 각 패널은 소형 높이. 2열 그리드에서 한 화면에 4개가 들어간다.
-  const h = useChartHeight(200, 240, 280);
+  // 🔴 `useChartHeight` 3-tier(소형 200/240/280)보다 더 낮게 잡는다 — 그 tier 는 **차트 1개짜리**
+  // 카드를 전제하는데 여기는 한 카드에 패널이 4개라, 소형을 그대로 쓰면 세로로 길어져 한 화면에
+  // 안 들어온다(사용자 지시 2026-08-14). 축척은 패널끼리만 같으면 되므로 낮춰도 왜곡이 없다.
+  const h = useChartHeight(150, 170, 190);
   const { hidden, isHidden, toggle } = useHiddenSeries();
 
   // 훅 뒤에서 분기해야 시장을 바꿔도 훅 호출 순서가 유지된다.
@@ -265,7 +269,7 @@ export default function ConsumerRadar({
       {visible.length === 0 ? (
         <EmptyChart reason="범례에서 모든 차종을 숨겼습니다." />
       ) : (
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {visible.map((p) => (
             <RadarPanel
               key={p.key}

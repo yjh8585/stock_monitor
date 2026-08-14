@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBrandInventory,
+  buildCoxSeries,
+  buildInventoryTrend,
   buildPeriods,
   buildSeries,
+  buildShareTrend,
   compareForDisplay,
   cutoffMonth,
   mapOutlookRow,
@@ -424,5 +427,125 @@ describe('buildBrandInventory — Cox 이상치 판정', () => {
 
   it('행이 없으면 빈 맵', () => {
     expect(buildBrandInventory([]).size).toBe(0);
+  });
+});
+
+describe('buildShareTrend', () => {
+  /** ym 오름차순으로 months 개월치 행을 만든다. gaps 에 든 달은 아예 행을 만들지 않는다(미판매). */
+  function rows(
+    model: string,
+    isTarget: boolean,
+    start: number,
+    values: number[],
+    gaps: number[] = []
+  ) {
+    return values
+      .map((sales, i) => ({
+        model_key: 'm',
+        market: 'USA',
+        model,
+        is_target: isTarget,
+        year_month: addYm(start, i),
+        sales,
+      }))
+      .filter((r) => !gaps.includes(r.year_month));
+  }
+
+  /** 테스트 안에서만 쓰는 월 덧셈(source 의 addMonths 는 export 되지 않는다). */
+  function addYm(ym: number, delta: number): number {
+    const total = Math.floor(ym / 100) * 12 + ((ym % 100) - 1) + delta;
+    return Math.floor(total / 12) * 100 + (total % 12) + 1;
+  }
+
+  const RIVALS = [{ model: 'Rival', sales: 1200, yoy_pct: null }];
+
+  it('12개월 창이 다 찬 달부터 점유율을 낸다', () => {
+    // 202401~202412 (12개월). 창이 완전한 달은 마지막 202412 하나뿐이다.
+    const monthly = [
+      ...rows('Target', true, 202401, Array(12).fill(100)),
+      ...rows('Rival', false, 202401, Array(12).fill(300)),
+    ];
+    const out = buildShareTrend(monthly, RIVALS);
+    const target = out.find((s) => s.isTarget);
+    expect(target).toBeDefined();
+
+    const complete = target!.points.filter((p) => p.sharePct !== null);
+    expect(complete).toHaveLength(1);
+    expect(complete[0].yearMonth).toBe(202412);
+    // 1200 / (1200 + 3600) = 25%
+    expect(complete[0].sharePct).toBe(25);
+  });
+
+  it('🔴 경쟁차의 결측월이 있어도 선이 통째로 비지 않는다', () => {
+    // 이 케이스가 실제로 화면을 비웠다(2026-08-14). 경쟁차는 안 팔린 달에 행이 아예 없다.
+    const monthly = [
+      ...rows('Target', true, 202401, Array(13).fill(100)),
+      ...rows('Rival', false, 202401, Array(13).fill(300), [202405, 202409]),
+    ];
+    const out = buildShareTrend(monthly, RIVALS);
+    for (const s of out) {
+      expect(s.points.some((p) => p.sharePct !== null)).toBe(true);
+    }
+    // 경쟁차가 두 달 빠졌으니 대상 점유율은 25% 보다 높아야 한다(0 으로 세기 때문).
+    const last = out.find((s) => s.isTarget)!.points.at(-1)!;
+    expect(last.sharePct).toBeGreaterThan(25);
+  });
+
+  it('창이 덜 찬 앞 구간은 null — 0 으로 채우지 않는다', () => {
+    const monthly = rows('Target', true, 202401, Array(12).fill(100));
+    const out = buildShareTrend(monthly, []);
+    expect(out[0].points[0].sharePct).toBeNull();
+  });
+
+  it('행이 없으면 빈 배열', () => {
+    expect(buildShareTrend([], [])).toEqual([]);
+  });
+});
+
+describe('buildInventoryTrend', () => {
+  const COX = [
+    { brand: 'Jeep', year_month: 202605, days_supply: 144, is_outlier_excluded: false },
+    { brand: 'Jeep', year_month: 202606, days_supply: null, is_outlier_excluded: true },
+    { brand: 'Ford', year_month: 202606, days_supply: 93, is_outlier_excluded: false },
+  ];
+
+  it('model 이 없는 항목을 대상으로 본다 (배열 순서에 기대지 않는다)', () => {
+    const out = buildInventoryTrend(
+      [
+        { brand: 'Ford', model: 'Explorer', days_supply: 93, year_month: 202606 },
+        { brand: 'Jeep', days_supply: 144, year_month: 202605 },
+      ],
+      buildCoxSeries(COX)
+    );
+    expect(out.find((t) => t.brand === 'Jeep')?.isTarget).toBe(true);
+    expect(out.find((t) => t.brand === 'Ford')?.isTarget).toBe(false);
+  });
+
+  it('🔴 값이 감춰진 달을 버리지 않는다 — 그 자체가 신호다', () => {
+    const out = buildInventoryTrend(
+      [{ brand: 'Jeep', days_supply: 144, year_month: 202605 }],
+      buildCoxSeries(COX)
+    );
+    const jeep = out[0].points;
+    expect(jeep).toHaveLength(2);
+    expect(jeep[1]).toEqual({ yearMonth: 202606, daysSupply: null, outlierExcluded: true });
+  });
+
+  it('Cox 로스터에 없는 브랜드는 건너뛴다', () => {
+    const out = buildInventoryTrend(
+      [{ brand: 'Rivian', days_supply: null, year_month: 202606 }],
+      buildCoxSeries(COX)
+    );
+    expect(out).toEqual([]);
+  });
+});
+
+describe('buildCoxSeries', () => {
+  it('브랜드별로 월 오름차순 정렬한다', () => {
+    const out = buildCoxSeries([
+      { brand: 'Jeep', year_month: 202606, days_supply: 1, is_outlier_excluded: false },
+      { brand: 'Jeep', year_month: 202601, days_supply: 2, is_outlier_excluded: false },
+    ]);
+    expect(out.get('Jeep')!.map((r) => r.year_month)).toEqual([202601, 202606]);
   });
 });

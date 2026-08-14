@@ -9,7 +9,6 @@
  */
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -18,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { LegendRow } from '@/components/charts/ChartLegend';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { useHiddenSeries } from '@/components/oem-companies/common/useHiddenSeries';
 import { fmtFull, fmtUnits } from '@/components/oem/helpers';
@@ -103,7 +103,7 @@ function tickInterval(monthCount: number): number {
 export default function SalesTrendChart({ market }: SalesTrendChartProps) {
   const height = useChartHeight(220, 280, 320);
   // 훅은 조기 반환보다 먼저 — 데이터 유무로 호출 수가 달라지면 안 된다.
-  const { isHidden, legendProps } = useHiddenSeries();
+  const { hidden, isHidden, toggle } = useHiddenSeries();
   const { lines, rows } = buildTrend(market.series);
   const title = `판매 추이 비교 · ${market.label}`;
 
@@ -121,6 +121,19 @@ export default function SalesTrendChart({ market }: SalesTrendChartProps) {
 
   return (
     <ChartCard title={title} subtitle={subtitle}>
+      {/* 🔴 기본 `<Legend>` 는 payload 를 재정렬해 대상이 앞자리를 잃는다(2026-08-14 화면 확인).
+          바로 옆 `ShareTrendChart` 가 같은 4종을 싣는데 순서가 서로 다르면 색-차종 대응을 매번
+          다시 읽어야 한다 → 두 카드 모두 `LegendRow` 로 순서를 고정한다. */}
+      <LegendRow
+        items={lines.map((l) => ({
+          key: l.key,
+          label: l.name,
+          shape: 'line' as const,
+          color: l.color,
+        }))}
+        hidden={hidden}
+        onToggle={toggle}
+      />
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={rows} margin={{ top: 5, right: 20, bottom: 5, left: 5 }}>
           <CartesianGrid
@@ -153,12 +166,6 @@ export default function SalesTrendChart({ market }: SalesTrendChartProps) {
               const suffix = typeof yoy === 'number' ? ` (${fmtPct(yoy)})` : ' (전년 동월 없음)';
               return [`${fmtFull(Number(value))}대${suffix}`, name];
             }}
-          />
-          <Legend
-            verticalAlign="top"
-            align="center"
-            wrapperStyle={{ fontSize: '14px', paddingBottom: 6 }}
-            {...legendProps}
           />
           {lines.map((l) => (
             <Line

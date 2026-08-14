@@ -82,8 +82,15 @@ const AXIS_SCALES = [
 /** "14.1% (+1.8%p)" 라벨이 잘리지 않을 만큼의 오른쪽 여백(px). */
 const LABEL_MARGIN = 118;
 
-/** y축 라벨 칸 — 차종명 + 판매대수 두 줄이 들어간다. */
-const Y_AXIS_WIDTH = 104;
+/**
+ * y축 라벨 칸 — 차종명 + 판매대수 두 줄이 들어간다.
+ * 104px 로는 'Grand Cherokee'·'Grand Highlander' 가 잘렸다(2026-08-14 화면 확인) → 넓혔다.
+ * 13px 기준 영문 ≈7px/자 · 한글 ≈13px/자 이므로 아래 잘림 한도(18자)와 짝을 맞춰 둔다.
+ */
+const Y_AXIS_WIDTH = 140;
+
+/** 이 글자 수를 넘으면 말줄임(전체 이름은 `<title>` 로 마우스 오버에 나온다). */
+const MODEL_NAME_MAX = 18;
 
 interface ShareRow {
   model: string;
@@ -237,7 +244,7 @@ function ModelTick({
         fontWeight={row?.isTarget ? 700 : 400}
         fill={row?.isTarget ? TARGET_COLOR : 'var(--foreground)'}
       >
-        {name.length > 12 ? `${name.slice(0, 12)}…` : name}
+        {name.length > MODEL_NAME_MAX ? `${name.slice(0, MODEL_NAME_MAX)}…` : name}
       </text>
       <text x={cx} y={(y ?? 0) + 12} textAnchor="end" fontSize={11} fill="var(--muted-foreground)">
         {row ? `${fmtUnits(row.sales)}대` : ''}

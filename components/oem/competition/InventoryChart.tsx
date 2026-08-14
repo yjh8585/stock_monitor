@@ -43,6 +43,7 @@ import {
   EmptyChart,
   fmtPct,
   fmtYmFull,
+  INDUSTRY_NORMAL_DAYS,
   rivalColor,
   shortModel,
   SignalDot,
@@ -71,8 +72,7 @@ interface InventoryRow {
   prevYm: number | null;
 }
 
-/** 신호등 임계값(75/110일)과는 별개인 업계 관행선. 이 값 하나만 바꾸면 선·문구가 함께 따라온다. */
-const INDUSTRY_NORMAL_DAYS = 60;
+// 업계 관행선(60일)은 추이 카드(`InventoryTrendChart`)와 **같은 선이어야** 하므로 shared.tsx 에 있다.
 
 /** '일' 을 문자열로 박으면 임계값 문구와 갈린다 — 단위도 상수에서 가져온다. */
 const UNIT = SIGNAL_THRESHOLDS.inventory.unit;
