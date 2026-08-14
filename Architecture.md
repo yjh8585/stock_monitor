@@ -448,6 +448,7 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 - 🔴 `metrics`는 **감사용이 아니라 화면의 1차 데이터원이다**(2026-08-13 재구성). 경쟁 차종별 판매·YoY 표, 경쟁 브랜드 재고일수, 경쟁 차종 리콜·불만, 소비자 평가 5축 점수가 전부 여기 들어 있고 `/oem/competition` 차트가 이것을 그린다. 페이로드 키: `markets[]`(경쟁표·세그먼트 주석) · `safety` · `inventory` · `competitor_inventory[]` · `competitor_safety[]` · `consumer_scores[]`. 뒤 3개는 `[{market, models|scores}]` 형태로 **시장별**이다.
 - `consumer_scores`의 축 키(`design`·`price`·`quality`·`efficiency`·`brand`)는 수집기 `CONSUMER_AXIS_KEYS`와 화면 `lib/oem-competition/types.ts`의 `CONSUMER_AXES`가 **일치해야** 한다 — 한쪽만 고치면 레이더가 조용히 빈다.
 - **`model_cycle`**(jsonb, `20260814000001`) — 시장별 신차 사이클 `[{market, models:[{model,is_target,last_full_change,last_update,last_update_type,next_event_type,next_event_timing,note}]}]`. 🔴 **`metrics`와 섞지 않는다**: `metrics`는 수집한 사실(판매·재고·리콜)이고 이쪽은 AI 판정이라 갱신 주기·신뢰도가 다르다. 2026-08-14 이전 적재분은 NULL이라 화면이 안내로 대체한다.
+- **차종 라벨의 브랜드**는 `oem_model_brand.display_brand`(전 68종 필수)에서 온다 — `cox_brand`(미국 딜러 재고 조회용)는 미국 미판매 차종에서 NULL이라 인도·중국·유럽 차종이 라벨을 잃는다. 화면은 `displayModel()`이 붙이며, **정본 표기와 짧은 표기 둘 다 키로 등록**한다(판매 데이터는 `Grand Cherokee (Jeep (2009-))`, AI가 채운 필드는 `Grand Cherokee`).
 - `region`은 `'North America' | 'Global'` 2값 체계를 유지한다. 시장 코드(USA/India/…)를 여기 넣으면 한 컬럼에 두 체계가 섞이므로 **시장별 세부는 `market_breakdown`이 담당**한다.
 - 적재는 `scripts/collect_oem_model_outlook.py`(§10) — 차종 메타(표시명·OEM 그룹·Cox 브랜드·region)만 스크립트 상수 `MODEL_META`에 두고 **경쟁군·시장은 `oem_competitor_set`(위)이 정본**이다.
 

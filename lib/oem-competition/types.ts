@@ -234,6 +234,12 @@ export interface CompetitionMarket {
   inventoryTrend: BrandInventoryTrend[];
   /** 대상 + 경쟁 상위 3종의 세대 연식. 2026-08-14 이전 적재분에는 없다(빈 배열). */
   modelCycle: ModelCycleEntry[];
+  /**
+   * 차종 원본 표기 → 브랜드(`oem_model_brand.display_brand`). 이 시장에 나오는 이름만 담는다.
+   * 라벨을 만들 때는 `displayModel()` 을 쓴다 — 이미 브랜드가 든 표기('Honda Pilot')에
+   * 브랜드를 또 붙이지 않게 거기서 판정한다.
+   */
+  modelBrands: Record<string, string>;
   /** 기준별 재집계(월별 뷰 기반). 뷰에 그 시장 데이터가 없으면 빈 배열. */
   periods: PeriodAggregate[];
   /**

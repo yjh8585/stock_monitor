@@ -37,7 +37,7 @@ import {
   modelRows,
   rivalColor,
   SegmentedToggle,
-  shortModel,
+  displayModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
   usePeriodBasis,
@@ -77,7 +77,7 @@ interface RankRow {
   yoyFlat?: string;
 }
 
-function buildRows(raw: ModelRow[]): RankRow[] {
+function buildRows(raw: ModelRow[], brands: Record<string, string>): RankRow[] {
   return raw
     .filter((r) => Number.isFinite(r.sales))
     .sort((a, b) => b.sales - a.sales)
@@ -86,7 +86,7 @@ function buildRows(raw: ModelRow[]): RankRow[] {
       const up = r.yoyPct !== null && r.yoyPct > 0;
       const down = r.yoyPct !== null && r.yoyPct < 0;
       return {
-        name: shortModel(r.model),
+        name: displayModel(r.model, brands),
         fullName: r.model,
         sales: r.sales,
         yoyPct: r.yoyPct,
@@ -104,7 +104,10 @@ export default function CompetitorRankChart({ market }: { market: CompetitionMar
   const { active, options, basis, setBasis } = usePeriodBasis(market.periods);
   // 범례 클릭으로 경쟁 차종을 통째로 접어 대상만 남길 수 있게 한다(chart-guide 규칙 6).
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const allRows = useMemo(() => buildRows(modelRows(market, active)), [market, active]);
+  const allRows = useMemo(
+    () => buildRows(modelRows(market, active), market.modelBrands),
+    [market, active]
+  );
   const rows = useMemo(
     () => allRows.filter((r) => !hidden.has(r.isTarget ? 'target' : 'rival')),
     [allRows, hidden]
@@ -162,7 +165,7 @@ export default function CompetitorRankChart({ market }: { market: CompetitionMar
             horizontal={false}
           />
           <XAxis type="number" tickFormatter={(v: number) => fmtUnits(v)} tick={{ fontSize: 14 }} />
-          <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 14 }} interval={0} />
+          <YAxis type="category" dataKey="name" width={186} tick={{ fontSize: 14 }} interval={0} />
           <Tooltip
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
             contentStyle={TOOLTIP_CONTENT_STYLE}

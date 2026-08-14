@@ -38,7 +38,7 @@ import {
   modelRows,
   rivalColor,
   SegmentedToggle,
-  shortModel,
+  displayModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
   usePeriodBasis,
@@ -102,7 +102,7 @@ export default function PositionBubble({ market }: { market: CompetitionMarket }
     .reduce((sum, n) => sum + n, 0);
 
   const raw: Omit<BubblePoint, 'labelBelow'>[] = source.map((r) => ({
-    name: shortModel(r.model),
+    name: displayModel(r.model, market.modelBrands),
     fullName: r.model,
     yoy: r.yoyPct ?? Number.NaN,
     share: total > 0 ? (r.sales / total) * 100 : 0,

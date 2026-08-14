@@ -34,7 +34,7 @@ import {
   fmtYmFull,
   INDUSTRY_NORMAL_DAYS,
   rivalDistinctColor,
-  shortModel,
+  displayModel,
   TARGET_COLOR,
   UsMetricBadge,
 } from './shared';
@@ -50,11 +50,14 @@ interface LineMeta {
 type TrendRow = Record<string, number | null> & { ym: number };
 
 /** 라벨은 "브랜드" 가 아니라 "차종(브랜드)" 로 — 경쟁 막대 카드와 같은 표기를 쓴다. */
-function labelFor(t: BrandInventoryTrend): string {
-  return t.model ? `${shortModel(t.model)} (${t.brand})` : t.brand;
+function labelFor(t: BrandInventoryTrend, brands: Record<string, string>): string {
+  return t.model ? displayModel(t.model, brands) : t.brand;
 }
 
-function buildTrend(trends: BrandInventoryTrend[]): {
+function buildTrend(
+  trends: BrandInventoryTrend[],
+  brands: Record<string, string>
+): {
   lines: LineMeta[];
   rows: TrendRow[];
   hidden: { brand: string; months: number[] }[];
@@ -64,7 +67,7 @@ function buildTrend(trends: BrandInventoryTrend[]): {
   let rivalIndex = 0;
   const lines: LineMeta[] = ordered.map((t, i) => ({
     key: `s${i}`,
-    name: labelFor(t),
+    name: labelFor(t, brands),
     color: t.isTarget ? TARGET_COLOR : rivalDistinctColor(rivalIndex++),
     strokeWidth: t.isTarget ? 2.5 : 1.5,
     isTarget: t.isTarget,
@@ -86,7 +89,7 @@ function buildTrend(trends: BrandInventoryTrend[]): {
   // "값이 없다"가 아니라 "너무 높아서 감췄다"인 달만 따로 모은다.
   const hidden = ordered
     .map((t) => ({
-      brand: labelFor(t),
+      brand: labelFor(t, brands),
       months: t.points.filter((p) => p.outlierExcluded).map((p) => p.yearMonth),
     }))
     .filter((h) => h.months.length > 0);
@@ -98,7 +101,7 @@ export default function InventoryTrendChart({ market }: { market: CompetitionMar
   const height = useChartHeight(220, 280, 320);
   const { hidden: hiddenKeys, isHidden, toggle } = useHiddenSeries();
   // `?? []` 가 필요한 이유는 `ShareTrendChart` 의 같은 자리 주석 참고(옛 캐시 페이로드 방어).
-  const { lines, rows, hidden } = buildTrend(market.inventoryTrend ?? []);
+  const { lines, rows, hidden } = buildTrend(market.inventoryTrend ?? [], market.modelBrands);
   const title = '딜러 유통재고일수 추이';
 
   if (rows.length === 0) {

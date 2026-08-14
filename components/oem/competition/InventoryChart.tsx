@@ -45,7 +45,7 @@ import {
   fmtYmFull,
   INDUSTRY_NORMAL_DAYS,
   rivalColor,
-  shortModel,
+  displayModel,
   SignalDot,
   SIGNAL_COLORS,
   TARGET_COLOR,
@@ -103,7 +103,7 @@ function toRow(
   };
 }
 
-function buildRows(inventory: InventoryPoint[]): InventoryRow[] {
+function buildRows(inventory: InventoryPoint[], brands: Record<string, string>): InventoryRow[] {
   const target = targetInventory(inventory);
   if (!target) return [];
 
@@ -115,13 +115,7 @@ function buildRows(inventory: InventoryPoint[]): InventoryRow[] {
     // 대상은 브랜드만 알고 차종 매칭이 없다 — 차종명을 지어내지 않는다.
     toRow(target, 'target', `${target.brand} (대상)`, TARGET_COLOR, true),
     ...rivals.map((r, i) =>
-      toRow(
-        r,
-        `${r.brand}-${r.model}-${i}`,
-        `${shortModel(r.model)} (${r.brand})`,
-        rivalColor(i),
-        false
-      )
+      toRow(r, `${r.brand}-${r.model}-${i}`, displayModel(r.model, brands), rivalColor(i), false)
     ),
   ].filter((r): r is InventoryRow => r !== null);
 
@@ -214,7 +208,10 @@ export default function InventoryChart({ market }: InventoryChartProps) {
   const h = useChartHeight(280, 360, 440);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const target = useMemo(() => targetInventory(market.inventory), [market.inventory]);
-  const allRows = useMemo(() => buildRows(market.inventory), [market.inventory]);
+  const allRows = useMemo(
+    () => buildRows(market.inventory, market.modelBrands),
+    [market.inventory, market.modelBrands]
+  );
   const rows = useMemo(
     () => allRows.filter((r) => !hidden.has(r.isTarget ? 'target' : 'rival')),
     [allRows, hidden]

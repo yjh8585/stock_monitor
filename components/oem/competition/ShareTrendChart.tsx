@@ -32,7 +32,7 @@ import {
   fmtYm,
   fmtYmFull,
   rivalDistinctColor,
-  shortModel,
+  displayModel,
   TARGET_COLOR,
 } from './shared';
 
@@ -46,14 +46,17 @@ interface LineMeta {
 
 type TrendRow = Record<string, number | null> & { ym: number };
 
-function buildTrend(series: ModelShareTrend[]): { lines: LineMeta[]; rows: TrendRow[] } {
+function buildTrend(
+  series: ModelShareTrend[],
+  brands: Record<string, string>
+): { lines: LineMeta[]; rows: TrendRow[] } {
   const ordered = [...series].sort((a, b) => Number(b.isTarget) - Number(a.isTarget));
 
   let rivalIndex = 0;
   const lines: LineMeta[] = ordered.map((s, i) => ({
     // 차종명을 dataKey 로 쓰면 점(.)이 든 이름을 recharts 가 중첩 경로로 해석해 라인이 통째로 빈다.
     key: `s${i}`,
-    name: shortModel(s.model),
+    name: displayModel(s.model, brands),
     // 선이 4개 얽히므로 경쟁끼리도 구별돼야 한다 → 회색 계열이 아니라 고유색(chart-guide §7-A).
     color: s.isTarget ? TARGET_COLOR : rivalDistinctColor(rivalIndex++),
     strokeWidth: s.isTarget ? 2.5 : 1.5,
@@ -103,7 +106,7 @@ export default function ShareTrendChart({ market }: { market: CompetitionMarket 
   // 필드가 없던 시절의 페이로드가 남아 있으면 `market.shareTrend` 가 undefined 로 들어오고,
   // 구조분해가 아니라 순회에서 터져 카드가 아니라 **화면 전체**가 클라이언트 렌더로 떨어진다.
   // CompetitionMarket 에 필드를 더할 때마다 같은 창이 열린다.
-  const { lines, rows } = buildTrend(market.shareTrend ?? []);
+  const { lines, rows } = buildTrend(market.shareTrend ?? [], market.modelBrands);
   const title = `점유율 추이 · ${market.label}`;
 
   if (rows.length === 0) {

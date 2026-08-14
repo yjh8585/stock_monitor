@@ -1248,15 +1248,18 @@ export type Database = {
       };
       oem_model_brand: {
         Row: {
-          cox_brand: string;
+          cox_brand: string | null;
+          display_brand: string;
           model: string;
         };
         Insert: {
-          cox_brand: string;
+          cox_brand?: string | null;
+          display_brand: string;
           model: string;
         };
         Update: {
-          cox_brand?: string;
+          cox_brand?: string | null;
+          display_brand?: string;
           model?: string;
         };
         Relationships: [];

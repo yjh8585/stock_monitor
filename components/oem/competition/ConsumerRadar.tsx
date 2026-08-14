@@ -38,7 +38,7 @@ import {
   DeltaText,
   EmptyChart,
   rivalDistinctColor,
-  shortModel,
+  displayModel,
   SignalDot,
   TARGET_COLOR,
 } from './shared';
@@ -78,14 +78,14 @@ function axisAverages(scores: ConsumerScore[]): Record<ConsumerAxisKey, number> 
 }
 
 /** 대상이 먼저, 그다음 경쟁. 색은 라인 차트와 같은 고유색 팔레트를 쓴다. */
-function buildPanels(scores: ConsumerScore[]): Panel[] {
+function buildPanels(scores: ConsumerScore[], brands: Record<string, string>): Panel[] {
   const overall =
     scores.reduce((acc, s) => acc + consumerAverage(s), 0) / Math.max(scores.length, 1);
   const ordered = [...scores.filter((s) => s.is_target), ...scores.filter((s) => !s.is_target)];
   let rivalIndex = 0;
   return ordered.map((score, i) => ({
     key: `p${i}`,
-    label: shortModel(score.model),
+    label: displayModel(score.model, brands),
     color: score.is_target ? TARGET_COLOR : rivalDistinctColor(rivalIndex++),
     score,
     avg: consumerAverage(score),
@@ -233,7 +233,7 @@ export default function ConsumerRadar({
 
   // 훅 뒤에서 분기해야 시장을 바꿔도 훅 호출 순서가 유지된다.
   const scores = market.consumerScores;
-  const panels = buildPanels(scores);
+  const panels = buildPanels(scores, market.modelBrands);
 
   // "지금 시점의 평가인가"라는 물음에 화면이 답해야 한다(사용자 질문 2026-08-14) — 이 점수는
   // 실시간 지표가 아니라 그 시점의 웹 근거로 AI 가 매긴 판정이라 평가일을 함께 못 박는다.

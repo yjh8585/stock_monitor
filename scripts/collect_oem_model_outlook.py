@@ -293,13 +293,19 @@ def _load_inventory_by_brand(client, brands: list[str]) -> dict[str, dict]:
 
 
 def _load_model_brands(client, models: list[str]) -> dict[str, str]:
-  """MarkLines 모델명 → Cox 브랜드(oem_model_brand). 미등록 모델은 결과에 없다."""
+  """MarkLines 모델명 → Cox 브랜드(oem_model_brand). 미등록 모델은 결과에 없다.
+
+  🔴 `cox_brand` 는 2026-08-14 부터 **nullable** 이다 — 화면 표기용 브랜드(`display_brand`)를
+  채우면서 미국 미판매 차종(Brezza·Nexon·Qin PLUS 등) 행이 들어왔고, 그 행들은 Cox 로스터에
+  없어 `cox_brand` 가 NULL 이다. 걸러 내지 않으면 `_load_inventory_by_brand` 의 `.in_()` 에
+  None 이 섞인다.
+  """
   models = sorted({m for m in models if m})
   if not models:
     return {}
   rows = (client.table('oem_model_brand').select('model,cox_brand')
           .in_('model', models).execute().data or [])
-  return {r['model']: r['cox_brand'] for r in rows}
+  return {r['model']: r['cox_brand'] for r in rows if r.get('cox_brand')}
 
 
 def _top_rivals(market: dict) -> list[str]:
