@@ -16,6 +16,7 @@ import ConsumerRadar from './ConsumerRadar';
 import InventoryChart from './InventoryChart';
 import InventoryTrendChart from './InventoryTrendChart';
 import KpiStrip from './KpiStrip';
+import ModelCycleChart from './ModelCycleChart';
 import ModelNarrative from './ModelNarrative';
 import PositionBubble from './PositionBubble';
 import SafetyChart from './SafetyChart';
@@ -66,6 +67,9 @@ function MarketPanel({
         <CompetitorRankChart market={market} />
         <ShareChangeBars market={market} />
         <ShareTrendChart market={market} />
+        {/* 판매·점유율이 왜 그렇게 움직였나에 대한 첫 번째 답 — 세대 나이. 점유율 카드 바로
+            다음에 둬야 "밀리고 있다 → 노후해서인가"로 눈이 이어진다. */}
+        <ModelCycleChart market={market} noteDate={outlook.noteDate} />
         <InventoryChart market={market} />
         <InventoryTrendChart market={market} />
         <PositionBubble market={market} />
