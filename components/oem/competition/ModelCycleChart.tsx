@@ -74,6 +74,10 @@ interface CycleRow {
 /**
  * 기준 연도는 판정일(note_date)의 연도다. 브라우저의 오늘을 쓰면 **서버·클라이언트 렌더가
  * 갈릴 수 있고**, 무엇보다 6개월 전 판정을 오늘 기준으로 재계산해 없는 신선도를 만든다.
+ *
+ * ⚠️ 미국 시장은 **모델 연식**(2027년형이 2026년에 출시)을 쓰므로 연식이 기준연도보다 앞설 수
+ * 있다 — 실측(2026-08-14) 셀토스 USA 가 `2027`. 음수 나이는 의미가 없으므로 0 으로 눌러
+ * "신형"으로 다룬다. 그 시장 안에서는 경쟁 차종도 같은 표기 체계라 비교 자체는 성립한다.
  */
 function buildRows(entries: ModelCycleEntry[], baseYear: number): CycleRow[] {
   return entries
@@ -304,6 +308,10 @@ export default function ModelCycleChart({
             hide={isHidden('postUpdate')}
             isAnimationActive={false}
             radius={[0, 2, 2, 0]}
+            // 🔴 0 이면 막대가 아예 안 그려져 "데이터 없음"과 구별되지 않는다(chart-guide §7-A).
+            // 0 이 실제로 나온다: 올해 개선을 받은 차종(그랜드체로키 2026 페이스리프트)과, 미국
+            // **모델 연식** 표기라 기준연도보다 앞선 신형(셀토스 2027년형)이 둘 다 여기 걸린다.
+            minPointSize={3}
           >
             {rows.map((r) => (
               <Cell key={r.model} fill={r.color} />
