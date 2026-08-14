@@ -41,6 +41,7 @@ function market(over: Partial<CompetitionMarket> = {}): CompetitionMarket {
     series: [],
     shareTrend: [],
     inventoryTrend: [],
+    modelCycle: [],
     periods: [],
     // 기본은 미국 시장 — 미국 전용 지표(Cox·NHTSA)가 판정 대상이 되는 조건이다.
     usMetricsBasis: 'native',

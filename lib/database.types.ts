@@ -1301,6 +1301,7 @@ export type Database = {
           label: string;
           market_breakdown: Json | null;
           metrics: Json | null;
+          model_cycle: Json | null;
           model_key: string;
           model_name: string;
           note_date: string;
@@ -1318,6 +1319,7 @@ export type Database = {
           label: string;
           market_breakdown?: Json | null;
           metrics?: Json | null;
+          model_cycle?: Json | null;
           model_key: string;
           model_name: string;
           note_date: string;
@@ -1335,6 +1337,7 @@ export type Database = {
           label?: string;
           market_breakdown?: Json | null;
           metrics?: Json | null;
+          model_cycle?: Json | null;
           model_key?: string;
           model_name?: string;
           note_date?: string;
