@@ -19,7 +19,7 @@ import ModelNarrative from './ModelNarrative';
 import PositionBubble from './PositionBubble';
 import SafetyChart from './SafetyChart';
 import SalesTrendChart from './SalesTrendChart';
-import ShareDumbbell from './ShareDumbbell';
+import ShareChangeBars from './ShareChangeBars';
 import { SIGNAL_COLORS, SignalDot } from './shared';
 
 /** 시장 하나에 딸린 차트 전부. 탭을 바꾸면 이 덩어리만 갈린다. */
@@ -59,7 +59,7 @@ function MarketPanel({
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <SalesTrendChart market={market} />
         <CompetitorRankChart market={market} />
-        <ShareDumbbell market={market} />
+        <ShareChangeBars market={market} />
         <PositionBubble market={market} />
         <ConsumerRadar market={market} noteDate={outlook.noteDate} />
         <div className="grid grid-cols-1 gap-4">
