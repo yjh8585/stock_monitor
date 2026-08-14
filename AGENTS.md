@@ -102,7 +102,7 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 
 #### `/oem/competition` 상세
 
-스코어보드 + 차트 9종(`components/oem/competition/`). 화면 → [`Architecture.md §5`](./Architecture.md) · 수집 → [`docs/oem-collection.md`](./docs/oem-collection.md) · 차트 → [`docs/chart-guide.md §3`](./docs/chart-guide.md). 약속만:
+스코어보드 + 차트 10종(`components/oem/competition/`). 화면 → [`Architecture.md §5`](./Architecture.md) · 수집 → [`docs/oem-collection.md`](./docs/oem-collection.md) · 차트 → [`docs/chart-guide.md §3`](./docs/chart-guide.md). 약속만:
 
 - 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
 - 다중 시장은 **시장 탭**(유럽은 `countries` 배열). 순서 = `MODEL_DISPLAY_ORDER`.

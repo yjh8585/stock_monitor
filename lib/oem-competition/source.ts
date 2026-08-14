@@ -11,6 +11,7 @@ import type {
   ConsumerScore,
   InventoryPoint,
   MarketBreakdown,
+  ModelCycleEntry,
   ModelSeries,
   ModelShareTrend,
   OutlookSource,
@@ -35,6 +36,7 @@ type OutlookRow = {
   market_breakdown: unknown;
   metrics: unknown;
   sources: unknown;
+  model_cycle?: unknown;
 };
 
 type MonthlyRow = {
@@ -196,6 +198,42 @@ function withCoxState(
   };
 }
 
+/** model_cycle JSONB 의 원본 표기(snake_case). 화면 타입으로 옮기며 camelCase 로 바꾼다. */
+type RawCycleEntry = {
+  model?: unknown;
+  is_target?: unknown;
+  last_full_change?: unknown;
+  last_update?: unknown;
+  last_update_type?: unknown;
+  next_event_type?: unknown;
+  next_event_timing?: unknown;
+  note?: unknown;
+};
+
+/**
+ * 연식 두 개가 **정수로 있는 항목만** 남긴다.
+ * 수집기도 거르지만, 옛 적재분·수동 수정으로 형태가 어긋난 JSONB 가 들어올 수 있다 —
+ * 여기서 안 거르면 막대 길이가 NaN 이 돼 차트가 좌표 없이 그려진다.
+ */
+function toCycleEntries(raw: RawCycleEntry[]): ModelCycleEntry[] {
+  const out: ModelCycleEntry[] = [];
+  for (const r of raw) {
+    if (typeof r.model !== 'string' || !r.model) continue;
+    if (!Number.isInteger(r.last_full_change) || !Number.isInteger(r.last_update)) continue;
+    out.push({
+      model: r.model,
+      isTarget: r.is_target === true,
+      lastFullChange: r.last_full_change as number,
+      lastUpdate: r.last_update as number,
+      lastUpdateType: typeof r.last_update_type === 'string' ? r.last_update_type : '',
+      nextEventType: typeof r.next_event_type === 'string' ? r.next_event_type : '',
+      nextEventTiming: typeof r.next_event_timing === 'string' ? r.next_event_timing : '',
+      note: typeof r.note === 'string' ? r.note : '',
+    });
+  }
+  return out;
+}
+
 export function mapOutlookRow(
   row: OutlookRow,
   monthly: MonthlyRow[] = [],
@@ -219,6 +257,9 @@ export function mapOutlookRow(
     complaint_count: number | null;
   }>(metrics.competitor_safety);
   const scores = byMarket<ConsumerScore>(metrics.consumer_scores, 'scores');
+  // 신차 사이클만 metrics 가 아니라 **별도 컬럼**에서 온다 — 수집한 사실이 아니라 AI 판정이라
+  // 갱신 주기·신뢰도가 달라서다(수집기 주석 참고).
+  const cycles = byMarket<RawCycleEntry>(row.model_cycle, 'models');
 
   const targetInv = asRecord(metrics.inventory);
   const targetSaf = asRecord(metrics.safety);
@@ -296,6 +337,7 @@ export function mapOutlookRow(
       series: buildSeries(marketRows, competitors),
       shareTrend: buildShareTrend(marketRows, competitors),
       inventoryTrend: buildInventoryTrend(inventory, coxSeries),
+      modelCycle: toCycleEntries(cycles.get(b.market) ?? []),
       periods: buildPeriods(marketRows),
       // 미국 시장이면 그 시장의 사실, 글로벌이면 미국 참고치(판정 제외). 데이터가 없으면 null.
       usMetricsBasis:
@@ -697,7 +739,7 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   const { data, error } = await supabase
     .from('oem_model_outlook')
     .select(
-      'model_key,model_name,oem_group,region,note_date,label,sales_trend,competitive_view,consumer_view,outlook,rationale,market_breakdown,metrics,sources'
+      'model_key,model_name,oem_group,region,note_date,label,sales_trend,competitive_view,consumer_view,outlook,rationale,market_breakdown,metrics,sources,model_cycle'
     )
     .order('note_date', { ascending: false })
     .limit(200);

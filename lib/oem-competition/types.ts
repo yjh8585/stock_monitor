@@ -93,6 +93,28 @@ export const CONSUMER_AXES = [
 
 export type ConsumerAxisKey = (typeof CONSUMER_AXES)[number]['key'];
 
+/**
+ * 신차 사이클 한 줄 — oem_model_outlook.model_cycle (JSONB) 페이로드.
+ *
+ * 🔴 **두 연식을 모두 들고 다니는 이유**: 실측(2026-08-14)에서 그랜드체로키는 2021년 완전변경
+ * 이후 5년차인데 2026년에 페이스리프트를 받았고, 경쟁 Traverse·Grand Highlander 는 2024년
+ * 완전변경으로 2년차다. "마지막 개선 이후 경과"만 보면 그랜드체로키가 **가장 신선해** 보이지만,
+ * 세대(플랫폼) 나이로는 가장 늙었다. 어느 한쪽만 쓰면 정반대 결론이 나온다.
+ */
+export interface ModelCycleEntry {
+  model: string;
+  isTarget: boolean;
+  /** 현행 세대가 처음 나온 연식(완전변경). */
+  lastFullChange: number;
+  /** 마지막 상품성 개선 연식. 개선이 없었으면 lastFullChange 와 같다. */
+  lastUpdate: number;
+  /** '완전변경' | '페이스리프트' | '연식변경' — AI 판정이라 열거로 좁히지 않는다. */
+  lastUpdateType: string;
+  nextEventType: string;
+  nextEventTiming: string;
+  note: string;
+}
+
 /** 월별 판매 1점 — oem_competition_monthly_view 행. */
 export interface MonthlyPoint {
   yearMonth: number;
@@ -210,6 +232,8 @@ export interface CompetitionMarket {
   shareTrend: ModelShareTrend[];
   /** 대상 브랜드 + 경쟁 브랜드의 유통재고일수 추이. 미국 기준 시장에서만 채워진다. */
   inventoryTrend: BrandInventoryTrend[];
+  /** 대상 + 경쟁 상위 3종의 세대 연식. 2026-08-14 이전 적재분에는 없다(빈 배열). */
+  modelCycle: ModelCycleEntry[];
   /** 기준별 재집계(월별 뷰 기반). 뷰에 그 시장 데이터가 없으면 빈 배열. */
   periods: PeriodAggregate[];
   /**

@@ -134,9 +134,69 @@ RESPONSE_SCHEMA = {
         'additionalProperties': False,
       },
     },
+    # 신차 사이클(화면의 노후도 비교 차트 입력).
+    #
+    # 🔴 대상 차종만 받으면 쓸모가 없다. "판매가 왜 빠지나"에 대한 답이 노후화인지 아닌지는
+    # **경쟁 차종의 연식과 나란히 놓아야만** 판정된다(사용자 지시 2026-08-14: "경쟁 차종이랑
+    # 비교해서 보여줘. 그랜드체로키가 하락하는 건 경쟁 대비 노후화 때문이다, 라는 걸 확인할 수
+    # 있게"). 그래서 consumer_scores 와 같은 [시장 × (대상+상위 3종)] 구조로 받는다.
+    'model_cycle': {
+      'type': 'array',
+      'description': '시장별 신차 사이클. 각 시장마다 대상 차종 1개 + 그 시장 판매 상위 경쟁차종 '
+                     '3개(있는 만큼)의 세대 연식을 채운다.',
+      'items': {
+        'type': 'object',
+        'properties': {
+          'market': {'type': 'string', 'description': '시장 코드(USA/India/Korea/China/Europe/GLOBAL)'},
+          'models': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'model': {'type': 'string', 'description': '입력 데이터의 차종 표기 그대로'},
+                'is_target': {'type': 'boolean'},
+                'last_full_change': {
+                  'type': 'integer',
+                  'description': '현행 세대가 처음 나온 연식(완전변경/풀체인지). 연식 기준 4자리 '
+                                 '연도. 확실치 않으면 가장 널리 알려진 값을 쓴다.',
+                },
+                'last_update': {
+                  'type': 'integer',
+                  'description': '마지막으로 상품성이 개선된 연식(페이스리프트·대규모 연식변경). '
+                                 '완전변경 이후 개선이 없었으면 last_full_change 와 같은 값.',
+                },
+                'last_update_type': {
+                  'type': 'string',
+                  'enum': ['완전변경', '페이스리프트', '연식변경'],
+                  'description': 'last_update 가 무엇이었는지.',
+                },
+                'next_event_type': {
+                  'type': 'string',
+                  'enum': ['완전변경', '페이스리프트', '연식변경', '미정'],
+                  'description': '다음 예정된 변화. 근거가 없으면 "미정".',
+                },
+                'next_event_timing': {
+                  'type': 'string',
+                  'description': '다음 변화 시점("2026년 가을", "2027년형"). 모르면 빈 문자열.',
+                },
+                'note': {
+                  'type': 'string',
+                  'description': '한 줄 부연(플랫폼·파워트레인 변화 등). 없으면 빈 문자열.',
+                },
+              },
+              'required': ['model', 'is_target', 'last_full_change', 'last_update',
+                           'last_update_type', 'next_event_type', 'next_event_timing', 'note'],
+              'additionalProperties': False,
+            },
+          },
+        },
+        'required': ['market', 'models'],
+        'additionalProperties': False,
+      },
+    },
   },
   'required': ['label', 'sales_trend', 'competitive_view', 'consumer_view', 'outlook',
-               'rationale', 'market_comments', 'consumer_scores'],
+               'rationale', 'market_comments', 'consumer_scores', 'model_cycle'],
   'additionalProperties': False,
 }
 
@@ -318,6 +378,48 @@ def _normalize_consumer_scores(raw: object, markets: list[dict]) -> list[dict]:
   return out
 
 
+# 연식은 4자리 연도다. 범위를 벗어난 값(오타·환각)은 차트 축을 통째로 망가뜨리므로 버린다.
+# 하한은 현행 세대가 남아 있을 수 있는 최대치, 상한은 선행 출시 연식(현재+2년)을 감안한 값.
+_CYCLE_YEAR_MIN, _CYCLE_YEAR_MAX = 1990, 2100
+
+
+def _normalize_model_cycle(raw: object, markets: list[dict]) -> list[dict]:
+  """AI 가 준 신차 사이클을 화면이 믿고 쓸 수 있는 형태로 정리한다.
+
+  🔴 **경쟁 차종이 하나도 없는 시장은 버린다.** 이 표의 목적은 "대상이 경쟁 대비 노후한가"라서
+  대상 혼자 남으면 비교가 성립하지 않는다(연식 하나만 덩그러니 보여 주면 오히려 오독을 부른다).
+  """
+  known = {m['market'] for m in markets}
+  out = []
+  for block in raw if isinstance(raw, list) else []:
+    if not isinstance(block, dict) or block.get('market') not in known:
+      continue
+    rows = []
+    for m in block.get('models') or []:
+      if not isinstance(m, dict) or not m.get('model'):
+        continue
+      full = m.get('last_full_change')
+      if not isinstance(full, int) or not _CYCLE_YEAR_MIN <= full <= _CYCLE_YEAR_MAX:
+        continue
+      upd = m.get('last_update')
+      # 개선 연식이 없거나 완전변경보다 이르면(모순) 완전변경 연식으로 되돌린다.
+      if not isinstance(upd, int) or not full <= upd <= _CYCLE_YEAR_MAX:
+        upd = full
+      rows.append({
+        'model': str(m['model']),
+        'is_target': bool(m.get('is_target')),
+        'last_full_change': full,
+        'last_update': upd,
+        'last_update_type': str(m.get('last_update_type') or ''),
+        'next_event_type': str(m.get('next_event_type') or ''),
+        'next_event_timing': str(m.get('next_event_timing') or ''),
+        'note': str(m.get('note') or ''),
+      })
+    if any(r['is_target'] for r in rows) and len(rows) >= 2:
+      out.append({'market': block['market'], 'models': rows})
+  return out
+
+
 def _evaluate(anthropic: Anthropic, model_name: str, digest: str) -> dict | None:
   try:
     msg = anthropic.messages.create(
@@ -423,6 +525,10 @@ def main() -> int:
       # 레이더가 빈 시장이 생긴다. 조용히 넘어가면 화면에서만 뒤늦게 드러난다.
       logger.warning(f'{model_key}: 소비자 점수 {len(scores)}/{len(markets)} 시장만 유효')
 
+    cycle = _normalize_model_cycle(result.get('model_cycle'), markets)
+    if len(cycle) < len(markets):
+      logger.warning(f'{model_key}: 신차 사이클 {len(cycle)}/{len(markets)} 시장만 유효')
+
     comments = {c['market']: c['comment'] for c in result.get('market_comments') or []}
     breakdown = [{
       'market': m['market'],
@@ -450,6 +556,9 @@ def main() -> int:
       'competitive_view': result['competitive_view'],
       'sales_trend': result['sales_trend'],
       'market_breakdown': breakdown,
+      # 별도 컬럼인 이유: metrics 는 "수집한 사실"(판매·재고·리콜)이고 model_cycle 은
+      # AI 판정이라 갱신 주기와 신뢰도가 다르다. 섞으면 어느 쪽이 근거인지 구분되지 않는다.
+      'model_cycle': cycle,
       'metrics': {
         'markets': markets,
         'safety': safety,
@@ -462,7 +571,7 @@ def main() -> int:
       'sources': [{k: v for k, v in r.items() if k != 'snippet'} for r in web_results],
       'sources_used': f'perplexity×{len(web_results)} nhtsa={bool(safety)} cox={bool(inventory)}'
                       f' rivals(inv={len(rival_inventory)} saf={len(rival_safety)})'
-                      f' scores={len(scores)}',
+                      f' scores={len(scores)} cycle={len(cycle)}',
     })
     logger.success(f'{model_key}: {result["label"]}')
 
