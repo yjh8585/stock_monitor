@@ -47,6 +47,9 @@ ANTHROPIC_MODEL = os.environ.get('OEM_MODEL_OUTLOOK_MODEL', 'claude-sonnet-5')
 KST = timezone(timedelta(hours=9))
 METRIC_MONTHS = 12
 MODEL_YEARS = [2026, 2025, 2024]
+# Cox 유통재고·NHTSA 는 미국 데이터라 이 시장에만 붙인다(GLOBAL 은 참고치로 싣고 화면이 등급을
+# 매기지 않는다). 🔴 `lib/oem-competition/source.ts` 의 US_BASED_MARKETS 와 같은 값이어야 한다.
+US_BASED_MARKETS = {'USA', 'GLOBAL'}
 # 시장별로 경쟁 지표(재고일수·리콜·소비자 점수)를 붙일 경쟁 차종 수. 판매 상위부터.
 # 전부 붙이면 레이더·막대가 읽히지 않고 NHTSA 호출 수도 폭증한다.
 TOP_RIVALS = 3
@@ -193,24 +196,40 @@ def _load_markets(client, model_key: str) -> list[dict]:
 
 
 def _load_inventory_by_brand(client, brands: list[str]) -> dict[str, dict]:
-  """브랜드별 **최신 non-null** 재고일수.
+  """브랜드별 **최신 non-null** 재고일수 + 이상치 제외 여부.
 
   🔴 `order(desc).limit(1)` 로 최신 1행만 집으면 안 된다 — Cox 는 값이 업계평균을 크게 벗어나면
   그 달을 비워 둔다. 실측(2026-08-13): Ram 202606=NULL 이지만 202605=144 가 있는데도 최신
   1행만 보던 옛 구현이 "재고 데이터 없음"으로 저장하고 있었다.
+
+  🔴 그런데 non-null 만 집으면 **정반대 방향의 오독**이 생긴다(사용자 지적 2026-08-14): 값이 빈
+  달은 "모르는 달"이 아니라 업계 평균의 2배를 넘어 Cox 가 감춘 달이다. 그대로 넘기면 AI 프롬프트에
+  직전 달의 멀쩡한 값만 들어가 "재고 평이" 라는 서술이 나온다 — 실제로는 가장 심각한 상태다.
+  그래서 `is_outlier_excluded` 를 함께 실어 최신월이 감춰졌는지 알린다.
   """
   brands = sorted({b for b in brands if b})
   if not brands:
     return {}
-  rows = (client.table('cox_brand_inventory').select('brand,year_month,days_supply')
-          .in_('brand', brands).not_.is_('days_supply', 'null')
-          .order('year_month', desc=True).execute().data or [])
+  rows = (client.table('cox_brand_inventory')
+          .select('brand,year_month,days_supply,is_outlier_excluded')
+          .in_('brand', brands).order('year_month', desc=True).execute().data or [])
+  # 이상치 판정은 Cox **전체의 최신 집계월** 기준이다. 브랜드 자신의 마지막 행으로 판정하면 그 달
+  # 로스터에서 통째로 빠진 브랜드(Lincoln 202601 등)까지 이상치로 몰아 없는 사실을 만든다.
+  latest_month = max((r['year_month'] for r in rows), default=0)
+
   out: dict[str, dict] = {}
-  for r in rows:  # year_month 내림차순이므로 브랜드별 첫 행이 최신
-    if r['brand'] not in out:
-      out[r['brand']] = {'brand': r['brand'], 'days_supply': r['days_supply'],
-                         'year_month': r['year_month']}
-  return out
+  for r in rows:  # year_month 내림차순
+    brand = r['brand']
+    entry = out.setdefault(brand, {'brand': brand, 'days_supply': None, 'year_month': None,
+                                   'outlier_excluded': False, 'outlier_month': None})
+    if r['year_month'] == latest_month and r.get('is_outlier_excluded'):
+      entry['outlier_excluded'] = True
+      entry['outlier_month'] = latest_month
+    if entry['days_supply'] is None and r['days_supply'] is not None:
+      entry['days_supply'] = r['days_supply']
+      entry['year_month'] = r['year_month']
+  # 값이 한 번도 공개된 적 없는 브랜드는 비교에 못 쓴다(로스터 밖 브랜드와 구분되지 않는다).
+  return {b: e for b, e in out.items() if e['days_supply'] is not None}
 
 
 def _load_model_brands(client, models: list[str]) -> dict[str, str]:
@@ -234,13 +253,20 @@ def _load_competitor_context(client, markets: list[dict],
 
   같은 경쟁 차종이 여러 시장·여러 대상 차종에 걸쳐 나오므로 NHTSA 결과는 caller 가 넘긴
   캐시에 모아 재조회를 막는다(호출 수가 배로 뛴다).
+
+  🔴 **미국 기준 시장에만 붙인다.** Cox·NHTSA 는 미국 데이터인데, 경쟁 차종 매핑(oem_model_brand)
+  은 시장을 모른다 — 셀토스 한국 경쟁군의 Kona·Trailblazer 는 미국에서도 팔려 매핑이 있으므로
+  거르지 않으면 **한국 시장 블록에 미국 재고·리콜이 실린다**(2026-08-14 실측으로 확인). 화면은
+  `source.ts` 의 US_BASED_MARKETS 로 한 번 더 거르지만, 여기서 막지 않으면 그 값이 AI 프롬프트에
+  들어가 "한국 시장 재고 74일" 같은 서술을 만든다. 걸러 두면 NHTSA 호출 수도 함께 준다.
   """
-  wanted = sorted({m for mk in markets for m in _top_rivals(mk)})
+  us_markets = [mk for mk in markets if mk['market'] in US_BASED_MARKETS]
+  wanted = sorted({m for mk in us_markets for m in _top_rivals(mk)})
   brand_of = _load_model_brands(client, wanted)
   inv_of = _load_inventory_by_brand(client, list(brand_of.values()))
 
   inventory_out, safety_out = [], []
-  for mk in markets:
+  for mk in us_markets:
     rivals = _top_rivals(mk)
     inv_rows = []
     for name in rivals:

@@ -65,23 +65,25 @@
 
 ### `/oem/competition` — `components/oem/competition/`
 
-한 차종의 한 시장(`CompetitionMarket`)을 props 로 받는 차트 7종 + 요약 조각들. **공용 토큰은 `shared.tsx`** — 대상 차종은 항상 `TARGET_COLOR`(파랑), 경쟁은 `rivalColor(i)`(회색 계열)라 대상이 어느 차트에서나 같은 색으로 도드라진다. 카드 껍데기는 `ChartCard`, 빈 데이터는 `EmptyChart`.
+한 차종의 한 시장(`CompetitionMarket`)을 props 로 받는 차트 7종 + 요약 조각들. **공용 토큰은 `shared.tsx`** — 대상 차종은 항상 `TARGET_COLOR`(파랑). 경쟁은 **차트 성격에 따라 두 팔레트로 갈린다**: 대상만 도드라지면 되는 막대류는 `rivalColor(i)`(회색 계열), 선이 얽혀 경쟁끼리도 구별돼야 하는 라인·레이더는 `rivalDistinctColor(i)`(고유색). 카드 껍데기는 `ChartCard`(제목 오른쪽 `actions` 슬롯 = 기준·지표 버튼), 빈 데이터는 `EmptyChart`.
 
-| 컴포넌트                            | 유형                                                           |
-| ----------------------------------- | -------------------------------------------------------------- |
-| `SalesTrendChart`                   | 다중 라인(대상 + 상위 3 경쟁, 24개월 월별)                     |
-| `CompetitorRankChart`               | 가로 막대 + `Cell` 개별 색 + YoY 라벨                          |
-| `ShareDumbbell`                     | 커스텀 덤벨(전년 → 현재 점유율)                                |
-| `PositionBubble`                    | 산점/버블(`ScatterChart`+`ZAxis`, `MarginScatter` 패턴 재사용) |
-| `ConsumerRadar`                     | 레이더(5축, `domain=[0,5]` 고정)                               |
-| `InventoryChart`                    | 가로 막대 + 60일 `ReferenceLine`                               |
-| `SafetyChart`                       | 콤보 이중축(리콜 건수 vs 불만 건수 — 스케일이 10~20배 차이)    |
-| `CompetitionScoreboard`, `KpiStrip` | 차트 아닌 표·타일(신호등 `SignalDot`)                          |
+| 컴포넌트                            | 유형                                                               |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| `SalesTrendChart`                   | 다중 라인(대상 + 상위 3 경쟁, 24개월 월별) · 툴팁에 전년 동월 대비 |
+| `CompetitorRankChart`               | 가로 막대 + `Cell` 개별 색 + YoY 라벨 · 기준 버튼                  |
+| `ShareDumbbell`                     | 커스텀 덤벨(과거 ● → 현재 ▶ 화살촉) · 기준 버튼                    |
+| `PositionBubble`                    | 산점/버블(`ScatterChart`+`ZAxis`) · 기준 버튼                      |
+| `ConsumerRadar`                     | 레이더(5축, `domain=[0,5]` 고정, 경쟁은 선만)                      |
+| `InventoryChart`                    | 가로 막대 + 60일 `ReferenceLine` + 이상치 경고 배너                |
+| `SafetyChart`                       | 단일 축 막대 + **리콜/불만 지표 토글** + 접이식 상세               |
+| `CompetitionScoreboard`, `KpiStrip` | 차트 아닌 표·타일(신호등 `SignalDot`, 행 음영 = 종합 등급)         |
 
 - 🔴 **레이더 `PolarRadiusAxis domain`은 `[0,5]` 고정**. 자동 스케일이면 4.0 vs 3.8 이 화면 절반 차이로 벌어져 격차가 과장된다.
-- 🔴 **`SafetyChart`는 한 축에 두 지표를 겹치지 않는다** — 리콜 0~8건과 불만 20~200건을 같은 축에 두면 리콜 막대가 사라진다(§4-F 규칙).
-- `ShareDumbbell`의 경쟁 차종 전년 점유율은 **YoY 로 역산**한 값이다(저장돼 있지 않다). 부제에 그 사실을 밝힌다.
+- 🔴 **`SafetyChart`는 두 지표를 동시에 그리지 않는다** — 리콜 0~8건과 불만 20~200건은 한 축에 못 얹고(리콜이 사라진다), 이중축으로 갈라도 "막대 높이를 견주지 말라"는 각주가 필요해진다. **버튼으로 하나씩 보여주는 편이 옳다**(2026-08-14 전환, 기본값=리콜).
+- **기준 버튼(최근 12개월·YTD)** 은 월별 구체화 뷰에서 화면이 재집계한다(`lib/oem-competition/source.ts`의 `buildPeriods`). 🔴 앵커월은 **대상·경쟁의 최신월 중 이른 쪽** — 수집기 `compute_market_metrics` 와 같은 규칙이라야 L12M 결과가 저장값과 일치한다(어긋나면 KPI와 차트의 판매량이 갈린다). 버튼 상태는 **차트마다 독립**이다(공유하면 한 차트를 눌렀는데 옆 차트가 따라 바뀐다).
+- `ShareDumbbell`의 전년 점유율은 재집계 경로에서는 **실측값**이고, 월별 뷰가 없어 저장 스냅샷으로 떨어질 때만 **YoY 역산**이다. 부제가 그 사실을 구분해 밝힌다.
 - 신호등 색은 `shared.tsx`의 `SIGNAL_COLORS`, 임계값은 `lib/oem-competition/signals.ts`의 `SIGNAL_THRESHOLDS`. **툴팁 문구에 숫자를 다시 적지 말 것**(상수에서 만든다).
+- 🔴 **미국 전용 지표(Cox 유통재고·NHTSA)는 시장에 따라 자격이 다르다** — `usMetricsBasis`가 `native`(미국 시장)면 정상 판정, `reference`(글로벌 시장에 붙인 미국 참고치)면 **값은 보이되 등급을 매기지 않는다**. `UsMetricBadge`를 카드 부제에 항상 달아 어느 쪽인지 밝힌다.
 
 ### `/oem/<slug>` — `components/oem-companies/`
 
@@ -414,9 +416,20 @@ export const CHART_HEIGHT = {
 3. 높이는 `useChartHeight` 3-tier 중 선택(직접 px 금지).
 4. 색은 `OEM_COLORS`/`PT_COLORS` 우선, 부족하면 -600 계열 추가. **경영관리(`/management`) 막대는 예외 — `MGMT_BAR_COLORS`(파란 계열)만 사용**(§5-A 규칙).
 5. 툴팁은 `chartTheme`(`TOOLTIP_CONTENT_STYLE`), 그리드·데이터 라벨은 `chartStyle` 상수 사용(§5-D/E, 리터럴 복붙 금지).
-6. 범례 상단 중앙. **경영관리 막대 차트는 범례 클릭 토글을 기본 제공**(`useHiddenSeries` + `LegendRow`) — "필요 시"가 아니다. 초기 OFF 계열이 필요하면 `useHiddenSeries(['키1','키2'])`.
+6. 범례 상단 중앙. **범례 클릭 토글은 기본 제공**(`useHiddenSeries` + `LegendRow`) — "필요 시"가 아니다. 초기 OFF 계열이 필요하면 `useHiddenSeries(['키1','키2'])`. 🔴 **`LegendRow`를 쓰면서 `onToggle`만 빠뜨리면 범례가 클릭되지 않는다**(2026-08-14 실측 — `/oem/competition` 7종이 전부 그 상태로 나갔다. 컴포넌트는 있는데 안 넘긴 것이라 lint·타입 어디에도 안 걸린다). 토글이 없어야 할 이유가 있는 차트가 아니면 **`hidden`+`onToggle`을 함께** 넘긴다.
 7. recharts 기본 `<Legend>`는 payload를 **데이터 키 순서**(= `source.ts`의 `.order()` 정렬)로 만들어 막대 왼→오와 어긋난다 → **색과 라벨이 불일치하는 조용한 버그**. 순서가 중요하면 `<Legend content={() => <LegendRow ... />}>`로 직접 통제(v3 타입은 `payload` prop을 막는다). 검증은 범례 색 vs 첫 그룹 막대 색 대조.
 8. 무거우면 `XxxInner` + `dynamic ssr:false` 래퍼.
 9. 빈 데이터/로딩 상태 처리(§5-G).
 10. 다크모드 — hex 고정색 외엔 `var(--card/--border/--foreground/--muted)` 사용.
 11. `npm run check-all` + dev 서버에서 sm/md/lg 폭 모두 확인.
+
+### 7-A. 화면으로만 잡히는 함정 (2026-08-14 `/oem/competition` 실측)
+
+전부 **타입·lint·테스트를 통과한 채** 화면에서만 드러난 것들이다. 차트를 고치면 반드시 눈으로 본다.
+
+- 🔴 **"강조색"과 "구분색"은 다른 문제다.** 대상 1개를 도드라지게 하는 팔레트(대상=파랑 + 경쟁=회색 계열)를 **선이 여러 개 얽히는 차트**(라인·레이더)에 그대로 쓰면, 옅은 회색(`#e2e8f0`)이 배경에 묻혀 **선도 범례 글자도 안 보인다.** 경쟁끼리도 구별돼야 하는 차트는 고유색을 준다(`RIVAL_DISTINCT_COLORS`).
+- 🔴 **고유색을 고를 때 "쓰면 안 되는 색"이 둘 있다** — ①신호등 색(초록·빨강)은 같은 화면에서 이미 "좋다/나쁘다"를 뜻해 차종 이름표로 쓰면 평가로 오독된다. ②**대상 색과 이웃한 색**(파랑 옆의 cyan)은 레이더에서 둘이 구분되지 않는다.
+- **`ReferenceLine`의 `label`과 `<Legend>`는 둘 다 plot 상단을 노려 겹친다.** `margin.top`을 벌려도 범례가 따라 내려와 해결되지 않는다 → **범례를 차트 밖으로** 빼면(ChartCard 본문에 `LegendRow` 직접 배치) 자리 다툼 자체가 사라진다.
+- **0 값 막대는 `minPointSize`로 최소 두께를 남긴다.** 0이면 막대도 데이터 라벨도 안 그려져 x축에 이름만 남는데, 그 모습이 **"조회 실패(=알 수 없음)"와 똑같다.** 0건과 미상을 눈으로 갈라야 하는 지표(리콜·불만)에서는 필수.
+- 기본 `<Legend>`는 산점도·레이더에서도 **선언 순서를 무시하고 재정렬**한다(대상이 가운데로 밀리거나 경쟁이 앞에 온다). 규칙 7과 같은 처방 — `content={() => <LegendRow ... />}`로 직접 통제.
+- **`metrics` 같은 JSONB가 1차 데이터원인 화면은 키 이름이 계약이다.** 키를 바꾸면 타입은 통과한 채 차트만 조용히 빈다 → 페이로드 키와 `types.ts`를 항상 같은 커밋에서 고친다.

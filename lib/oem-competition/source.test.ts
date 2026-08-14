@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildBrandInventory,
+  buildPeriods,
   buildSeries,
   compareForDisplay,
   cutoffMonth,
   mapOutlookRow,
   MODEL_DISPLAY_ORDER,
+  periodWindow,
   pickLatestPerModel,
   TREND_MONTHS,
   TREND_RIVALS,
@@ -255,5 +258,171 @@ describe('buildSeries', () => {
 
   it('행이 없으면 빈 배열', () => {
     expect(buildSeries([], competitors)).toEqual([]);
+  });
+
+  it('표시 구간 밖의 12개월 전 실적으로 YoY 를 낸다', () => {
+    // 202508 은 표시 구간(202408~) 안이지만 비교 대상 202408 도 창 안이다.
+    // 202408 자신의 비교 대상(202308)은 창 밖 — 잘라내기 전 원계열에서 찾아 계산해야 한다.
+    const all = [
+      { ...rows('Grand Cherokee', true, [202308])[0], sales: 100 },
+      { ...rows('Grand Cherokee', true, [202408])[0], sales: 150 },
+      { ...rows('Grand Cherokee', true, [202508])[0], sales: 120 },
+    ];
+    const out = buildSeries(all, []);
+    const points = out[0].points;
+    expect(points.map((p) => p.yearMonth)).toEqual([202408, 202508]);
+    expect(points[0].yoyPct).toBe(50); // 100 → 150
+    expect(points[1].yoyPct).toBe(-20); // 150 → 120
+  });
+
+  it('12개월 전 실적이 없으면 YoY 는 null (0 으로 뭉개지 않는다)', () => {
+    const out = buildSeries(rows('Grand Cherokee', true, [202607]), []);
+    expect(out[0].points[0].yoyPct).toBeNull();
+  });
+});
+
+describe('periodWindow — 집계 창', () => {
+  it('L12M 은 앵커 포함 12개월', () => {
+    expect(periodWindow('L12M', 202606)).toEqual({ start: 202507, end: 202606 });
+  });
+
+  it('YTD 는 그 해 1월부터 앵커까지 — 창 길이가 달마다 다르다', () => {
+    expect(periodWindow('YTD', 202606)).toEqual({ start: 202601, end: 202606 });
+    expect(periodWindow('YTD', 202601)).toEqual({ start: 202601, end: 202601 });
+  });
+
+  it('전년 동기는 연도만 1 낮춘 같은 창', () => {
+    expect(periodWindow('L12M', 202606, 1)).toEqual({ start: 202407, end: 202506 });
+    expect(periodWindow('YTD', 202606, 1)).toEqual({ start: 202501, end: 202506 });
+  });
+});
+
+describe('buildPeriods', () => {
+  const row = (model: string, isTarget: boolean, ym: number, sales: number) => ({
+    model_key: 'seltos',
+    market: 'USA',
+    model,
+    is_target: isTarget,
+    year_month: ym,
+    sales,
+  });
+
+  /** 대상 12개월 + 전년 12개월, 경쟁 1종 동일 기간. */
+  const twoYears = (model: string, isTarget: boolean, monthly: number) =>
+    Array.from({ length: 24 }, (_, i) => {
+      const total = 2024 * 12 + 6 + i; // 202407 부터 24개월
+      const ym = Math.floor(total / 12) * 100 + (total % 12) + 1;
+      return row(model, isTarget, ym, monthly);
+    });
+
+  it('앵커는 대상·경쟁의 최신월 중 이른 쪽 (수집기와 같은 규칙)', () => {
+    const rows = [
+      row('SELTOS', true, 202607, 100), // 대상만 한 달 더 있다
+      row('SELTOS', true, 202606, 100),
+      row('HR-V', false, 202606, 100),
+    ];
+    const periods = buildPeriods(rows);
+    expect(periods.every((p) => p.anchorMonth === 202606)).toBe(true);
+  });
+
+  it('대상만 앞선 달을 빼지 않으면 점유율이 부풀려진다 — 앵커 밖 달은 집계에서 제외', () => {
+    const rows = [
+      row('SELTOS', true, 202607, 999), // 앵커(202606) 밖 — 들어가면 점유율이 튄다
+      row('SELTOS', true, 202606, 100),
+      row('HR-V', false, 202606, 100),
+    ];
+    const l12m = buildPeriods(rows).find((p) => p.basis === 'L12M');
+    expect(l12m?.totalSales).toBe(200);
+    expect(l12m?.models.find((m) => m.isTarget)?.sharePct).toBe(50);
+  });
+
+  it('L12M 과 YTD 가 서로 다른 창을 쓴다', () => {
+    const rows = [...twoYears('SELTOS', true, 100), ...twoYears('HR-V', false, 100)];
+    const periods = buildPeriods(rows);
+    const l12m = periods.find((p) => p.basis === 'L12M');
+    const ytd = periods.find((p) => p.basis === 'YTD');
+    expect(l12m?.months).toBe(12);
+    // 앵커 202606 → YTD 는 202601~202606 의 6개월
+    expect(ytd?.months).toBe(6);
+    expect(ytd?.label).toBe('2026년 누계(1~6월)');
+    expect(l12m?.totalSales).toBe(2400); // 12개월 × 100 × 2종
+    expect(ytd?.totalSales).toBe(1200); // 6개월 × 100 × 2종
+  });
+
+  it('대상 표기가 여러 개인 차종은 한 줄로 합산한다', () => {
+    const rows = [
+      row('Elantra Yuedong', true, 202606, 60),
+      row('Elantra 2016', true, 202606, 40),
+      row('Sylphy', false, 202606, 100),
+    ];
+    const l12m = buildPeriods(rows).find((p) => p.basis === 'L12M');
+    const target = l12m?.models.filter((m) => m.isTarget) ?? [];
+    expect(target).toHaveLength(1);
+    expect(target[0].sales).toBe(100);
+  });
+
+  it('전년 실적이 없으면 전년 점유율은 null (0% 라고 단정하지 않는다)', () => {
+    const rows = [row('SELTOS', true, 202606, 100), row('HR-V', false, 202606, 100)];
+    const l12m = buildPeriods(rows).find((p) => p.basis === 'L12M');
+    expect(l12m?.prevTotalSales).toBe(0);
+    expect(l12m?.models[0].prevSharePct).toBeNull();
+    expect(l12m?.models[0].yoyPct).toBeNull();
+  });
+
+  it('행이 없으면 빈 배열', () => {
+    expect(buildPeriods([])).toEqual([]);
+  });
+});
+
+describe('buildBrandInventory — Cox 이상치 판정', () => {
+  const cox = (brand: string, ym: number, days: number | null, excluded = false) => ({
+    brand,
+    year_month: ym,
+    days_supply: days,
+    is_outlier_excluded: excluded,
+  });
+
+  it('최신 공개값과 그 직전 공개값을 함께 준다', () => {
+    const out = buildBrandInventory([
+      cox('Jeep', 202606, 160),
+      cox('Jeep', 202605, 140),
+      cox('Jeep', 202604, 120),
+    ]);
+    expect(out.get('Jeep')?.current).toEqual({ yearMonth: 202606, daysSupply: 160 });
+    expect(out.get('Jeep')?.previous).toEqual({ yearMonth: 202605, daysSupply: 140 });
+    expect(out.get('Jeep')?.outlierExcluded).toBe(false);
+  });
+
+  it('최신월이 이상치로 제외되면 플래그를 세우고 값은 마지막 공개월 것을 쓴다', () => {
+    const out = buildBrandInventory([
+      cox('Ram', 202606, null, true),
+      cox('Ram', 202605, 144),
+      cox('Jeep', 202606, 160),
+    ]);
+    const ram = out.get('Ram');
+    expect(ram?.outlierExcluded).toBe(true);
+    expect(ram?.outlierMonth).toBe(202606);
+    // 값이 사라지면 비교 막대가 통째로 없어진다 — 마지막 공개값을 남긴다.
+    expect(ram?.current).toEqual({ yearMonth: 202605, daysSupply: 144 });
+  });
+
+  it('연속 제외 구간의 시작월을 찾는다', () => {
+    const out = buildBrandInventory([
+      cox('Chrysler', 202606, null, true),
+      cox('Chrysler', 202605, null, true),
+      cox('Chrysler', 202604, 135),
+    ]);
+    expect(out.get('Chrysler')?.outlierMonth).toBe(202605);
+  });
+
+  it('🔴 그 달 로스터에서 빠진 브랜드를 이상치로 몰지 않는다', () => {
+    // Lincoln 은 202606 행 자체가 없다(= 우리가 아는 게 없음). Jeep 이 그 달의 최신월을 정의한다.
+    const out = buildBrandInventory([cox('Jeep', 202606, 160), cox('Lincoln', 202605, 90)]);
+    expect(out.get('Lincoln')?.outlierExcluded).toBe(false);
+    expect(out.get('Lincoln')?.current).toEqual({ yearMonth: 202605, daysSupply: 90 });
+  });
+
+  it('행이 없으면 빈 맵', () => {
+    expect(buildBrandInventory([]).size).toBe(0);
   });
 });

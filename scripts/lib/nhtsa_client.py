@@ -110,6 +110,24 @@ def summarize_recalls(results: list[dict]) -> dict:
   return {'count': len(results or []), 'top_components': top, 'latest': latest}
 
 
+def summarize_complaint_components(results: list[dict]) -> list[tuple[str, int]]:
+  """불만 목록 → 부품군 상위 3개 [(부품군, 건수)].
+
+  화면이 "무슨 불만인가"를 펼쳐 보이려면 건수만으로는 부족하다(사용자 지시 2026-08-14).
+
+  ⚠️ 리콜과 필드 이름·형식이 다르다. 리콜은 `Component` 한 개지만 불만은 소문자 `components` 이고
+  'ELECTRICAL SYSTEM,ENGINE' 처럼 **콤마로 여러 개가 붙어** 온다 — 통째로 세면 조합마다 다른
+  항목이 돼 상위 3개가 의미를 잃는다. 그래서 쪼개서 각각 센다.
+  """
+  counts: dict[str, int] = {}
+  for r in results or []:
+    raw = r.get('components') or r.get('Component') or ''
+    parts = [p.strip() for p in str(raw).split(',') if p.strip()] or ['기타']
+    for part in parts:
+      counts[part] = counts.get(part, 0) + 1
+  return sorted(counts.items(), key=lambda kv: -kv[1])[:3]
+
+
 def _get(url: str, make: str, model: str, year: int) -> list[dict] | None:
   try:
     r = requests.get(url, params={'make': make, 'model': model, 'modelYear': year}, timeout=TIMEOUT)
@@ -185,6 +203,7 @@ def _fetch(entry: tuple[str, list[str], list[str]], years: list[int], label: str
     # 불만은 목록이 따로라 같은 연도에서 다시 푼다(리콜 이름을 그대로 쓰면 400 이 난다).
     # 불만 목록을 못 받으면 리콜 이름으로라도 시도한다 — 아예 건너뛰면 0 건으로 남는다.
     total_complaints, any_ok = 0, False
+    all_complaints: list[dict] = []
     for model in (_resolve(make, patterns, exclude, year, 'c') or variants):
       complaints = _get(COMPLAINT_URL, make, model, year)
       if complaints is None:
@@ -192,15 +211,20 @@ def _fetch(entry: tuple[str, list[str], list[str]], years: list[int], label: str
       else:
         any_ok = True
         total_complaints += len(complaints)
+        if detail:  # 원문은 대상 차종만 들고 있는다 — 경쟁까지 모으면 페이로드가 수백 배로 뛴다
+          all_complaints.extend(complaints)
     # 리콜이 0건이어도 매칭된 파생형이 있으면 유효한 결과다(실제로 리콜이 없는 차종).
     summary = summarize_recalls(all_recalls) if detail else {'count': len(all_recalls)}
-    return {
+    out = {
       'model_year': year,
       'variants': variants,
       'recalls': summary,
       # 한 건도 성공 못 했으면 None(=알 수 없음). 0 으로 두면 "불만 없는 차"로 오독된다.
       'complaint_count': total_complaints if any_ok else None,
     }
+    if detail and any_ok:
+      out['complaint_components'] = summarize_complaint_components(all_complaints)
+    return out
   # 어느 연도에서도 패턴이 안 잡혔다 = 매핑이 깨졌을 가능성. 0건과 반드시 구분해 남긴다.
   logger.warning(f'NHTSA 모델명 매칭 실패 — {label} ({make}/{patterns}, 연도 {years})')
   return None

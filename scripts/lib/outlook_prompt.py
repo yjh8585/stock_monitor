@@ -56,15 +56,21 @@ def build_digest(*, model_name, markets, production_gap, safety, inventory, web_
     )
     parts.append('')
   if inventory:
+    # 🔴 옛 구현은 이 경고를 `days_supply is None` 일 때만 붙였는데, 수집기가 non-null 만 넘겨서
+    # **한 번도 출력된 적이 없었다**(2026-08-14 실측). 값이 감춰진 달에도 직전 달의 멀쩡한 수치만
+    # 프롬프트에 들어가 "재고 평이" 서술이 나온다 — 이제 플래그로 판정한다.
     parts.append(
-      f"[미국 딜러 재고일수 · {inventory['brand']} 브랜드 기준 {inventory['year_month']}]\n"
+      f"[미국 딜러 유통재고일수 · {inventory['brand']} 브랜드 기준 {inventory['year_month']}]\n"
       f"  {inventory.get('days_supply')}일"
-      + ('  ※ Cox 가 업계평균 2배 초과로 값을 감춤(위험 신호)' if inventory.get('days_supply') is None else '')
+      + (f"\n  ※ 최신월({inventory.get('outlier_month')})은 Cox 가 업계평균 2배 초과로 값을 감췄다."
+         f" 위 수치는 마지막으로 공개된 달의 값이며 실제 재고는 이보다 나쁘다(강한 위험 신호)."
+         if inventory.get('outlier_excluded') else '')
     )
     parts.append('')
   parts += _fmt_rival_block(
-    '미국 딜러 재고일수 · 브랜드 기준', rival_inventory,
-    lambda r: f"{r['model']} ({r['brand']}): {r['days_supply']}일 [{r['year_month']}]")
+    '미국 딜러 유통재고일수 · 브랜드 기준', rival_inventory,
+    lambda r: f"{r['model']} ({r['brand']}): {r['days_supply']}일 [{r['year_month']}]"
+              + ('  ※ 최신월 미공개(평균 2배 초과)' if r.get('outlier_excluded') else ''))
   if safety:
     rec = safety['recalls']
     comps = ', '.join(f'{c}({n}건)' for c, n in rec.get('top_components') or [])

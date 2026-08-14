@@ -13,13 +13,21 @@ import { CONSUMER_AXES } from './types';
 
 export type Signal = 'GREEN' | 'YELLOW' | 'RED';
 
+/**
+ * 🔴 재고·안전 라벨에 **(미국)** 을 박아 둔 것은 장식이 아니다. 두 지표는 미국 전용 소스(Cox·NHTSA)
+ * 라서 인도·한국·중국·유럽 시장에는 값 자체가 없는데, 스코어보드는 차종당 한 줄로 요약하느라
+ * 시장을 합친다 — 라벨이 없으면 "미국만의 판정"이 차종 전체 판정으로 읽힌다(사용자 지적 2026-08-14).
+ */
 export const SIGNAL_ITEMS = [
   { key: 'sales', label: '판매 증감' },
   { key: 'share', label: '점유율' },
-  { key: 'inventory', label: '재고일수' },
-  { key: 'safety', label: '안전성' },
+  { key: 'inventory', label: '유통재고(미국)' },
+  { key: 'safety', label: '안전성(미국)' },
   { key: 'consumer', label: '소비자 평가' },
 ] as const;
+
+/** 미국 전용 지표 — 시장에 따라 판정 자격이 달라진다. */
+const US_ONLY_ITEMS = new Set<SignalItemKey>(['inventory', 'safety']);
 
 export type SignalItemKey = (typeof SIGNAL_ITEMS)[number]['key'];
 
@@ -78,6 +86,26 @@ export function targetSafety(safety: SafetyPoint[]): SafetyPoint | null {
   return safety.find((s) => !s.model) ?? null;
 }
 
+/**
+ * 유통재고의 직전 공개월 대비 증감. Cox 는 이상치 월을 통째로 비우므로 "전월"이 아니라
+ * **직전에 값이 공개된 달**과 비교한다(그래서 화면에 비교 대상 월을 함께 적는다).
+ */
+export function inventoryDelta(inv: InventoryPoint | null): { days: number; pct: number } | null {
+  const prev = inv?.prevDaysSupply;
+  if (!inv || inv.days_supply === null || prev === null || prev === undefined || prev <= 0) {
+    return null;
+  }
+  const days = inv.days_supply - prev;
+  return { days, pct: round1((days * 100) / prev) };
+}
+
+/** 경쟁군 내 점유율의 전년 대비 변화(%p). 둘 중 하나라도 없으면 비교 불가. */
+export function shareDelta(market: Pick<CompetitionMarket, 'sharePct' | 'prevSharePct'>) {
+  return market.sharePct !== null && market.prevSharePct !== null
+    ? round1(market.sharePct - market.prevSharePct)
+    : null;
+}
+
 /** 5축 평균. 축이 늘어도 CONSUMER_AXES 만 고치면 따라온다. */
 export function consumerAverage(score: ConsumerScore): number {
   const sum = CONSUMER_AXES.reduce((acc, a) => acc + score[a.key], 0);
@@ -100,19 +128,48 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+/**
+ * 미국 지표의 판정 자격을 적용한다.
+ *
+ * - `reference`(글로벌 시장에 붙인 미국 참고치): 값은 그대로 보여 주되 **등급을 매기지 않는다**
+ *   (사용자 결정 2026-08-14). 포르쉐 911 은 시장이 글로벌 하나뿐인데 Cox·NHTSA 는 미국 것이라,
+ *   그대로 등급을 주면 미국 수치가 글로벌 평가로 둔갑한다.
+ * - Cox 이상치 제외: 수치가 없는 게 아니라 **업계 평균 2배를 넘어 Cox 가 감춘 것**이라 RED 다.
+ */
+function applyUsMetricRules(
+  result: SignalResult,
+  market: CompetitionMarket,
+  inv: InventoryPoint | null
+): SignalResult {
+  if (result.key === 'inventory' && inv?.outlierExcluded) {
+    const from = inv.outlierMonth ? `${String(inv.outlierMonth).slice(4, 6)}월부터 ` : '';
+    return {
+      ...result,
+      signal: market.usMetricsBasis === 'reference' ? null : 'RED',
+      display: '평균 2배 초과',
+      hint: `Cox 가 ${from}수치를 공개하지 않았다 — 업계 평균의 2배를 넘는 브랜드는 값이 실리지 않는다(= 재고 심각).`,
+    };
+  }
+  if (US_ONLY_ITEMS.has(result.key) && market.usMetricsBasis === 'reference') {
+    return {
+      ...result,
+      signal: null,
+      display: result.value === null ? '데이터 없음' : `${result.display} (미국 참고)`,
+      hint: '글로벌 시장이라 미국 전용 지표는 참고치로만 표시하고 등급을 매기지 않는다.',
+    };
+  }
+  return result;
+}
+
 /** 한 시장의 항목별 신호등 5개. 표시 순서는 SIGNAL_ITEMS 순서를 따른다. */
 export function evaluateMarket(market: CompetitionMarket): SignalResult[] {
-  const shareDelta =
-    market.sharePct !== null && market.prevSharePct !== null
-      ? round1(market.sharePct - market.prevSharePct)
-      : null;
   const inv = targetInventory(market.inventory);
   const saf = targetSafety(market.safety);
   const gap = consumerGap(market.consumerScores);
 
   const values: Record<SignalItemKey, number | null> = {
     sales: market.yoyPct,
-    share: shareDelta,
+    share: shareDelta(market),
     inventory: inv?.days_supply ?? null,
     safety: saf?.recall_count ?? null,
     consumer: gap === null ? null : round1(gap),
@@ -128,7 +185,7 @@ export function evaluateMarket(market: CompetitionMarket): SignalResult[] {
 
   return SIGNAL_ITEMS.map(({ key, label }) => {
     const value = values[key];
-    return {
+    const base: SignalResult = {
       key,
       label,
       signal: classify(key, value),
@@ -136,6 +193,7 @@ export function evaluateMarket(market: CompetitionMarket): SignalResult[] {
       display: value === null ? '데이터 없음' : displays[key](value),
       hint: hintFor(key),
     };
+    return applyUsMetricRules(base, market, inv);
   });
 }
 

@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * 딜러 재고일수 비교 — 대상 브랜드 vs 경쟁 브랜드.
+ * 딜러 **유통재고**일수 비교 — 대상 브랜드 vs 경쟁 브랜드.
  *
- * 재고일수는 "지금 팔리는 속도로 딜러 재고를 소진하는 데 걸리는 날"이라 값 하나만 보면 해석이
- * 안 되고 **옆에 뭐가 있느냐**로 읽힌다. 그래서 순위형 가로 막대로 나란히 세우고, 절대 기준
- * 하나(업계 통상선)를 세로 점선으로 겹쳐 상대·절대 두 방향을 한 화면에서 읽게 했다.
+ * 유통재고일수는 "지금 팔리는 속도로 **딜러 판매점에 깔린** 재고를 소진하는 데 걸리는 날"이다.
+ * 공장 재고가 아니라 판매망에 풀린 물량이라는 점을 화면 문구에도 못 박는다(사용자 확인 2026-08-14).
+ * 값 하나만 보면 해석이 안 되고 **옆에 뭐가 있느냐**로 읽히므로 순위형 가로 막대로 나란히 세우고,
+ * 절대 기준 하나(업계 통상선)를 세로 점선으로 겹쳐 상대·절대 두 방향을 한 화면에서 읽게 했다.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
   LabelList,
-  Legend,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -30,17 +30,25 @@ import {
 } from '@/components/oem-companies/common/chartStyle';
 import { fmtFull } from '@/components/oem/helpers';
 import { useChartHeight } from '@/lib/useChartHeight';
-import { evaluateMarket, SIGNAL_THRESHOLDS, targetInventory } from '@/lib/oem-competition/signals';
+import {
+  evaluateMarket,
+  inventoryDelta,
+  SIGNAL_THRESHOLDS,
+  targetInventory,
+} from '@/lib/oem-competition/signals';
 import type { Signal } from '@/lib/oem-competition/signals';
 import type { CompetitionMarket, InventoryPoint } from '@/lib/oem-competition/types';
 import {
   ChartCard,
   EmptyChart,
+  fmtPct,
   fmtYmFull,
   rivalColor,
   shortModel,
   SignalDot,
+  SIGNAL_COLORS,
   TARGET_COLOR,
+  UsMetricBadge,
 } from './shared';
 
 interface InventoryChartProps {
@@ -56,6 +64,11 @@ interface InventoryRow {
   ym: number;
   color: string;
   isTarget: boolean;
+  /** 최신 집계월에 Cox 가 수치를 감췄는가(= 업계 평균 2배 초과). 막대 값은 그 직전 공개월 것이다. */
+  outlier: boolean;
+  /** 직전 공개월 대비 증감(일수·%). 비교 대상이 없으면 null. */
+  delta: { days: number; pct: number } | null;
+  prevYm: number | null;
 }
 
 /** 신호등 임계값(75/110일)과는 별개인 업계 관행선. 이 값 하나만 바꾸면 선·문구가 함께 따라온다. */
@@ -68,6 +81,28 @@ const DOT_SIZE = 10;
 /** 막대 끝 ↔ 신호등 점 ↔ 숫자 사이 여백(px). 라벨 좌표를 직접 계산하므로 상수로 둔다. */
 const LABEL_GAP = 8;
 
+/** 막대 하나로 접기 — days 가 없으면(브랜드가 Cox 로스터에 아예 없음) 행을 만들지 않는다. */
+function toRow(
+  p: InventoryPoint,
+  key: string,
+  label: string,
+  color: string,
+  isTarget: boolean
+): InventoryRow | null {
+  if (p.days_supply === null) return null;
+  return {
+    key,
+    label,
+    days: p.days_supply,
+    ym: p.year_month,
+    color,
+    isTarget,
+    outlier: p.outlierExcluded === true,
+    delta: inventoryDelta(p),
+    prevYm: p.prevYearMonth ?? null,
+  };
+}
+
 function buildRows(inventory: InventoryPoint[]): InventoryRow[] {
   const target = targetInventory(inventory);
   if (!target) return [];
@@ -76,29 +111,52 @@ function buildRows(inventory: InventoryPoint[]): InventoryRow[] {
   // 아래에서 재고일수 순으로 다시 정렬해도 다른 차트와 색이 어긋나지 않는다.
   const rivals = inventory.filter((p): p is InventoryPoint & { model: string } => Boolean(p.model));
 
-  const rows: InventoryRow[] = [
-    {
-      key: 'target',
-      // 대상은 브랜드만 알고 차종 매칭이 없다 — 차종명을 지어내지 않는다.
-      label: `${target.brand} (대상)`,
-      days: target.days_supply,
-      ym: target.year_month,
-      color: TARGET_COLOR,
-      isTarget: true,
-    },
-    ...rivals.map((r, i) => ({
-      key: `${r.brand}-${r.model}-${i}`,
-      label: `${shortModel(r.model)} (${r.brand})`,
-      days: r.days_supply,
-      ym: r.year_month,
-      color: rivalColor(i),
-      isTarget: false,
-    })),
-  ];
+  const rows = [
+    // 대상은 브랜드만 알고 차종 매칭이 없다 — 차종명을 지어내지 않는다.
+    toRow(target, 'target', `${target.brand} (대상)`, TARGET_COLOR, true),
+    ...rivals.map((r, i) =>
+      toRow(
+        r,
+        `${r.brand}-${r.model}-${i}`,
+        `${shortModel(r.model)} (${r.brand})`,
+        rivalColor(i),
+        false
+      )
+    ),
+  ].filter((r): r is InventoryRow => r !== null);
 
   // 재고 부담이 큰 순. 이 차트의 질문은 "누가 무거운가"라 순위가 곧 답이고,
   // 대상은 색으로 이미 도드라져 위치가 바뀌어도 놓치지 않는다.
   return rows.sort((a, b) => b.days - a.days);
+}
+
+/**
+ * Cox 가 수치를 감춘 브랜드 경고.
+ *
+ * 🔴 이 카드에서 가장 중요한 문장이다. Cox 는 업계 평균의 2배를 넘는 브랜드를 막대에서 빼고 이름만
+ * 싣는데, 그대로 두면 화면에는 **직전 달 값이 아무 일 없다는 듯** 남아 "데이터가 없네" 로 읽힌다.
+ * 실제로는 그 반대 — 값이 없다는 게 재고가 가장 심각하다는 신호다(사용자 지적 2026-08-14).
+ */
+function OutlierNotice({ rows }: { rows: InventoryRow[] }) {
+  const flagged = rows.filter((r) => r.outlier);
+  if (flagged.length === 0) return null;
+  return (
+    <div
+      className="mb-2 rounded-md px-2.5 py-2 text-xs leading-relaxed"
+      style={{ backgroundColor: `${SIGNAL_COLORS.RED}14`, color: 'var(--foreground)' }}
+    >
+      <span className="font-semibold" style={{ color: SIGNAL_COLORS.RED }}>
+        수치 미공개 = 재고 심각
+      </span>{' '}
+      {/* 브랜드명이 영문이라 조사(은/는)를 붙이면 어색하다 — 콜론으로 끊는다. */}
+      <span className="font-medium">
+        {' '}
+        {flagged.map((r) => r.label.replace(' (대상)', '')).join(' · ')}
+      </span>
+      : 최신 집계월에 업계 평균의 <strong>2배를 초과</strong>해 Cox 가 값을 공개하지 않았다. 아래
+      막대는 <strong>마지막으로 공개된 달</strong>의 값이라 실제 재고는 이보다 나쁠 수 있다.
+    </div>
+  );
 }
 
 /**
@@ -154,51 +212,79 @@ function renderBarEndLabel(
 
 export default function InventoryChart({ market }: InventoryChartProps) {
   const h = useChartHeight(280, 360, 440);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const target = useMemo(() => targetInventory(market.inventory), [market.inventory]);
-  const rows = useMemo(() => buildRows(market.inventory), [market.inventory]);
+  const allRows = useMemo(() => buildRows(market.inventory), [market.inventory]);
+  const rows = useMemo(
+    () => allRows.filter((r) => !hidden.has(r.isTarget ? 'target' : 'rival')),
+    [allRows, hidden]
+  );
   const inventorySignal = useMemo(
     () => evaluateMarket(market).find((r) => r.key === 'inventory') ?? null,
     [market]
   );
 
-  // Cox 는 값이 업계평균을 크게 벗어난 달을 비워 두고, 수집기는 브랜드별 **최신 non-null** 월을
-  // 집는다(`_load_inventory_by_brand`) → 막대마다 기준월이 다를 수 있다. 하나의 기준월인 척하면
-  // 서로 다른 달을 같은 달처럼 비교하게 되므로, 섞였을 때는 그 사실을 화면에 적는다.
-  const mixedMonth = new Set(rows.map((r) => r.ym)).size > 1;
+  const toggle = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // Cox 는 값이 업계평균을 크게 벗어난 달을 비워 두므로 브랜드별 **최신 공개월**이 서로 다를 수
+  // 있다. 하나의 기준월인 척하면 서로 다른 달을 같은 달처럼 비교하게 되므로 그 사실을 적는다.
+  const mixedMonth = new Set(allRows.map((r) => r.ym)).size > 1;
   const anchor = target ? ` · 대상 ${fmtYmFull(target.year_month)} 기준` : '';
   const subtitle = (
     <>
-      미국 시장 · 브랜드 단위(차종 아님) · Cox Automotive{anchor}
+      미국 딜러 판매점에 깔린 미판매 신차 기준 · <strong>공장 재고 아님</strong> · 브랜드 단위(차종
+      아님) · Cox Automotive{anchor}
+      <UsMetricBadge basis={market.usMetricsBasis} />
       <br />
       같은 브랜드의 다른 차종에도 같은 값이 쓰인다 — 이 차종만의 재고가 아니다.
       {mixedMonth && (
         <>
           <br />
-          브랜드별 최신 집계월이 서로 다르다 — 같은 달끼리의 비교가 아니다.
+          브랜드별 최신 공개월이 서로 다르다 — 같은 달끼리의 비교가 아니다.
         </>
       )}
     </>
   );
 
-  if (rows.length === 0) {
+  if (allRows.length === 0) {
     return (
-      <ChartCard title="딜러 재고일수" subtitle={subtitle}>
-        <EmptyChart reason="Cox 재고일수 미제공 (미국 미판매 브랜드이거나 Cox 로스터에 없음)" />
+      <ChartCard title="딜러 유통재고일수" subtitle={subtitle}>
+        <EmptyChart reason="Cox 유통재고 미제공 (미국 미판매 브랜드이거나 Cox 로스터에 없음)" />
       </ChartCard>
     );
   }
 
   const legendItems = [
     { key: 'target', label: '대상 브랜드', shape: 'rect' as const, color: TARGET_COLOR },
-    ...(rows.length > 1
+    ...(allRows.length > 1
       ? [{ key: 'rival', label: '경쟁 브랜드', shape: 'rect' as const, color: rivalColor(0) }]
       : []),
   ];
 
   return (
-    <ChartCard title="딜러 재고일수" subtitle={subtitle}>
+    <ChartCard title="딜러 유통재고일수" subtitle={subtitle}>
+      <OutlierNotice rows={allRows} />
+      {/*
+        범례를 recharts `<Legend>` 로 두면 "업계 통상 60일" 기준선 라벨과 **같은 줄에 겹쳐** 둘 다
+        안 읽힌다(2026-08-14 화면 확인 — margin 을 벌려도 겹친다. 둘 다 plot 상단을 노린다).
+        차트 밖으로 빼면 자리 다툼 자체가 없어진다.
+      */}
+      <div className="mb-1">
+        <LegendRow items={legendItems} hidden={hidden} onToggle={toggle} />
+      </div>
       <ResponsiveContainer width="100%" height={h}>
-        <BarChart data={rows} layout="vertical" margin={{ top: 5, right: 90, bottom: 5, left: 10 }}>
+        {/* top 여백은 "업계 통상 60일" 기준선 라벨 자리다. */}
+        <BarChart
+          data={rows}
+          layout="vertical"
+          margin={{ top: 26, right: 90, bottom: 5, left: 10 }}
+        >
           <CartesianGrid
             horizontal={false}
             strokeDasharray="3 3"
@@ -212,15 +298,21 @@ export default function InventoryChart({ market }: InventoryChartProps) {
           />
           <YAxis type="category" dataKey="label" width={170} tick={{ fontSize: 14 }} interval={0} />
           <Tooltip
-            formatter={(v) => [`${fmtFull(Number(v))}${UNIT}`, '재고일수']}
+            formatter={(v, _n, item) => {
+              const d = (item as { payload?: InventoryRow }).payload;
+              const base = `${fmtFull(Number(v))}${UNIT} (${d ? fmtYmFull(d.ym) : '-'})`;
+              // 수준만 보면 "많다/적다"는 알아도 "쌓이는 중인지"는 모른다 → 직전 공개월 대비를 붙인다.
+              const move =
+                d?.delta && d.prevYm
+                  ? ` · ${fmtYmFull(d.prevYm)} 대비 ${d.delta.days > 0 ? '+' : ''}${
+                      d.delta.days
+                    }${UNIT} (${fmtPct(d.delta.pct)})`
+                  : '';
+              const flag = d?.outlier ? ' · 최신월 미공개(평균 2배 초과)' : '';
+              return [`${base}${move}${flag}`, '유통재고일수'];
+            }}
             cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
             contentStyle={TOOLTIP_CONTENT_STYLE}
-          />
-          <Legend
-            verticalAlign="top"
-            align="center"
-            wrapperStyle={{ paddingBottom: 8 }}
-            content={() => <LegendRow items={legendItems} />}
           />
           <ReferenceLine
             x={INDUSTRY_NORMAL_DAYS}

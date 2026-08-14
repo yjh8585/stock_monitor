@@ -9,6 +9,7 @@ import {
   consumerAverage,
   consumerGap,
   evaluateMarket,
+  inventoryDelta,
   SIGNAL_ITEMS,
   SIGNAL_THRESHOLDS,
   targetInventory,
@@ -38,6 +39,9 @@ function market(over: Partial<CompetitionMarket> = {}): CompetitionMarket {
     safety: [],
     consumerScores: [],
     series: [],
+    periods: [],
+    // 기본은 미국 시장 — 미국 전용 지표(Cox·NHTSA)가 판정 대상이 되는 조건이다.
+    usMetricsBasis: 'native',
     ...over,
   };
 }
@@ -190,5 +194,105 @@ describe('worstSignal — 다중 시장 요약', () => {
     const none = evaluateMarket(market({ yoyPct: null }));
     const bad = evaluateMarket(market({ yoyPct: -20 }));
     expect(worstSignal([none, bad], 'sales')).toBe('RED');
+  });
+});
+
+describe('미국 전용 지표의 판정 자격 (사용자 결정 2026-08-14)', () => {
+  const usInventory = (days: number, over: Record<string, unknown> = {}) => [
+    { brand: 'Kia', days_supply: days, year_month: 202606, ...over },
+  ];
+  const usSafety = [{ model_year: 2026, recall_count: 0, complaint_count: 4 }];
+
+  it('글로벌 시장은 값을 보여주되 등급을 매기지 않는다', () => {
+    const m = market({
+      usMetricsBasis: 'reference',
+      inventory: usInventory(100),
+      safety: usSafety,
+    });
+    const inv = evaluateMarket(m).find((r) => r.key === 'inventory');
+    const saf = evaluateMarket(m).find((r) => r.key === 'safety');
+    expect(inv?.signal).toBeNull();
+    expect(saf?.signal).toBeNull();
+    // 등급만 빼고 수치는 남는다 — 참고치라는 사실을 표기에 담는다.
+    expect(inv?.display).toContain('100일');
+    expect(inv?.display).toContain('미국 참고');
+  });
+
+  it('미국 시장이면 같은 값으로 정상 판정한다', () => {
+    const m = market({ usMetricsBasis: 'native', inventory: usInventory(100), safety: usSafety });
+    expect(evaluateMarket(m).find((r) => r.key === 'inventory')?.signal).toBe('YELLOW');
+    expect(evaluateMarket(m).find((r) => r.key === 'safety')?.signal).toBe('GREEN');
+  });
+
+  it('판매·점유율은 미국 전용이 아니므로 글로벌에서도 그대로 판정한다', () => {
+    const m = market({ usMetricsBasis: 'reference', yoyPct: -20 });
+    expect(evaluateMarket(m).find((r) => r.key === 'sales')?.signal).toBe('RED');
+  });
+});
+
+describe('Cox 이상치 제외 = 수치 미공개는 RED (사용자 지적 2026-08-14)', () => {
+  const outlierMarket = (basis: 'native' | 'reference') =>
+    market({
+      usMetricsBasis: basis,
+      inventory: [
+        {
+          brand: 'Ram',
+          days_supply: 144,
+          year_month: 202605,
+          outlierExcluded: true,
+          outlierMonth: 202606,
+        },
+      ],
+    });
+
+  it('마지막 공개값이 GREEN 구간이어도 RED 로 뒤집는다', () => {
+    const green = market({
+      usMetricsBasis: 'native',
+      inventory: [
+        {
+          brand: 'Ram',
+          days_supply: 40,
+          year_month: 202605,
+          outlierExcluded: true,
+          outlierMonth: 202606,
+        },
+      ],
+    });
+    // days_supply=40 은 임계값상 GREEN 이지만, 최신월이 감춰졌다는 사실이 더 강한 신호다.
+    expect(evaluateMarket(green).find((r) => r.key === 'inventory')?.signal).toBe('RED');
+  });
+
+  it('표기와 툴팁이 "값이 없다"가 아니라 "평균 2배 초과"라고 말한다', () => {
+    const r = evaluateMarket(outlierMarket('native')).find((x) => x.key === 'inventory');
+    expect(r?.signal).toBe('RED');
+    expect(r?.display).toBe('평균 2배 초과');
+    expect(r?.hint).toContain('2배');
+  });
+
+  it('글로벌 시장에서는 이상치여도 등급을 매기지 않는다(표기는 남는다)', () => {
+    const r = evaluateMarket(outlierMarket('reference')).find((x) => x.key === 'inventory');
+    expect(r?.signal).toBeNull();
+    expect(r?.display).toBe('평균 2배 초과');
+  });
+});
+
+describe('inventoryDelta — 직전 공개월 대비', () => {
+  it('일수·비율을 함께 준다', () => {
+    expect(
+      inventoryDelta({ brand: 'Jeep', days_supply: 160, year_month: 202606, prevDaysSupply: 140 })
+    ).toEqual({ days: 20, pct: 14.3 });
+  });
+
+  it('비교 대상이 없으면 null', () => {
+    expect(
+      inventoryDelta({ brand: 'Jeep', days_supply: 160, year_month: 202606, prevDaysSupply: null })
+    ).toBeNull();
+    expect(inventoryDelta(null)).toBeNull();
+  });
+
+  it('직전 값이 0 이면 나눗셈이 무한대가 되므로 포기한다', () => {
+    expect(
+      inventoryDelta({ brand: 'Jeep', days_supply: 160, year_month: 202606, prevDaysSupply: 0 })
+    ).toBeNull();
   });
 });
