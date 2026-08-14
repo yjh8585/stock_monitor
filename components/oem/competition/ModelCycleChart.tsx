@@ -38,7 +38,7 @@ import {
   ChartCard,
   EmptyChart,
   rivalColor,
-  shortModel,
+  displayModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
 } from './shared';
@@ -49,8 +49,8 @@ const RIVAL_BAR_COLOR = rivalColor(0);
 const PRE_FILL_OPACITY = 0.28;
 
 /** y축 라벨 칸 — 차종명 + 세대 연식 두 줄. */
-const Y_AXIS_WIDTH = 140;
-const MODEL_NAME_MAX = 18;
+const Y_AXIS_WIDTH = 186;
+const MODEL_NAME_MAX = 24;
 
 /** "5.0년차 · 2021→2026" 라벨이 잘리지 않을 오른쪽 여백(px). */
 const LABEL_MARGIN = 128;
@@ -79,13 +79,17 @@ interface CycleRow {
  * 있다 — 실측(2026-08-14) 셀토스 USA 가 `2027`. 음수 나이는 의미가 없으므로 0 으로 눌러
  * "신형"으로 다룬다. 그 시장 안에서는 경쟁 차종도 같은 표기 체계라 비교 자체는 성립한다.
  */
-function buildRows(entries: ModelCycleEntry[], baseYear: number): CycleRow[] {
+function buildRows(
+  entries: ModelCycleEntry[],
+  baseYear: number,
+  brands: Record<string, string>
+): CycleRow[] {
   return entries
     .map((e) => {
       const preUpdate = Math.max(0, e.lastUpdate - e.lastFullChange);
       const postUpdate = Math.max(0, baseYear - e.lastUpdate);
       return {
-        model: shortModel(e.model),
+        model: displayModel(e.model, brands),
         isTarget: e.isTarget,
         color: e.isTarget ? TARGET_COLOR : RIVAL_BAR_COLOR,
         preUpdate,
@@ -220,7 +224,7 @@ export default function ModelCycleChart({
   const { hidden, isHidden, toggle } = useHiddenSeries();
   const baseYear = Number(noteDate?.slice(0, 4)) || new Date().getFullYear();
   // `?? []` — 2026-08-14 이전 적재분에는 이 필드가 아예 없다(캐시 페이로드 방어와 같은 이유).
-  const rows = buildRows(market.modelCycle ?? [], baseYear);
+  const rows = buildRows(market.modelCycle ?? [], baseYear, market.modelBrands);
   const title = '신차 사이클 비교';
 
   if (rows.length === 0) {

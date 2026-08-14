@@ -268,6 +268,33 @@ export function shortModel(name: string): string {
   return name.split('(')[0].trim() || name;
 }
 
+/**
+ * 이름 안에 브랜드가 이미 들어 있는지 — 들어 있으면 앞에 또 붙이지 않는다.
+ * 별칭이 필요한 건 지금 'VW Atlas'(브랜드 Volkswagen) 하나뿐이라 표를 크게 만들지 않는다.
+ */
+const BRAND_ALIASES: Record<string, string[]> = { Volkswagen: ['vw'] };
+
+function nameCarriesBrand(shortName: string, brand: string): boolean {
+  const n = shortName.toLowerCase();
+  if (n.includes(brand.toLowerCase())) return true;
+  return (BRAND_ALIASES[brand] ?? []).some((a) => n.includes(a));
+}
+
+/**
+ * 화면에 쓸 차종 라벨 — "Ford Explorer" 처럼 **브랜드를 앞에 붙인다**(사용자 지시 2026-08-14:
+ * *"차종명만 있는 경우가 많은데 브랜드명도 같이 써줘"*).
+ *
+ * 🔴 매칭 키는 **원본 표기**다. `shortModel()` 로 자른 뒤에 찾으면 'Grand Cherokee (Jeep (2009-))'
+ * 같은 MarkLines 표기가 표에서 빠져 브랜드가 사라진다 — 자르기 **전에** 찾고, 자른 이름에 붙인다.
+ */
+export function displayModel(rawName: string, brands?: Record<string, string>): string {
+  const short = shortModel(rawName);
+  // 정본 표기로 먼저, 없으면 짧은 표기로 — AI 가 채운 필드는 괄호를 뗀 이름을 쓴다(source.ts 참고).
+  const brand = brands?.[rawName] ?? brands?.[short];
+  if (!brand || nameCarriesBrand(short, brand)) return short;
+  return `${brand} ${short}`;
+}
+
 /** 점유율 '수준' 표기. fmtPct 는 양수에 +를 붙이는 증감용이라 수준값에 쓰면 "+12.3%"가 된다. */
 export function fmtLevel(value: number | null | undefined, digits = 1): string {
   return value === null || value === undefined ? '—' : `${value.toFixed(digits)}%`;

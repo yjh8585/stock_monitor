@@ -42,7 +42,7 @@ import {
   fmtPp,
   rivalColor,
   SegmentedToggle,
-  shortModel,
+  displayModel,
   SIGNAL_COLORS,
   TARGET_COLOR,
   targetModelName,
@@ -87,10 +87,10 @@ const LABEL_MARGIN = 118;
  * 104px 로는 'Grand Cherokee'·'Grand Highlander' 가 잘렸다(2026-08-14 화면 확인) → 넓혔다.
  * 13px 기준 영문 ≈7px/자 · 한글 ≈13px/자 이므로 아래 잘림 한도(18자)와 짝을 맞춰 둔다.
  */
-const Y_AXIS_WIDTH = 140;
+const Y_AXIS_WIDTH = 186;
 
 /** 이 글자 수를 넘으면 말줄임(전체 이름은 `<title>` 로 마우스 오버에 나온다). */
-const MODEL_NAME_MAX = 18;
+const MODEL_NAME_MAX = 24;
 
 interface ShareRow {
   model: string;
@@ -119,9 +119,13 @@ function prevSalesFromYoy(sales: number, yoyPct: number | null): number | null {
  * 월별 뷰 재집계에서 바로 만든다 — 전년 판매·점유율을 **실제로 알고 있어** 역산이 필요 없다.
  * (아래 폴백 경로는 저장 스냅샷뿐일 때만 쓰이고, 거기서는 YoY 로 되돌린 근사값이다.)
  */
-function rowsFromPeriod(active: PeriodAggregate, targetName: string): ShareRow[] {
+function rowsFromPeriod(
+  active: PeriodAggregate,
+  targetName: string,
+  brands: Record<string, string>
+): ShareRow[] {
   return active.models.map((m) => ({
-    model: shortModel(m.isTarget ? targetName : m.model),
+    model: displayModel(m.isTarget ? targetName : m.model, brands),
     isTarget: m.isTarget,
     sales: m.sales,
     prevSales: m.prevSales,
@@ -133,7 +137,11 @@ function rowsFromPeriod(active: PeriodAggregate, targetName: string): ShareRow[]
 }
 
 /** 월별 뷰에 이 시장이 없을 때의 폴백 — 저장 스냅샷 + YoY 역산. */
-function rowsFromSnapshot(market: CompetitionMarket, total: number): ShareRow[] {
+function rowsFromSnapshot(
+  market: CompetitionMarket,
+  total: number,
+  brands: Record<string, string>
+): ShareRow[] {
   const { sharePct, prevSharePct } = market;
   // competitors 와 share_pct 는 서로 다른 JSONB 컬럼에서 오므로 "경쟁군은 비었는데 점유율은 있는"
   // 상태가 실제로 나온다. 그대로 그리면 대상 혼자 선 막대에 "경쟁군 합계 = 대상 판매량"이 붙는다.
@@ -159,7 +167,7 @@ function rowsFromSnapshot(market: CompetitionMarket, total: number): ShareRow[] 
 
   const rows: ShareRow[] = [
     {
-      model: targetModelName(market),
+      model: displayModel(targetModelName(market), brands),
       isTarget: true,
       sales: market.sales,
       prevSales: targetPrevSales,
@@ -172,7 +180,7 @@ function rowsFromSnapshot(market: CompetitionMarket, total: number): ShareRow[] 
     ...market.competitors.map((c) => {
       const prevSales = prevSalesFromYoy(c.sales, c.yoy_pct);
       return {
-        model: shortModel(c.model),
+        model: displayModel(c.model, brands),
         isTarget: false,
         sales: c.sales,
         prevSales,
@@ -334,8 +342,8 @@ export default function ShareChangeBars({ market }: ShareChangeBarsProps) {
 
   const snapshotTotal = market.sales + market.competitors.reduce((acc, c) => acc + c.sales, 0);
   const allRows = active
-    ? rowsFromPeriod(active, targetModelName(market))
-    : rowsFromSnapshot(market, snapshotTotal);
+    ? rowsFromPeriod(active, targetModelName(market), market.modelBrands)
+    : rowsFromSnapshot(market, snapshotTotal, market.modelBrands);
   const rows = toChartRows(allRows);
 
   const total = active ? active.totalSales : snapshotTotal;

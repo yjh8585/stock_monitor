@@ -36,7 +36,7 @@ import {
   EmptyChart,
   rivalColor,
   SegmentedToggle,
-  shortModel,
+  displayModel,
   TARGET_COLOR,
   targetModelName,
   UsMetricBadge,
@@ -87,9 +87,9 @@ interface SafetyRow {
   isTarget: boolean;
 }
 
-function rowLabel(name: string, point: SafetyPoint): string {
+function rowLabel(name: string, point: SafetyPoint, brands: Record<string, string>): string {
   const mark = point.complaint_count === null ? UNKNOWN_MARK : '';
-  return `${shortModel(name)} (${point.model_year}년형)${mark}`;
+  return `${displayModel(name, brands)} (${point.model_year}년형)${mark}`;
 }
 
 /** 대상을 항상 맨 왼쪽에 두고 경쟁은 원본 순서(판매 상위 순)를 유지한다. */
@@ -98,7 +98,7 @@ function buildRows(market: CompetitionMarket): SafetyRow[] {
   const target = targetSafety(market.safety);
   if (target) {
     rows.push({
-      label: rowLabel(targetModelName(market), target),
+      label: rowLabel(targetModelName(market), target, market.modelBrands),
       recalls: target.recall_count,
       complaints: target.complaint_count,
       color: TARGET_COLOR,
@@ -110,7 +110,7 @@ function buildRows(market: CompetitionMarket): SafetyRow[] {
     .flatMap((point) => (point.model ? [{ point, name: point.model }] : []))
     .forEach(({ point, name }, i) => {
       rows.push({
-        label: rowLabel(name, point),
+        label: rowLabel(name, point, market.modelBrands),
         recalls: point.recall_count,
         complaints: point.complaint_count,
         color: rivalColor(i),
@@ -266,7 +266,7 @@ export default function SafetyChart({ market }: { market: CompetitionMarket }) {
                 interval={0}
                 angle={-25}
                 textAnchor="end"
-                height={80}
+                height={104}
               />
               <YAxis
                 domain={COUNT_DOMAIN}

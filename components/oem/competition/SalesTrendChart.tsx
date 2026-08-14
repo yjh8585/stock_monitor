@@ -30,7 +30,7 @@ import {
   fmtYm,
   fmtYmFull,
   rivalDistinctColor,
-  shortModel,
+  displayModel,
   TARGET_COLOR,
 } from './shared';
 
@@ -56,7 +56,10 @@ type TrendRow = Record<string, number | null> & { ym: number };
 /** 툴팁에서 시리즈 키로 YoY 를 되찾기 위한 접미사. 데이터 키와 규칙이 갈리면 조용히 안 나온다. */
 const YOY_SUFFIX = '_yoy';
 
-function buildTrend(series: ModelSeries[]): { lines: LineMeta[]; rows: TrendRow[] } {
+function buildTrend(
+  series: ModelSeries[],
+  brands: Record<string, string>
+): { lines: LineMeta[]; rows: TrendRow[] } {
   // 대상이 먼저 그려져야 범례·툴팁의 첫 줄을 차지한다. series[0]=대상 계약에 기대지 않고 isTarget 으로 가른다.
   const ordered = [...series].sort((a, b) => Number(b.isTarget) - Number(a.isTarget));
 
@@ -64,7 +67,7 @@ function buildTrend(series: ModelSeries[]): { lines: LineMeta[]; rows: TrendRow[
   const lines: LineMeta[] = ordered.map((s, i) => ({
     // 차종명을 dataKey 로 쓰면 'GLE 3.0' 처럼 점이 든 이름을 recharts 가 중첩 경로로 해석해 라인이 통째로 빈다.
     key: `s${i}`,
-    name: shortModel(s.model),
+    name: displayModel(s.model, brands),
     // 순위 막대와 달리 여기는 선 4개가 서로 얽히므로 경쟁끼리도 구별돼야 한다. 회색 계열을 쓰면
     // 옅은 쪽(#e2e8f0)이 배경에 묻혀 **선도 범례 글자도 안 보인다**(2026-08-14 화면 확인).
     color: s.isTarget ? TARGET_COLOR : rivalDistinctColor(rivalIndex++),
@@ -104,7 +107,7 @@ export default function SalesTrendChart({ market }: SalesTrendChartProps) {
   const height = useChartHeight(220, 280, 320);
   // 훅은 조기 반환보다 먼저 — 데이터 유무로 호출 수가 달라지면 안 된다.
   const { hidden, isHidden, toggle } = useHiddenSeries();
-  const { lines, rows } = buildTrend(market.series);
+  const { lines, rows } = buildTrend(market.series, market.modelBrands);
   const title = `판매 추이 비교 · ${market.label}`;
 
   if (rows.length === 0) {

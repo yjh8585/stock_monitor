@@ -234,11 +234,42 @@ function toCycleEntries(raw: RawCycleEntry[]): ModelCycleEntry[] {
   return out;
 }
 
+/**
+ * 이 시장에 나오는 이름만 골라낸 브랜드 표. 없는 이름은 그냥 빠진다(화면이 차종명만 쓴다).
+ *
+ * 🔴 **괄호를 뗀 짧은 이름도 함께 등록한다.** 같은 차를 두 표기가 가리키기 때문이다 —
+ * 판매 데이터는 MarkLines 정본 표기('Grand Cherokee (Jeep (2009-))')를 쓰는데, AI 가 채운
+ * 소비자 점수·신차 사이클은 사람이 읽는 표기('Grand Cherokee')를 쓴다. 정본 키만 넣으면
+ * **대상 차종만 브랜드를 못 받는** 상태가 된다(2026-08-14 화면 확인 — 경쟁차는 다 붙었는데
+ * 정작 주인공만 'Grand Cherokee' 로 남았다).
+ */
+function pickBrands(
+  all: Record<string, string>,
+  names: Array<string | undefined>
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const n of names) {
+    const brand = n ? all[n] : undefined;
+    if (!n || !brand) continue;
+    out[n] = brand;
+    // shared.tsx 의 shortModel 과 같은 규칙 — 규칙이 한 줄이라 client 경계를 넘기지 않고 맞춘다.
+    const short = n.split('(')[0].trim();
+    if (short && short !== n) out[short] = brand;
+  }
+  return out;
+}
+
+/** 대상 차종의 원본 표기 — 월별 뷰가 있으면 거기서, 없으면 소비자 점수에서. */
+function targetNameOf(rows: MonthlyRow[], scores: ConsumerScore[]): string | undefined {
+  return rows.find((r) => r.is_target)?.model ?? scores.find((s) => s.is_target)?.model;
+}
+
 export function mapOutlookRow(
   row: OutlookRow,
   monthly: MonthlyRow[] = [],
   cox: Map<string, BrandInventoryState> = new Map(),
-  coxSeries: Map<string, CoxRow[]> = new Map()
+  coxSeries: Map<string, CoxRow[]> = new Map(),
+  brands: Record<string, string> = {}
 ): CompetitionOutlook {
   const metrics = asRecord(row.metrics);
   const breakdown = asArray<MarketBreakdown>(row.market_breakdown);
@@ -338,6 +369,15 @@ export function mapOutlookRow(
       shareTrend: buildShareTrend(marketRows, competitors),
       inventoryTrend: buildInventoryTrend(inventory, coxSeries),
       modelCycle: toCycleEntries(cycles.get(b.market) ?? []),
+      // 전 68종을 다 싣지 않고 **이 시장에 실제로 나오는 차종만** 추린다 — 시장이 14개라 통째로
+      // 실으면 같은 표가 14벌 RSC 페이로드에 들어간다.
+      modelBrands: pickBrands(brands, [
+        targetNameOf(marketRows, scores.get(b.market) ?? []),
+        ...competitors.map((c) => c.model),
+        ...(rivalInv.get(b.market) ?? []).map((p) => p.model),
+        ...(cycles.get(b.market) ?? []).map((m) => (typeof m.model === 'string' ? m.model : '')),
+        ...(scores.get(b.market) ?? []).map((s) => s.model),
+      ]),
       periods: buildPeriods(marketRows),
       // 미국 시장이면 그 시장의 사실, 글로벌이면 미국 참고치(판정 제외). 데이터가 없으면 null.
       usMetricsBasis:
@@ -727,6 +767,32 @@ async function fetchCoxInventory(): Promise<CoxRow[]> {
   return (data ?? []) as CoxRow[];
 }
 
+/**
+ * 모델 → 표기 브랜드. 68행짜리 정적 참조표라 통째로 받는다.
+ *
+ * 화면 라벨이 'Explorer'·'Brezza' 처럼 차종명만 나오면 누구 차인지 알 수 없다(사용자 지시
+ * 2026-08-14). `cox_brand` 가 아니라 **`display_brand`** 를 쓴다 — 전자는 미국 미판매 차종에서
+ * NULL 이라 인도·중국·유럽 차종이 통째로 라벨을 잃는다.
+ */
+async function fetchModelBrands(): Promise<Record<string, string>> {
+  'use cache';
+  cacheLife('days');
+  cacheTag('oem_model_brand');
+
+  const supabase = createSupabaseAnonClient();
+  const { data, error } = await supabase.from('oem_model_brand').select('model,display_brand');
+  if (error) {
+    // 브랜드가 없어도 차트는 그려야 한다(차종명만 나온다) — 조용히 비우되 흔적은 남긴다.
+    logger.error({ err: error }, 'oem_model_brand 조회 실패');
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const r of data ?? []) {
+    if (r.model && r.display_brand) out[r.model] = r.display_brand;
+  }
+  return out;
+}
+
 /** `/oem/competition` 화면 데이터. 수집기가 revalidate 태그를 쳐서 갱신한다. */
 export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   'use cache';
@@ -750,7 +816,11 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   }
 
   const latest = pickLatestPerModel((data ?? []) as OutlookRow[]).sort(compareForDisplay);
-  const [monthly, coxRows] = await Promise.all([fetchMonthly(), fetchCoxInventory()]);
+  const [monthly, coxRows, brands] = await Promise.all([
+    fetchMonthly(),
+    fetchCoxInventory(),
+    fetchModelBrands(),
+  ]);
   const byKey = new Map<string, MonthlyRow[]>();
   for (const r of monthly) {
     const list = byKey.get(r.model_key);
@@ -759,5 +829,7 @@ export async function getCompetitionOutlooks(): Promise<CompetitionOutlook[]> {
   }
   const cox = buildBrandInventory(coxRows);
   const coxSeries = buildCoxSeries(coxRows);
-  return latest.map((row) => mapOutlookRow(row, byKey.get(row.model_key) ?? [], cox, coxSeries));
+  return latest.map((row) =>
+    mapOutlookRow(row, byKey.get(row.model_key) ?? [], cox, coxSeries, brands)
+  );
 }
