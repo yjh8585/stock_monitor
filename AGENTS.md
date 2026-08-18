@@ -65,7 +65,13 @@ Python 쪽 상시 검사(토큰 0, 문서·수집 계약 회귀 감시):
 scripts/venv/Scripts/python.exe scripts/verify_docs.py     # 표 구조·상대 링크·자동 로드 분량
 scripts/venv/Scripts/python.exe scripts/verify_fnguide.py  # fnguide 수집 계약 (주 1회 GHA도 실행)
 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회귀
+python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙 (venv 아닌 시스템 python)
 ```
+
+🔴 **훅 검사기 주의**: `verify-hookify-rules.py` 가 **"활성 0개"** 를 보고하면 hookify 플러그인이
+업데이트되며 실행 명령이 원복된 것이다(2026-08-18 실측: 이 PC 의 `python3` 은 Store 스텁이라 `exit 49`,
+게다가 규칙 파일 한글이 CP949 로 읽혀 로드 0개 → **규칙 63개가 만든 이래 한 번도 안 돌고 있었다**).
+처방 = 플러그인 캐시 `hooks.json` 의 명령 4줄을 `python -X utf8` 로.
 
 테스트는 `lib/` 하위 순수 함수 대상(Vitest, node 환경). `vitest.config.ts`의 `@/*` alias는 tsconfig와 동일.
 
