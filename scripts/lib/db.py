@@ -11,6 +11,8 @@ from typing import Any
 from loguru import logger
 from postgrest import SyncPostgrestClient
 
+from lib.retry import with_retry
+
 
 @lru_cache(maxsize=1)
 def get_client() -> SyncPostgrestClient:
@@ -47,7 +49,12 @@ def upsert_rows(table: str, rows: list[dict[str, Any]], conflict_cols: str) -> i
   for i in range(0, len(rows), BATCH_SIZE):
     batch = rows[i:i + BATCH_SIZE]
     try:
-      client.table(table).upsert(batch, on_conflict=conflict_cols).execute()
+      # Cloudflare 502 등 Supabase 앞단의 순간 장애로 수집 전체가 죽지 않도록 재시도한다
+      # (2026-08-17 실측: 502 1회에 collect_market_series가 통째로 실패).
+      with_retry(
+        lambda: client.table(table).upsert(batch, on_conflict=conflict_cols).execute(),
+        _label=f'{table} upsert (배치 {i}~{i+BATCH_SIZE})',
+      )
       total += len(batch)
       logger.debug(f"{table}: {total}/{len(rows)}행 upsert 완료")
     except Exception as e:
