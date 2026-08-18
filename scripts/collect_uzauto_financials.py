@@ -43,6 +43,7 @@ from lib.bootstrap import init_script
 init_script(__file__)
 
 from lib.db import WriteSession, get_client  # noqa: E402
+from lib.retry import with_retry  # noqa: E402
 
 INVESTORS_URL = 'https://uzautomotors.com/investors'
 COMPANY_TICKER = 'UZMT'
@@ -99,16 +100,28 @@ FINANCIALS_TOOL = {
 }
 
 
+def _get_with_retry(url: str, timeout: float, label: str) -> requests.Response:
+  """GET + 상태 확인. 5xx·연결 끊김은 재시도하고 4xx(죽은 링크)는 즉시 raise한다.
+
+  소스 사이트가 큰 PDF를 내려주다 연결을 끊는 일이 있어(2026-08-17 IncompleteRead)
+  한 번의 끊김으로 주 1회 수집 전체가 실패하지 않게 한다.
+  """
+  def _once() -> requests.Response:
+    r = requests.get(
+      url,
+      headers={'User-Agent': 'Mozilla/5.0 (stock_monitor)'},
+      timeout=timeout,
+      allow_redirects=True,
+    )
+    r.raise_for_status()
+    return r
+
+  return with_retry(_once, _label=label)
+
+
 def fetch_investors_page() -> str:
   """investors HTML 가져오기."""
-  r = requests.get(
-    INVESTORS_URL,
-    headers={'User-Agent': 'Mozilla/5.0 (stock_monitor)'},
-    timeout=30.0,
-    allow_redirects=True,
-  )
-  r.raise_for_status()
-  return r.text
+  return _get_with_retry(INVESTORS_URL, 30.0, 'investors 페이지').text
 
 
 def parse_pdf_links(html: str) -> list[dict]:
@@ -190,13 +203,7 @@ def _encode_url_path(url: str) -> str:
 
 def download_pdf(url: str) -> tuple[bytes, str, str | None]:
   """PDF 다운로드 → (bytes, sha256, etag). 공백 포함 URL도 처리."""
-  r = requests.get(
-    _encode_url_path(url),
-    headers={'User-Agent': 'Mozilla/5.0 (stock_monitor)'},
-    timeout=120.0,
-    allow_redirects=True,
-  )
-  r.raise_for_status()
+  r = _get_with_retry(_encode_url_path(url), 120.0, 'PDF 다운로드')
   pdf_bytes = r.content
   sha = hashlib.sha256(pdf_bytes).hexdigest()
   etag = r.headers.get('etag') or r.headers.get('last-modified')

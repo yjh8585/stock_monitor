@@ -31,6 +31,18 @@ gh run list --workflow=<name>.yml   # 간헐 실패는 이력으로 판단
 없었고, 이때 스크립트를 "고치기" 시작했으면 멀쩡한 수집기를 망가뜨렸을 것이다. **동시다발 실패는
 거의 항상 인프라**다 — 서로 다른 워크플로가 같은 시각에 실패했다는 사실 자체가 신호다.
 
+**🔴 단발 실패도 대개는 코드가 아니라 "요청 1회 실패"다** (2026-08-17 실측, 실패 2건 모두).
+동시다발이 아니어도 곧바로 코드를 의심하지 말고 **어느 요청이 어떻게 끊겼는지**부터 본다.
+
+- `collect-market-series`: Supabase 앞단 **Cloudflare가 502를 1회** 반환 → `lib.db.upsert_rows` 가
+  재시도 없이 raise → 수집 전체 exit 1. 매시 실행이라 **다음 회차가 스스로 메꿨다**(데이터 손실 0).
+- `collect-uzauto-financials`: PDF 11개 중 마지막 1개가 **`IncompleteRead`** (2.08MB 받고 연결 끊김)
+  → `failed=1` → exit 1. 그 PDF는 **이미 처리·캐시된 것**이었다(sha256 비교용 재다운로드일 뿐).
+
+→ 처방은 **`scripts/lib/retry.py`** (`with_retry` · `is_transient_error`). 5xx·연결 끊김만 재시도하고
+**4xx 는 즉시 raise** 한다 — UzAuto 의 `source_link_missing`(404 skip) 경로를 재시도가 삼키면 안 된다.
+🔴 **재시도해도 끝내 실패하면 그대로 실패시킨다.** 알림을 없애는 게 목적이 아니라 순간 장애만 흡수한다.
+
 **🔴 수집 워크플로 로그를 `tail` 로 읽지 말 것.** pykrx 의 stdout 이 loguru 의 stderr 와 뒤섞여
 **무해한 `KRX 로그인 실패` 메시지가 로그 맨 끝에 몰린다.** 끝만 보면 그게 진짜 실패 원인처럼 읽힌다.
 (관련: [`gotchas-data-collection.md`](./gotchas-data-collection.md) 의 `disable_pykrx_autologin` 항목)

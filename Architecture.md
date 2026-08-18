@@ -178,7 +178,7 @@ lib/                      # 도메인 모듈 + 공용 유틸
   supabase/               #   클라이언트 4종 (server/client/admin/anon)
   auth/                   #   세션·권한·사용자
 scripts/                  # Python 수집 + onboarding
-  lib/                    #   공용 모듈 (db.py, accounts_map, fx, revalidate, bootstrap, fnguide_client … 차종 경쟁 5종은 아래 표)
+  lib/                    #   공용 모듈 (db.py, accounts_map, fx, revalidate, bootstrap, fnguide_client, retry … 차종 경쟁 5종은 아래 표)
 supabase/migrations/      # 시간순 SQL (YYYYMMDD000NNN_*.sql)
 .github/workflows/        # 42개 GHA 워크플로 (2026-08-07 실측)
 proxy.ts                  # Next.js 16 미들웨어
