@@ -19,6 +19,7 @@
 import os
 import sys
 import glob
+import json
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -107,6 +108,65 @@ def matched_names(inp: dict) -> set:
     return {r.name for r in load_rules(event=event) if engine._rule_matches(r, inp)}
 
 
+# ---- 배선 검사 -------------------------------------------------------------
+# 🔴 규칙이 "로드된다"와 훅이 "실제로 불린다"는 별개다. 위의 케이스 검사는 규칙 파일을
+#    직접 읽으므로 캐시 hooks.json 이 원복돼 훅이 한 번도 안 불려도 전부 통과한다.
+#    배선은 다섯 프로젝트가 공유한다 → 어느 레포에서 돌려도 같은 것을 본다.
+#    일괄 복구 = agents 레포의 scripts/fix-hookify-wiring.py
+_HOOKS_GLOB = os.path.expanduser(
+    "~/.claude/plugins/cache/claude-plugins-official/hookify/*/hooks/hooks.json"
+)
+
+
+def check_wiring() -> list:
+    """캐시 hooks.json 이 '창 없는 exec 형식 + PreToolUse 하나'인지 확인한다."""
+    problems: list = []
+    paths = glob.glob(_HOOKS_GLOB)
+    if not paths:
+        return ["hookify 캐시 hooks.json 을 찾지 못했습니다(플러그인 미설치?)"]
+
+    for path in paths:
+        tag = os.path.basename(os.path.dirname(os.path.dirname(path)))
+        try:
+            with open(path, encoding="utf-8") as fh:
+                cfg = json.load(fh)
+        except Exception as exc:
+            problems.append(f"[{tag}] hooks.json 을 읽지 못함: {exc}")
+            continue
+
+        events = cfg.get("hooks", {})
+        extra = sorted(set(events) - {"PreToolUse"})
+        if extra:
+            problems.append(
+                f"[{tag}] 쓰는 규칙이 0개인 이벤트가 등록돼 있음 {extra}"
+                " → 호출마다 검은 콘솔 창이 그만큼 더 뜬다. PreToolUse 만 남길 것"
+            )
+        if "PreToolUse" not in events:
+            problems.append(f"[{tag}] PreToolUse 등록이 없음 — 훅이 아예 안 불린다")
+            continue
+
+        for group in events["PreToolUse"]:
+            for hook in group.get("hooks", []):
+                cmd = str(hook.get("command", ""))
+                args = hook.get("args") or []
+                if "python3" in cmd or any("python3" in str(a) for a in args):
+                    problems.append(
+                        f"[{tag}] `python3` 로 원복됨 — 이 PC 에서는 Microsoft Store"
+                        " 스텁이라 규칙이 하나도 안 걸린다"
+                    )
+                if not args:
+                    problems.append(
+                        f"[{tag}] exec 형식(`args`)이 아님 → bash 래퍼가 붙어"
+                        " 호출마다 검은 콘솔 창이 뜬다"
+                    )
+                if not cmd.lower().endswith("pythonw.exe"):
+                    problems.append(
+                        f"[{tag}] command 가 pythonw.exe 가 아님({cmd!r})"
+                        " → 콘솔 서브시스템이라 창이 뜬다"
+                    )
+    return problems
+
+
 def main() -> int:
     if not os.path.isdir(".claude"):
         print("레포 루트에서 실행하십시오(.claude 폴더가 없습니다).")
@@ -127,7 +187,7 @@ def main() -> int:
         for f in broken:
             print("   -", f)
 
-    fails = []
+    fails = [f"[배선] {w}" for w in check_wiring()]
     for name, positive, negative in CASES:
         if name not in loaded:
             fails.append(f"[{name}] 규칙이 로드되지 않음(파일 없음·이름 불일치·파싱 실패)")
