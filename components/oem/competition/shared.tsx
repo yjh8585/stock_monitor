@@ -295,6 +295,36 @@ export function displayModel(rawName: string, brands?: Record<string, string>): 
   return `${brand} ${short}`;
 }
 
+/**
+ * 브랜드를 앞세운 라벨 — "Toyota (Grand Highlander)".
+ *
+ * 🔴 `displayModel()`("Toyota Grand Highlander")과 **쓰는 자리가 다르다**. 값이 차종 단위인
+ * 차트에는 `displayModel`, **값이 브랜드 단위인** 차트(Cox 유통재고)에는 이 함수를 쓴다.
+ * Cox 재고일수는 브랜드 값인데 라벨만 차종명이면 그 차종만의 재고로 읽힌다(사용자 지적
+ * 2026-08-20: *"그랜드체로키가 아니라 지프 브랜드 전체네? 비교 대상인 3개는 정확한 해당 차종인데?"*
+ * — 실제로는 4개 전부 브랜드 값이고 라벨만 두 벌이었다). 브랜드를 앞에, 차종은 괄호로 내린다.
+ */
+export function brandLedLabel(rawName: string, brands?: Record<string, string>): string {
+  const short = shortModel(rawName);
+  const brand = brands?.[rawName] ?? brands?.[short];
+  if (!brand) return short;
+  const rest = stripBrandPrefix(short, brand);
+  return rest ? `${brand} (${rest})` : brand;
+}
+
+/**
+ * 이름 앞의 브랜드 표기를 뗀다 — "Honda Pilot" → "Pilot", "VW Atlas" → "Atlas".
+ * 브랜드로 시작하지 않으면 그대로 돌려준다("Explorer"는 뗄 것이 없다).
+ */
+export function stripBrandPrefix(name: string, brand: string): string {
+  const lower = name.toLowerCase();
+  for (const alias of [brand, ...(BRAND_ALIASES[brand] ?? [])]) {
+    const prefix = `${alias.toLowerCase()} `;
+    if (lower.startsWith(prefix)) return name.slice(alias.length).trim();
+  }
+  return name;
+}
+
 /** 점유율 '수준' 표기. fmtPct 는 양수에 +를 붙이는 증감용이라 수준값에 쓰면 "+12.3%"가 된다. */
 export function fmtLevel(value: number | null | undefined, digits = 1): string {
   return value === null || value === undefined ? '—' : `${value.toFixed(digits)}%`;
