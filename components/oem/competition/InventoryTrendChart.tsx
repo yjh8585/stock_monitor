@@ -34,7 +34,9 @@ import {
   fmtYmFull,
   INDUSTRY_NORMAL_DAYS,
   rivalDistinctColor,
-  displayModel,
+  brandLedLabel,
+  stripBrandPrefix,
+  shortModel,
   TARGET_COLOR,
   UsMetricBadge,
 } from './shared';
@@ -49,14 +51,24 @@ interface LineMeta {
 
 type TrendRow = Record<string, number | null> & { ym: number };
 
-/** 라벨은 "브랜드" 가 아니라 "차종(브랜드)" 로 — 경쟁 막대 카드와 같은 표기를 쓴다. */
-function labelFor(t: BrandInventoryTrend, brands: Record<string, string>): string {
-  return t.model ? displayModel(t.model, brands) : t.brand;
+/**
+ * 라벨은 **브랜드가 앞**이고 차종은 괄호로 — 이 선의 값이 브랜드 단위이기 때문이다.
+ * 옆 막대 카드(`InventoryChart`)와 같은 표기를 써야 두 카드가 같은 것을 가리킨다.
+ */
+function labelFor(
+  t: BrandInventoryTrend,
+  brands: Record<string, string>,
+  targetModel?: string
+): string {
+  if (t.model) return brandLedLabel(t.model, brands);
+  const model = targetModel ? stripBrandPrefix(shortModel(targetModel), t.brand) : '';
+  return model ? `${t.brand} (${model})` : t.brand;
 }
 
 function buildTrend(
   trends: BrandInventoryTrend[],
-  brands: Record<string, string>
+  brands: Record<string, string>,
+  targetModel?: string
 ): {
   lines: LineMeta[];
   rows: TrendRow[];
@@ -67,7 +79,7 @@ function buildTrend(
   let rivalIndex = 0;
   const lines: LineMeta[] = ordered.map((t, i) => ({
     key: `s${i}`,
-    name: labelFor(t, brands),
+    name: labelFor(t, brands, targetModel),
     color: t.isTarget ? TARGET_COLOR : rivalDistinctColor(rivalIndex++),
     strokeWidth: t.isTarget ? 2.5 : 1.5,
     isTarget: t.isTarget,
@@ -89,7 +101,7 @@ function buildTrend(
   // "값이 없다"가 아니라 "너무 높아서 감췄다"인 달만 따로 모은다.
   const hidden = ordered
     .map((t) => ({
-      brand: labelFor(t, brands),
+      brand: labelFor(t, brands, targetModel),
       months: t.points.filter((p) => p.outlierExcluded).map((p) => p.yearMonth),
     }))
     .filter((h) => h.months.length > 0);
@@ -97,11 +109,22 @@ function buildTrend(
   return { lines, rows, hidden };
 }
 
-export default function InventoryTrendChart({ market }: { market: CompetitionMarket }) {
+export default function InventoryTrendChart({
+  market,
+  targetModel,
+}: {
+  market: CompetitionMarket;
+  /** 대상 차종의 정본 표기(`outlook.modelName`) — 막대 카드와 같은 라벨을 만들기 위해 받는다. */
+  targetModel?: string;
+}) {
   const height = useChartHeight(220, 280, 320);
   const { hidden: hiddenKeys, isHidden, toggle } = useHiddenSeries();
   // `?? []` 가 필요한 이유는 `ShareTrendChart` 의 같은 자리 주석 참고(옛 캐시 페이로드 방어).
-  const { lines, rows, hidden } = buildTrend(market.inventoryTrend ?? [], market.modelBrands);
+  const { lines, rows, hidden } = buildTrend(
+    market.inventoryTrend ?? [],
+    market.modelBrands,
+    targetModel
+  );
   const title = '딜러 유통재고일수 추이';
 
   if (rows.length === 0) {

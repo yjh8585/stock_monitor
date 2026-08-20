@@ -45,7 +45,9 @@ import {
   fmtYmFull,
   INDUSTRY_NORMAL_DAYS,
   rivalColor,
-  displayModel,
+  brandLedLabel,
+  stripBrandPrefix,
+  shortModel,
   SignalDot,
   SIGNAL_COLORS,
   TARGET_COLOR,
@@ -54,12 +56,16 @@ import {
 
 interface InventoryChartProps {
   market: CompetitionMarket;
+  /** 대상 차종의 정본 표기(`outlook.modelName`). 라벨 괄호 안에 넣어 어느 차종의 브랜드인지 보인다. */
+  targetModel?: string;
 }
 
 /** 차트 한 줄. 색은 정렬 전에 확정해 둔다(아래 buildRows 주석 참고). */
 interface InventoryRow {
   key: string;
   label: string;
+  /** 라벨과 별도로 들고 있는다 — 경고 문구가 라벨을 문자열로 되파싱하지 않도록. */
+  brand: string;
   days: number;
   /** 이 막대의 Cox 집계월(YYYYMM). 브랜드마다 다를 수 있어 행마다 들고 있어야 한다. */
   ym: number;
@@ -93,6 +99,7 @@ function toRow(
   return {
     key,
     label,
+    brand: p.brand,
     days: p.days_supply,
     ym: p.year_month,
     color,
@@ -103,7 +110,22 @@ function toRow(
   };
 }
 
-function buildRows(inventory: InventoryPoint[], brands: Record<string, string>): InventoryRow[] {
+/**
+ * 대상 막대 라벨 — "Jeep (대상 · Grand Cherokee)".
+ *
+ * 값은 브랜드 것이므로 **브랜드가 앞**이고, 어느 차종을 보다가 온 화면인지는 괄호로 내린다.
+ * 차종명을 앞세우면 그 차종만의 재고로 읽힌다(사용자 지적 2026-08-20).
+ */
+function buildTargetLabel(brand: string, targetModel?: string): string {
+  const model = targetModel ? stripBrandPrefix(shortModel(targetModel), brand) : '';
+  return model ? `${brand} (대상 · ${model})` : `${brand} (대상)`;
+}
+
+function buildRows(
+  inventory: InventoryPoint[],
+  brands: Record<string, string>,
+  targetModel?: string
+): InventoryRow[] {
   const target = targetInventory(inventory);
   if (!target) return [];
 
@@ -112,10 +134,12 @@ function buildRows(inventory: InventoryPoint[], brands: Record<string, string>):
   const rivals = inventory.filter((p): p is InventoryPoint & { model: string } => Boolean(p.model));
 
   const rows = [
-    // 대상은 브랜드만 알고 차종 매칭이 없다 — 차종명을 지어내지 않는다.
-    toRow(target, 'target', `${target.brand} (대상)`, TARGET_COLOR, true),
+    // 대상 브랜드에 실제로 매칭된 Cox 차종 데이터는 없다 — 차종명은 화면 문맥(대상 차종)에서 온다.
+    toRow(target, 'target', buildTargetLabel(target.brand, targetModel), TARGET_COLOR, true),
+    // 🔴 경쟁도 값은 브랜드 단위다. `displayModel`("Toyota Grand Highlander")을 쓰면 차종별
+    // 재고로 읽히므로 브랜드를 앞세운 표기를 쓴다.
     ...rivals.map((r, i) =>
-      toRow(r, `${r.brand}-${r.model}-${i}`, displayModel(r.model, brands), rivalColor(i), false)
+      toRow(r, `${r.brand}-${r.model}-${i}`, brandLedLabel(r.model, brands), rivalColor(i), false)
     ),
   ].filter((r): r is InventoryRow => r !== null);
 
@@ -143,12 +167,9 @@ function OutlierNotice({ rows }: { rows: InventoryRow[] }) {
         수치 미공개 = 재고 심각
       </span>{' '}
       {/* 브랜드명이 영문이라 조사(은/는)를 붙이면 어색하다 — 콜론으로 끊는다. */}
-      <span className="font-medium">
-        {' '}
-        {flagged.map((r) => r.label.replace(' (대상)', '')).join(' · ')}
-      </span>
-      : 최신 집계월에 업계 평균의 <strong>2배를 초과</strong>해 Cox 가 값을 공개하지 않았다. 아래
-      막대는 <strong>마지막으로 공개된 달</strong>의 값이라 실제 재고는 이보다 나쁠 수 있다.
+      <span className="font-medium"> {flagged.map((r) => r.brand).join(' · ')}</span>: 최신 집계월에
+      업계 평균의 <strong>2배를 초과</strong>해 Cox 가 값을 공개하지 않았다. 아래 막대는{' '}
+      <strong>마지막으로 공개된 달</strong>의 값이라 실제 재고는 이보다 나쁠 수 있다.
     </div>
   );
 }
@@ -204,13 +225,13 @@ function renderBarEndLabel(
   );
 }
 
-export default function InventoryChart({ market }: InventoryChartProps) {
+export default function InventoryChart({ market, targetModel }: InventoryChartProps) {
   const h = useChartHeight(280, 360, 440);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const target = useMemo(() => targetInventory(market.inventory), [market.inventory]);
   const allRows = useMemo(
-    () => buildRows(market.inventory, market.modelBrands),
-    [market.inventory, market.modelBrands]
+    () => buildRows(market.inventory, market.modelBrands, targetModel),
+    [market.inventory, market.modelBrands, targetModel]
   );
   const rows = useMemo(
     () => allRows.filter((r) => !hidden.has(r.isTarget ? 'target' : 'rival')),

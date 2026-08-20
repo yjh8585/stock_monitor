@@ -70,8 +70,9 @@ function MarketPanel({
         {/* 판매·점유율이 왜 그렇게 움직였나에 대한 첫 번째 답 — 세대 나이. 점유율 카드 바로
             다음에 둬야 "밀리고 있다 → 노후해서인가"로 눈이 이어진다. */}
         <ModelCycleChart market={market} noteDate={outlook.noteDate} />
-        <InventoryChart market={market} />
-        <InventoryTrendChart market={market} />
+        {/* 재고 카드 2종은 값이 **브랜드 단위**라 대상 차종명을 라벨 괄호에 넣으려고 따로 받는다. */}
+        <InventoryChart market={market} targetModel={outlook.modelName} />
+        <InventoryTrendChart market={market} targetModel={outlook.modelName} />
         <PositionBubble market={market} />
         <SafetyChart market={market} />
         <ConsumerRadar market={market} noteDate={outlook.noteDate} />
