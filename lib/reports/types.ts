@@ -31,14 +31,21 @@ export interface PostRow {
   updated_at: string;
   /** 사외비 여부. true 면 RLS 가 anon 읽기를 차단해 service_role 경로로만 조회된다. */
   is_confidential: boolean;
+  /** 원본 HTML 보고서의 reports-html(비공개) 버킷 객체 키. NULL 이면 첨부 없음. */
+  html_path: string | null;
 }
 
 /**
  * 보고서 목록 페이지 전용 행 — `content`(본문 markdown/html)와 `key_scenes`를 제외해
  * RSC payload + Supabase 응답 크기를 축소한다. 상세 페이지(`PostRow`)와 다르게
  * 본문이 필요 없는 list/카드 컴포넌트에서만 사용.
+ *
+ * `html_path` 도 제외한다 — `list()` 의 select 상수(`POST_LIST_COLUMNS`)에 없어서
+ * 런타임에 오지 않기 때문이다. `list()` 가 `as PostListRow[]` 캐스트라 여기서 빼 두지
+ * 않으면 "값이 있다"는 타입 거짓말이 컴파일 에러 없이 통과한다.
+ * 목록에 HTML 배지를 달게 되면 이 줄에서 빼고 `POST_LIST_COLUMNS` 에 함께 추가할 것.
  */
-export type PostListRow = Omit<PostRow, 'content' | 'key_scenes'>;
+export type PostListRow = Omit<PostRow, 'content' | 'key_scenes' | 'html_path'>;
 
 export interface PostInsert {
   id?: number;
@@ -58,6 +65,7 @@ export interface PostInsert {
   created_at?: string;
   updated_at?: string;
   is_confidential?: boolean;
+  html_path?: string | null;
 }
 
 export interface PostUpdate {
@@ -76,4 +84,5 @@ export interface PostUpdate {
   category?: string | null;
   updated_at?: string;
   is_confidential?: boolean;
+  html_path?: string | null;
 }
