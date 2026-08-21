@@ -628,11 +628,21 @@ UNIQUE: (source, note_date)
 
 #### `posts` (84행, 2026-08-06 실측) — 보고서 본문
 
-| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at | is_confidential |
+| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at | is_confidential | html_path |
 
 **인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
 
 **RLS**: `posts_select_public`(20260806000001) — anon·authenticated 는 **`is_confidential = false` 행만** SELECT. 그 전 정책 `posts_select_all`(USING(true))은 anon 키만으로 전 보고서를 덤프할 수 있어 사외비 문서를 담을 수 없었다. 사외비 행은 **service_role 로만** 조회되며, 열람 역할 게이트는 `lib/auth/permissions.ts`의 `canAccessConfidentialReports`(admin·holdings·mobility — 조직도와 동일 기준)가 담당한다. 목록·상세의 `'use cache'` 함수는 `includeConfidential` 를 **인자로 받아 캐시 키를 분리**하므로 역할 간에 목록이 새지 않는다.
+
+**버킷 `reports-html`** (비공개, public=false, 정책 없음 → service_role 전용, 20260821000001):  
+자체 디자인을 가진 원본 HTML 보고서를 저장한다. 객체 키는 `posts.html_path`(NULL = 첨부 없음), 열람은 인증 프록시 `/api/reports/[id]/html` 로만 — 그 라우트가 로그인(proxy) + `post.is_confidential` 행 단위 역할 게이트(`canAccessConfidentialReports`)를 다시 확인한 뒤 스트리밍한다(`blob.stream()` — Vercel 응답 4.5MB 상한 회피). 상세 페이지는 이것을 same-origin iframe(`components/reports/report-embed.tsx`)으로 마크다운 본문 **위에** 띄운다.
+
+- ⚠️ **HTML 은 self-contained 여야 한다** — 인라인 CSS/JS + data URI 이미지. iframe 안의 상대경로(`./img/a.png`)는 `/api/reports/<id>/html` 기준으로 해석돼 깨진다.
+- ⚠️ **인코딩은 UTF-8(BOM 없음)** — 프록시가 `charset=utf-8` 을 강제하고 HTTP 헤더가 문서의 `<meta charset>` 보다 우선하므로, CP949/EUC-KR 로 저장된 파일은 200 으로 응답되면서 **본문 전체가 깨진 채** 렌더된다(로그도 안 남는다).
+- 🔴 **신뢰 경계가 PDF 첨부와 다르다** — 이 HTML 은 **앱과 같은 origin 에서 스크립트가 실행**된다. 세션이 쿠키 전용이고 CSRF 토큰이 없어, 악의적 스크립트는 세션으로 사외비 API 를 그대로 호출할 수 있다. `sandbox` 로 막지 않는 이유는 `allow-same-origin` 없는 샌드박스가 중첩 프레임에 상속돼 **보고서 안 유튜브 재생을 죽이기** 때문이다(영상 재생이 요구사항). 그래서 방어는 **운영 규칙**이다 — 업로드는 관리자가 내용을 직접 확인한 자립형 파일만. 신뢰할 수 없는 HTML 을 담아야 할 일이 생기면 그때 응답 헤더에 CSP `sandbox`(단, `allow-same-origin` 없이)를 켜고 영상을 포기한다.
+- 🔴 **응답에 `Permissions-Policy` 헤더를 붙이지 말 것** — 보고서에 declared policy 가 생기면 안쪽 유튜브(교차 origin)로의 권한 위임이 조용히 끊긴다. 바깥 iframe 의 `allow` + `allowFullScreen` 이 그 위임의 유일한 통로다.
+- 🔴 **URL 을 이미지 확장자로 끝내지 말 것**(`/api/reports/1/cover.png` 금지) — proxy matcher 가 png/jpg/jpeg/gif/svg/ico/webp 로 끝나는 경로를 통째로 제외해 **인증이 아예 안 걸린다**. 삽화를 API 로 낸다면 `/api/reports/1/asset?f=cover.png` 처럼 확장자를 쿼리로 민다.
+- 업로드 UI 는 아직 없다(`/api/uploads/report` 는 `application/pdf` + public 버킷 전용). 1차 운용은 대시보드/스크립트로 `{YYYY-MM-DD}/{uuid}.html` 을 올리고 `posts.html_path` 를 UPDATE 한 뒤 **반드시** `POST /api/revalidate/posts/<id>`(헤더 `x-revalidate-secret`)로 `'use cache'` 엔트리를 깬다 — 안 깨면 최대 몇 시간 안 보인다.
 
 > 본문(`content`) **작성 규칙·게시 절차·마크다운 렌더 함정**은 [`report.md`](./report.md) 참고.
 

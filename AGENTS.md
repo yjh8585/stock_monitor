@@ -81,6 +81,7 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 - 수집 스크립트/워크플로 실환경 검증: `gh workflow run <name>.yml --ref master` → `gh run watch <id> --exit-status` → `gh run view <id> --log`. 🔴 **실패가 인프라 탓인지 먼저 가르고**(동시다발 실패는 거의 항상 GitHub 장애), **수집 로그는 tail로 읽지 말 것**(pykrx stdout이 뒤섞여 무해한 메시지가 끝에 몰린다) → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §1.**
 - 프로덕션 = `stock-monitor-orcin.vercel.app`. **scripts/워크플로 변경은 재배포 불필요**(GHA가 master 체크아웃)지만 **`app/`·`components/` UI 변경은 Vercel 재배포(push→빌드 READY) 후** E2E 검증. 🔴 **`list_deployments` 시간필터는 오도하고 빈 커밋 재트리거는 무의미** → 확인법은 **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §2.**
 - **Supabase MCP가 세션 중 `Unauthorized`면** 재시작으로 세션을 버리지 말고 `scripts/.env`의 **`SUPABASE_Pesonal_Access_Token`(오타가 실제 키 이름)** + Management API 직접 호출로 우회한다 → 끝점·User-Agent 필수·마이그레이션 이력 보정은 **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §3.**
+- 🔴 **`lib/database.types.ts` 재생성 전에** — 이 파일은 순수 생성물이 아니다. 끝에 손으로 붙인 `TableRow`·`ViewRow` 가 있어 통째로 덮으면 3개 파일이 `TS2305` 로 죽고, 생성물은 Prettier 미적용이라 `format:check` 도 깨진다 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §7.**
 
 ## 디렉터리 지도
 
@@ -225,7 +226,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **OEM products는 차종, 부품사 products는 부품**. OEM에 부품 채우지 말 것. 제품군 카테고리 필터(`StockTable`/`DomesticTable`)는 부품사에만 적용(OEM은 항상 통과).
 - **회사 description**: 추측 금지, DART 출처 제외, 홈페이지·인터넷 검색만(`enrich_description_*.py`).
 - **dart_collection_status**: companies 별도 컬럼. 실패/재시도 추적은 financials와 분리.
-- **사외비 테이블 격리**: 해당 테이블들은 RLS enable + 정책 없음(default deny) → anon 직접 접근 불가. **서버 코드는 반드시 `confidentialDb.from(...)`**(`lib/supabase/confidential.ts`, service_role 자동 + TS union 컴파일 차단). 비공개 Storage 버킷(`management-excel`·`org-charts`)도 public=false + 정책 없음 → service_role 전용. 테이블 명단·마이그레이션 이력 → [`Architecture.md §7-G`](./Architecture.md). **새 사외비 테이블 5-step**: (1) 마이그레이션 `ENABLE ROW LEVEL SECURITY`(정책 X) (2) `generate_typescript_types`로 `lib/database.types.ts` 갱신 (3) `confidential.ts`의 `CONFIDENTIAL_TABLES`에 한 줄 (4) 업로드 API `confidentialDb...upsert + revalidateTag` (5) 페이지 `'use cache' + cacheTag + confidentialDb...select`.
+- **사외비 테이블 격리**: 해당 테이블들은 RLS enable + 정책 없음(default deny) → anon 직접 접근 불가. **서버 코드는 반드시 `confidentialDb.from(...)`**(`lib/supabase/confidential.ts`, service_role 자동 + TS union 컴파일 차단). 비공개 Storage 버킷(`management-excel`·`org-charts`·`reports-html`)도 public=false + 정책 없음 → service_role 전용. 테이블 명단·마이그레이션 이력 → [`Architecture.md §7-G`](./Architecture.md). **새 사외비 테이블 5-step**: (1) 마이그레이션 `ENABLE ROW LEVEL SECURITY`(정책 X) (2) `generate_typescript_types`로 `lib/database.types.ts` 갱신 (3) `confidential.ts`의 `CONFIDENTIAL_TABLES`에 한 줄 (4) 업로드 API `confidentialDb...upsert + revalidateTag` (5) 페이지 `'use cache' + cacheTag + confidentialDb...select`.
 - **enum형 한글 컬럼**(예: `cost_type IN ('고정비','변동비')`): DB CHECK ↔ sync 적재값 ↔ UI 필터 ↔ TS union을 **한글 그대로** 일치시킬 것. sync에서 영문 매핑하면 CHECK 위반·UI 미표시(서브에이전트 위임 시 특히 점검).
 - **수집 함정 전반**(DART 계정명 부분매칭 금지·동명이인 엔티티 검증·비상장 `finstate_all` 무데이터·audit-HTML 파싱 스코프·fnguide 계약·Stellantis 출하·Cox 재고일수·사외비 sync 적재) → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 정독**. 수집기 수정 전 필수.
 - **신규 수집 테이블은 `trg_skip_identical_update` 부착 검토**: 수집 스크립트는 매 실행마다 전체 행을 upsert하므로 값이 그대로여도 UPDATE가 발생해 WAL·dead tuple이 폭증한다. `updated_at`처럼 매번 바뀌는 컬럼이 없는 **순수 데이터 테이블이면 붙일 것**. **부작용**: 동일 값 upsert는 **0행을 반환**하므로 반환 행수로 성공을 판정하지 말 것. 적용 목록·실측 근거 → [`Architecture.md §7-J`](./Architecture.md).
@@ -233,7 +234,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **`financials` 생성컬럼**: `operating_margin`·`gross_margin`·`net_margin`·`debt_ratio`는 GENERATED ALWAYS — **직접 UPDATE 금지**(base 컬럼만 고치면 자동 재계산). 재수집 후 `q4_annual_bad`(허위 Q4=연간행) 재확인 — 신선 annual 갱신이 옛 잔존 Q4행과 값이 일치해 재등장할 수 있다.
 - **챗봇 외부 LLM 전송 정책** (2026-05-23/24 SSOT): 챗봇(`/api/chat`) 도구 결과는 모두 Anthropic API로 전송. (1) `lib/chat/tools.ts` 화이트리스트에 **사외비 테이블 추가 금지**(PnL 의도적 제외) (2) `lib/chat/system-prompt.ts` DATA_CATALOG에 내부 고객사·공장·제품 명단 **평문 금지** (3) 모든 도구 호출은 `chat_audit_log` 자동 기록(`lib/chat/audit.ts` fire-and-forget) (4) 사외비 토픽 거절 안내는 `lib/chat/sensitive-policy.ts`의 `BLOCKED_TOPICS` SSOT — 새 도메인은 한 줄 추가.
 
-- **보고서는 행 단위 사외비** (`posts.is_confidential`): posts는 통째로 막지 않고 **행 단위**로 가른다 — 정책 `posts_select_public`이 anon·authenticated에게 `is_confidential = false` 행만 준다. 사외비 행은 service_role로만 읽고 `canAccessConfidentialReports`(admin·holdings·mobility)로 게이트한다. **원문 파일을 `reports` 버킷(public)에 올리지 말 것.** 절차 → [`report.md §2-C`](./report.md).
+- **보고서는 행 단위 사외비** (`posts.is_confidential`): posts는 통째로 막지 않고 **행 단위**로 가른다 — 정책 `posts_select_public`이 anon·authenticated에게 `is_confidential = false` 행만 준다. 사외비 행은 service_role로만 읽고 `canAccessConfidentialReports`(admin·holdings·mobility)로 게이트한다. **원문 파일을 `reports` 버킷(public)에 올리지 말 것.** 원본 HTML 첨부(`posts.html_path`)는 비공개 버킷 `reports-html` + 인증 프록시 `/api/reports/[id]/html` 전용 → [`Architecture.md §7-G`](./Architecture.md). 절차 → [`report.md §2-C`](./report.md).
 
 **챗봇 감사 로그**(`chat_audit_log`): 도구 실행 직후 `logToolCall()`이 기록하되 **await하지 않는다**(실패해도 응답 정상). service_role 전용·보존 1년. 스키마 → [`Architecture.md 부록 B-4`](./Architecture.md).
 

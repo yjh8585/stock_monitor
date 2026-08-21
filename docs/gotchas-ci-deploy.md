@@ -111,3 +111,30 @@ untracked 를 정리하거나 새로 추적하기 전에 `sbp_`/토큰 패턴을
 
 `scripts/lib/revalidate.py` 의 `revalidate_tags([태그])` 를 **로컬로** 호출하면
 (`NEXT_REVALIDATE_URL`=localhost) 해당 태그만 무효화돼 훨씬 빠르다.
+
+## 7. `lib/database.types.ts` 재생성이 손으로 덧붙인 헬퍼 타입을 지운다 (2026-08-21 실측)
+
+`AGENTS.md` 는 컬럼을 추가하면 "`generate_typescript_types` 로 `lib/database.types.ts` 갱신" 하라고
+적어 두었는데, **이 파일은 순수 생성물이 아니다.** 파일 **맨 끝에 손으로 붙인 export 두 개**가 있다.
+
+```ts
+export type ViewRow<T extends keyof Database['public']['Views']> = ...
+export type TableRow<T extends keyof Database['public']['Tables']> = ...
+```
+
+Management API(`GET /v1/projects/{ref}/types/typescript`)의 출력으로 통째로 덮으면 이 둘이 사라지고,
+`lib/companies/source.ts` · `lib/oem/source.ts` · `lib/types.ts` 가 `TS2305: has no exported member 'TableRow'`
+로 죽는다. **재생성 뒤 두 export 를 다시 붙이고 `npx prettier --write` 를 돌린다.**
+
+같이 걸리는 것 둘:
+
+- **생성물은 Prettier 를 안 거친 상태로 온다**(세미콜론·큰따옴표). 그대로 두면 `format:check` 가 깨진다.
+  먼저 `prettier --write` 를 돌린 뒤에 `git diff` 를 봐야 **진짜 내용 변경**이 보인다
+  (안 그러면 포맷 차이 때문에 4,800줄 diff 가 나와 무엇이 바뀌었는지 알 수 없다).
+- **재생성은 그동안 드리프트한 것까지 함께 들여온다.** 2026-08-21 에는 컬럼 하나를 더하려다
+  `macro_outlook_notes` · `oem_model_brand` · `oem_sales_country_group_year` · `refresh_oem_agg_views`
+  가 함께 들어왔다(전부 순수 추가라 무해했지만, **삭제가 섞이지 않았는지 필드명 단위로 대조**할 것).
+
+🔴 **typecheck 초록이 "타입이 스키마와 맞다"는 뜻은 아니다.** `PostRepository` 는 클라이언트를
+untyped `SupabaseClient` 로 캐스트하고 `posts` 는 `confidentialDb` 대상이 아니라, `database.types.ts` 를
+갱신하지 않아도 컴파일은 통과한다. 갱신 여부는 컴파일러가 아니라 사람이 확인해야 한다.

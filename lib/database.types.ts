@@ -976,6 +976,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      macro_outlook_notes: {
+        Row: {
+          created_at: string;
+          id: string;
+          note_date: string;
+          sentiment: string | null;
+          source: string;
+          summary: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          note_date: string;
+          sentiment?: string | null;
+          source: string;
+          summary: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          note_date?: string;
+          sentiment?: string | null;
+          source?: string;
+          summary?: string;
+        };
+        Relationships: [];
+      };
       management_uploads: {
         Row: {
           created_at: string;
@@ -1012,33 +1039,6 @@ export type Database = {
           summary?: Json | null;
           updated_at?: string;
           uploaded_by?: string | null;
-        };
-        Relationships: [];
-      };
-      macro_outlook_notes: {
-        Row: {
-          created_at: string;
-          id: string;
-          note_date: string;
-          sentiment: string | null;
-          source: string;
-          summary: string;
-        };
-        Insert: {
-          created_at?: string;
-          id?: string;
-          note_date: string;
-          sentiment?: string | null;
-          source: string;
-          summary: string;
-        };
-        Update: {
-          created_at?: string;
-          id?: string;
-          note_date?: string;
-          sentiment?: string | null;
-          source?: string;
-          summary?: string;
         };
         Relationships: [];
       };
@@ -1246,24 +1246,6 @@ export type Database = {
           },
         ];
       };
-      oem_model_brand: {
-        Row: {
-          cox_brand: string | null;
-          display_brand: string;
-          model: string;
-        };
-        Insert: {
-          cox_brand?: string | null;
-          display_brand: string;
-          model: string;
-        };
-        Update: {
-          cox_brand?: string | null;
-          display_brand?: string;
-          model?: string;
-        };
-        Relationships: [];
-      };
       oem_competitor_set: {
         Row: {
           competitor_models: string[];
@@ -1294,6 +1276,24 @@ export type Database = {
           model_key?: string;
           segment_note?: string | null;
           target_models?: string[];
+        };
+        Relationships: [];
+      };
+      oem_model_brand: {
+        Row: {
+          cox_brand: string | null;
+          display_brand: string;
+          model: string;
+        };
+        Insert: {
+          cox_brand?: string | null;
+          display_brand: string;
+          model: string;
+        };
+        Update: {
+          cox_brand?: string | null;
+          display_brand?: string;
+          model?: string;
         };
         Relationships: [];
       };
@@ -1731,6 +1731,7 @@ export type Database = {
           error_message: string | null;
           file_name: string | null;
           file_path: string | null;
+          html_path: string | null;
           id: number;
           is_confidential: boolean;
           key_scenes: Json | null;
@@ -1750,6 +1751,7 @@ export type Database = {
           error_message?: string | null;
           file_name?: string | null;
           file_path?: string | null;
+          html_path?: string | null;
           id?: number;
           is_confidential?: boolean;
           key_scenes?: Json | null;
@@ -1769,6 +1771,7 @@ export type Database = {
           error_message?: string | null;
           file_name?: string | null;
           file_path?: string | null;
+          html_path?: string | null;
           id?: number;
           is_confidential?: boolean;
           key_scenes?: Json | null;
@@ -2302,15 +2305,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      oem_sales_country_group_year: {
-        Row: {
-          country: string | null;
-          oem_group: string | null;
-          sales: number | null;
-          year: number | null;
-        };
-        Relationships: [];
-      };
       oem_competition_monthly_view: {
         Row: {
           display_order: number | null;
@@ -2321,6 +2315,15 @@ export type Database = {
           model_key: string | null;
           sales: number | null;
           year_month: number | null;
+        };
+        Relationships: [];
+      };
+      oem_sales_country_group_year: {
+        Row: {
+          country: string | null;
+          oem_group: string | null;
+          sales: number | null;
+          year: number | null;
         };
         Relationships: [];
       };
@@ -2399,6 +2402,7 @@ export type Database = {
       };
       normalize_customer_name: { Args: { raw: string }; Returns: string };
       normalize_product_category: { Args: { raw: string }; Returns: string };
+      refresh_oem_agg_views: { Args: never; Returns: undefined };
     };
     Enums: {
       [_ in never]: never;
