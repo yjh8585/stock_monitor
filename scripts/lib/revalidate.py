@@ -43,6 +43,9 @@ COLUMN_TO_TAGS = {
         'parts_top100_stocks_view',
         'financials',
     ],
+    # 네이버 증권사 리포트 — /humanoid/research 한 화면만 읽는다.
+    # 수집(하루 1회)과 요약(회차당 20건)이 각각 쓰므로 뷰 태그를 딸려 넣지 않는다.
+    'research_reports': ['research_reports'],
     # 주가
     'stock_prices': ['stock_prices', 'related_stocks_view'],
     'stock_quotes_5min': ['stock_quotes_5min', 'related_stocks_view'],
