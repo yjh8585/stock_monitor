@@ -84,15 +84,18 @@ git push -u origin master
 
 ---
 
-## 6. (선택) Supabase MCP 설치
+## 6. Supabase MCP — 플러그인 방식을 쓴다
 
-Claude Code에서 Supabase 스키마를 직접 조작하려면 설치 권장:
+Claude Code에서 Supabase 스키마를 직접 조작하는 통로다. **프로젝트 `.mcp.json` 등록은 2026-08-24에 제거했고**
+Claude Code **플러그인 MCP**(OAuth 로그인)로 통일했다.
 
-```bash
-npx @anthropic-ai/claude-code mcp add @supabase/mcp-server-supabase --scope project
-```
+- 플러그인은 작업 폴더와 무관하게 붙는다. `.mcp.json` 방식은 **cwd가 이 폴더일 때만** 로드돼,
+  다른 레포(agents 등)에서 이 DB를 만질 때 "MCP가 안 붙는다"로 나타났다(2026-08-24 원인 규명).
+- 도구 이름은 `mcp__plugin_supabase_supabase__*`. 인증이 풀리면 Claude Code에서 다시 로그인하면 된다.
+- 플러그인이 없거나 죽었을 때의 우회는 `scripts/.env`의 Personal Access Token + Management API
+  → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §3.
 
-Personal Access Token 발급: [https://supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+Personal Access Token 발급(우회용): [https://supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
 
 ---
 
