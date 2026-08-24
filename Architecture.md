@@ -81,6 +81,7 @@
 | `/oem`              | OEM 전체 (MarkLines 대시보드)   | `oem_sales_*` 7개 테이블                                |
 | `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)   | `oem_model_outlook` v2 (§7-E)                           |
 | `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
+| `/humanoid`         | 휴머노이드 기업                 | `humanoid_stocks_view`                                  |
 | `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
 | `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`                   |
 | `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴                 |
@@ -668,6 +669,11 @@ UNIQUE: (source, note_date)
 `/domestic` 페이지용 (421개사). related와 동일 구조 + `sales_rank` = `ROW_NUMBER() OVER (ORDER BY latest_revenue_krw DESC NULLS LAST, name_kr)`.
 
 #### `parts_top100_stocks_view`
+
+#### `humanoid_stocks_view`
+
+`/humanoid` 페이지용. `company_pages.page='humanoid'` + `status='active'`.
+`parts_top100_stocks_view` 와 같은 구조이되 세 가지가 다르다 — `customers` 는 빈 배열(고객사 미수집, 매퍼 호환용), `robot_roles`·`valuation_usd`·`funding_total_usd`·`valuation_asof` 추가, `business_summary`·`summary_updated_at` 제외(ISR payload 절감). `security_invoker=true`. 정의 = 20260824000004.
 
 `/parts-top100` 페이지용. country 코드를 한글 국가명(`group_name`)으로 치환. **미래 가드**: `period_end_date <= now()` 필터로 미래 회계연도 데이터 노출 차단 (20260521000001).
 

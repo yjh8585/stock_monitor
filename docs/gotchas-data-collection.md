@@ -314,3 +314,51 @@ scripts/venv/Scripts/python.exe scripts/collect_oem_model_outlook.py --only ram_
 🔴 로컬 실행은 `scripts/.env` 의 `NEXT_REVALIDATE_URL` 이 dev 를 가리켜 **프로덕션 캐시가
 갱신되지 않는다**(로그에 revalidate 404). 프로덕션에 반영하려면 `/api/revalidate` 를
 `{"tags":["oem_model_outlook"]}` 로 직접 호출한다.
+
+## 휴머노이드 기업 데이터 함정 (2026-08-24)
+
+`/humanoid` 페이지를 만들며 실제로 터진 것만 적는다. 규칙 요약은 `AGENTS.md` 「`/humanoid` 상세」.
+
+### 1. 🔴 정규화 결과값을 raw 키로도 넣지 않으면 저장할 때마다 `'기타'`로 뭉개진다
+
+`product_category_map` 은 `raw_category → normalized` 사전이고,
+`companies_normalize_products` 트리거가 **INSERT/UPDATE 마다** `normalize_product_category()` 를 다시 적용한다.
+즉 **정규화 결과값 자체가 raw 키로 등록돼 있지 않으면, 이미 정규화된 값을 다시 저장할 때 매핑에 실패해 `'기타'` 로 떨어진다.**
+
+로봇 11종 중 10종은 raw 와 정규화값이 같은 문자열이라(`'감속기'→'감속기'`) 우연히 왕복이 성립했고,
+`'볼스크류/리니어'` **하나만** raw 키가 `'볼스크류'`·`'LM가이드'` 뿐이라 왕복이 깨졌다.
+
+증상은 두 갈래로 나타났고 **둘 다 조용했다**:
+
+- 11개사의 볼스크류 제품이 `'기타'` 가 되어 **제품군 필터에서 통째로 빠졌다**(에러 없음)
+- 시드의 "이미 그 카테고리가 있나" 검사가 영영 false 라 **재실행마다 항목이 늘었다**(멱등성 파괴)
+
+발견 경위: 시드를 두 번 돌려 `products` 합계가 278 → 280 으로 늘어난 것을 보고 역추적했다.
+**멱등성 시험이 없었으면 못 찾았다** — 화면에는 "필터에 안 걸리는 회사"로만 보였을 것이다.
+
+⚠️ **앞선 검증이 이걸 놓친 이유**: 왕복을 raw 키(`'볼스크류'`)로만 시험하고 실제 저장값(`'볼스크류/리니어'`)으로 시험하지 않았다.
+**검사는 코드가 실제로 쓰는 값으로 해야 한다.**
+
+처방 = `20260824000005`. 11종 전부를 raw 키로 넣고, 마이그레이션 끝에 왕복 실패 시 `RAISE EXCEPTION` 하는 회귀 가드를 뒀다.
+**카테고리를 늘릴 때 정규화 결과값을 raw 키로 함께 넣을 것.**
+
+### 2. `trg_auto_page_mapping()` 은 `data_source` 만 보므로 로봇사가 자동차 표에 섞인다
+
+휴머노이드 회사도 주가·재무는 같은 수집기(yfinance/fnguide/dart)를 쓴다.
+그대로 두면 `yfinance` → `parts-top100`, `fnguide/dart` → `domestic` 으로 자동 매핑돼
+**유니트리·Figure AI 가 자동차 부품사 TOP100 순위표에 들어간다.**
+
+처방 = `20260824000003`. `robot_roles` 가 있으면 `data_source` 와 무관하게 `'humanoid'` 로만 매핑한다.
+겸업사(현대모비스·셰플러 등)는 **이미 등록돼 있고 이 트리거는 AFTER INSERT 전용**이라
+UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매핑이 보존되고 humanoid 매핑만 수동 추가하면 된다.
+
+### 3. `companies.data_source` 는 NOT NULL 이다 — 비상장사도 값이 필요하다
+
+비상장 로봇사에 `NULL` 을 넣다 `23502` 로 INSERT 전체가 실패했다.
+기존 관례(실측): 한국 상장 `fnguide`(162사) · 해외 상장 `yfinance`(96사) · **한국 비상장 `dart`(245사)** · 해외 비상장 `marklines`(36사).
+해외 비상장 로봇사는 자동차 부품 DB 인 `marklines` 가 맞지 않아 `financial_sources.py` 의 정식 상수 `web_search` 를 썼다.
+
+### 4. Management API 는 전체를 트랜잭션으로 감싼다 (안전한 쪽의 함정)
+
+위 3번으로 INSERT 가 실패했을 때, **앞서 성공한 UPDATE 35건도 함께 롤백**됐다(적용 0건 확인).
+부분 적용을 걱정해 손으로 되돌리려 하지 말 것 — 실패했으면 아무것도 안 들어갔다.

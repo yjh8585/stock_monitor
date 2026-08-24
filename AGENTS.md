@@ -98,6 +98,8 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 | `/oem/competition`  | 핵심 차종 경쟁 분석 (10종 · 월 1회 갱신) — **↓ 상세**              |
 | `/oem/<slug>`       | OEM 회사별 차종 판매 — **↓ 상세**                                  |
 | `/parts-top100`     | 부품사 TOP100 (Marklines 매핑)                                     |
+| `/humanoid`         | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
+| `/humanoid/reports` | 로봇 보고서 (`posts` category='로봇' 고정)                         |
 | `/hansae`           | 한세그룹 대시보드 + intraday                                       |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로·두바이유)                          |
 | `/reports`          | 보고서 + youtube-summary — **↓ 상세**                              |
@@ -114,6 +116,14 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 - 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
 - 다중 시장은 **시장 탭**(유럽은 `countries` 배열). 순서 = `MODEL_DISPLAY_ORDER`.
 - 🔴 Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
+
+#### `/humanoid` 상세
+
+표는 `DomesticTable` 을 `variant="humanoid"` 로 재사용한다(새로 만들지 않는다). 약속만:
+
+- 🔴 **역할은 `robot_roles text[]`(`humanoid`/`parts`) 다중 태그** — 겸업사는 양쪽 버튼에 뜬다. 제품군 필터의 "부품 공급사" 판정도 `company_type` 이 아니라 `robot_roles` 로 한다.
+- 🔴 **고객사는 수집하지 않는다**(사용자 결정). 뷰가 `customers` 를 빈 배열로 내보내 매퍼만 호환시키고, 표는 그 자리에 비상장 기업가치를 그린다.
+- 🔴 **제품군 11종의 정본은 `product_category_map`**(`lib/types.ts` 의 `ROBOT_PRODUCT_CATEGORIES` 는 UI 사본). **카테고리를 늘릴 때 정규화 결과값을 raw 키로도 넣을 것** — 함정 4종(왕복 뭉갬·자동 페이지 매핑·`data_source` NOT NULL·트랜잭션 롤백) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「휴머노이드 기업 데이터 함정」.
 
 #### `/reports` 상세
 
@@ -156,6 +166,7 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
   - `lib/pnl/` · `lib/plan/` · `lib/inventory/` · `lib/personnel/` · `lib/finance/` · `lib/org-chart/` — **전부 사외비**라 `confidentialDb` 경유 필수.
   - `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
+  - `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts` 하나). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
   - `lib/oem-companies/<slug>/` — `source.ts`(`'use cache'`+`cacheTag`) + `aggregate.ts`(pure) + 테스트. 상세 → `docs/oem-collection.md`
   - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
 
