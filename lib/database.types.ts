@@ -1801,6 +1801,95 @@ export type Database = {
         };
         Relationships: [];
       };
+      research_reports: {
+        Row: {
+          broker: string | null;
+          company_id: string | null;
+          created_at: string;
+          id: string;
+          is_delta: boolean;
+          is_periodic: boolean;
+          kind: string;
+          naver_nid: number;
+          opinion: string | null;
+          pdf_url: string | null;
+          prev_report_id: string | null;
+          published_at: string | null;
+          source: string;
+          summary: string | null;
+          target_name: string;
+          target_price: number | null;
+          ticker: string | null;
+          title: string;
+          updated_at: string;
+          view_count: number | null;
+        };
+        Insert: {
+          broker?: string | null;
+          company_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_delta?: boolean;
+          is_periodic?: boolean;
+          kind: string;
+          naver_nid: number;
+          opinion?: string | null;
+          pdf_url?: string | null;
+          prev_report_id?: string | null;
+          published_at?: string | null;
+          source?: string;
+          summary?: string | null;
+          target_name: string;
+          target_price?: number | null;
+          ticker?: string | null;
+          title: string;
+          updated_at?: string;
+          view_count?: number | null;
+        };
+        Update: {
+          broker?: string | null;
+          company_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_delta?: boolean;
+          is_periodic?: boolean;
+          kind?: string;
+          naver_nid?: number;
+          opinion?: string | null;
+          pdf_url?: string | null;
+          prev_report_id?: string | null;
+          published_at?: string | null;
+          source?: string;
+          summary?: string | null;
+          target_name?: string;
+          target_price?: number | null;
+          ticker?: string | null;
+          title?: string;
+          updated_at?: string;
+          view_count?: number | null;
+        };
+        // ⚠️ 손으로 추가한 블록이다(2026-08-24 · 20260824000007 마이그레이션).
+        //    전체 재생성 대신 이 표만 넣은 이유 = 파일 끝의 수기 ViewRow/TableRow 가
+        //    재생성으로 사라지고 무관한 드리프트까지 함께 들어오기 때문
+        //    (docs/gotchas-ci-deploy.md §7). 재생성하게 되면 아래 Relationships 에
+        //    companies 를 참조하는 뷰들(domestic_stocks_view 등)이 더 붙는다.
+        Relationships: [
+          {
+            foreignKeyName: 'research_reports_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'research_reports_prev_report_id_fkey';
+            columns: ['prev_report_id'];
+            isOneToOne: false;
+            referencedRelation: 'research_reports';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       stellantis_na_sales: {
         Row: {
           brand: string;

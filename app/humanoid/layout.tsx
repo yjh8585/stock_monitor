@@ -6,11 +6,15 @@ import { cn } from '@/lib/utils';
 
 /**
  * 휴머노이드 탭 네비 — /oem/layout.tsx 와 같은 패턴.
- * 「증권사 리포트」 탭은 P3(네이버 리서치 파이프라인)에서 추가한다.
+ *
+ * 「보고서」와 「증권사 리포트」는 원천이 다르다(사용자 결정 2026-08-24 · 계획서 결정 2):
+ *   보고서       = 사내 게시판 posts 중 category='로봇'
+ *   증권사 리포트 = 네이버 증권 리서치 수집분(research_reports)
  */
 const HUMANOID_TABS = [
   { label: '기업', href: '/humanoid' },
   { label: '보고서', href: '/humanoid/reports' },
+  { label: '증권사 리포트', href: '/humanoid/research' },
 ] as const;
 
 export default function HumanoidLayout({ children }: { children: React.ReactNode }) {

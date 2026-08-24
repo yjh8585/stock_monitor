@@ -21,6 +21,7 @@ const ALL_TAGS = [
   'domestic_stocks_view',
   'parts_top100_stocks_view',
   'humanoid_stocks_view',
+  'research_reports',
   'exchange_rates_live',
   'exchange_rates',
   'market_series_daily',
