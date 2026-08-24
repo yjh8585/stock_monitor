@@ -224,6 +224,18 @@ class TestDetail(unittest.TestCase):
         d = parse_detail_page(DETAIL_INDUSTRY_HTML, broker="유진투자증권", target_name="기타")
         self.assertTrue(has_robot_keyword(d["title"]))
 
+    def test_target_price_accepts_목표가_form(self):
+        # 🔴 실물 상세 페이지는 「목표주가」가 아니라 **「목표가」**로 적는다.
+        #    이걸 놓쳐 종목분석 194건 중 65건(33.5%)만 채워져 있었다.
+        html = '<div class="view_cnt">목표가 790,000 | 투자의견 매수</div>'
+        d = parse_detail_page(html)
+        self.assertEqual(d["target_price"], 790000)
+        self.assertEqual(d["opinion"], "매수")
+
+    def test_target_price_still_accepts_목표주가_form(self):
+        d = parse_detail_page('<div class="view_cnt">목표주가: 45,000원</div>')
+        self.assertEqual(d["target_price"], 45000)
+
     def test_missing_optional_fields_are_none(self):
         d = parse_detail_page("<html><body>본문만 있다</body></html>")
         self.assertIsNone(d["pdf_url"])
