@@ -231,8 +231,11 @@ def parse_detail_page(
 
     text = soup.get_text(" ", strip=True)
 
+    # 🔴 「목표주가」만 찾으면 놓친다 — 네이버 상세 페이지의 요약 줄은 **「목표가」**로 적는다
+    #    (예: `목표가 790,000 | 투자의견 매수`). 2026-08-24 실측에서 종목분석 194건 중
+    #    목표주가가 채워진 것이 65건(33.5%)뿐이었던 원인이 이것이다.
     target_price = None
-    m = re.search(r"목표주가\s*[:\s]*([0-9,]+)", text)
+    m = re.search(r"목표(?:주)?가\s*[:\s]*([0-9,]+)", text)
     if m:
         target_price = _parse_int(m.group(1))
 
