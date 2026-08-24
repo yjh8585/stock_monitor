@@ -80,7 +80,7 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 - `npm run check-all`은 **TS/JS 전용**(Python 미포함). Python 변경은 `scripts/venv/Scripts/python.exe -m py_compile <files>` + 순수 로직은 venv로 직접 단위 실행해 검증.
 - 수집 스크립트/워크플로 실환경 검증: `gh workflow run <name>.yml --ref master` → `gh run watch <id> --exit-status` → `gh run view <id> --log`. 🔴 **실패가 인프라 탓인지 먼저 가르고**(동시다발 실패는 거의 항상 GitHub 장애), **수집 로그는 tail로 읽지 말 것**(pykrx stdout이 뒤섞여 무해한 메시지가 끝에 몰린다) → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §1.**
 - 프로덕션 = `stock-monitor-orcin.vercel.app`. **scripts/워크플로 변경은 재배포 불필요**(GHA가 master 체크아웃)지만 **`app/`·`components/` UI 변경은 Vercel 재배포(push→빌드 READY) 후** E2E 검증. 🔴 **`list_deployments` 시간필터는 오도하고 빈 커밋 재트리거는 무의미** → 확인법은 **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §2.**
-- **Supabase MCP가 세션 중 `Unauthorized`면** 재시작으로 세션을 버리지 말고 `scripts/.env`의 **`SUPABASE_Pesonal_Access_Token`(오타가 실제 키 이름)** + Management API 직접 호출로 우회한다 → 끝점·User-Agent 필수·마이그레이션 이력 보정은 **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §3.**
+- **Supabase 접근은 플러그인 MCP**(`mcp__plugin_supabase_supabase__*`) — `.mcp.json` 등록은 제거(2026-08-24 · 🔴"매번 죽는다"의 원인은 토큰이 아니라 **cwd**였다). 플러그인도 죽으면 `scripts/.env`의 **`SUPABASE_Pesonal_Access_Token`(오타가 실제 키 이름)** + Management API 우회 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §3.**
 - 🔴 **`lib/database.types.ts` 재생성 전에** — 이 파일은 순수 생성물이 아니다. 끝에 손으로 붙인 `TableRow`·`ViewRow` 가 있어 통째로 덮으면 3개 파일이 `TS2305` 로 죽고, 생성물은 Prettier 미적용이라 `format:check` 도 깨진다 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §7.**
 
 ## 디렉터리 지도

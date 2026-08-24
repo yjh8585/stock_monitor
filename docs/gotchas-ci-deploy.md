@@ -69,6 +69,13 @@ gh run list --workflow=<name>.yml   # 간헐 실패는 이력으로 판단
 
 ## 3. Supabase MCP 가 세션 중 `Unauthorized` 로 죽을 때
 
+🔴 **2026-08-24 정정 — "MCP 가 매번 죽는다"의 원인 대부분은 토큰이 아니라 `cwd` 였다.**
+프로젝트 `.mcp.json` 은 **작업 폴더가 이 레포일 때만** 로드된다. agents 등 다른 레포에서 이 DB 를 만지면
+MCP 가 **로드조차 되지 않고**, 그것이 `Unauthorized` 와 구분되지 않는 모습으로 나타났다
+(실측: `SUPABASE_ACCESS_TOKEN` 은 멀쩡히 44자였다). → **`.mcp.json` 의 supabase 항목은 제거했고**
+Claude Code **플러그인 MCP**(OAuth · 도구 이름 `mcp__plugin_supabase_supabase__*`)로 통일했다.
+플러그인은 cwd 와 무관하게 붙고 검은 콘솔 창도 뜨지 않는다. 아래 우회는 **플러그인까지 죽었을 때**의 통로다.
+
 토큰 env 가 주입되지 않아 발생한다. **재시작으로 세션을 버리지 말고** Management API 직접 호출로 우회한다.
 
 - 키는 `scripts/.env` 의 **`SUPABASE_Pesonal_Access_Token`** — 🔴 **오타(`Pesonal`)가 실제 키 이름이다.**
