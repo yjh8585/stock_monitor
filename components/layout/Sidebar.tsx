@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   BarChart2,
+  Bot,
   ArrowLeftRight,
   Car,
   Factory,
@@ -50,6 +51,7 @@ const NAV_ITEMS_ALL: readonly NavItem[] = [
   { label: '국내자동차', href: '/domestic', Icon: Car },
   { label: '부품사 TOP100', href: '/parts-top100', Icon: Cog },
   { label: 'OEM', href: '/oem', Icon: Factory },
+  { label: '휴머노이드', href: '/humanoid', Icon: Bot },
   { label: '보고서', href: '/reports', Icon: FileText },
   { label: '한세그룹', href: '/hansae', Icon: TrendingUp },
   {

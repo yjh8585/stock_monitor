@@ -2335,6 +2335,38 @@ export type Database = {
         };
         Relationships: [];
       };
+      humanoid_stocks_view: {
+        Row: {
+          company_type: string | null;
+          country: string | null;
+          currency: string | null;
+          customers: Json | null;
+          financials_by_year: Json | null;
+          funding_total_usd: number | null;
+          fx_fin_to_krw: number | null;
+          fx_to_krw: number | null;
+          group_name: string | null;
+          homepage_url: string | null;
+          id: string | null;
+          last_change_pct: number | null;
+          last_price: number | null;
+          last_updated_at: string | null;
+          latest_quarter: Json | null;
+          latest_revenue_krw: number | null;
+          market: string | null;
+          market_cap: number | null;
+          name: string | null;
+          name_kr: string | null;
+          products: Json | null;
+          robot_roles: string[] | null;
+          sales_rank: number | null;
+          status: string | null;
+          ticker: string | null;
+          valuation_asof: string | null;
+          valuation_usd: number | null;
+        };
+        Relationships: [];
+      };
       parts_top100_stocks_view: {
         Row: {
           business_summary: string | null;

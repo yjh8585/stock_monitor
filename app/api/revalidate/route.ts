@@ -20,6 +20,7 @@ const ALL_TAGS = [
   'related_stocks_view',
   'domestic_stocks_view',
   'parts_top100_stocks_view',
+  'humanoid_stocks_view',
   'exchange_rates_live',
   'exchange_rates',
   'market_series_daily',

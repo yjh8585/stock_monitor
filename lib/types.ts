@@ -132,6 +132,17 @@ export interface DomesticStockRow {
   latest_revenue_krw: number | null;
   /** ROW_NUMBER OVER (ORDER BY 매출 DESC) — 1=매출 1위 */
   sales_rank: number | null;
+  /**
+   * 로봇 역할 태그 — /humanoid 전용. 자동차 뷰(domestic·parts-top100)에는 없어 undefined.
+   * 표(DomesticTable)가 variant='humanoid'일 때만 읽는다.
+   */
+  robot_roles?: RobotRole[];
+  /** 비상장사 기업가치(USD) — /humanoid 전용. 상장사·자동차 뷰는 undefined/null */
+  valuation_usd?: number | null;
+  /** 비상장사 누적 조달액(USD) — /humanoid 전용 */
+  funding_total_usd?: number | null;
+  /** 위 두 값의 기준일 — /humanoid 전용 */
+  valuation_asof?: string | null;
 }
 
 /** /domestic 정렬 키 (구분/지역 제거 + 그룹/매출순위 추가) */
@@ -254,9 +265,15 @@ export function mapRelatedStockRow(r: ViewRow<'related_stocks_view'>): RelatedSt
   };
 }
 
-/** domestic_stocks_view → DomesticStockRow (parts_top100_stocks_view도 동일 구조) */
+/**
+ * domestic_stocks_view → DomesticStockRow
+ * (parts_top100_stocks_view · humanoid_stocks_view 도 동일 구조 — 세 뷰가 매퍼를 공유한다)
+ */
 export function mapDomesticStockRow(
-  r: ViewRow<'domestic_stocks_view'> | ViewRow<'parts_top100_stocks_view'>
+  r:
+    | ViewRow<'domestic_stocks_view'>
+    | ViewRow<'parts_top100_stocks_view'>
+    | ViewRow<'humanoid_stocks_view'>
 ): DomesticStockRow {
   return {
     id: r.id ?? '',
@@ -284,6 +301,86 @@ export function mapDomesticStockRow(
     latest_quarter: r.latest_quarter as LatestQuarter | null,
     latest_revenue_krw: r.latest_revenue_krw,
     sales_rank: r.sales_rank,
+  };
+}
+
+// ============================================================
+// /humanoid 페이지 — 휴머노이드 완성품·부품 기업
+// ============================================================
+
+/** 로봇 도메인 역할. 겸업사는 둘 다 갖는다(사용자 결정 2026-08-24). */
+export type RobotRole = 'humanoid' | 'parts';
+
+/** 역할 버튼 라벨 — 표시 순서 고정 */
+export const ROBOT_ROLE_LABELS: Record<RobotRole, string> = {
+  humanoid: '휴머노이드',
+  parts: '부품',
+};
+
+/**
+ * 휴머노이드 제품군 카테고리 11종 + 기타.
+ * 🔴 정본은 DB의 `product_category_map.normalized` (마이그레이션 20260824000002).
+ *    여기는 필터 UI용 사본이므로 DB 시드를 늘리면 이 배열도 같이 늘려야 한다.
+ */
+export const ROBOT_PRODUCT_CATEGORIES = [
+  '액추에이터',
+  '감속기',
+  '모터',
+  '볼스크류/리니어',
+  '힘토크센서',
+  '위치센서',
+  '비전카메라',
+  '제어AI칩',
+  '배터리',
+  '구조기구',
+  '그리퍼핸드',
+  '기타',
+] as const;
+
+/** /humanoid 행 — DomesticStockRow + 로봇 역할·비상장 지표 */
+export interface HumanoidStockRow extends DomesticStockRow {
+  /** ['humanoid'] · ['parts'] · 둘 다. 비어 있으면 역할 미지정 */
+  robot_roles: RobotRole[];
+  /** 비상장사 기업가치(USD). 상장사는 null — 시가총액은 market_cap */
+  valuation_usd: number | null;
+  /** 비상장사 누적 조달액(USD) */
+  funding_total_usd: number | null;
+  /** 위 두 값의 기준일 — 없으면 숫자가 언제 것인지 알 수 없다 */
+  valuation_asof: string | null;
+}
+
+/** 로봇 카테고리 판정용 집합 ('기타'는 자동차·로봇 공용이라 제외) */
+const ROBOT_CATEGORY_SET = new Set<string>(ROBOT_PRODUCT_CATEGORIES.filter((c) => c !== '기타'));
+
+/**
+ * 로봇 제품을 앞으로 정렬한다.
+ *
+ * 겸업사(현대차·인피니온 등)는 자동차 제품이 이미 여러 개 있고 로봇 제품은 뒤에 덧붙는다.
+ * 그대로 두면 휴머노이드 페이지의 제품 셀에 "그랜저, 넥쏘, 쏘나타…"만 보이고
+ * 정작 봐야 할 로봇 제품이 잘려 나간다. 순서만 바꾸며 항목을 버리지 않는다.
+ */
+function robotProductsFirst(products: ProductItem[]): ProductItem[] {
+  const robot: ProductItem[] = [];
+  const rest: ProductItem[] = [];
+  for (const p of products) {
+    (ROBOT_CATEGORY_SET.has(p.category ?? '') ? robot : rest).push(p);
+  }
+  return [...robot, ...rest];
+}
+
+/** humanoid_stocks_view → HumanoidStockRow (공용 매퍼 재사용 + 로봇 필드만 추가) */
+export function mapHumanoidStockRow(r: ViewRow<'humanoid_stocks_view'>): HumanoidStockRow {
+  const roles = (r.robot_roles ?? []).filter(
+    (v): v is RobotRole => v === 'humanoid' || v === 'parts'
+  );
+  const base = mapDomesticStockRow(r);
+  return {
+    ...base,
+    products: robotProductsFirst(base.products),
+    robot_roles: roles,
+    valuation_usd: r.valuation_usd,
+    funding_total_usd: r.funding_total_usd,
+    valuation_asof: r.valuation_asof,
   };
 }
 

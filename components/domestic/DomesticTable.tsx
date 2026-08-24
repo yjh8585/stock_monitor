@@ -1,7 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DomesticStockRow, DomesticSortKey, ExchangeRates } from '@/lib/types';
+import {
+  DomesticStockRow,
+  DomesticSortKey,
+  ExchangeRates,
+  ROBOT_PRODUCT_CATEGORIES,
+  ROBOT_ROLE_LABELS,
+} from '@/lib/types';
 import { useIsMobile } from '@/lib/useIsMobile';
 import { buildFinancialColumns, getFinancialSortValue, resolveLatestYear } from '@/lib/stockSort';
 import StickyTable, { StickyColumn, SortDir } from '@/components/common/StickyTable';
@@ -15,19 +21,40 @@ interface DomesticTableProps {
   groupLabel?: string;
   /** 매출 순위 cutoff('전체' 토글) 활성화. /domestic에서만 true. */
   enableRankCutoff?: boolean;
+  /**
+   * 표 변형. 'humanoid'면 세 가지가 한꺼번에 바뀐다 —
+   *   ① 고객사 컬럼 미표시(수집하지 않는 항목)
+   *   ② 역할 버튼(휴머노이드/부품) 표시 + robot_roles 필터
+   *   ③ 제품군 카테고리를 로봇 11종으로, 필터 적용 대상 판정도 robot_roles 기준으로
+   * 스위치를 쪼개지 않고 하나로 묶은 이유: 호출부에서 인자 하나를 빠뜨려 기능이
+   * 조용히 죽는 사고를 막기 위해서다.
+   */
+  variant?: 'domestic' | 'humanoid';
 }
 
 const FROZEN_COUNT = 3;
 const RANK_CUTOFF = 100;
 const PINNED_COMPANY_NAME = '한세모빌리티';
 
-/** /domestic, /parts-top100 좌측 컬럼 + 공통 재무 컬럼 결합 */
-function buildColumns(latestYear: string, groupLabel: string): StickyColumn<DomesticSortKey>[] {
+const ROLE_OPTIONS = [
+  { value: 'humanoid', label: ROBOT_ROLE_LABELS.humanoid },
+  { value: 'parts', label: ROBOT_ROLE_LABELS.parts },
+] as const;
+
+/** /domestic, /parts-top100, /humanoid 좌측 컬럼 + 공통 재무 컬럼 결합 */
+function buildColumns(
+  latestYear: string,
+  groupLabel: string,
+  showCustomers: boolean
+): StickyColumn<DomesticSortKey>[] {
   return [
     { key: 'group_name', label: groupLabel, defaultWidth: 120 },
     { key: 'name_kr', label: '회사명', defaultWidth: 124 },
     { key: 'name_kr', label: '제품', defaultWidth: 280 },
-    { key: 'name_kr', label: '고객사', defaultWidth: 224 },
+    // 고객사 자리 — 휴머노이드에서는 고객사를 수집하지 않으므로 비상장 기업가치를 대신 싣는다.
+    showCustomers
+      ? { key: 'name_kr' as DomesticSortKey, label: '고객사', defaultWidth: 224 }
+      : { key: 'name_kr' as DomesticSortKey, label: '기업가치', defaultWidth: 150 },
     ...buildFinancialColumns<DomesticSortKey>(latestYear),
   ];
 }
@@ -57,7 +84,9 @@ export default function DomesticTable({
   rates,
   groupLabel = '그룹',
   enableRankCutoff = false,
+  variant = 'domestic',
 }: DomesticTableProps) {
+  const isHumanoid = variant === 'humanoid';
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState<DomesticSortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -65,6 +94,7 @@ export default function DomesticTable({
   const [listingFilter, setListingFilter] = useState<DomesticListingFilter[]>(['상장', '비상장']);
   const [productQuery, setProductQuery] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string[]>([]);
+  const [roleFilter, setRoleFilter] = useState<string[]>(['humanoid', 'parts']);
   const [showAllRows, setShowAllRows] = useState(false);
 
   /** 100위까지 + 한세모빌리티 순위(있으면). enableRankCutoff=false면 null. */
@@ -75,9 +105,11 @@ export default function DomesticTable({
   }, [rows, enableRankCutoff]);
 
   const latestDataYear = useMemo(() => resolveLatestYear(rows), [rows]);
+  // 고객사는 휴머노이드 페이지에서 수집하지 않는다 → 컬럼 자체를 그리지 않는다.
+  const showCustomers = !isHumanoid;
   const columns = useMemo(
-    () => buildColumns(latestDataYear, groupLabel),
-    [latestDataYear, groupLabel]
+    () => buildColumns(latestDataYear, groupLabel, showCustomers),
+    [latestDataYear, groupLabel, showCustomers]
   );
 
   // 그룹 옵션: rows에 등장하는 group_name (NULL 제외)
@@ -106,6 +138,9 @@ export default function DomesticTable({
   const handleListingToggle = (v: DomesticListingFilter) =>
     setListingFilter((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
 
+  const handleRoleToggle = (v: string) =>
+    setRoleFilter((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+
   const filtered = useMemo(() => {
     let result = rows;
     if (groupFilter.length > 0) {
@@ -117,13 +152,27 @@ export default function DomesticTable({
         return listingFilter.includes(isListed ? '상장' : '비상장');
       });
     }
+    if (isHumanoid && roleFilter.length > 0 && roleFilter.length < ROLE_OPTIONS.length) {
+      // 역할 태그가 비어 있는 행은 숨기지 않는다 — 필터가 데이터 결함을 감추면 안 된다.
+      result = result.filter((r) => {
+        const roles = r.robot_roles ?? [];
+        return roles.length === 0 || roles.some((role) => roleFilter.includes(role));
+      });
+    }
     if (productCategoryFilter.length > 0) {
-      // 제품군 카테고리는 부품사에만 적용 (OEM은 차종 표기라 카테고리 무관 — 항상 통과).
-      result = result.filter(
-        (r) =>
-          r.company_type !== '부품사' ||
+      // 제품군 카테고리는 부품 공급사에만 적용한다.
+      //   /domestic·/parts-top100 : OEM 은 차종 표기라 카테고리 무관 → 항상 통과
+      //   /humanoid               : 완성품 전용사(robot_roles 에 'parts' 없음)도 항상 통과
+      //                             — company_type 으로 판정하면 완성품사가 전부 새어 나간다.
+      result = result.filter((r) => {
+        const isPartsSupplier = isHumanoid
+          ? (r.robot_roles ?? []).includes('parts')
+          : r.company_type === '부품사';
+        return (
+          !isPartsSupplier ||
           r.products.some((p) => productCategoryFilter.includes(p.category ?? '기타'))
-      );
+        );
+      });
     }
     if (productQuery.trim()) {
       const q = productQuery.trim().toLowerCase();
@@ -139,6 +188,8 @@ export default function DomesticTable({
     listingFilter,
     productQuery,
     productCategoryFilter,
+    roleFilter,
+    isHumanoid,
     rankCutoff,
     showAllRows,
   ]);
@@ -179,6 +230,10 @@ export default function DomesticTable({
         showAllToggle={rankCutoff != null}
         showAllRows={showAllRows}
         onShowAllToggle={() => setShowAllRows((v) => !v)}
+        productCategoryOptions={isHumanoid ? ROBOT_PRODUCT_CATEGORIES : undefined}
+        roleOptions={isHumanoid ? ROLE_OPTIONS : undefined}
+        roleFilter={roleFilter}
+        onRoleToggle={isHumanoid ? handleRoleToggle : undefined}
       />
       <StickyTable
         rows={sorted}
@@ -191,6 +246,7 @@ export default function DomesticTable({
             latestYear={latestDataYear}
             colCount={colCount}
             frozenCount={isMobile ? 2 : FROZEN_COUNT}
+            showCustomers={showCustomers}
           />
         )}
         sortKey={sortKey}

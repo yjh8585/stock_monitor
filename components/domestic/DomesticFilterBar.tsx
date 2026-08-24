@@ -44,6 +44,15 @@ interface DomesticFilterBarProps {
   /** 전체 행 표시 활성 여부. */
   showAllRows?: boolean;
   onShowAllToggle?: () => void;
+  /**
+   * 제품군 카테고리 옵션. 생략 시 자동차 12종.
+   * /humanoid 는 로봇 11종(types.ts ROBOT_PRODUCT_CATEGORIES)을 넘긴다.
+   */
+  productCategoryOptions?: readonly string[];
+  /** 역할 버튼(휴머노이드/부품) 옵션. 생략하면 버튼 자체를 그리지 않는다. */
+  roleOptions?: readonly { value: string; label: string }[];
+  roleFilter?: readonly string[];
+  onRoleToggle?: (value: string) => void;
 }
 
 export default function DomesticFilterBar({
@@ -63,6 +72,10 @@ export default function DomesticFilterBar({
   showAllToggle = false,
   showAllRows = false,
   onShowAllToggle,
+  productCategoryOptions = PRODUCT_CATEGORY_OPTIONS,
+  roleOptions,
+  roleFilter = [],
+  onRoleToggle,
 }: DomesticFilterBarProps) {
   const rateLabel = formatRateLabel(rates);
 
@@ -75,6 +88,31 @@ export default function DomesticFilterBar({
         onToggle={onGroupToggle}
         onReset={onGroupReset}
       />
+      {roleOptions && onRoleToggle && (
+        <>
+          <span className="w-px h-4 bg-border mx-1 shrink-0" />
+          <span className="text-sm font-medium text-muted-foreground shrink-0">역할</span>
+          {roleOptions.map((opt) => {
+            const active = roleFilter.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onRoleToggle(opt.value)}
+                className={`text-sm px-2.5 py-1 rounded-full border transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border text-muted-foreground hover:border-primary/50'
+                }`}
+                title="겸업사는 두 역할에 모두 나타난다"
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </>
+      )}
       <span className="w-px h-4 bg-border mx-1 shrink-0" />
       <span className="text-sm font-medium text-muted-foreground shrink-0">상장</span>
       {LISTING_OPTIONS.map((opt) => {
@@ -118,7 +156,7 @@ export default function DomesticFilterBar({
       <span className="text-sm font-medium text-muted-foreground shrink-0">제품군</span>
       <GroupMultiSelect
         label="카테고리"
-        options={PRODUCT_CATEGORY_OPTIONS}
+        options={productCategoryOptions}
         selected={productCategoryFilter}
         onToggle={onProductCategoryToggle}
         onReset={onProductCategoryReset}

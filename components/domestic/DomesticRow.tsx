@@ -19,6 +19,20 @@ interface DomesticRowProps {
   latestYear: string;
   colCount: number;
   frozenCount: number;
+  /**
+   * 고객사 셀 표시 여부 (default true).
+   * false면 같은 자리에 비상장 기업가치를 그린다 — /humanoid 는 고객사를 수집하지 않고,
+   * 대신 재무제표가 없는 비상장사의 규모를 기업가치로 보여 준다.
+   */
+  showCustomers?: boolean;
+}
+
+/** 비상장 기업가치 USD → 짧은 표기 (예: 39000000000 → "$39.0B") */
+function formatUsdCompact(v: number | null | undefined): string | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
+  if (v >= 1_000_000) return `$${Math.round(v / 1_000_000)}M`;
+  return `$${Math.round(v).toLocaleString()}`;
 }
 
 const GROUP_BADGE_PALETTE = [
@@ -48,6 +62,7 @@ const DomesticRow = memo(function DomesticRow({
   latestYear,
   colCount,
   frozenCount,
+  showCustomers = true,
 }: DomesticRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -134,10 +149,37 @@ const DomesticRow = memo(function DomesticRow({
           />
         </td>
 
-        {/* 고객사 (모두 부품사) */}
-        <td className={TD}>
-          <CustomerBadges customers={row.customers} />
-        </td>
+        {/* 고객사 (모두 부품사) — /humanoid 는 같은 자리에 비상장 기업가치 */}
+        {showCustomers ? (
+          <td className={TD}>
+            <CustomerBadges customers={row.customers} />
+          </td>
+        ) : (
+          <td className={TD}>
+            {(() => {
+              const valuation = formatUsdCompact(row.valuation_usd);
+              const funding = formatUsdCompact(row.funding_total_usd);
+              if (!valuation && !funding) {
+                return <span className="text-xs text-muted-foreground">—</span>;
+              }
+              return (
+                <div className="flex flex-col gap-0.5 leading-tight">
+                  {valuation && <span className="text-[13px] tabular-nums">{valuation}</span>}
+                  {funding && (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      조달 {funding}
+                    </span>
+                  )}
+                  {row.valuation_asof && (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {row.valuation_asof} 기준
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+          </td>
+        )}
 
         <FinancialCells row={row} latestYear={latestYear} />
       </tr>
