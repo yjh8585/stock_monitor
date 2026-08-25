@@ -78,9 +78,7 @@ async function ResearchDetailBody({ params }: PageProps) {
       <header className="border-border border-b pb-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{report.targetName}</span>
-          {report.ticker && (
-            <span className="text-muted-foreground text-xs">{report.ticker}</span>
-          )}
+          {report.ticker && <span className="text-muted-foreground text-xs">{report.ticker}</span>}
           <span className="text-muted-foreground text-xs">{report.broker ?? '(미상)'}</span>
           <span className="bg-muted rounded px-1.5 py-0.5 text-[10px]">
             {report.kind === 'company' ? '종목분석' : '산업분석'}
@@ -133,9 +131,7 @@ async function ResearchDetailBody({ params }: PageProps) {
 
 export default function HumanoidResearchDetailPage(props: PageProps) {
   return (
-    <Suspense
-      fallback={<p className="text-muted-foreground px-6 py-12 text-sm">불러오는 중…</p>}
-    >
+    <Suspense fallback={<p className="text-muted-foreground px-6 py-12 text-sm">불러오는 중…</p>}>
       <ResearchDetailBody {...props} />
     </Suspense>
   );
