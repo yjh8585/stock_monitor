@@ -12,6 +12,7 @@
      (문서를 docs/ 로 옮길 때 링크가 조용히 깨지는 사고를 잡는다)
   3. 자동 로드 분량 — AGENTS.md 가 임계값을 넘지 않는가
   4. 표 패딩 — 정렬 공백이 파일에서 차지하는 비중
+  5. 강조 기호 짝 — `**` 가 홀수개인 줄(렌더에서 별표가 그대로 노출된다)
 
 실행:
   scripts/venv/Scripts/python.exe scripts/verify_docs.py
@@ -56,6 +57,8 @@ PADDING_WARN_RATIO = 0.10      # 표 정렬 공백이 파일의 10% 넘으면 �
 # 이스케이프되지 않은 파이프만 셀 경계로 본다.
 _CELL_SPLIT = re.compile(r'(?<!\\)\|')
 _LINK = re.compile(r'\]\((\.\.?/[^)#]+)')
+# 강조 기호 짝 검사의 블록 경계 — 헤딩 · 목록 항목 · 표 행 · 인용
+_BLOCK_START = re.compile(r'^(#{1,6} |[-*+] |\d+[.)] |\||>)')
 
 
 def split_cells(line: str) -> list[str]:
@@ -102,6 +105,57 @@ def check_links(path: Path, text: str) -> list[str]:
   return errs
 
 
+def check_emphasis(path: Path, lines: list[str]) -> list[str]:
+  """강조 기호 `**` 가 한 줄 안에서 짝을 이루는지 확인한다.
+
+  🔴 2026-08-25 신설. 표 행을 불릿으로 축약하면서 `- [`경로`] ` 접두사를 앞에 붙였는데,
+     문장 맨 앞에 있던 **여는 `**` 가 함께 잘려 나가** 닫는 기호만 남은 줄이 7개 생겼다.
+     prettier 는 이걸 고치지 못하고 짝 없는 기호를 `\\*\\*` 로 이스케이프해 버려서,
+     **검사는 통과하는데 화면에는 별표가 그대로 보이는** 상태가 된다.
+     prettier 메시지가 "Code style issues found" 뿐이라 「사소한 서식 문제」로 오독됐고
+     그대로 한 세션을 넘어갔다 — 그래서 무엇이 왜 깨졌는지 말해 주는 판정을 여기 둔다.
+
+  🔴 판정 단위는 **줄이 아니라 블록**이다. 줄로 세면 오탐이 대부분이다 — 긴 문단에서 강조가
+     줄바꿈을 걸치는 것은 정상인데(2026-08-25 실측: 13개 문서에서 26건이 전부 그 경우였다),
+     블록으로 세면 그 26건이 전부 사라지고 진짜 손상만 남는다. 블록 경계는 빈 줄·헤딩·
+     목록 항목·표 행 — 강조는 이 경계를 넘지 않는다.
+
+  오탐 방지: 코드펜스 안·인라인 코드(``lib/**/*.test.ts``)·이스케이프된 `\\*` 는 세지 않는다.
+  """
+  errs = []
+  in_fence = False
+  block: list[tuple[int, str]] = []
+
+  def flush() -> None:
+    if not block:
+      return
+    text = ' '.join(s for _, s in block)
+    if text.count('**') % 2 == 1:
+      errs.append(
+        f'{path.name}:{block[0][0]} 강조 기호 `**` 가 홀수개 — 여는/닫는 짝이 안 맞는다. '
+        f'렌더에서 별표가 그대로 노출된다(prettier 는 고치지 못하고 이스케이프만 한다)')
+    block.clear()
+
+  for i, ln in enumerate(lines, 1):
+    if ln.lstrip().startswith('```'):
+      flush()
+      in_fence = not in_fence
+      continue
+    if in_fence:
+      continue
+    bare = ln.strip()
+    # 블록 경계: 빈 줄 · 헤딩 · 목록 항목 · 표 행 · 인용 시작
+    if not bare or _BLOCK_START.match(bare):
+      flush()
+      if not bare:
+        continue
+    stripped = re.sub(r'`[^`]*`', '', ln)      # 인라인 코드 제거(glob 패턴 오탐 차단)
+    stripped = stripped.replace('\\*', '')     # 이스케이프된 별표는 강조가 아니다
+    block.append((i, stripped))
+  flush()
+  return errs
+
+
 def padding_ratio(lines: list[str]) -> tuple[int, int]:
   """(표 정렬 공백 바이트, 파일 바이트)."""
   total = len('\n'.join(lines).encode('utf-8'))
@@ -126,6 +180,7 @@ def verifyDocs() -> int:
 
     errors += check_tables(path, lines)
     errors += check_links(path, text)
+    errors += check_emphasis(path, lines)
 
     # 패딩은 **자동 로드 문서에만** 따진다. 참조 문서는 필요할 때만 읽으므로
     # 정렬된 표의 가독성이 더 가치 있고, 여기까지 경고를 켜면 정상 상태에서

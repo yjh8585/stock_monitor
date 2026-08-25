@@ -107,7 +107,7 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 - **GFM 표**: 파이프 표(`| a | b |`) 위·아래에 빈 줄. 헤더 구분선 `| --- |` 필수.
 - 헤딩 `##`/`###`, 리스트 `-`/`1.`, 링크 `[txt](url)` 표준 GFM 사용.
 
-> 직접 작성 후 검증: 본문을 렌더해 **출력에 raw `**`가 0**인지 확인하고, 로컬 dev(3000은 다른 앱이 점유할 수 있으니 **다른 포트\*\*)에서 눈으로 확인한다.
+> 직접 작성 후 검증: 본문을 렌더해 **출력에 raw 별표 노출이 0**인지 확인하고, 로컬 dev(3000은 다른 앱이 점유할 수 있으니 **다른 포트**)에서 눈으로 확인한다.
 
 ---
 
@@ -174,7 +174,7 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
    - **정말 시각자료가 하나도 없는 영상(순수 잡담·오디오만)**에 한해 캡처 대신 **썸네일**(`img.youtube.com/vi/<id>/maxresdefault.jpg`, 없으면 `hqdefault`) — 이는 마지막 수단이며, 차트가 조금이라도 있으면 해당 안 됨.
    - **직접 그린 AI 이미지는 쓰지 않는다.** 구조 설명은 영상 프레임·썸네일·웹검색 이미지 또는 **Mermaid 도식**(텍스트 기반이라 허용, §6)으로.
 5. **게시**: §2-B(service_role INSERT + 캐시 무효화). 재생목록 종합 보고서는 단일 원문일이 없으므로 `source_published_at`은 **발행일**, `source_url`은 재생목록 URL, `source_name`은 채널명. **같은 재생목록을 여러 보고서로 분할**하면 중복 가드를 `source_url`+`title`로 본다(§2-B의 중복 방지). `thumbnail_url`은 대표 프레임/썸네일.
-6. **검증**: `/reports`는 보호 라우트(로그인 필수, `proxy.ts`의 `PUBLIC_PATH_PREFIXES`에 없음) → Playwright로 로그인(`input[name="id"]`/`password`, 자격증명은 `.env.local` env 로드로 비노출) 후 상세 페이지에서 **raw `**`=0 · 이미지 깨짐 0 · console 에러 0 · Mermaid SVG 렌더\*\*를 점검하고 전체 스크린샷을 눈으로 확인.
+6. **검증**: `/reports`는 보호 라우트(로그인 필수, `proxy.ts`의 `PUBLIC_PATH_PREFIXES`에 없음) → Playwright로 로그인(`input[name="id"]`/`password`, 자격증명은 `.env.local` env 로드로 비노출) 후 상세 페이지에서 **raw 별표 노출 0 · 이미지 깨짐 0 · console 에러 0 · Mermaid SVG 렌더**를 점검하고 전체 스크린샷을 눈으로 확인.
 
 > 위 절차의 일회성 스크립트(자막 추출·프레임 캡처·업로드·게시·검증)는 `scripts/_yt_report/`(`.gitignore`로 무시)에 두고 작업 후 정리한다. secret 하드코딩 금지(env는 `.env.local`).
 
