@@ -68,10 +68,12 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q   # 순수 함수 회�
 python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙 (venv 아닌 시스템 python)
 ```
 
-🔴 **훅 검사기 주의**: `verify-hookify-rules.py` 가 **"활성 0개"** 를 보고하면 hookify 플러그인이
-업데이트되며 실행 명령이 원복된 것이다(2026-08-18 실측: 이 PC 의 `python3` 은 Store 스텁이라 `exit 49`,
-게다가 규칙 파일 한글이 CP949 로 읽혀 로드 0개 → **규칙 63개가 만든 이래 한 번도 안 돌고 있었다**).
-처방 = 플러그인 캐시 `hooks.json` 의 명령 4줄을 `python -X utf8` 로.
+🔴 **훅 검사기 주의**: `verify-hookify-rules.py` 의 **「실패 N건 · [배선]」** 이 재발 신호다. 플러그인이
+업데이트되면 실행 명령이 `python3` 로 원복되는데, 이 PC 의 `python3` 은 Store 스텁이라 규칙이 하나도 안 걸린다
+(2026-08-18 최초 발견: 규칙 63개가 만든 이래 한 번도 안 돌고 있었다).
+⚠️ **「활성 0개」를 신호로 삼지 말 것** — 2026-08-25 재발 때 검사기는 **「활성 11개」** 로 멀쩡히 보고했고
+(그 수는 규칙 _파일_ 수일 뿐 배선과 무관하다) 실제 고장은 **실패 40건**에만 드러났다. 그 줄만 보면 놓친다.
+처방 = `python -X utf8 <agents>/scripts/fix-hookify-wiring.py` (캐시 폴더가 여러 벌이라 손으로 고치면 빠뜨린다).
 
 테스트는 `lib/` 하위 순수 함수 대상(Vitest, node 환경). `vitest.config.ts`의 `@/*` alias는 tsconfig와 동일.
 
