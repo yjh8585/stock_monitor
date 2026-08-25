@@ -51,6 +51,7 @@ init_script(__file__)
 from lib.db import WriteSession, get_client  # noqa: E402
 from lib.naver_research import (  # noqa: E402
     DELTA_MAX_GAP_DAYS,
+    MIN_BODY_TEXT,
     is_relevant,
     read_url,
 )
@@ -66,7 +67,10 @@ DEFAULT_LIMIT = 20
 MAX_BODY_CHARS = 40_000
 
 # PDF 가 이 길이도 안 나오면 스캔 이미지로 보고 상세 페이지로 폴백한다.
-MIN_PDF_TEXT = 300
+# 🔴 수집기의 「요약 재료가 있나」 판정과 **같은 값을 써야 한다**. 두 값이 갈리면
+#    수집이 저장한 것을 요약이 못 다뤄 화면에 "정리 안 된 카드"가 남는다.
+#    정본은 `lib/naver_research.MIN_BODY_TEXT` 다.
+MIN_PDF_TEXT = MIN_BODY_TEXT
 
 USER_AGENT = "Mozilla/5.0 (stock_monitor research summarizer)"
 

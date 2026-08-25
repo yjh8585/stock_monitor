@@ -17,7 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib.naver_research import (  # noqa: E402
     DELTA_MAX_GAP_DAYS,
     KIND_COMPANY,
+    MIN_BODY_TEXT,
     KIND_INDUSTRY,
+    body_text_length,
     delta_group_key,
     encode_keyword,
     has_robot_keyword,
@@ -296,6 +298,30 @@ class TestSummaryTarget(unittest.TestCase):
 
     def test_industry_without_keyword_excluded(self):
         self.assertFalse(is_summary_target(KIND_INDUSTRY, False, "반도체 업황", False))
+
+
+class TestBodyTextLength(unittest.TestCase):
+    """요약 재료가 있나 (2026-08-25 — 신한투자증권 12건이 정리 불가로 남았던 건)."""
+
+    def test_counts_only_report_body(self):
+        # 🔴 네비게이션·목록 텍스트는 세면 안 된다. 세면 재료가 없는 글도 통과한다.
+        html = (
+            '<div class="view_cnt">' + ("가" * 400) + "</div>"
+            '<div class="lst">' + ("메뉴 " * 200) + "</div>"
+        )
+        self.assertEqual(body_text_length(html), 400)
+
+    def test_short_body_is_below_threshold(self):
+        # 신한 실물: `.view_cnt` 에 131자 요지 한 줄뿐 → 요약 불가.
+        html = '<div class="view_cnt">' + ("가" * 131) + "</div>"
+        self.assertLess(body_text_length(html), MIN_BODY_TEXT)
+
+    def test_missing_node_is_zero(self):
+        self.assertEqual(body_text_length("<html><body>없음</body></html>"), 0)
+
+    def test_detail_page_reports_body_len(self):
+        html = '<div class="view_cnt">' + ("가" * 350) + "</div>"
+        self.assertEqual(parse_detail_page(html)["body_len"], 350)
 
 
 class TestTargetPrice(unittest.TestCase):
