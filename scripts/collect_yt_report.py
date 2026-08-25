@@ -30,7 +30,7 @@ from pathlib import Path
 # scripts/yt_report 의 순수 헬퍼 재사용
 sys.path.insert(0, str(Path(__file__).resolve().parent / "yt_report"))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from _common import clean_vtt, find_ffmpeg, hhmmss, mmss_to_sec  # noqa: E402
+from _common import clean_vtt, find_ffmpeg, mmss_to_sec  # noqa: E402
 
 try:
     from bootstrap import init_script  # 로컬 dotenv 로드(GHA에선 no-op)
@@ -45,7 +45,7 @@ from anthropic import Anthropic  # noqa: E402
 CATEGORY_LIST = ["로봇", "기술", "부품사", "전기차", "자율주행", "시장", "OEM"]
 DEFAULT_MODEL = os.environ.get("YT_REPORT_MODEL", "claude-haiku-4-5")
 FRAME_OFFSETS = (4, 12, 20)  # slug당 후보 프레임(초)
-WINDOW_BEFORE, WINDOW_LEN = 6, 30
+WINDOW_BEFORE = 6
 
 RULES = """# 보고서 작성 규칙 (엄수)
 - 첫 줄: 한 줄 핵심 요약을 인용블록(> ...). 이어서 `## 들어가며`(200~350자).
@@ -185,26 +185,31 @@ def write_article(client: Anthropic, model: str, meta: dict, transcript: str) ->
 
 
 def capture_frames(vid: str, frames: list[dict], run: Path, ffbin: str, ff: str) -> dict[str, list[str]]:
-    """frames의 각 slug 구간을 다운로드해 후보 프레임 추출. 실패는 조용히 스킵(베스트에포트)."""
+    """영상을 480p로 한 번 받아 두고 각 slug 지점의 후보 프레임 추출. 실패는 조용히 스킵(베스트에포트).
+
+    🔴 2026-08-25: 구간 다운로드(`--download-sections`)를 버렸다. 유튜브가 통합 포맷 18을 내리면서
+       android_vr 클라이언트 URL만 남았고 ffmpeg가 그 URL에서 403을 받아 **프레임이 한 장도 안 나온다**.
+       베스트에포트라 오류 없이 텍스트 글로 남아 알아채기 어렵다. 처방·경위 = report.md §7-4.
+    """
     out = run / "frames"
     out.mkdir(parents=True, exist_ok=True)
+    src = out / f"{vid}.mp4"
+    if not src.exists():
+        ytdlp(["--quiet", "--no-part", "--ffmpeg-location", ffbin,
+               "-f", "135/134/best[height<=480]", "-o", str(src),
+               f"https://www.youtube.com/watch?v={vid}"])
+        time.sleep(1.0)
+    if not src.exists():
+        return {}
     captured: dict[str, list[str]] = {}
     for fr in frames:
         slug = fr["slug"]
         start = max(0, mmss_to_sec(fr.get("timecode", "0:00")) - WINDOW_BEFORE)
-        sect = f"{hhmmss(start)}-{hhmmss(start + WINDOW_LEN)}"
-        clip = out / f"{slug}.mp4"
-        ytdlp(["--quiet", "--ffmpeg-location", ffbin, "-f", "18/best[height<=480]/best",
-               "--download-sections", f"*{sect}", "--force-keyframes-at-cuts",
-               "-o", str(clip), f"https://www.youtube.com/watch?v={vid}"])
-        time.sleep(1.0)
-        if not clip.exists():
-            continue
         got = []
         for t in FRAME_OFFSETS:
             dst = out / f"{slug}_{t:02d}.jpg"
-            subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-ss", str(t),
-                            "-i", str(clip), "-vframes", "1", "-q:v", "2", str(dst)], check=False)
+            subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-ss", str(start + t),
+                            "-i", str(src), "-vframes", "1", "-q:v", "2", "-y", str(dst)], check=False)
             if dst.exists():
                 got.append(str(dst))
         if got:
