@@ -43,6 +43,11 @@ function excerpt(markdown: string): string {
     // 🔴 헤딩은 기호만 떼면 안 된다. `## 투자포인트` + 다음 문단이 한 줄로 이어져
     //    "투자포인트 미래에셋증권은…" 처럼 읽힌다 — 줄 자체를 지운다.
     .replace(/^#{1,6}[^\n]*$/gm, '')
+    // 정리본은 「> 한 줄 핵심 요약」으로 시작한다(2026-08-25 규격). 그 문장이 곧 최고의
+    // 발췌라 지우지 않고 **인용 기호만** 뗀다.
+    .replace(/^>\s?/gm, '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // 이미지 — 발췌에 URL 이 튀어나오면 안 된다
+    .replace(/^\|.*$/gm, '') // 표 행
     .replace(/^[-*]\s+/gm, '') // 목록 기호
     .replace(/\*\*(.+?)\*\*/g, '$1') // 볼드
     .replace(/`([^`]+)`/g, '$1')
@@ -88,7 +93,6 @@ export function ResearchList({ groups, brokers, targets, total, summarized }: Pr
   const [target, setTarget] = useState('');
   const [term, setTerm] = useState('');
   const [months, setMonths] = useState(0);
-  const [onlySummarized, setOnlySummarized] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
@@ -98,7 +102,6 @@ export function ResearchList({ groups, brokers, targets, total, summarized }: Pr
     return groups.filter((g) => {
       if (broker && g.broker !== broker) return false;
       if (target && g.targetName !== target) return false;
-      if (onlySummarized && g.latest.summary === null) return false;
       if (floor && (g.latest.publishedAt ?? '') < floor) return false;
       if (needle) {
         const hay = `${g.targetName} ${g.ticker ?? ''} ${g.latest.title}`.toLowerCase();
@@ -106,7 +109,7 @@ export function ResearchList({ groups, brokers, targets, total, summarized }: Pr
       }
       return true;
     });
-  }, [groups, broker, target, term, months, onlySummarized]);
+  }, [groups, broker, target, term, months]);
 
   const toggleGroup = (key: string) => {
     const next = new Set(openGroups);
@@ -171,18 +174,9 @@ export function ResearchList({ groups, brokers, targets, total, summarized }: Pr
           ))}
         </div>
 
-        <label className="flex items-center gap-1.5 text-xs">
-          <input
-            type="checkbox"
-            checked={onlySummarized}
-            onChange={(e) => setOnlySummarized(e.target.checked)}
-          />
-          정리된 것만
-        </label>
-
         <span className="text-muted-foreground ml-auto text-xs">
-          묶음 {filtered.length.toLocaleString()} · 리포트 {total.toLocaleString()}건 (정리{' '}
-          {summarized.toLocaleString()}건)
+          묶음 {filtered.length.toLocaleString()} · 정리된 리포트 {summarized.toLocaleString()}건 /
+          수집 {total.toLocaleString()}건
         </span>
       </div>
 
@@ -220,9 +214,9 @@ export function ResearchList({ groups, brokers, targets, total, summarized }: Pr
                     <ReportMeta row={g.latest} />
                   </div>
 
-                  {g.latest.summary && (
+                  {g.latest.summaryExcerpt && (
                     <p className="text-muted-foreground mt-1.5 text-xs leading-relaxed">
-                      {excerpt(g.latest.summary)}{' '}
+                      {excerpt(g.latest.summaryExcerpt)}{' '}
                       <Link
                         href={`/humanoid/research/${g.latest.id}`}
                         className="text-foreground whitespace-nowrap underline"

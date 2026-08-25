@@ -1806,7 +1806,9 @@ export type Database = {
           broker: string | null;
           company_id: string | null;
           created_at: string;
+          excluded_at: string | null;
           id: string;
+          images: Json;
           is_delta: boolean;
           is_periodic: boolean;
           kind: string;
@@ -1817,6 +1819,8 @@ export type Database = {
           published_at: string | null;
           source: string;
           summary: string | null;
+          /** GENERATED ALWAYS — left(summary, 800). 직접 쓰지 않는다. */
+          summary_excerpt: string | null;
           target_name: string;
           target_price: number | null;
           ticker: string | null;
@@ -1828,7 +1832,9 @@ export type Database = {
           broker?: string | null;
           company_id?: string | null;
           created_at?: string;
+          excluded_at?: string | null;
           id?: string;
+          images?: Json;
           is_delta?: boolean;
           is_periodic?: boolean;
           kind: string;
@@ -1850,7 +1856,9 @@ export type Database = {
           broker?: string | null;
           company_id?: string | null;
           created_at?: string;
+          excluded_at?: string | null;
           id?: string;
+          images?: Json;
           is_delta?: boolean;
           is_periodic?: boolean;
           kind?: string;
