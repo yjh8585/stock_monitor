@@ -89,25 +89,25 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 
 ### `app/` — Next App Router (라우트 = 페이지 단위 책임)
 
-| 라우트              | 책임 / 약속                                                        |
-| ------------------- | ------------------------------------------------------------------ |
-| `/related-stocks`   | 21개사 메인 표(`related_stocks_view`). **컬럼 추가는 뷰부터 수정** |
-| `/compare`          | 다중 회사 비교                                                     |
-| `/domestic`         | 국내자동차 (421개사 + 매크로)                                      |
-| `/oem`              | OEM "전체" 탭 — MarkLines 대시보드                                 |
-| `/oem/competition`  | 핵심 차종 경쟁 분석 (10종 · 월 1회 갱신) — **↓ 상세**              |
-| `/oem/<slug>`       | OEM 회사별 차종 판매 — **↓ 상세**                                  |
-| `/parts-top100`     | 부품사 TOP100 (Marklines 매핑)                                     |
-| `/humanoid`         | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
-| `/humanoid/reports` | 로봇 보고서 (`posts` category='로봇' 고정)                         |
-| `/humanoid/research` | 증권사 리포트 목록 (`research_reports` · 네이버 리서치 수집분) — **↓ 상세** |
-| `/humanoid/research/[id]` | 리포트 상세 — 요약 마크다운 + 같은 증권사·대상의 다른 회차     |
-| `/hansae`           | 한세그룹 대시보드 + intraday                                       |
-| `/etc`              | 기타정보 (해운·철강·환율·매크로·두바이유)                          |
-| `/reports`          | 보고서 + youtube-summary — **↓ 상세**                              |
-| `/management`       | 경영관리 10탭 (사외비) — **↓ 상세**                                |
-| `/login`            | 세션 로그인                                                        |
-| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                    |
+| 라우트                    | 책임 / 약속                                                        |
+| ------------------------- | ------------------------------------------------------------------ |
+| `/related-stocks`         | 21개사 메인 표(`related_stocks_view`). **컬럼 추가는 뷰부터 수정** |
+| `/compare`                | 다중 회사 비교                                                     |
+| `/domestic`               | 국내자동차 (421개사 + 매크로)                                      |
+| `/oem`                    | OEM "전체" 탭 — MarkLines 대시보드                                 |
+| `/oem/competition`        | 핵심 차종 경쟁 분석 (10종 · 월 1회 갱신) — **↓ 상세**              |
+| `/oem/<slug>`             | OEM 회사별 차종 판매 — **↓ 상세**                                  |
+| `/parts-top100`           | 부품사 TOP100 (Marklines 매핑)                                     |
+| `/humanoid`               | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
+| `/humanoid/reports`       | 로봇 보고서 (`posts` category='로봇' 고정)                         |
+| `/humanoid/research`      | 증권사 리포트 (`research_reports`) — **↓ 상세**                    |
+| `/humanoid/research/[id]` | 리포트 상세 (요약 마크다운)                                        |
+| `/hansae`                 | 한세그룹 대시보드 + intraday                                       |
+| `/etc`                    | 기타정보 (해운·철강·환율·매크로·두바이유)                          |
+| `/reports`                | 보고서 + youtube-summary — **↓ 상세**                              |
+| `/management`             | 경영관리 10탭 (사외비) — **↓ 상세**                                |
+| `/login`                  | 세션 로그인                                                        |
+| `/stock-popup/[id]`       | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                    |
 
 `/oem` 탭 네비는 `app/oem/layout.tsx`, 차트 카탈로그는 `docs/chart-guide.md`. **`/oem/<slug>`(hyundai·kia·kg-mobility·stellantis-na·uzbekistan) 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md).** `/management`는 `confidentialDb` 필수, `/reports`는 `'use cache'`+`generateStaticParams`+`updateTag`.
 
