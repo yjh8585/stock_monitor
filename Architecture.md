@@ -1042,6 +1042,20 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
   - `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
   - `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 (증권사, 대상) 묶음으로 접는다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
+
+    **`research_reports` 컬럼 주의(2026-08-25 개편)** — 요약 규격이 「세 꼭지·900~1,500자」에서 `report.md` §3 과 같은 「6~10섹션·3,000~6,000자」로 바뀌었다(실측 산출물 8,000자대). 그에 따라 컬럼 둘이 붙었다.
+
+    | 컬럼                      | 뜻                                                                       | 주의                                                       |
+    | ------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
+    | `images jsonb`            | PDF 에서 뽑아 Storage `reports/research/<kind>_<nid>/` 에 올린 차트 목록 | 본문에 실린 것은 이 중 일부(헤드리스가 고른 2~5장)         |
+    | `summary_excerpt text`    | `left(summary, 800)` GENERATED                                           | 목록 전용. 직접 UPDATE 금지                                |
+    | `is_delta boolean`        | **뜻이 바뀌었다**                                                        | 예전 「변화만 실린 요약」 → 지금 「전체 정리본 + 변화 절」 |
+    | `excluded_at timestamptz` | 요약 대상에서 영구 제외한 시각                                           | NULL 이면 대상. 되살리려면 NULL 로 되돌린다                |
+
+    🔴 `excluded_at` 이 필요한 이유는 **요약 대상 판정이 「summary 가 비어 있는가」이기 때문**이다. 사용자가 뺀 리포트의 요약을 지우는 순간 그것들이 도로 대상이 된다. 사람이 내린 「빼라」는 판단은 선별 규칙과 별개로 데이터에 남겨야 규칙이 완화돼도 안 딸려 온다.
+
+    🔴 목록(`getResearchData`)은 `summary` 를 select 하지 않는다 — 144편 본문을 담으면 캐시·payload 가 1MB 를 넘어 ISR Write 한도를 다시 건드린다(`docs/isr-write-optimization.md`).
+
   - `lib/oem-companies/<slug>/` — `source.ts`(`'use cache'`+`cacheTag`) + `aggregate.ts`(pure) + 테스트. 상세 → `docs/oem-collection.md`
   - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
 

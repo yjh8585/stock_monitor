@@ -17,7 +17,7 @@ function row(over: Partial<ResearchReportRow> & { id: string }): ResearchReportR
     publishedAt: '2026-08-01',
     pdfUrl: null,
     viewCount: null,
-    summary: null,
+    summaryExcerpt: null,
     isDelta: false,
     isPeriodic: false,
     targetPrice: null,
