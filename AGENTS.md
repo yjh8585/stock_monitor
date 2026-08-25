@@ -83,138 +83,37 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 - **Supabase 접근은 플러그인 MCP**(`mcp__plugin_supabase_supabase__*`) — `.mcp.json` 등록은 제거(2026-08-24 · 🔴"매번 죽는다"의 원인은 토큰이 아니라 **cwd**였다). 플러그인도 죽으면 `scripts/.env`의 **`SUPABASE_Pesonal_Access_Token`(오타가 실제 키 이름)** + Management API 우회 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §3.**
 - 🔴 **`lib/database.types.ts` 재생성 전에** — 이 파일은 순수 생성물이 아니다. 끝에 손으로 붙인 `TableRow`·`ViewRow` 가 있어 통째로 덮으면 3개 파일이 `TS2305` 로 죽고, 생성물은 Prettier 미적용이라 `format:check` 도 깨진다 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §7.**
 
-## 디렉터리 지도
+## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
 
-폴더는 "어떤 책임을 맡는지" 중심으로 본다. 폴더별 컨벤션·약속은 아래 기준을 따른다.
+> 🔴 **어기면 조용히 깨지는 것만** 여기 남긴다. 폴더가 무엇을 맡는지 · 라우트 목록 · 모듈 구성은
+> [`Architecture.md 부록 C`](./Architecture.md)(이관 2026-08-25 · 20,029B). "이 파일 어디 있지"는 거기부터.
 
-### `app/` — Next App Router (라우트 = 페이지 단위 책임)
-
-| 라우트                    | 책임 / 약속                                                        |
-| ------------------------- | ------------------------------------------------------------------ |
-| `/related-stocks`         | 21개사 메인 표(`related_stocks_view`). **컬럼 추가는 뷰부터 수정** |
-| `/compare`                | 다중 회사 비교                                                     |
-| `/domestic`               | 국내자동차 (421개사 + 매크로)                                      |
-| `/oem`                    | OEM "전체" 탭 — MarkLines 대시보드                                 |
-| `/oem/competition`        | 핵심 차종 경쟁 분석 (10종 · 월 1회 갱신) — **↓ 상세**              |
-| `/oem/<slug>`             | OEM 회사별 차종 판매 — **↓ 상세**                                  |
-| `/parts-top100`           | 부품사 TOP100 (Marklines 매핑)                                     |
-| `/humanoid`               | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
-| `/humanoid/reports`       | 로봇 보고서 (`posts` category='로봇' 고정)                         |
-| `/humanoid/research`      | 증권사 리포트 (`research_reports`) — **↓ 상세**                    |
-| `/humanoid/research/[id]` | 리포트 상세 (요약 마크다운)                                        |
-| `/hansae`                 | 한세그룹 대시보드 + intraday                                       |
-| `/etc`                    | 기타정보 (해운·철강·환율·매크로·두바이유)                          |
-| `/reports`                | 보고서 + youtube-summary — **↓ 상세**                              |
-| `/management`             | 경영관리 10탭 (사외비) — **↓ 상세**                                |
-| `/login`                  | 세션 로그인                                                        |
-| `/stock-popup/[id]`       | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                    |
-
-`/oem` 탭 네비는 `app/oem/layout.tsx`, 차트 카탈로그는 `docs/chart-guide.md`. **`/oem/<slug>`(hyundai·kia·kg-mobility·stellantis-na·uzbekistan) 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md).** `/management`는 `confidentialDb` 필수, `/reports`는 `'use cache'`+`generateStaticParams`+`updateTag`.
-
-#### `/oem/competition` 상세
-
-스코어보드 + 차트 10종(`components/oem/competition/`). 화면 → [`Architecture.md §5`](./Architecture.md) · 수집 → [`docs/oem-collection.md`](./docs/oem-collection.md) · 차트 → [`docs/chart-guide.md §3`](./docs/chart-guide.md). 약속만:
-
-- 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
-- 다중 시장은 **시장 탭**(유럽은 `countries` 배열). 순서 = `MODEL_DISPLAY_ORDER`.
-- 🔴 Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
-
-#### `/humanoid` 상세
-
-표는 `DomesticTable` 을 `variant="humanoid"` 로 재사용한다(새로 만들지 않는다). 약속만:
-
-- 🔴 **역할은 `robot_roles text[]`(`humanoid`/`parts`) 다중 태그** — 겸업사는 양쪽 버튼에 뜬다. 제품군 필터의 "부품 공급사" 판정도 `company_type` 이 아니라 `robot_roles` 로 한다.
-- 🔴 **고객사는 수집하지 않는다**(사용자 결정 · 상위 계획서 확정 결정 12). 뷰가 `customers` 를 빈 배열로 내보내 매퍼만 호환시키고, 표는 그 자리에 비상장 기업가치를 그린다.
-  🔴 **화면에 안 보이므로 위반이 조용히 일어난다** — 2026-08-25 에 `enrich_company.py --page humanoid` 가 16사의 고객사를 채웠고 DB 를 직접 세기 전까지 아무도 몰랐다. 판정은 `enrich_company.py` 의 **`_skips_customers()`**(로봇 역할 + **다른 페이지에 없음**)가 맡는다. ⚠️ **겸업사는 제외** — 현대차·현대모비스는 관련주·국내자동차에서 고객사를 쓴다.
-- 🔴 **제품군 11종의 정본은 `product_category_map`**(`lib/types.ts` 의 `ROBOT_PRODUCT_CATEGORIES` 는 UI 사본). **카테고리를 늘릴 때 정규화 결과값을 raw 키로도 넣을 것** — 함정 4종(왕복 뭉갬·자동 페이지 매핑·`data_source` NOT NULL·트랜잭션 롤백) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「휴머노이드 기업 데이터 함정」.
-- 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
-
-#### `/humanoid/research` 상세
-
-목록(`components/humanoid/research-list.tsx`) + 상세(`app/humanoid/research/[id]`, `MarkdownView` 재사용). 약속만:
-
-- 🔴 **선별은 수집 단계에서 끝난다** — `scripts/lib/naver_research.py` 의 `is_relevant()` 에 걸리지 않는 리포트는 **저장 자체를 안 한다**(화면에서만 걸러 두면 지운 행이 다음 수집에 되살아난다). **두 번 뒤집힌 판정이니 함수 docstring 을 읽고 고칠 것.**
-- 🔴 목표주가는 `parse_target_price()` 경유 · 요약 저장 전 `clean_summary()` 통과 → 경위·수치 = [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「증권사 리포트 수집 함정」.
-- 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`). 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
-
-#### `/reports` 상세
-
-보고서 + youtube-summary(`'use cache'`+`generateStaticParams`+`updateTag`). **본문 규칙·사외비 게시 절차(§2-C)·유튜브 경로(§2-A·§7) → [`report.md`](./report.md) 정독.** 약속만 여기 싣는다:
-
-- **사외비 보고서**(`posts.is_confidential`)는 RLS가 anon 읽기를 막고 `canAccessConfidentialReports`(admin·holdings·mobility)가 service_role 조회를 게이트한다 — 목록·상세 `'use cache'` 함수에 `includeConfidential`을 **인자로** 넘겨 역할별 캐시를 분리하므로 **새 호출부에서 이 인자를 빠뜨리지 말 것**.
-
-#### `/management` 상세
-
-경영관리 10탭(pnl·plan·stellantis·inventory·production·personnel·finance·org-chart·upload·companies). **탭별 차트·섹션 구조 → [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조).** 약속만 여기 싣는다:
-
-- 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. 🔴 **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(2026-08-12 기준 12종 — 여기 다시 나열하지 말 것. 문서에 베껴 적었더니 9종·5종으로 갈려 있었다).
-- 탭 노출은 `ALL_TABS` + `canAccess` 자동 필터라 **신규 경영관리 탭에 `permissions.ts` 수정은 불필요**(guest·hmobility 자동 차단). 더 좁은 권한만 명시 — `/management/upload`는 admin 전용(`ADMIN_ONLY_PATHS`).
-- **단위**: DB 백만원 원본(`value_mwon`) → 화면 억원(÷100). USD는 `value × fx_rate / 100`(plan·inventory), 대여금만 억원 원본(`loan_eok`). 조직도 이미지·프록시 구성 → [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조).
-
-`app/api/`:
-
-- **공개는 `api/cron/*`·`api/revalidate*` 뿐이고 나머지는 세션 필수.** 새 `route.ts` 를 만들면 `proxy.ts` 의 `PUBLIC_PATH_PREFIXES` 와 [`Architecture.md §5`](./Architecture.md) 의 라우트 목록을 **함께** 갱신한다(목록 정본은 Architecture — 여기 중복하지 않는다. 두 곳에 두면 갈린다).
-- `api/revalidate*`은 SSRF·쿠키 가드 패치 이력(commit `ea090be`). 회귀 주의.
-
-### `components/`
-
-폴더가 페이지 책임과 1:1 매핑. 새 컴포넌트는 같은 페이지 폴더에.
-
-- `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
-- `layout/`, `common/`, `charts/` — 공용 / 나머지는 페이지별(`related-stocks/`, `oem/`, `hansae/`, `management/` 등)
-- **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
-
-### `lib/`
-
-도메인 모듈 + 공용 유틸. 각 하위 폴더는 응집된 책임 단위.
-
-- 공용 유틸·React 훅 목록 → [`Architecture.md §6`](./Architecture.md). **표 행 클릭 강조는 `useRowHighlight` 훅을 재사용**(인라인 재구현 금지 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. sticky 셀은 행 bg를 명시적으로 덮어야 따라온다)
-- `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
-  - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅. 🔴 명단은 여기 나열하지 않는다)
-  - **`.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
-- `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT. 🔴 **역할을 추가하면 `roles.ts`·`users.ts`·`permissions.ts` 3곳을 모두 갱신**해야 한다(빠뜨리면 세션 거부 → `/login` 무한 리다이렉트). 계정 env 키·랜딩 redirect 주의 → [`Architecture.md 부록 B-2`](./Architecture.md). 새 라우트 권한은 `permissions.ts`.
-- **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만). 폴더 목록·모듈 구성 정본 = [`Architecture.md §6`](./Architecture.md). 약속만:
-  - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.
-  - `lib/pnl/` · `lib/plan/` · `lib/inventory/` · `lib/personnel/` · `lib/finance/` · `lib/org-chart/` — **전부 사외비**라 `confidentialDb` 경유 필수.
-  - `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
-  - `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
-  - `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 (증권사, 대상) 묶음으로 접는다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
-  - `lib/oem-companies/<slug>/` — `source.ts`(`'use cache'`+`cacheTag`) + `aggregate.ts`(pure) + 테스트. 상세 → `docs/oem-collection.md`
-  - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
-
-### `scripts/` — Python 데이터 수집
-
-prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
-
-- `collect_*.py` — 외부 → DB 수집. **Stellantis 북미 출하(도매)** → `stellantis_shipments`는 **수집기 2개, IR 홈페이지(`collect_stellantis_shipments_ir.py`)가 primary·EDGAR(`collect_stellantis_shipments.py`)가 보완·백필**(사용자 지시 2026-07-16). 🔴 **fnguide 접근은 반드시 `scripts/lib/fnguide_client.py` 경유**하고, **계약이 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**한다(주 1회 `verify-fnguide.yml`). Cox 재고일수·PDF-only(UzAuto)·현대 분기 IR 등 개별 수집기 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** · `docs/oem-collection.md` · 계약표 [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md).
-- `enrich_*.py` — 기존 행 보강(외부 LLM·검색). **append-only**. `onboard_company.py`는 신규 회사 추가 직후 1회 실행하며 **멱등**이라 부분 실패 시 같은 명령을 재실행하면 된다(비-12월 결산은 `--fiscal-year-end-month`).
-- `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
-- **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
-- `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
-- `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동. **단 정기 재실행 12종은 유지**(목록 → [`Architecture.md 부록 B-3`](./Architecture.md)). ⚠️ MarkLines 판매량·생산량 sync는 **페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하지 말 것**(→ [`docs/oem-collection.md`](./docs/oem-collection.md)) · `sync_org_chart.py`는 **로컬 전용**(Excel COM).
-- **사외비 적재 정책**(월별손익 sync 8종): 입력은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. 🔴 **stdout에 금액·인원수 비노출** — dry-run 출력은 행수·연도·월·null 카운트만(합계 금지). dry-run 확인 후 본 적재. 🔴 **`sync_longterm_revenue.py`는 별개라 오케스트레이터에 등록하지 않는다**(등록하면 dry-run이 엉뚱한 파일을 읽어 통째 실패). 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)**.
-- `_*.json` / `_*.log` / `_*.py` / `_*.md` / `_*.ts(x)` — 임시 산출물. 비활성이면 `_archive/` 이동. `scripts/` **최상위의 이 확장자들**은 `.gitignore`가 패턴으로 무시한다(사외비 본문이 담긴 산출물의 커밋 방지). 새 산출물 *폴더*는 여전히 `.gitignore`에 명시 추가해야 한다.
-
-`scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
-
-- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨)
-
-### `supabase/migrations/`
-
-- 한 마이그레이션 = 한 변경 단위(View/function/RLS/constraint 모두). 명명·순서 규칙은 「데이터 / DB 규칙」의 **마이그레이션 컨벤션** 참조(두 곳에 적지 않는다).
-
-### `.github/workflows/`
-
-> 워크플로 전체 목록·카테고리·주기는 [`Architecture.md §10`](./Architecture.md) 참고. 신규/제거 시 §10 갱신.
-
-- 대부분 GHA가 Python을 직접 호출한다(로컬 venv 불필요). 짧은 간격 cron은 curl 트리거(Hobby 제약 회피, `cron-sentiment`), 한세 종목토론은 Vercel 60s timeout 우회로 GHA runner에서 Node tsx 직접 실행(`collect-naver-board.yml`).
-- 신규 onboarding `onboard-company.yml`은 `workflow_dispatch` 전용 — `/api/companies` POST가 INSERT 성공 후 GitHub API로 자동 트리거. Vercel env `GITHUB_PAT` 필요.
-- **`marklines-adhoc-fetch.yml`**(`workflow_dispatch` 전용 · DB 미접근) — MarkLines 쿠키를 꺼낼 수 없을 때의 우회 통로(Actions 안에서 페이지를 받아 artifact로 회수). 스케줄이 없어 남겨 둬도 부작용 없음. 절차·로그인 판정 주의 → [`docs/oem-collection.md`](./docs/oem-collection.md).
-- **`collect-yt-report.yml`**(`workflow_dispatch` 전용 · **기본 활성**, 끄려면 Vercel env `YT_AUTO_REPORT=0`) — `/reports/new` 유튜브 제출 시 자동 트리거. 배선·필요 Secrets·봇차단 한계 → [`report.md §2-A`](./report.md).
-
-### 루트 설정
-
-- `proxy.ts`(라우트 미들웨어, 구 middleware) / `next.config.ts` / `vercel.json`(배포 — **vercel.ts로 옮기지 말 것**. `ignoreCommand`로 백업 봇 커밋의 배포를 스킵하며, 근거·부작용 → [`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)) / `.claude/agents/`(서브 에이전트 4종) / `.mcp.json`(MCP 서버)
+- [`app/`] 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
+- [`app/`] 🔴 Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
+- [`app/`] 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
+- [`app/`] 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`). 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
+- [`app/`] 사외비 보고서**(`posts.is_confidential`)는 RLS가 anon 읽기를 막고 `canAccessConfidentialReports`(admin·holdings·mobility)가 service_role 조회를 게이트한다 — 목록·상세 `'use cache'` 함수에 `includeConfidential`을 **인자로** 넘겨 역할별 캐시를 분리하므로 **새 호출부에서 이 인자를 빠뜨리지 말 것**.
+- [`app/`] 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. 🔴 **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(2026-08-12 기준 12종 — 여기 다시 나열하지 말 것. 문서에 베껴 적었더니 9종·5종으로 갈려 있었다).
+- [`app/`] 공개는 `api/cron/*`·`api/revalidate*` 뿐이고 나머지는 세션 필수.** 새 `route.ts` 를 만들면 `proxy.ts` 의 `PUBLIC_PATH_PREFIXES` 와 [`Architecture.md §5`](./Architecture.md) 의 라우트 목록을 **함께** 갱신한다(목록 정본은 Architecture — 여기 중복하지 않는다. 두 곳에 두면 갈린다).
+- [`app/`] `api/revalidate*`은 SSRF·쿠키 가드 패치 이력(commit `ea090be`). 회귀 주의.
+- [`components/`] `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
+- [`components/`] `<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
+- [`lib/`] 공용 유틸·React 훅 목록 → [`Architecture.md §6`](./Architecture.md). **표 행 클릭 강조는 `useRowHighlight` 훅을 재사용**(인라인 재구현 금지 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. sticky 셀은 행 bg를 명시적으로 덮어야 따라온다)
+- [`lib/`] `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
+- [`lib/`] `.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
+- [`lib/`] `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT. 🔴 **역할을 추가하면 `roles.ts`·`users.ts`·`permissions.ts` 3곳을 모두 갱신**해야 한다(빠뜨리면 세션 거부 → `/login` 무한 리다이렉트). 계정 env 키·랜딩 redirect 주의 → [`Architecture.md 부록 B-2`](./Architecture.md). 새 라우트 권한은 `permissions.ts`.
+- [`lib/`] `lib/pnl/` · `lib/plan/` · `lib/inventory/` · `lib/personnel/` · `lib/finance/` · `lib/org-chart/` — **전부 사외비**라 `confidentialDb` 경유 필수.
+- [`lib/`] `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
+- [`lib/`] `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
+- [`lib/`] `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 (증권사, 대상) 묶음으로 접는다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
+- [`lib/`] `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
+- [`scripts/`] `collect_*.py` — 외부 → DB 수집. **Stellantis 북미 출하(도매)** → `stellantis_shipments`는 **수집기 2개, IR 홈페이지(`collect_stellantis_shipments_ir.py`)가 primary·EDGAR(`collect_stellantis_shipments.py`)가 보완·백필**(사용자 지시 2026-07-16). 🔴 **fnguide 접근은 반드시 `scripts/lib/fnguide_client.py` 경유**하고, **계약이 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**한다(주 1회 `verify-fnguide.yml`). Cox 재고일수·PDF-only(UzAuto)·현대 분기 IR 등 개별 수집기 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** · `docs/oem-collection.md` · 계약표 [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md).
+- [`scripts/`] `scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
+- [`scripts/`] `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동. **단 정기 재실행 12종은 유지**(목록 → [`Architecture.md 부록 B-3`](./Architecture.md)). ⚠️ MarkLines 판매량·생산량 sync는 **페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하지 말 것**(→ [`docs/oem-collection.md`](./docs/oem-collection.md)) · `sync_org_chart.py`는 **로컬 전용**(Excel COM).
+- [`scripts/`] 사외비 적재 정책**(월별손익 sync 8종): 입력은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. 🔴 **stdout에 금액·인원수 비노출** — dry-run 출력은 행수·연도·월·null 카운트만(합계 금지). dry-run 확인 후 본 적재. 🔴 **`sync_longterm_revenue.py`는 별개라 오케스트레이터에 등록하지 않는다**(등록하면 dry-run이 엉뚱한 파일을 읽어 통째 실패). 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)**.
+- [`scripts/`] `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨)
+- [`.github/workflows/`] `marklines-adhoc-fetch.yml`**(`workflow_dispatch` 전용 · DB 미접근) — MarkLines 쿠키를 꺼낼 수 없을 때의 우회 통로(Actions 안에서 페이지를 받아 artifact로 회수). 스케줄이 없어 남겨 둬도 부작용 없음. 절차·로그인 판정 주의 → [`docs/oem-collection.md`](./docs/oem-collection.md).
+- [루트 설정] `proxy.ts`(라우트 미들웨어, 구 middleware) / `next.config.ts` / `vercel.json`(배포 — **vercel.ts로 옮기지 말 것**. `ignoreCommand`로 백업 봇 커밋의 배포를 스킵하며, 근거·부작용 → [`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)) / `.claude/agents/`(서브 에이전트 4종) / `.mcp.json`(MCP 서버)
 
 ## 데이터 흐름
 

@@ -46,7 +46,11 @@ AUTOLOAD_DOC = 'AGENTS.md'
 #    (`.range()` 정렬 필수 · `WriteSession` 강제 · 사외비 5-step · 역할 추가 3파일 등).
 #    그래서 상한을 실측 바닥 + 5% 로 다시 잡는다. 35,000 은 이관 **전에** 세운 희망치였다.
 #    🔴 이 값을 다시 올리려거든 먼저 "옮길 곳이 정말 없나"를 증명할 것.
-AUTOLOAD_WARN_BYTES = 39_000   # 넘으면 gotchas 분리를 검토할 시점
+#    2026-08-25 재정리: 「디렉터리 지도」 20,029B(파일의 45%)를 Architecture.md 부록 C로 이관하고
+#    그 안의 약속 26건만 원문 발췌해 남겼다 → 44,384 → 34,966B.
+#    🔴 상한은 그 실측값 + 여유 2,500 으로 **조인다**. 여유가 크면 브레이크가 아니라 눈금자다.
+#    🔴 그리고 초과는 경고가 아니라 **오류**다(exit 1) — 경고로 두었더니 2주째 초과인 줄 몰랐다.
+AUTOLOAD_WARN_BYTES = 37_500   # 넘으면 참조형을 Architecture.md·docs/ 로 옮길 시점
 PADDING_WARN_RATIO = 0.10      # 표 정렬 공백이 파일의 10% 넘으면 경고
 
 # 이스케이프되지 않은 파이프만 셀 경계로 본다.
@@ -139,8 +143,13 @@ def verifyDocs() -> int:
     status = 'OK' if size <= AUTOLOAD_WARN_BYTES else '초과'
     print(f'{AUTOLOAD_DOC} 자동 로드 분량: {size:,}B / 상한 {AUTOLOAD_WARN_BYTES:,}B — {status}')
     if size > AUTOLOAD_WARN_BYTES:
-      warnings.append(
-        f'{AUTOLOAD_DOC}가 {size:,}B — 함정 서술을 `docs/gotchas-*.md`로 분리할 시점')
+      # 🔴 2026-08-25: 여기가 warnings 였다 — 초과를 경고로만 세니 종료 코드가 0 이라
+      #    **2주째 상한을 넘고 있는 줄 아무도 몰랐다**(44,384B / 상한 39,000B).
+      #    검사기는 「무엇을 재나」만이 아니라 「걸리면 무슨 일이 일어나나」까지 같아야 한다.
+      errors.append(
+        f'{AUTOLOAD_DOC}가 {size:,}B로 상한 {AUTOLOAD_WARN_BYTES:,}B 초과 — '
+        f'참조형(구조 설명·명령 목록·env)은 Architecture.md·docs/로 옮기고 트리거 한 줄만 남길 것. '
+        f'🔴 상한을 올려서 통과시키지 말 것')
 
   for w in warnings:
     print(f'[WARN] {w}')
