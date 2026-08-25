@@ -252,7 +252,34 @@ def parse_detail_page(
         "title": title,
         "target_price": target_price,
         "opinion": opinion,
+        "body_len": body_text_length(html),
     }
+
+
+# 요약 재료로 인정하는 상세 페이지 본문 최소 길이.
+# 🔴 `summarize_naver_research.MIN_PDF_TEXT` 와 **같은 값이어야 한다** — 수집이 저장한 것을
+#    요약이 못 다루면 화면에 "정리 안 된 카드"가 남는다. 그 어긋남이 실제로 났다(아래).
+MIN_BODY_TEXT = 300
+
+
+def body_text_length(html: str) -> int:
+    """상세 페이지의 **리포트 본문** 길이. 네비게이션·목록은 세지 않는다.
+
+    🔴 왜 필요한가 (2026-08-25 실측):
+       신한투자증권은 네이버에 PDF 를 올리지 않고 **자사 사이트 팝업**으로 보낸다
+       (`shinhansec.com/.../view-popup.do` — 리포트 식별자가 없어 원문을 특정할 수 없다).
+       네이버가 주는 것은 `.view_cnt` 안의 **131자 요지 한 줄**이 전부라 요약이 성립하지
+       않는다. 16건 중 12건이 이 상태로 "정리 안 된 카드"로 남아 있었다.
+
+       ⚠️ 그렇다고 「PDF 없으면 버린다」로 자르면 안 된다 — 같은 증권사의 **산업분석 3건**은
+          상세 본문이 충실해 864~1,177자로 제대로 정리됐다. 기준은 PDF 유무가 아니라
+          **요약할 재료가 있느냐**다.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    node = soup.find(class_="view_cnt")
+    if node is None:
+        return 0
+    return len(node.get_text(" ", strip=True))
 
 
 # 목표주가 문구. 「목표주가」/「목표가」 뒤에 소수점과 만/억 단위가 붙을 수 있다.

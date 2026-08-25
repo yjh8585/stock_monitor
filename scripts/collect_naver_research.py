@@ -53,6 +53,7 @@ init_script(__file__)
 from lib.db import WriteSession, get_client  # noqa: E402
 from lib.naver_research import (  # noqa: E402
     KINDS,
+    MIN_BODY_TEXT,
     is_relevant,
     list_url,
     parse_detail_page,
@@ -233,6 +234,11 @@ def enrich(row: dict, tracked: dict[str, str]) -> dict:
 
     # 🔴 함정 2 — 온전한 제목을 받은 뒤에 다시 판정한다. 잘린 제목으로 매기면
     #    핵심어가 뒤쪽에 있던 산업 리포트를 통째로 놓친다.
+    # 🔴 요약할 재료가 있나. PDF 가 있으면 그것으로 충분하고, 없으면 상세 본문 길이로 본다.
+    #    2026-08-25: 이 판정이 없어서 신한투자증권 12건이 "정리 안 된 카드"로 남았다
+    #    (네이버에 PDF 를 안 올리고 자사 팝업으로 보내 원문을 받을 수 없다).
+    row["_has_material"] = bool(row.get("pdf_url")) or int(detail.get("body_len") or 0) >= MIN_BODY_TEXT
+
     row["_is_relevant"] = is_relevant(
         row["kind"],
         bool(company_id),
@@ -319,7 +325,10 @@ def main() -> int:
 
     # 🔴 비관련 행은 **저장하지 않는다**(사용자 지시·승인 2026-08-25). 화면에서만 걸러
     #    두면 지운 251건이 다음 수집 때 그대로 되살아난다.
-    relevant = [r for r in enriched if r["_is_relevant"]]
+    relevant = [r for r in enriched if r["_is_relevant"] and r["_has_material"]]
+    no_material = sum(1 for r in enriched if r["_is_relevant"] and not r["_has_material"])
+    if no_material:
+        logger.info(f"요약 재료 없음 {no_material}건 — 저장 안 함(원문을 받을 수 없다)")
     dropped = len(new_rows) - len(relevant)
     logger.info(f"신규 {len(new_rows)}건 → 관련 {len(relevant)}건 (비관련 {dropped}건 버림)")
 
