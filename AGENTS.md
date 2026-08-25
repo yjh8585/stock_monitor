@@ -100,7 +100,8 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 | `/parts-top100`     | 부품사 TOP100 (Marklines 매핑)                                     |
 | `/humanoid`         | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
 | `/humanoid/reports` | 로봇 보고서 (`posts` category='로봇' 고정)                         |
-| `/humanoid/research` | 증권사 리포트 (`research_reports` · 네이버 리서치 수집분)         |
+| `/humanoid/research` | 증권사 리포트 목록 (`research_reports` · 네이버 리서치 수집분) — **↓ 상세** |
+| `/humanoid/research/[id]` | 리포트 상세 — 요약 마크다운 + 같은 증권사·대상의 다른 회차     |
 | `/hansae`           | 한세그룹 대시보드 + intraday                                       |
 | `/etc`              | 기타정보 (해운·철강·환율·매크로·두바이유)                          |
 | `/reports`          | 보고서 + youtube-summary — **↓ 상세**                              |
@@ -123,8 +124,18 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 표는 `DomesticTable` 을 `variant="humanoid"` 로 재사용한다(새로 만들지 않는다). 약속만:
 
 - 🔴 **역할은 `robot_roles text[]`(`humanoid`/`parts`) 다중 태그** — 겸업사는 양쪽 버튼에 뜬다. 제품군 필터의 "부품 공급사" 판정도 `company_type` 이 아니라 `robot_roles` 로 한다.
-- 🔴 **고객사는 수집하지 않는다**(사용자 결정). 뷰가 `customers` 를 빈 배열로 내보내 매퍼만 호환시키고, 표는 그 자리에 비상장 기업가치를 그린다.
+- 🔴 **고객사는 수집하지 않는다**(사용자 결정 · 상위 계획서 확정 결정 12). 뷰가 `customers` 를 빈 배열로 내보내 매퍼만 호환시키고, 표는 그 자리에 비상장 기업가치를 그린다.
+  🔴 **화면에 안 보이므로 위반이 조용히 일어난다** — 2026-08-25 에 `enrich_company.py --page humanoid` 가 16사의 고객사를 채웠고 DB 를 직접 세기 전까지 아무도 몰랐다. 판정은 `enrich_company.py` 의 **`_skips_customers()`**(로봇 역할 + **다른 페이지에 없음**)가 맡는다. ⚠️ **겸업사는 제외** — 현대차·현대모비스는 관련주·국내자동차에서 고객사를 쓴다.
 - 🔴 **제품군 11종의 정본은 `product_category_map`**(`lib/types.ts` 의 `ROBOT_PRODUCT_CATEGORIES` 는 UI 사본). **카테고리를 늘릴 때 정규화 결과값을 raw 키로도 넣을 것** — 함정 4종(왕복 뭉갬·자동 페이지 매핑·`data_source` NOT NULL·트랜잭션 롤백) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「휴머노이드 기업 데이터 함정」.
+- 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
+
+#### `/humanoid/research` 상세
+
+목록(`components/humanoid/research-list.tsx`) + 상세(`app/humanoid/research/[id]`, `MarkdownView` 재사용). 약속만:
+
+- 🔴 **선별은 수집 단계에서 끝난다** — `scripts/lib/naver_research.py` 의 `is_relevant()` 에 걸리지 않는 리포트는 **저장 자체를 안 한다**(화면에서만 걸러 두면 지운 행이 다음 수집에 되살아난다). **두 번 뒤집힌 판정이니 함수 docstring 을 읽고 고칠 것.**
+- 🔴 목표주가는 `parse_target_price()` 경유 · 요약 저장 전 `clean_summary()` 통과 → 경위·수치 = [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「증권사 리포트 수집 함정」.
+- 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`). 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
 
 #### `/reports` 상세
 

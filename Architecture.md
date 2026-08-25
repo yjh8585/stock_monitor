@@ -759,7 +759,7 @@ GHA runner: sync_management_excel.py (apply)
 
 ## 10. 자동화 (GitHub Actions + cron-job.org)
 
-### 42개 워크플로 카테고리 (2026-08-07 실측)
+### 44개 워크플로 카테고리 (2026-08-25 실측)
 
 <!-- prettier-ignore -->
 | 카테고리 | 워크플로 예시 | 주기 |
@@ -782,7 +782,9 @@ GHA runner: sync_management_excel.py (apply)
 | OEM 스텔란티스 | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments-ir (**primary** — stellantis.com IR 홈페이지 분기 출하, Playwright), collect-stellantis-shipments (**보완** — SEC EDGAR 북미 도매 출하, IR 직접값 보존 가드) | IR: 1/4/7/10월 16·22·28일 · EDGAR: 2/5/8/11월 27일 |
 | 신차 재고 (Cox) | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독) | 매월 20일 |
 | MarkLines 임시 조사 | marklines-adhoc-fetch (`scripts/fetch_marklines_adhoc.py` — Secrets 쿠키로 페이지를 받아 **artifact `marklines-raw`** 로 내려보낸다. DB 미접근·읽기만. 유효 쿠키가 Secrets 에만 있고 값을 꺼낼 수 없어 만든 우회 통로 — 로컬 추출은 Chrome 127+ ABE·Chrome 150 CDP 차단으로 전부 막혔다) | 수동 (`workflow_dispatch` 전용) |
-| 보강 | enrich-company | 수동 |
+| 보강 | enrich-company (재무 + 메타: 설명·제품·고객사·홈페이지 + **비상장 기업가치**. `business_summary` 는 한국어 판정을 통과해야 보강 완료로 본다 — 값이 차 있어도 영어면 다시 조사한다) | 매월 1일 |
+| 휴머노이드 | collect-humanoid (`enrich_company.py --page humanoid` + `collect_news.py`. 전역 워크플로가 분기(재무)·월(메타) 주기라 신규 등재·비상장 비중이 큰 이 페이지만 따로 당겨 돈다) | 주 1회 (월 05:00 KST) |
+| 증권사 리포트 | collect-naver-research (네이버 리서치 목록·메타. 🔴 **요약은 없다** — agents 레포 헤드리스 CLI(구독 인증)라 러너에서 못 돈다. 선별은 `is_relevant()` 로 수집 단계에서 끝나며 비관련은 저장 자체를 안 한다) | 평일 18:00 KST |
 | 경영관리 엑셀 업로드 | sync-management (workflow_dispatch — dry-run/apply) | 수동 |
 | 보고서 자동생성 | collect-yt-report (workflow_dispatch — `/reports/new` 유튜브 제출 시 텍스트 확정 후 `/api/posts`가 트리거, `--enrich`로 주요장면·차트 이미지 보강. 기본 활성`YT_AUTO_REPORT!=0`. ⚠️GHA IP 봇차단 잦아 `YOUTUBE_COOKIES` 없이는 이미지 대개 안 붙음→텍스트 유지) | 자동 트리거 |
 | 수집 계약 점검 | verify-fnguide (`scripts/verify_fnguide.py` — fnguide 신버전 JSON 계약·계정 코드·셀렉터 생존 확인. DB·시크릿 미사용 읽기 전용. 재무 수집이 분기 1회라 사이트 변경을 최대 3개월 늦게 아는 문제의 조기 경보) | 주 1회 (월 09:00 KST) |

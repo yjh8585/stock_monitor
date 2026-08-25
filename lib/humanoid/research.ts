@@ -48,8 +48,17 @@ export interface ResearchData {
   groups: ResearchGroup[];
   /** 필터 드롭다운용 증권사 목록 */
   brokers: string[];
+  /** 필터 드롭다운용 대상(종목·업종) 목록 — 리포트가 많은 순 (사용자 지시 2026-08-25) */
+  targets: string[];
   total: number;
   summarized: number;
+}
+
+/** 상세 페이지가 쓰는 한 건 + 같은 묶음의 앞뒤 이력. */
+export interface ResearchDetail {
+  report: ResearchReportRow;
+  /** 같은 (증권사, 대상) 의 다른 리포트 — 최신순, 자기 자신 제외 */
+  siblings: ResearchReportRow[];
 }
 
 /**
@@ -146,7 +155,7 @@ export async function getResearchData(): Promise<ResearchData> {
 
   if (error) {
     // 화면을 통째로 죽이지 않는다 — 빈 목록으로 떨어뜨리고 로그만 남긴다.
-    return { groups: [], brokers: [], total: 0, summarized: 0 };
+    return { groups: [], brokers: [], targets: [], total: 0, summarized: 0 };
   }
 
   const rows = ((data ?? []) as unknown as RawRow[]).map(mapRow);
@@ -155,7 +164,54 @@ export async function getResearchData(): Promise<ResearchData> {
   return {
     groups: groupReports(rows),
     brokers,
+    targets: listTargets(rows),
     total: rows.length,
     summarized: rows.filter((r) => r.summary !== null).length,
   };
+}
+
+/**
+ * 대상(종목·업종) 드롭다운 목록. 리포트가 많은 순 → 같으면 가나다순.
+ *
+ * 증권사 드롭다운처럼 단순 가나다순으로 두면 리포트 1건짜리 종목 수십 개 사이에서
+ * 정작 자주 다뤄지는 종목을 못 찾는다.
+ */
+export function listTargets(rows: ResearchReportRow[]): string[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    counts.set(r.targetName, (counts.get(r.targetName) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))
+    .map(([name]) => name);
+}
+
+/** 리포트 한 건 + 같은 (증권사, 대상) 묶음의 다른 회차. 없으면 null. */
+export async function getResearchDetail(id: string): Promise<ResearchDetail | null> {
+  'use cache';
+  cacheLife('hours');
+  cacheTag('research_reports');
+
+  const supabase = createSupabaseAnonClient();
+  const { data, error } = await supabase
+    .from('research_reports')
+    .select(SELECT_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const report = mapRow(data as unknown as RawRow);
+
+  // 같은 증권사가 같은 대상을 이어 다룬 회차 — 상세 하단의 "이전 리포트".
+  const { data: sibData } = await supabase
+    .from('research_reports')
+    .select(SELECT_COLUMNS)
+    .eq('target_name', report.targetName)
+    .order('published_at', { ascending: false, nullsFirst: false });
+
+  const siblings = ((sibData ?? []) as unknown as RawRow[])
+    .map(mapRow)
+    .filter((r) => r.id !== report.id && r.broker === report.broker);
+
+  return { report, siblings };
 }

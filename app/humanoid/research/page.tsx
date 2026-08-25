@@ -8,11 +8,17 @@ import { getResearchData } from '@/lib/humanoid/research';
  * (/humanoid 기업 페이지와 같은 패턴). searchParams 를 쓰지 않으므로 Suspense 도 없다.
  */
 export default async function HumanoidResearchPage() {
-  const { groups, brokers, total, summarized } = await getResearchData();
+  const { groups, brokers, targets, total, summarized } = await getResearchData();
 
   return (
     <div className="flex h-full flex-col">
-      <ResearchList groups={groups} brokers={brokers} total={total} summarized={summarized} />
+      <ResearchList
+        groups={groups}
+        brokers={brokers}
+        targets={targets}
+        total={total}
+        summarized={summarized}
+      />
     </div>
   );
 }

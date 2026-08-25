@@ -87,10 +87,15 @@ def _naver_item_to_row(item: dict, company_id: str) -> dict | None:
 # ── 한국 비상장사: Google News RSS (회사명 검색) ────────────────
 
 
-def _fetch_kr_news_google_rss(name_kr: str) -> list[dict]:
-  """Google News RSS로 회사명 검색 결과를 반환한다. 자격증명 불필요."""
-  query = urllib.parse.quote(name_kr)
-  url = f'https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko'
+def _fetch_news_google_rss(name: str, locale: str = 'ko') -> list[dict]:
+  """Google News RSS로 회사명 검색 결과를 반환한다. 자격증명 불필요.
+
+  ticker 가 없는 회사(비상장)의 유일한 뉴스 소스다. 한국 비상장사는 한국어로,
+  해외 비상장사는 영어로 검색한다 — 영문 사명을 한국어 로케일로 던지면 거의 안 걸린다.
+  """
+  hl, gl, ceid = ('ko', 'KR', 'KR:ko') if locale == 'ko' else ('en-US', 'US', 'US:en')
+  query = urllib.parse.quote(name)
+  url = f'https://news.google.com/rss/search?q={query}&hl={hl}&gl={gl}&ceid={ceid}'
   try:
     resp = requests.get(url, timeout=10, headers=_HTTP_HEADERS)
     resp.raise_for_status()
@@ -106,7 +111,7 @@ def _fetch_kr_news_google_rss(name_kr: str) -> list[dict]:
       items.append({'title': title, 'link': link, 'pubDate': pub, 'source': source, 'description': desc})
     return items
   except Exception as e:
-    logger.warning(f'{name_kr} Google News RSS 오류: {e}')
+    logger.warning(f'{name} Google News RSS 오류: {e}')
     return []
 
 
@@ -201,7 +206,7 @@ def _collect_news_in_session(w: WriteSession) -> None:
   raw = os.environ.get('TARGET_TICKERS', '').strip()
   target_filter = {t.strip() for t in raw.split(',') if t.strip()}
   q = w.table('companies').select(
-    'id,ticker,name_kr,country,market,data_source,status'
+    'id,ticker,name,name_kr,country,market,data_source,status'
   ).eq('status', 'active')
   if target_filter:
     q = q.in_('ticker', list(target_filter))
@@ -239,7 +244,10 @@ def _collect_news_in_session(w: WriteSession) -> None:
 
     rows = []
     is_kr_listed = country == 'KR' and market in ('KOSPI', 'KOSDAQ')
-    is_kr_unlisted = country == 'KR' and not market
+    # 🔴 비상장은 국적을 가리지 않는다. 예전엔 KR 비상장만 Google RSS 를 타고 나머지는
+    #    전부 yfinance 로 갔는데, ticker 가 없으니 무조건 0건이었다(2026-08-25 실측:
+    #    Figure AI·Apptronik·Boston Dynamics 등 해외 비상장 전원 뉴스 0건).
+    is_unlisted = not market or not ticker
 
     if is_kr_listed:
       # 한국 상장사: Naver Finance 모바일 API (종목별 큐레이션)
@@ -254,9 +262,13 @@ def _collect_news_in_session(w: WriteSession) -> None:
         if row and row['url'] not in existing_urls:
           rows.append(row)
           existing_urls.add(row['url'])
-    elif is_kr_unlisted:
-      # 한국 비상장사: Google News RSS (회사명 검색)
-      g_items = _fetch_kr_news_google_rss(name)
+    elif is_unlisted:
+      # 비상장사: Google News RSS. 국내는 한글 사명·한국어, 해외는 영문 사명·영어.
+      if country == 'KR':
+        query, locale = name, 'ko'
+      else:
+        query, locale = (company.get('name') or name), 'en'
+      g_items = _fetch_news_google_rss(query, locale)
       if not g_items:
         logger.info(f'{name}: 뉴스 없음 (Google RSS)')
         if SLEEP_SEC > 0:
@@ -268,19 +280,43 @@ def _collect_news_in_session(w: WriteSession) -> None:
           rows.append(row)
           existing_urls.add(row['url'])
     else:
-      # 글로벌 상장사: yfinance
+      # 글로벌 상장사: yfinance 우선
       yf_sym = ticker
       raw_news = _fetch_news(yf_sym)
-      if not raw_news:
-        logger.info(f'{name}({yf_sym}): 뉴스 없음')
-        if SLEEP_SEC > 0:
-          time.sleep(SLEEP_SEC)
-        continue
-      for item in raw_news:
+      for item in raw_news or []:
         row = _to_news_row(item, company['id'])
         if row and row['url'] not in existing_urls:
           rows.append(row)
           existing_urls.add(row['url'])
+
+      # 🔴 yfinance 가 0건이면 Google News RSS 로 한 번 더 간다(2026-08-25 신설).
+      #    실측: 일본·중국·대만 상장사는 yfinance 뉴스가 통째로 비어 있다
+      #    (하모닉드라이브·THK·NSK·HIWIN·닝보투오푸 등 15사가 영구 0건이었다).
+      #    미국 종목만 채워지는 소스 하나에 의존하면 아시아 부품사는 영영 빈칸이다.
+      if not rows:
+        # 영문 사명 → 그래도 없으면 한글 사명. 둘 다 시도하는 이유:
+        # 🔴 영문 검색은 일본·중국 부품사에서 **60일 보존 정책에 걸릴 만큼 오래된**
+        #    기사만 돌려주는 일이 잦다(2026-08-25 실측: 37건 넣고 37건이 정리됨).
+        #    이 대시보드는 한국 사용자용이고, 하모닉드라이브·THK 같은 로봇 부품주는
+        #    한국 매체가 오히려 최신으로 다룬다.
+        for query, locale in ((company.get('name') or name, 'en'), (name, 'ko')):
+          if not query:
+            continue
+          for item in _fetch_news_google_rss(query, locale):
+            row = _google_rss_item_to_row(item, company['id'])
+            if row and row['url'] not in existing_urls:
+              rows.append(row)
+              existing_urls.add(row['url'])
+          if rows:
+            logger.info(
+              f'{name}({yf_sym}): yfinance 0건 → Google RSS[{locale}] 폴백 {len(rows)}건')
+            break
+
+      if not rows:
+        logger.info(f'{name}({yf_sym}): 뉴스 없음')
+        if SLEEP_SEC > 0:
+          time.sleep(SLEEP_SEC)
+        continue
 
     if rows:
       try:

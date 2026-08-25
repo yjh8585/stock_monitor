@@ -29,6 +29,7 @@
 """
 import argparse
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -89,6 +90,20 @@ META_TOOL = {
         'type': ['string', 'null'],
         'description': '회사 공식 홈페이지 URL (https:// 포함). 추정 금지 — 검색 결과에서 확인된 URL만. 없으면 null.',
       },
+      # 비상장사 기업가치. 상장사는 market_cap 이 따로 있으므로 채우지 않는다.
+      # 🔴 추정 금지 — 보도된 라운드 밸류에이션만. 근거를 못 찾으면 세 필드 모두 null.
+      'valuation_usd': {
+        'type': ['number', 'null'],
+        'description': '비상장사 최신 라운드 기업가치(USD, post-money). 보도로 확인된 값만. 상장사·미확인은 null.',
+      },
+      'funding_total_usd': {
+        'type': ['number', 'null'],
+        'description': '누적 투자 유치 금액(USD). 확인된 값만, 미확인은 null.',
+      },
+      'valuation_asof': {
+        'type': ['string', 'null'],
+        'description': 'valuation_usd 의 기준일 YYYY-MM-DD (해당 라운드 발표일). 값이 있으면 필수.',
+      },
       'confidence': {'type': 'string', 'enum': ['high', 'medium', 'low']},
     },
     'required': ['business_summary', 'products', 'customers', 'confidence'],
@@ -116,21 +131,31 @@ def _load_targets(client, page: str | None, target_tickers: set[str]) -> list[di
   q = client.table('companies').select(
     'id,ticker,name,name_kr,country,currency,data_source,status,'
     'products,customers,business_summary,homepage_url,dart_corp_code,'
-    'fiscal_year_end_month'
+    'fiscal_year_end_month,market,robot_roles,valuation_usd,funding_total_usd,valuation_asof'
   )
+
+  # 🔴 회사가 **어느 페이지들에** 속하는지 항상 함께 싣는다(`_pages`).
+  #    `--page humanoid` 로 걸러도 그 회사가 관련주에도 속할 수 있고, 그때는
+  #    고객사를 비우면 안 된다(`_skips_customers` 가 이 값을 본다).
+  all_pages = client.table('company_pages').select('company_id,page').execute().data or []
+  page_map: dict[str, list[str]] = {}
+  for row in all_pages:
+    page_map.setdefault(row['company_id'], []).append(row['page'])
+
+  def _decorate(rows: list[dict]) -> list[dict]:
+    for c in rows:
+      c['_pages'] = page_map.get(c['id'], [])
+    return [c for c in rows if c.get('status') == 'active']
+
   if target_tickers:
     q = q.in_('ticker', list(target_tickers))
-    return [c for c in (q.execute().data or []) if c.get('status') == 'active']
+    return _decorate(q.execute().data or [])
 
   # page 매핑 기준
-  cp_q = client.table('company_pages').select('company_id')
-  if page:
-    cp_q = cp_q.eq('page', page)
-  pages_data = cp_q.execute().data or []
-  if not pages_data:
+  cids = [cid for cid, pgs in page_map.items() if (page in pgs if page else True)]
+  if not cids:
     return []
-  cids = list({p['company_id'] for p in pages_data})
-  return [c for c in (q.in_('id', cids).execute().data or []) if c.get('status') == 'active']
+  return _decorate(q.in_('id', cids).execute().data or [])
 
 
 def _has_financials(w, cid: str) -> bool:
@@ -141,11 +166,53 @@ def _has_financials(w, cid: str) -> bool:
   return len(rows) > 0
 
 
+_HANGUL_RE = re.compile(r'[가-힣]')
+
+
+def _is_korean_summary(text: str | None) -> bool:
+  """business_summary 가 한국어로 쓰였나.
+
+  🔴 "비었나"만 보면 안 된다 — yfinance 의 longBusinessSummary 가 영어 원문 그대로
+     들어앉은 회사가 있는데(2026-08-25 실측: 휴머노이드 67사 중 22사), 값이 차 있으니
+     보강 대상에서 빠져 영영 영어로 남는다. 회사설명은 한국어가 규칙이다.
+
+  한글이 한 자도 없으면 영어로 본다. 한국어 문장에 영문 고유명사가 섞이는 건 정상이므로
+  비율은 따지지 않는다.
+  """
+  return bool(text) and bool(_HANGUL_RE.search(text or ''))
+
+
+def _skips_customers(c: dict) -> bool:
+  """이 회사는 고객사를 **수집하지 않는** 대상인가.
+
+  🔴 휴머노이드는 「고객사 컬럼 삭제 · 수집 안 함」이 확정된 결정이다
+     (계획서 `agents/docs/superpowers/plans/2026-08-24-humanoid-research.md` 결정 12,
+     사용자 지시). `humanoid_stocks_view` 도 customers 를 빈 배열로 내보내고 그 자리에
+     비상장 기업가치를 그린다.
+
+  🔴 2026-08-25 실측 사고: 이 판정이 없어서 `enrich_company.py --page humanoid` 가
+     15개사의 고객사를 수집했다. 화면엔 안 나오니 아무도 못 봤다 — 결정 위반이
+     **조용히** 일어난 것이다(되돌림: `humanoid_customers_reverted_20260825`).
+
+  ⚠️ 겸업사는 제외한다. 현대차·현대모비스처럼 관련주·국내자동차에도 속한 회사는
+     그쪽 화면이 고객사를 쓰므로 비우면 안 된다. 그래서 「휴머노이드 역할이 있고
+     **다른 페이지에는 없는**」 회사만 건너뛴다.
+  """
+  roles = c.get('robot_roles') or []
+  if not roles:
+    return False
+  pages = set(c.get('_pages') or [])
+  return not (pages - {'humanoid'})
+
+
 def _missing_meta(c: dict) -> bool:
+  # 🔴 고객사를 수집하지 않는 회사에는 「고객사 없음」을 보강 사유로 세지 않는다.
+  #    안 그러면 그 회사들이 매 회차 대상으로 잡혀 헛돈다.
+  needs_customers = (not c.get('customers')) and not _skips_customers(c)
   return (
-    (not c.get('business_summary'))
+    (not _is_korean_summary(c.get('business_summary')))
     or (not c.get('products'))
-    or (not c.get('customers'))
+    or needs_customers
     or (not c.get('homepage_url'))
   )
 
@@ -191,6 +258,7 @@ def _collect_dart_audit_single(w, c: dict) -> list[dict]:
   try:
     from collect_dart_audit import (
       _collect_company,
+      _dedup_rows,
       _get_dart,
       _identity_verdict_for_code,
       _resolve_corp_code,
@@ -227,7 +295,12 @@ def _collect_dart_audit_single(w, c: dict) -> list[dict]:
           f"  dart_corp_code 캐싱 보류: {c['name_kr']} → {corp_code} "
           f"(개체검증 {verdict}, 확증 아님 — 수동 매핑 시 확정)"
         )
-    return _collect_company(odr, c['id'], str(corp_code), years=_target_years())
+    # 🔴 `_dedup_rows` 를 반드시 거친다. `_collect_company` 는 행에 메타필드
+    #    `_report_fiscal_year` 를 달아 돌려주는데, 그 제거는 `_dedup_rows` 가 맡는다.
+    #    빠뜨리면 upsert 가 PGRST204("Could not find the '_report_fiscal_year' column")
+    #    로 죽고, **재무 단계에서 죽으니 뒤따르는 메타 보강이 통째로 안 돈다.**
+    #    2026-08-25 실측: 이 누락 탓에 DART 대상 회사의 재무·설명이 한 번도 안 들어갔다.
+    return _dedup_rows(_collect_company(odr, c['id'], str(corp_code), years=_target_years()))
   except Exception as e:
     logger.error(f'  DART 실패: {e}')
     return []
@@ -284,14 +357,57 @@ def _collect_websearch_financial(llm, c: dict) -> list[dict]:
     return []
 
 
+_ASOF_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+def _valuation_payload(c: dict, res: dict) -> dict:
+  """비상장 기업가치 UPDATE 조각. 조건에 안 맞으면 빈 dict(=건드리지 않는다).
+
+  🔴 상장사는 손대지 않는다 — 기업가치의 정본은 market_cap 이다.
+  🔴 기준일(valuation_asof)이 없거나 기존 값보다 오래됐으면 무시한다. 오래된 라운드로
+     최신 값을 덮어쓰면 조용히 후퇴한다(seed 에 2022년 값이 남아 있던 이유).
+  funding_total_usd 는 누적액이라 단조 증가한다 — 줄어드는 값은 오답으로 보고 버린다.
+  """
+  if c.get('market'):
+    return {}
+
+  payload: dict = {}
+  asof = res.get('valuation_asof')
+  val = res.get('valuation_usd')
+  if val and isinstance(val, (int, float)) and val > 0 and isinstance(asof, str) and _ASOF_RE.match(asof):
+    prev_asof = c.get('valuation_asof')
+    if not prev_asof or asof > prev_asof:
+      payload['valuation_usd'] = float(val)
+      payload['valuation_asof'] = asof
+
+  fund = res.get('funding_total_usd')
+  if fund and isinstance(fund, (int, float)) and fund > 0:
+    prev_fund = c.get('funding_total_usd')
+    if prev_fund is None or float(fund) > float(prev_fund):
+      payload['funding_total_usd'] = float(fund)
+
+  return payload
+
+
 # ── 메타 보강 ─────────────────────────────────────────────────────────────
 def _enrich_meta(llm, c: dict) -> dict | None:
+  # 비상장사에만 기업가치를 묻는다. 상장사는 market_cap 이 정본이라 물어봐야 잡음만 는다.
+  is_unlisted = not c.get('market')
+  valuation_ask = (
+    f"5) valuation_usd / funding_total_usd / valuation_asof: 비상장사이므로 최신 라운드 "
+    f"기업가치(USD post-money)와 누적 투자유치액, 그 발표일(YYYY-MM-DD)을 조사한다. "
+    f"🔴 추정 금지 — 보도로 확인된 값만. 못 찾으면 세 필드 모두 null.\n"
+    if is_unlisted
+    else "5) valuation_usd / funding_total_usd / valuation_asof: 상장사이므로 모두 null.\n"
+  )
   prompt = (
-    f"For automotive supplier '{c['name']}' (Korean: {c['name_kr']}, country: {c.get('country','')}):\n"
-    f"1) business_summary: 100-250자 한국어 1-2문장 (사업 영역/주력 시장/특징)\n"
+    f"For '{c['name']}' (Korean: {c['name_kr']}, country: {c.get('country','')}):\n"
+    f"1) business_summary: 100-250자 **한국어** 1-2문장 (사업 영역/주력 시장/특징). "
+    f"🔴 영어로 쓰지 말 것 — 영문 사명·제품명은 그대로 두되 문장은 한국어여야 한다.\n"
     f"2) products: 4-6개 주력 제품 (한국어 명사구 우선)\n"
-    f"3) customers: 3-5개 주요 OEM 고객사\n"
+    f"3) customers: 3-5개 주요 고객사\n"
     f"4) homepage_url: 회사 공식 홈페이지 URL (https:// 포함, 추정 금지 — 웹검색에서 확인된 URL만; 모르면 null)\n"
+    f"{valuation_ask}"
     f"Use web_search if needed. Then call submit_company_meta."
   )
   try:
@@ -389,8 +505,14 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
           time.sleep(3)
 
   if fin_rows:
-    upsert_rows('financials', fin_rows, 'company_id,period_type,fiscal_year,fiscal_quarter')
-    logger.info(f'재무 {len(fin_rows)}행 upsert')
+    # 🔴 재무 upsert 실패가 **메타 보강까지 삼키지 않게** 한다. 2026-08-25 에 DART 행의
+    #    메타필드 하나 때문에 여기서 예외가 나면서, 설명·제품·고객사·기업가치 보강이
+    #    통째로 안 돌았다(로그 끝이 traceback 이라 "완료"로 오인하기도 쉬웠다).
+    try:
+      upsert_rows('financials', fin_rows, 'company_id,period_type,fiscal_year,fiscal_quarter')
+      logger.info(f'재무 {len(fin_rows)}행 upsert')
+    except Exception as e:
+      logger.error(f'재무 upsert 실패 — 메타 보강은 계속한다: {e}')
 
   # ── 메타 보강 ────────────────────────────────────────────────────────────
   if missing_meta:
@@ -411,16 +533,21 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
           bs_clean = strip_citation_tags(res['business_summary'])
           if bs_clean and is_rejection_response(bs_clean):
             logger.warning(f'  {c["name_kr"]}: business_summary가 거부 응답 — skip')
+          elif bs_clean and not _is_korean_summary(bs_clean):
+            # 한국어로 달라고 했는데 영어가 왔다. 기존 값을 영어로 덮어써 봐야
+            # 다음 회차에 또 걸리기만 하므로 버린다.
+            logger.warning(f'  {c["name_kr"]}: business_summary가 한국어가 아님 — skip')
           elif bs_clean:
             payload['business_summary'] = bs_clean
         if res.get('products'):
           payload['products'] = res['products']
-        if res.get('customers'):
+        if res.get('customers') and not _skips_customers(c):
           # DB 트리거(companies_normalize_customers)가 정규화·dedup 자동 처리.
           payload['customers'] = res['customers']
         hp = res.get('homepage_url')
         if hp and isinstance(hp, str) and hp.startswith(('http://', 'https://')):
           payload['homepage_url'] = hp.strip()
+        payload.update(_valuation_payload(c, res))
         if not payload:
           continue
         try:

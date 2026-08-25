@@ -34,6 +34,7 @@
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 from datetime import date, timedelta
@@ -50,7 +51,7 @@ init_script(__file__)
 from lib.db import WriteSession, get_client  # noqa: E402
 from lib.naver_research import (  # noqa: E402
     DELTA_MAX_GAP_DAYS,
-    is_summary_target,
+    is_relevant,
     read_url,
 )
 from lib.retry import with_retry  # noqa: E402
@@ -224,6 +225,21 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+# 헤드리스 CLI 가 훅 게이트를 통과하려고 앞머리에 뱉는 탈출 문구. 요약 본문이 아니다.
+_GATE_PREFIX_RE = re.compile(r"^[ \t]*(?:RULES-OK|PLAN-OK)[ \t]*:.*$", re.MULTILINE)
+
+
+def clean_summary(text: str) -> str:
+    """요약 본문에서 훅 탈출 문구를 걷어낸다.
+
+    🔴 실측(2026-08-25): 저장된 요약 77건 중 5건이 `RULES-OK: ...` 로 시작했다.
+       agents 레포의 헤드리스 CLI 가 훅 게이트를 통과하려고 출력한 줄이 결과 파일
+       첫머리에 섞여 그대로 DB 에 들어갔다. 화면에서는 요약이 엉뚱한 문장으로 시작한다.
+       규칙의 정본은 agents 쪽이지만, 오염을 여기서 한 번 더 막는다.
+    """
+    return _GATE_PREFIX_RE.sub("", text or "").strip()
+
+
 def load_targets(client, args: argparse.Namespace) -> list[dict]:
     """요약 대상 — summary 가 비어 있고 선별 규칙에 걸리는 것, 오래된 것부터."""
     q = (
@@ -241,7 +257,7 @@ def load_targets(client, args: argparse.Namespace) -> list[dict]:
     rows = q.execute().data
     return [
         r for r in rows
-        if is_summary_target(r["kind"], r.get("company_id") is not None, r["title"], r["is_periodic"])
+        if is_relevant(r["kind"], r.get("company_id") is not None, r["title"], r["is_periodic"])
     ]
 
 
@@ -287,7 +303,7 @@ def main() -> int:
             failed.append(f"{label} — 헤드리스 실패")
             continue
 
-        summary = out_path.read_text(encoding="utf-8").strip()
+        summary = clean_summary(out_path.read_text(encoding="utf-8"))
         if not summary:
             failed.append(f"{label} — 요약이 비었음")
             continue
