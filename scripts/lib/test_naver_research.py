@@ -24,8 +24,10 @@ from lib.naver_research import (  # noqa: E402
     is_periodic_title,
     is_summary_target,
     list_url,
+    normalize_opinion,
     parse_detail_page,
     parse_list_page,
+    parse_target_price,
     parse_total_pages,
     pick_delta_base,
     read_url,
@@ -268,12 +270,23 @@ class TestRobotKeyword(unittest.TestCase):
 
 
 class TestSummaryTarget(unittest.TestCase):
-    def test_tracked_company_always_summarized(self):
-        # 정기물이어도 우리 종목이면 요약한다(의도적).
-        self.assertTrue(is_summary_target(KIND_COMPANY, True, "위클리 코멘트", True))
+    """저장·정리 대상 판정 (규칙 개정 2026-08-25 · 사용자 승인)."""
 
-    def test_untracked_company_not_summarized(self):
-        self.assertFalse(is_summary_target(KIND_COMPANY, False, "액추에이터 수혜", False))
+    def test_periodic_always_excluded(self):
+        # 🔴 개정 전엔 "추적 종목이면 정기물이어도 요약"이었다. 사용자 지시
+        #    "위클리 등 관련성 떨어지는 거 제거"로 뒤집혔다 — 되돌리지 말 것.
+        self.assertFalse(is_summary_target(KIND_COMPANY, True, "위클리 코멘트", True))
+
+    def test_untracked_company_with_robot_title_kept(self):
+        # 🔴 개정 전엔 추적 목록 밖이면 무조건 버렸다. 그 규칙이 클로봇·씨메스·큐렉소
+        #    같은 로봇 기업 리포트를 통째로 떨어뜨려 제목 핵심어를 OR 로 더했다.
+        self.assertTrue(is_summary_target(KIND_COMPANY, False, "액추에이터 수혜", False))
+
+    def test_untracked_company_without_robot_title_dropped(self):
+        self.assertFalse(is_summary_target(KIND_COMPANY, False, "3분기 실적 호조", False))
+
+    def test_tracked_company_kept_regardless_of_title(self):
+        self.assertTrue(is_summary_target(KIND_COMPANY, True, "3분기 실적 호조", False))
 
     def test_industry_keyword_and_not_periodic(self):
         self.assertTrue(is_summary_target(KIND_INDUSTRY, False, "휴머노이드 감속기 점검", False))
@@ -283,6 +296,43 @@ class TestSummaryTarget(unittest.TestCase):
 
     def test_industry_without_keyword_excluded(self):
         self.assertFalse(is_summary_target(KIND_INDUSTRY, False, "반도체 업황", False))
+
+
+class TestTargetPrice(unittest.TestCase):
+    """목표주가 단위 파싱 (2026-08-25 회귀 — 65건 중 26건이 1/10000 로 저장돼 있었다)."""
+
+    def test_plain_won(self):
+        self.assertEqual(parse_target_price("목표주가 45,000원 | 투자의견 매수"), 45000)
+
+    def test_manwon_with_decimal(self):
+        # 🔴 실물 사고. 「35.6만원」이 `35` 로 저장됐다.
+        self.assertEqual(parse_target_price("목표주가 35.6만원"), 356000)
+
+    def test_manwon_without_decimal(self):
+        self.assertEqual(parse_target_price("목표가 40만원"), 400000)
+
+    def test_eokwon(self):
+        self.assertEqual(parse_target_price("목표가 1.2억원"), 120000000)
+
+    def test_absent(self):
+        self.assertIsNone(parse_target_price("투자의견 매수"))
+
+
+class TestNormalizeOpinion(unittest.TestCase):
+    def test_folds_english_and_korean(self):
+        for raw in ["Buy", "BUY", "buy", "매수", "Outperform"]:
+            self.assertEqual(normalize_opinion(raw), "매수", raw)
+        for raw in ["Hold", "HOLD", "중립", "Neutral"]:
+            self.assertEqual(normalize_opinion(raw), "중립", raw)
+        for raw in ["Sell", "매도", "Underperform"]:
+            self.assertEqual(normalize_opinion(raw), "매도", raw)
+
+    def test_unknown_kept_as_is(self):
+        self.assertEqual(normalize_opinion("Not Rated"), "Not Rated")
+
+    def test_none(self):
+        self.assertIsNone(normalize_opinion(None))
+        self.assertIsNone(normalize_opinion(""))
 
 
 class TestDelta(unittest.TestCase):

@@ -53,7 +53,7 @@ init_script(__file__)
 from lib.db import WriteSession, get_client  # noqa: E402
 from lib.naver_research import (  # noqa: E402
     KINDS,
-    is_summary_target,
+    is_relevant,
     list_url,
     parse_detail_page,
     parse_list_page,
@@ -233,7 +233,7 @@ def enrich(row: dict, tracked: dict[str, str]) -> dict:
 
     # 🔴 함정 2 — 온전한 제목을 받은 뒤에 다시 판정한다. 잘린 제목으로 매기면
     #    핵심어가 뒤쪽에 있던 산업 리포트를 통째로 놓친다.
-    row["_is_target"] = is_summary_target(
+    row["_is_relevant"] = is_relevant(
         row["kind"],
         bool(company_id),
         row["title"],
@@ -305,16 +305,33 @@ def main() -> int:
         logger.info("신규 0건")
         return EXIT_EMPTY_FULL if args.mode == "full" else EXIT_OK
 
-    logger.info(f"상세 보강 {len(new_rows)}건")
-    enriched = [enrich(r, tracked) for r in new_rows]
-    targets = sum(1 for r in enriched if r["_is_target"])
-    logger.info(f"신규 {len(enriched)}건 · 요약 대상 {targets}건")
+    # 🔴 정기물은 상세를 받아 볼 것도 없다. 목록 제목만으로 확정 배제되므로 여기서 잘라
+    #    상세 요청을 통째로 아낀다(실측 2026-08-25: 407건 중 121건이 정기물).
+    #    목록 제목이 잘려 키워드를 놓친 경우는 is_periodic=False 로 통과해 아래에서
+    #    온전한 제목으로 다시 판정되므로, 놓치는 쪽으로만 틀린다.
+    periodic = [r for r in new_rows if r["is_periodic"]]
+    candidates = [r for r in new_rows if not r["is_periodic"]]
+    if periodic:
+        logger.info(f"정기물 {len(periodic)}건 — 상세 생략·저장 안 함")
+
+    logger.info(f"상세 보강 {len(candidates)}건")
+    enriched = [enrich(r, tracked) for r in candidates]
+
+    # 🔴 비관련 행은 **저장하지 않는다**(사용자 지시·승인 2026-08-25). 화면에서만 걸러
+    #    두면 지운 251건이 다음 수집 때 그대로 되살아난다.
+    relevant = [r for r in enriched if r["_is_relevant"]]
+    dropped = len(new_rows) - len(relevant)
+    logger.info(f"신규 {len(new_rows)}건 → 관련 {len(relevant)}건 (비관련 {dropped}건 버림)")
 
     if args.dry_run:
         logger.info("dry-run — DB 에 쓰지 않았다")
         return EXIT_OK
 
-    db_rows = [to_db_row(r) for r in enriched]
+    if not relevant:
+        logger.info("관련 리포트 0건 — 저장할 것이 없다")
+        return EXIT_OK
+
+    db_rows = [to_db_row(r) for r in relevant]
     try:
         with WriteSession() as w:
             w.table("research_reports").upsert(
@@ -324,7 +341,7 @@ def main() -> int:
         logger.exception(f"upsert 실패: {e}")
         return EXIT_UPSERT_FAILED
 
-    logger.success(f"적재 완료 {len(db_rows)}건 (요약 대상 {targets}건)")
+    logger.success(f"적재 완료 {len(db_rows)}건")
     return EXIT_OK
 
 

@@ -47,7 +47,10 @@ PERIODIC_RE = re.compile(
 ROBOT_KEYWORD_RE = re.compile(
     r"(로봇|로보|휴머노이드|robot|humanoid"
     r"|액추에이터|액츄에이터|감속기|하모닉|사이클로이드"
-    r"|볼스크류|리니어\s*모터|그리퍼|로봇핸드|힘토크|협동로봇)",
+    r"|볼스크류|리니어\s*모터|그리퍼|로봇핸드|힘토크|협동로봇"
+    # 「피지컬 AI」는 이 판의 로봇 리포트가 로봇이라는 말 없이 쓰는 대표 용어다.
+    # 2026-08-25 실측에서 이 한 낱말이 9건을 갈랐다.
+    r"|피지컬\s*AI|physical\s*ai)",
     re.IGNORECASE,
 )
 
@@ -234,10 +237,7 @@ def parse_detail_page(
     # 🔴 「목표주가」만 찾으면 놓친다 — 네이버 상세 페이지의 요약 줄은 **「목표가」**로 적는다
     #    (예: `목표가 790,000 | 투자의견 매수`). 2026-08-24 실측에서 종목분석 194건 중
     #    목표주가가 채워진 것이 65건(33.5%)뿐이었던 원인이 이것이다.
-    target_price = None
-    m = re.search(r"목표(?:주)?가\s*[:\s]*([0-9,]+)", text)
-    if m:
-        target_price = _parse_int(m.group(1))
+    target_price = parse_target_price(text)
 
     opinion = None
     m = re.search(
@@ -245,7 +245,7 @@ def parse_detail_page(
         text,
     )
     if m:
-        opinion = m.group(1)
+        opinion = normalize_opinion(m.group(1))
 
     return {
         "pdf_url": pdf_url,
@@ -253,6 +253,33 @@ def parse_detail_page(
         "target_price": target_price,
         "opinion": opinion,
     }
+
+
+# 목표주가 문구. 「목표주가」/「목표가」 뒤에 소수점과 만/억 단위가 붙을 수 있다.
+_TARGET_PRICE_RE = re.compile(r"목표(?:주)?가\s*[:\s]*([0-9][0-9,]*(?:\.\d+)?)\s*(만|억)?\s*원?")
+
+_PRICE_UNIT_MULTIPLIER = {None: 1, "": 1, "만": 10_000, "억": 100_000_000}
+
+
+def parse_target_price(text: str) -> int | None:
+    """본문에서 목표주가를 원 단위 정수로 뽑는다. 없으면 None.
+
+    🔴 단위를 안 보면 조용히 1/10000 이 된다. 실측(2026-08-25): 「목표주가 35.6만원」이
+       `35` 로 저장돼 있었다 — 옛 정규식이 `[0-9,]+` 만 잡아 소수점 앞에서 끊기고
+       「만원」을 버렸기 때문이다. 65건 중 26건이 이렇게 망가져 있었다.
+
+    소수점도 반드시 받아야 한다. 「35.6만원」에서 `.6` 을 버리면 35만원이 되어
+    6천원이 사라진다.
+    """
+    m = _TARGET_PRICE_RE.search(text or "")
+    if not m:
+        return None
+    try:
+        amount = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    value = round(amount * _PRICE_UNIT_MULTIPLIER[m.group(2)])
+    return value if value > 0 else None
 
 
 def is_periodic_title(title: str) -> bool:
@@ -265,27 +292,70 @@ def has_robot_keyword(title: str) -> bool:
     return bool(ROBOT_KEYWORD_RE.search(title or ""))
 
 
-def is_summary_target(
+def is_relevant(
     kind: str,
     is_tracked_company: bool,
     title: str,
     is_periodic: bool,
 ) -> bool:
-    """요약할 것인가 (계획서 확정된 결정 3 — 리스트 연동 선별).
+    """이 리포트를 **저장하고 정리할 것인가** (사용자 지시·승인 2026-08-25).
 
-        요약한다  ← 우리 휴머노이드 리스트 종목이면 제목 무관 전부
-        요약한다  ← 산업분석이면서 제목에 로봇 핵심어가 있고 정기물이 아닐 때
-        그 외     ← 메타만 저장
+        버린다   ← 정기물(데일리·위클리·모닝 등)이면 무조건
+        남긴다   ← 종목분석이면서 (우리 추적 종목 OR 제목에 로봇 핵심어)
+        남긴다   ← 산업분석이면서 제목에 로봇 핵심어
+        그 외    ← 버린다
 
-    🔴 종목 리포트에 정기물 조건을 걸지 않는 것은 의도다. 우리가 추적하는 16사는
-       리포트 자체가 드물어서, 「위클리」라는 말이 제목에 들어갔다고 버리면
-       그 종목의 유일한 최신 정보를 놓친다.
+    🔴 판정이 두 번 바뀌었다. 되돌리지 않도록 경위를 남긴다.
+
+    ① 처음(2026-08-24)엔 종목분석을 **추적 종목만** 통과시켰다. 그런데 2026-08-25 실측에서
+       그 규칙이 클로봇·씨메스·큐렉소·피앤에스로보틱스·나우로보틱스·한국피아이엠 같은
+       **명백한 로봇 기업 리포트를 통째로 떨어뜨리고** 있었다. 추적 67사 밖이라는 이유
+       하나였고 제목에는 로봇·액추에이터·감속기가 들어 있었다. 그래서 제목 핵심어를 OR 로 더했다.
+
+    ② 처음엔 종목분석에 정기물 조건을 **일부러 걸지 않았다**("추적사는 리포트가 드무니
+       위클리라도 건지자"). 사용자가 "위클리 등 관련성 떨어지는 거 제거하고 필요한 것만"
+       이라고 명시해 뒤집었다(2026-08-25). 정기물은 시황 나열이라 종목 분석이 아니다.
+
+    🔴 이 판정은 **수집 단계의 저장 여부**로도 쓴다. 화면에서만 걸러 두면 지운 행이
+       다음 수집 때 그대로 되살아난다.
     """
-    if kind == KIND_COMPANY and is_tracked_company:
-        return True
-    if kind == KIND_INDUSTRY and has_robot_keyword(title) and not is_periodic:
-        return True
+    if is_periodic:
+        return False
+    if kind == KIND_COMPANY:
+        return is_tracked_company or has_robot_keyword(title)
+    if kind == KIND_INDUSTRY:
+        return has_robot_keyword(title)
     return False
+
+
+# 요약 대상 = 저장 대상. 남긴 것은 전부 정리해 둔다 — "PDF 링크만 있는 행"을 만들지
+# 않는 것이 2026-08-25 변경의 목적이다.
+is_summary_target = is_relevant
+
+
+# 투자의견 표기는 증권사마다 제각각이다(실측 2026-08-25: Buy · BUY · Hold · 매수 공존).
+# 화면에서 같은 뜻이 다른 배지로 갈리지 않도록 한국어 3종으로 접는다.
+_OPINION_MAP = {
+    "buy": "매수",
+    "매수": "매수",
+    "outperform": "매수",
+    "strongbuy": "매수",
+    "hold": "중립",
+    "중립": "중립",
+    "neutral": "중립",
+    "marketperform": "중립",
+    "sell": "매도",
+    "매도": "매도",
+    "underperform": "매도",
+}
+
+
+def normalize_opinion(raw: str | None) -> str | None:
+    """투자의견 표기를 매수/중립/매도로 접는다. 모르는 표기는 원문 그대로 둔다."""
+    if not raw:
+        return None
+    key = re.sub(r"[\s_-]+", "", raw).lower()
+    return _OPINION_MAP.get(key, raw.strip())
 
 
 def delta_group_key(row: dict[str, Any]) -> tuple[str, str]:

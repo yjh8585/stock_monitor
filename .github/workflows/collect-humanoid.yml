@@ -1,0 +1,81 @@
+name: 휴머노이드 회사 자동 수집·보강
+
+# 사용자 지시 2026-08-25 — "gha에 휴머노이드 회사 자동수집도 포함시켜".
+#
+# 🔴 왜 별도 워크플로인가:
+#   주가(collect-prices)·뉴스(collect-news)는 이미 active 회사 **전역**을 돌기 때문에
+#   휴머노이드 67사도 자동으로 포함된다. 문제는 나머지 둘이다.
+#     - collect-financials 는 분기 스케줄(1/4/7/10월 15일)이라 신규 등재사는 최대 3개월 공백
+#     - enrich-company 는 월 1회(1일)라 설명·제품·고객사·기업가치가 한 달 늦다
+#   휴머노이드는 신규 등재·비상장 비중이 커서 이 주기가 그대로 "빈 화면"이 된다.
+#   그래서 이 페이지만 주 1회 따로 돌린다. 전역 워크플로와 겹쳐도 둘 다 멱등이라 무해하다.
+#
+# 🔴 기업가치(valuation_usd·funding_total_usd)는 이 경로가 **유일한 수집처**다.
+#    2026-08-25 이전엔 seed 마이그레이션 하드코딩이 전부였고 갱신 경로가 없었다.
+
+on:
+  schedule:
+    - cron: '0 20 * * 0' # KST 월요일 05:00 (UTC 일요일 20:00)
+  workflow_dispatch:
+    inputs:
+      target_tickers:
+        description: '특정 ticker만 (콤마 구분). 비우면 humanoid 페이지 전체.'
+        required: false
+        type: string
+      skip_financials:
+        description: '1이면 재무 수집 건너뜀'
+        required: false
+        type: string
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: scripts
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v7
+
+      - name: Python 3.13 설정
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: Playwright Chromium 설치
+        run: python -m playwright install --with-deps chromium
+
+      # 실적 + 설명·제품·고객사·홈페이지 + 비상장 기업가치.
+      # --skip-news 인 이유: 뉴스는 바로 아래 collect_news.py 가 전역으로 돌린다.
+      - name: 휴머노이드 회사 보강 (재무·메타·기업가치)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          TARGET_TICKERS: ${{ inputs.target_tickers }}
+        run: |
+          ARGS="--page humanoid --skip-news"
+          if [ "${{ inputs.skip_financials }}" = "1" ]; then
+            ARGS="$ARGS --skip-financials"
+          fi
+          python enrich_company.py $ARGS
+
+      # 뉴스는 전역 수집기를 그대로 쓴다. 비상장 해외사는 Google News RSS 로 간다
+      # (2026-08-25 이전엔 ticker 없는 회사가 yfinance 로 가서 무조건 0건이었다).
+      - name: 뉴스 수집
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+        run: python collect_news.py
