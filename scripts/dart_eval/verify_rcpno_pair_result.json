@@ -1,0 +1,102 @@
+[
+ {
+  "rcp": "20251229000318",
+  "corp": "피앤씨테크",
+  "rcp_att": "20251022000350",
+  "dcm": "10849114",
+  "differs": true,
+  "chars": 18406,
+  "tables": 18,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20260401000003",
+  "corp": "수성웹툰",
+  "rcp_att": "20241016000071",
+  "dcm": "10146339",
+  "differs": true,
+  "chars": 65559,
+  "tables": 133,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20250731000374",
+  "corp": "삼영",
+  "rcp_att": "20250618000363",
+  "dcm": "10690312",
+  "differs": true,
+  "chars": 35463,
+  "tables": 75,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20260109000275",
+  "corp": "아이윈",
+  "rcp_att": "20251215000477",
+  "dcm": "10924970",
+  "differs": true,
+  "chars": 20386,
+  "tables": 17,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20241231000363",
+  "corp": "HC홈센타",
+  "rcp_att": "20240911000396",
+  "dcm": "10112280",
+  "differs": true,
+  "chars": 33053,
+  "tables": 39,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20250117000136",
+  "corp": "가온전선",
+  "rcp_att": "20241119000115",
+  "dcm": "10190195",
+  "differs": true,
+  "chars": 36955,
+  "tables": 60,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20251113000348",
+  "corp": "퀀텀레일",
+  "rcp_att": "20240913000620",
+  "dcm": "10116345",
+  "differs": true,
+  "chars": 19415,
+  "tables": 16,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20241128001437",
+  "corp": "KS인더스트리",
+  "rcp_att": "20241127000889",
+  "dcm": "10201899",
+  "differs": true,
+  "chars": 19598,
+  "tables": 30,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20260430001805",
+  "corp": "알엔투테크놀로지",
+  "rcp_att": "20260420000544",
+  "dcm": "11337277",
+  "differs": true,
+  "chars": 19637,
+  "tables": 20,
+  "kind": "HTML"
+ },
+ {
+  "rcp": "20240827000595",
+  "corp": "테라사이언스",
+  "rcp_att": "20251212000544",
+  "dcm": "10922276",
+  "differs": true,
+  "chars": 12519,
+  "tables": 14,
+  "kind": "HTML"
+ }
+]
