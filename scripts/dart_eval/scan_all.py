@@ -191,18 +191,36 @@ def parse(xml: str) -> dict:
                 op = max(cand, key=len)
             break
     out["opinion"] = op
-    if op:
-        out.update(parse_opinion(op))
 
+    # 🔴 금액 필드를 **의견 파싱보다 먼저** 뽑는다 — 거래가의 정본이라 힌트로 넘겨야 한다.
     for lb in ("양수금액", "양도금액", "취득금액", "처분금액", "거래대금", "양수가액", "양도가액"):
         v = after([lb])
         if v and re.search(r"\d", v):
             out["deal_amount_raw"] = f"{lb}={v}"
             break
+
+    if op:
+        out.update(parse_opinion(op, price_from_raw(out.get("deal_amount_raw"))))
     return out
 
 
-def parse_opinion(op: str) -> dict:
+def price_from_raw(raw: str | None) -> float | None:
+    """🔴 거래가의 정본 — 공시 본문의 금액 필드(`양수금액=58,000,000,000`)를 백만원으로.
+
+    의견서 본문 정규식보다 **이쪽이 먼저다.** 본문에서 뽑으면 「평가가액」이 섞여 들어간다
+    (실측 9.2% 오염 · JW생명과학 건은 평가액 하단이 거래가 자리에 있었다).
+
+    ⚠️ 단위를 크기로 추측하지 않는다. **9자리(1억) 이상 숫자만** 후보로 보고, 없으면 None 을
+       돌려 되받이 경로로 넘긴다. 「양수금액(원)(A) : 39,150,136」 처럼 단위가 애매한 표기가 있다.
+    """
+    if not raw:
+        return None
+    cands = [int(x.replace(",", "")) for x in re.findall(r"[\d,]{9,}", raw)]
+    cands = [c for c in cands if c >= 10 ** 8]
+    return max(cands) / 1_000_000 if cands else None
+
+
+def parse_opinion(op: str, price_hint: float | None = None) -> dict:
     """평가의견 전문에서 파생 값을 뽑는다.
 
     🔴 본문 XML 재수신 없이 재계산할 수 있도록 **의견 전문만** 입력으로 받는다
@@ -258,11 +276,18 @@ def parse_opinion(op: str) -> dict:
             r"(?:평가액|평가금액|주식가치|가치).{0,80}?([\d,]{3,})\s*백만\s*원?"
             r"\s*(?:\([^)]{0,80}\))?\s*(?:에서|부터|~|∼|-)\s*"
             r"([\d,]{3,})\s*백만\s*원?", op)
-        # 실제 거래가액 — 「양수 예정가액」 「거래가액」 등 (범위 선택보다 먼저 뽑는다)
-        pr = re.findall(
-            r"(?:양수|양도|취득|처분)?\s*(?:예정)?\s*가액.{0,20}?([\d,]{3,})\s*백만\s*원?", op)
-        if pr:
-            out["deal_price_mn"] = _num(pr[-1])
+        # 실제 거래가액 (범위 선택보다 먼저 뽑는다)
+        # 🔴 1순위는 **공시 본문의 금액 필드**(`price_hint`)다. 본문 정규식은 되받이일 뿐이다.
+        #    옛 정규식은 앞부분이 선택이라 **「평가가액」까지 걸려** 평가액이 거래가 자리에
+        #    들어갔다(실측 9.2% 오염). 앞부분을 **필수**로 바꿔 그 경로를 막는다.
+        if price_hint is not None:
+            out["deal_price_mn"] = price_hint
+        else:
+            pr = re.findall(
+                r"(?:양수도?|양도|취득|처분|거래)\s*(?:예정)?\s*가액.{0,20}?([\d,]{3,})"
+                r"\s*백만\s*원?", op)
+            if pr:
+                out["deal_price_mn"] = _num(pr[-1])
 
         # 🔴 범위가 여러 개 나오면 **거래가가 실제로 들어가는 범위**를 고른다.
         #    의견서는 회사 **전체** 가치와 **취득 지분분** 가치를 함께 적는다. 실물:
@@ -407,7 +432,7 @@ def main() -> None:
                       "price_vs_eval_pct", "within_range", "range_width_x",
                       "eval_range_count", "values_mn"):
                 rec.pop(k, None)
-            rec.update(parse_opinion(op))
+            rec.update(parse_opinion(op, price_from_raw(rec.get("deal_amount_raw"))))
             n += 1
         with io.open(raw_path, "w", encoding="utf-8", newline="\n") as f:
             for rec in done.values():

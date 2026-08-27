@@ -12,3 +12,4 @@ fetch_opinion_result.json
 q2_targets.json
 _fetch_log.txt
 _pair_log.txt
+fetch_opinion_last_run.json
