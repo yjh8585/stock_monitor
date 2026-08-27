@@ -2,3 +2,13 @@
 major_2y.json
 *.zip
 _tmp.*
+# Q1a 층1 스캔 캐시 — 목록 653KB · 건별 파싱 1.3MB.
+# 🔴 raw 는 지우지 말 것: `--reparse` 가 이 파일로 **API 호출 0회** 재계산을 한다.
+#    (정규식을 고칠 때마다 2,181건을 다시 받으면 8분씩 든다)
+scan_all_list.json
+scan_all_raw.jsonl
+_scan_log.txt
+fetch_opinion_result.json
+q2_targets.json
+_fetch_log.txt
+_pair_log.txt
