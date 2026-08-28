@@ -233,17 +233,26 @@ def page_name(i: int, total: int, url: str) -> str:
     return f"page_{i:0{max(2, len(str(total)))}d}{ext_of(url)}"
 
 
+NEVER_FETCHED = -1
+UNKNOWN = -2  # `_meta.json` 은 있는데 `missing` 키가 없다 — 완전한지 «판정할 수 없다»
+
+
 def n_missing(folder: Path) -> int:
-    """이 폴더를 **다시 받아야 하는가**. `-1` 이면 아직 받은 적이 없다.
+    """빠진 장 수. `NEVER_FETCHED`(-1) = 받은 적 없음 · `UNKNOWN`(-2) = 판정 불가.
 
     🔴 `_meta.json` 이 있다는 것만으로 건너뛰면, 페이지 일부가 실패한 폴더가 영원히
        「받음」으로 굳는다. 계약서는 한 장이 빠지면 그 조항이 통째로 사라지는데,
        콘솔 로그가 사라지면 빠졌다는 사실 자체가 남지 않는다.
+    🔴 그리고 **키가 없는 것을 「빈 배열」로 읽지 않는다.** `.get("missing", [])` 로
+       읽으면 옛 폴더가 기본값 덕에 «우연히» 완전해 보인다 — 못 잰 것은 0 이 아니다.
     """
     p = folder / "_meta.json"
     if not p.exists():
-        return -1
-    return len(json.loads(p.read_text(encoding="utf-8")).get("missing", []))
+        return NEVER_FETCHED
+    meta = json.loads(p.read_text(encoding="utf-8"))
+    if "missing" not in meta:
+        return UNKNOWN
+    return len(meta["missing"])
 
 
 def fetch_one(row: dict) -> dict | None:
@@ -251,6 +260,11 @@ def fetch_one(row: dict) -> dict | None:
     rcp, corp = row["rcp"], row.get("corp")
     folder = OUT_DIR / f"{safe(corp)}_{rcp}"
     n_lost = n_missing(folder)
+    if n_lost == UNKNOWN:
+        # 🔴 조용히 통과시키지 않는다. 다시 받지도 않는다(네트워크를 아끼려고) —
+        #    `--renumber` 가 파일에서 세워 백필한다.
+        print(f"  🔴 건너뜀(완전한지 판정 불가 — `--renumber` 로 키를 백필할 것) {corp} {rcp}")
+        return None
     if n_lost == 0:
         # 🔴 None 을 돌려준다 — 건너뛴 것을 「받았다」로 세면 `--limit` 이 소진돼
         #    「이어서 더 받기」가 안 된다.
@@ -351,7 +365,22 @@ def renumber(folder: Path) -> str:
     lost = [{"page": i, "src_url": u} for i, u in enumerate(ordered, 1)
             if not (folder / by_url[u]["file"]).exists()]
     same = want == meta["pages"]
-    if same and not lost:
+
+    # 🔴 옛 폴더(1차 수집분)엔 `n_expected`·`missing` 키가 **아예 없다.**
+    #    그러면 skip 판정이 `.get("missing", [])` 의 기본값 덕에 «우연히» 0 으로 읽힐 뿐,
+    #    「이 폴더는 완전하다」가 파일에 **기록돼 있지는 않다** — Important 2 를 고친 목적이
+    #    「빠진 장이 있다는 사실이 남게 한다」였으니 키 부재를 조용히 통과시키면 안 된다.
+    #    수집 당시에 «잰» 값이 아니라 사후에 파일에서 «세운» 값이므로 출처를 함께 남긴다.
+    backfilled = False
+    if "n_expected" not in meta:
+        meta["n_expected"] = len(ordered)
+        meta["n_expected_source"] = "backfill"
+        backfilled = True
+    if "missing" not in meta:
+        meta["missing"] = []
+        backfilled = True
+
+    if same and not lost and not backfilled:
         return "그대로"
 
     if not same:
@@ -370,11 +399,11 @@ def renumber(folder: Path) -> str:
 
     if lost:
         # 「받음」으로 굳지 않게 미완으로 표시한다 — 다음 실행이 다시 받는다.
-        seen = {m["src_url"] for m in meta.get("missing", [])}
-        meta["missing"] = meta.get("missing", []) + [m for m in lost if m["src_url"] not in seen]
+        seen = {m["src_url"] for m in meta["missing"]}
+        meta["missing"] = meta["missing"] + [m for m in lost if m["src_url"] not in seen]
     (folder / "_meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
-    head = "그대로" if same else "다시 매김"
+    head = "다시 매김" if not same else ("키 백필" if backfilled else "그대로")
     return f"{head}{f' 🔴 파일 없는 장 {len(lost)}' if lost else ''}"
 
 

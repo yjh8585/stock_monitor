@@ -10,7 +10,7 @@
 import json
 
 from dart_eval.fetch_contracts import (
-    n_missing, page_name, page_urls, renumber, sort_pages,
+    NEVER_FETCHED, UNKNOWN, n_missing, page_name, page_urls, renumber, sort_pages,
 )
 
 
@@ -192,13 +192,25 @@ def test_renumber_flags_pages_whose_file_vanished(tmp_path):
 # ───────────────────── 미완 폴더를 「받음」으로 굳히지 않는다 ─────────────────────
 
 def test_n_missing_says_never_fetched(tmp_path):
-    assert n_missing(tmp_path / "없는폴더") == -1
+    assert n_missing(tmp_path / "없는폴더") == NEVER_FETCHED
 
 
-def test_n_missing_zero_means_skip(tmp_path):
+def test_n_missing_will_not_read_absent_key_as_empty(tmp_path):
+    """🔴 옛 폴더엔 `missing` 키가 아예 없다 — 그것을 「빈 배열」로 읽으면 안 된다.
+
+    `.get("missing", [])` 로 읽으면 기본값 덕에 «우연히» 완전해 보인다.
+    못 잰 것은 0 이 아니다 → 판정 불가(`UNKNOWN`)로 갈라야 백필 대상이 드러난다.
+    """
+    u = "https://d/report/download.do?flNm=a_1.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u)])          # 옛 서식(키 없음)
+    assert n_missing(d) == UNKNOWN
+
+
+def test_n_missing_zero_after_backfill(tmp_path):
     u = "https://d/report/download.do?flNm=a_1.jpg"
     d = _folder(tmp_path, [("page_01.jpg", u)])
-    assert n_missing(d) == 0            # `missing` 키가 아예 없어도 0 = 완료
+    renumber(d)                                          # 백필
+    assert n_missing(d) == 0
 
 
 def test_n_missing_counts_failed_pages(tmp_path):
@@ -209,3 +221,33 @@ def test_n_missing_counts_failed_pages(tmp_path):
     m["missing"] = [{"page": 2, "src_url": "https://d/x?flNm=a_2.jpg"}]
     (d / "_meta.json").write_text(json.dumps(m, ensure_ascii=False), encoding="utf-8")
     assert n_missing(d) == 1
+
+
+# ───────────────────── 옛 폴더 키 백필 (n_expected · missing) ─────────────────────
+
+def test_renumber_backfills_keys_on_old_folder(tmp_path):
+    """🔴 순서가 이미 맞아도 키가 없으면 「그대로」로 통과시키면 안 된다."""
+    u = "https://d/report/download.do?flNm=a_{}.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u.format(1)), ("page_02.jpg", u.format(2))])
+    assert "n_expected" not in _meta(d)
+    assert renumber(d) == "키 백필"
+    m = _meta(d)
+    assert m["n_expected"] == 2
+    assert m["missing"] == []
+    # 수집 당시에 «잰» 값이 아니라 사후에 파일에서 «세운» 값임을 남긴다
+    assert m["n_expected_source"] == "backfill"
+
+
+def test_renumber_does_not_overwrite_measured_n_expected(tmp_path):
+    """수집 당시에 잰 값이 있으면 덮지 않는다 — 그쪽이 더 믿을 만하다."""
+    u = "https://d/report/download.do?flNm=a_1.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u)])
+    m = _meta(d)
+    m["n_expected"] = 5            # 5장 중 1장만 받은 미완 폴더
+    m["missing"] = [{"page": 2, "src_url": "https://d/x?flNm=a_2.jpg"}]
+    (d / "_meta.json").write_text(json.dumps(m, ensure_ascii=False), encoding="utf-8")
+    renumber(d)
+    out = _meta(d)
+    assert out["n_expected"] == 5
+    assert "n_expected_source" not in out
+    assert [x["page"] for x in out["missing"]] == [2]
