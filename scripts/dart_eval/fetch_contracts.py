@@ -22,12 +22,13 @@ Step 1 실측 (2026-08-28 · 산돌→윤디자인 20240531002991 dcmNo=9974759)
   - env 는 `lib.bootstrap.init_script(__file__)` 로 로드한다.
 
 산출 (Task 2 가 읽는다):
-    <볼트>/지식/_추출/dart-contract/<회사>_<rcp>/page_01.jpg …
+    <볼트>/지식/_추출/dart-contract/<회사>_<rcp>/page_01.jpg …  (235장이면 page_001 — 자릿수는 장수에서)
     <볼트>/지식/_추출/dart-contract/<회사>_<rcp>/_meta.json
-        {rcp, corp, deal, att_name, pages: [{file, src_url}]}
+        {rcp, corp, deal, att_name, n_expected, missing, pages: [{file, src_url, bytes}]}
 
 실행:
     ./scripts/venv/Scripts/python.exe -X utf8 -u scripts/dart_eval/fetch_contracts.py --limit 5
+    ... --renumber    이미 받은 폴더의 파일명·순서만 다시 매긴다(네트워크 0회)
 """
 
 import argparse
@@ -36,6 +37,7 @@ import os
 import re
 import sys
 import time
+from html import unescape
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -134,7 +136,7 @@ def att_pairs(rcp: str):
         return []
     out = []
     for v, t in re.findall(r'<option[^>]*value="([^"]*)"[^>]*>(.*?)</option>', m.group(0), re.S):
-        v = v.replace("&amp;", "&")
+        v = unescape(v)
         mr, md = re.search(r"rcpNo=(\d+)", v), re.search(r"dcmNo=(\d+)", v)
         if mr and md:
             nm = re.sub(r"\s+", " ", re.sub("<[^>]+>", "", t)).replace("\xa0", " ").strip()
@@ -153,7 +155,7 @@ def page_urls(html: str, base: str = BASE) -> list[str]:
     for src in IMG_RE.findall(html):
         if SKIP.search(src):
             continue
-        src = src.replace("&amp;", "&")
+        src = unescape(src)
         url = src if src.startswith("http") else base + src
         if url in seen:
             continue
@@ -220,13 +222,42 @@ def ext_of(url: str) -> str:
     return f".{m.group(1).lower()}" if m else ".jpg"
 
 
+def page_name(i: int, total: int, url: str) -> str:
+    """`page_007.jpg` — 🔴 0채움 자릿수를 **전체 장수에서 뽑는다**.
+
+    2자리 고정이면 100장 넘는 폴더에서 파일명 사전순이 `page_09 → page_10 → page_100 → …
+    → page_11` 로 깨진다(KT지니뮤직 235장에서 실제로 깨졌다). `_meta.json` 의 배열 순서는
+    맞더라도 Task 2 가 `glob("page_*")` + `sorted()` 로 읽는 순간 계약서 4종이 뒤섞인다 —
+    `sort_pages` 로 고친 것과 **같은 종류의 사고가 파일명 층에서 되살아난 것**이다.
+    """
+    return f"page_{i:0{max(2, len(str(total)))}d}{ext_of(url)}"
+
+
+def n_missing(folder: Path) -> int:
+    """이 폴더를 **다시 받아야 하는가**. `-1` 이면 아직 받은 적이 없다.
+
+    🔴 `_meta.json` 이 있다는 것만으로 건너뛰면, 페이지 일부가 실패한 폴더가 영원히
+       「받음」으로 굳는다. 계약서는 한 장이 빠지면 그 조항이 통째로 사라지는데,
+       콘솔 로그가 사라지면 빠졌다는 사실 자체가 남지 않는다.
+    """
+    p = folder / "_meta.json"
+    if not p.exists():
+        return -1
+    return len(json.loads(p.read_text(encoding="utf-8")).get("missing", []))
+
+
 def fetch_one(row: dict) -> dict | None:
-    """공시 1건의 계약서 첨부를 폴더 하나로 내려받는다. 대상 없으면 None."""
+    """공시 1건의 계약서 첨부를 폴더 하나로 내려받는다. 대상 없거나 건너뛰면 None."""
     rcp, corp = row["rcp"], row.get("corp")
     folder = OUT_DIR / f"{safe(corp)}_{rcp}"
-    if (folder / "_meta.json").exists():
+    n_lost = n_missing(folder)
+    if n_lost == 0:
+        # 🔴 None 을 돌려준다 — 건너뛴 것을 「받았다」로 세면 `--limit` 이 소진돼
+        #    「이어서 더 받기」가 안 된다.
         print(f"  건너뜀(이미 받음) {corp} {rcp}")
-        return {"skipped": True, "dir": str(folder)}
+        return None
+    if n_lost > 0:
+        print(f"  다시 시도(빠진 {n_lost}장) {corp} {rcp}")
 
     pairs = att_pairs(rcp)
     if not pairs:
@@ -246,16 +277,23 @@ def fetch_one(row: dict) -> dict | None:
         return None
 
     folder.mkdir(parents=True, exist_ok=True)
-    pages, sizes = [], []
+    pages, sizes, missing = [], [], []
     for i, u in enumerate(urls, 1):
-        blob = get_bytes(u)
-        if blob is None:
-            print(f"    !! page {i} 실패")
-            continue
-        fn = f"page_{i:02d}{ext_of(u)}"
-        (folder / fn).write_bytes(blob)
-        pages.append({"file": fn, "src_url": u, "bytes": len(blob)})
-        sizes.append(len(blob))
+        fn = page_name(i, len(urls), u)
+        p = folder / fn
+        if p.exists() and p.stat().st_size > 0:
+            # 앞선 실행이 이미 받아 둔 장 — 다시 받지 않는다(빠진 장만 메우려는 것이다).
+            size = p.stat().st_size
+        else:
+            blob = get_bytes(u)
+            if blob is None:
+                print(f"    !! page {i} 실패 — 미완으로 남긴다")
+                missing.append({"page": i, "src_url": u})
+                continue
+            p.write_bytes(blob)
+            size = len(blob)
+        pages.append({"file": fn, "src_url": u, "bytes": size})
+        sizes.append(size)
 
     meta = {
         "rcp": rcp,
@@ -269,6 +307,10 @@ def fetch_one(row: dict) -> dict | None:
         "att_name": att_name,
         "att_rcp": att_rcp,
         "dcm_no": dcm,
+        "n_expected": len(urls),
+        # 🔴 빠진 장을 여기 남긴다. 비어 있지 않으면 다음 실행이 **건너뛰지 않고 다시 시도**한다.
+        #    계약서는 한 장이 빠지면 그 조항이 통째로 사라진다 — 「받음」으로 굳히면 안 된다.
+        "missing": missing,
         "pages": pages,
     }
     (folder / "_meta.json").write_text(
@@ -277,7 +319,9 @@ def fetch_one(row: dict) -> dict | None:
     total = sum(sizes)
     uniq = len(set(sizes))
     warn = "  🔴 크기가 모두 같다 — 아이콘 의심" if len(sizes) > 1 and uniq == 1 else ""
-    print(f"  ok {corp} {rcp} · {len(pages)}장 · {total:,}바이트 · 크기종류 {uniq}{warn}")
+    if missing:
+        warn += f"  🔴 {len(missing)}장 빠짐(미완 — 다음 실행이 다시 시도한다)"
+    print(f"  ok {corp} {rcp} · {len(pages)}/{len(urls)}장 · {total:,}바이트 · 크기종류 {uniq}{warn}")
     print(f"     {folder}")
     return meta
 
@@ -288,28 +332,50 @@ def renumber(folder: Path) -> str:
     정렬 규칙이 나아졌을 때 21MB 를 다시 받지 않으려고 둔다 — DART 를 다시 두들기는 것이
     가장 비싼 실패다. 판단 근거는 `_meta.json` 의 `src_url` 이라 원본 이름이 그대로 남아 있다.
     """
+    # 🔴 앞선 실행이 2단 개명 도중 끊겼으면 `.tmp` 가 남는다. 되돌려 놓고 시작한다
+    #    (안 되돌리면 `_meta.json` 은 옛 이름을 가리키는데 파일이 없어 재실행이 죽는다).
+    for t in folder.glob("*.tmp"):
+        orig = t.with_suffix("")
+        if not orig.exists():
+            t.rename(orig)
+
     meta = json.loads((folder / "_meta.json").read_text(encoding="utf-8"))
     by_url = {p["src_url"]: p for p in meta["pages"]}
     ordered = sort_pages(list(by_url))
-    if [by_url[u]["file"] for u in ordered] == [p["file"] for p in meta["pages"]]:
+    total = len(ordered)
+    want = [{"file": page_name(i, total, u), "src_url": u, "bytes": by_url[u]["bytes"]}
+            for i, u in enumerate(ordered, 1)]
+
+    # 메타엔 있는데 파일이 없는 장. 🔴 순서가 이미 맞는 폴더에서도 확인해야 한다 —
+    #    「그대로」로 일찍 빠져나가면 빠진 장이 영영 안 보인다.
+    lost = [{"page": i, "src_url": u} for i, u in enumerate(ordered, 1)
+            if not (folder / by_url[u]["file"]).exists()]
+    same = want == meta["pages"]
+    if same and not lost:
         return "그대로"
 
-    # 2단 개명 — `page_02 -> page_01` 같은 자리바꿈이 서로를 덮어쓰지 않게 한다.
-    tmp = {}
-    for u in ordered:
-        src = folder / by_url[u]["file"]
-        dst = folder / (by_url[u]["file"] + ".tmp")
-        src.rename(dst)
-        tmp[u] = dst
-    pages = []
-    for i, u in enumerate(ordered, 1):
-        fn = f"page_{i:02d}{ext_of(u)}"
-        tmp[u].rename(folder / fn)
-        pages.append({"file": fn, "src_url": u, "bytes": by_url[u]["bytes"]})
-    meta["pages"] = pages
+    if not same:
+        # 2단 개명 — `page_02 -> page_01` 같은 자리바꿈이 서로를 덮어쓰지 않게 한다.
+        tmp = {}
+        for u in ordered:
+            src = folder / by_url[u]["file"]
+            if src.exists():
+                dst = folder / (by_url[u]["file"] + ".tmp")
+                src.rename(dst)
+                tmp[u] = dst
+        for i, u in enumerate(ordered, 1):
+            if u in tmp:
+                tmp[u].rename(folder / want[i - 1]["file"])
+        meta["pages"] = want
+
+    if lost:
+        # 「받음」으로 굳지 않게 미완으로 표시한다 — 다음 실행이 다시 받는다.
+        seen = {m["src_url"] for m in meta.get("missing", [])}
+        meta["missing"] = meta.get("missing", []) + [m for m in lost if m["src_url"] not in seen]
     (folder / "_meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
-    return "다시 매김"
+    head = "그대로" if same else "다시 매김"
+    return f"{head}{f' 🔴 파일 없는 장 {len(lost)}' if lost else ''}"
 
 
 def main() -> int:

@@ -7,7 +7,11 @@
 
 즉 확장자는 `.jpg` 이고 `&` 가 `&amp;` 로 이스케이프돼 있다. 되돌리지 않으면 404 가 온다.
 """
-from dart_eval.fetch_contracts import page_urls, sort_pages
+import json
+
+from dart_eval.fetch_contracts import (
+    n_missing, page_name, page_urls, renumber, sort_pages,
+)
 
 
 def test_page_urls_extracts_images():
@@ -91,3 +95,117 @@ def test_sort_groups_multiple_documents():
     got = _names(sort_pages(urls))
     assert got.index("신주인수계약서0477_001.jpg") + 1 == got.index("신주인수계약서0477_002.jpg")
     assert got.index("주주간계약서0477_001.jpg") + 1 == got.index("주주간계약서0477_002.jpg")
+
+
+def test_page_urls_unescapes_more_than_amp():
+    """`html.unescape` 로 바꿨으니 `&amp;` 말고도 덮인다."""
+    html = '<img src="/report/download.do?a=1&#38;b=2">'
+    assert page_urls(html) == ["https://dart.fss.or.kr/report/download.do?a=1&b=2"]
+
+
+# ───────────────────── 파일명 0채움 자릿수 ─────────────────────
+
+def test_page_name_widens_for_large_folders():
+    """🔴 2자리 고정이면 100장 넘는 폴더의 **파일명 사전순**이 깨진다.
+
+    실측: KT지니뮤직 235장을 이름순으로 늘어놓으면
+    `page_09 → page_10 → page_100 → … → page_11` 이 된다.
+    `_meta.json` 순서가 맞아도 Task 2 가 `glob`+`sorted` 로 읽으면 계약서 4종이 뒤섞인다.
+    """
+    u = "https://d/report/download.do?flNm=a_1.jpg"
+    assert page_name(1, 6, u) == "page_01.jpg"      # 6장 → 2자리
+    assert page_name(9, 235, u) == "page_009.jpg"   # 235장 → 3자리
+    assert page_name(100, 235, u) == "page_100.jpg"
+    # 자릿수가 맞으면 이름순 == 번호순 이다(이게 이 함수의 존재 이유다)
+    names = [page_name(i, 235, u) for i in range(1, 236)]
+    assert sorted(names) == names
+
+
+# ───────────────────── --renumber (파괴적 코드라 시험이 필요하다) ─────────────────────
+
+def _folder(tmp_path, entries):
+    """`entries` = [(파일명, src_url)] 순서 그대로 `_meta.json` 을 만든다."""
+    d = tmp_path / "회사_20210101000001"
+    d.mkdir()
+    pages = []
+    for i, (fn, url) in enumerate(entries, 1):
+        (d / fn).write_bytes(b"x" * (i + 1))
+        pages.append({"file": fn, "src_url": url, "bytes": i + 1})
+    (d / "_meta.json").write_text(
+        json.dumps({"rcp": "1", "corp": "회사", "pages": pages}, ensure_ascii=False),
+        encoding="utf-8")
+    return d
+
+
+def _meta(d):
+    return json.loads((d / "_meta.json").read_text(encoding="utf-8"))
+
+
+def test_renumber_fixes_order_and_width(tmp_path):
+    """잘못 매겨진 폴더를 바로잡는다 — 파일 개수·바이트는 그대로여야 한다."""
+    u = "https://d/report/download.do?flNm=a_{}.jpg"
+    # 일부러 뒤집어 놓는다: page_01 이 3쪽, page_02 가 1쪽 …
+    d = _folder(tmp_path, [("page_01.jpg", u.format(3)),
+                           ("page_02.jpg", u.format(1)),
+                           ("page_03.jpg", u.format(2))])
+    assert renumber(d) == "다시 매김"
+    m = _meta(d)
+    assert [p["file"] for p in m["pages"]] == ["page_01.jpg", "page_02.jpg", "page_03.jpg"]
+    assert [p["src_url"] for p in m["pages"]] == [u.format(1), u.format(2), u.format(3)]
+    # 3쪽짜리 파일(원래 page_01, 2바이트)이 이제 page_03 이어야 한다
+    assert (d / "page_03.jpg").read_bytes() == b"xx"
+    assert sorted(p.name for p in d.iterdir()) == [
+        "_meta.json", "page_01.jpg", "page_02.jpg", "page_03.jpg"]
+
+
+def test_renumber_is_idempotent(tmp_path):
+    """두 번째 호출은 「그대로」 — 파괴적 코드가 매번 파일을 흔들면 안 된다."""
+    u = "https://d/report/download.do?flNm=a_{}.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u.format(2)), ("page_02.jpg", u.format(1))])
+    assert renumber(d) == "다시 매김"
+    assert renumber(d) == "그대로"
+
+
+def test_renumber_recovers_from_interrupted_run(tmp_path):
+    """🔴 2단 개명 도중 끊기면 `.tmp` 가 남고 `_meta.json` 은 옛 이름을 가리킨다.
+
+    되돌리지 않으면 재실행이 `FileNotFoundError` 로 죽는다.
+    """
+    u = "https://d/report/download.do?flNm=a_{}.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u.format(2)), ("page_02.jpg", u.format(1))])
+    # 앞선 실행이 1단만 끝내고 죽은 상태를 흉내낸다
+    (d / "page_01.jpg").rename(d / "page_01.jpg.tmp")
+    assert renumber(d).startswith("다시 매김")
+    assert list(d.glob("*.tmp")) == []
+    assert [p["src_url"] for p in _meta(d)["pages"]] == [u.format(1), u.format(2)]
+
+
+def test_renumber_flags_pages_whose_file_vanished(tmp_path):
+    """메타엔 있는데 파일이 없으면 `missing` 에 남긴다 — 「받음」으로 굳으면 안 된다."""
+    u = "https://d/report/download.do?flNm=a_{}.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u.format(1)), ("page_02.jpg", u.format(2))])
+    (d / "page_02.jpg").unlink()
+    renumber(d)
+    assert [m["page"] for m in _meta(d)["missing"]] == [2]
+
+
+# ───────────────────── 미완 폴더를 「받음」으로 굳히지 않는다 ─────────────────────
+
+def test_n_missing_says_never_fetched(tmp_path):
+    assert n_missing(tmp_path / "없는폴더") == -1
+
+
+def test_n_missing_zero_means_skip(tmp_path):
+    u = "https://d/report/download.do?flNm=a_1.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u)])
+    assert n_missing(d) == 0            # `missing` 키가 아예 없어도 0 = 완료
+
+
+def test_n_missing_counts_failed_pages(tmp_path):
+    """🔴 페이지가 빠진 폴더는 건너뛰면 안 된다 — 빠진 장이 영영 안 받힌다."""
+    u = "https://d/report/download.do?flNm=a_1.jpg"
+    d = _folder(tmp_path, [("page_01.jpg", u)])
+    m = _meta(d)
+    m["missing"] = [{"page": 2, "src_url": "https://d/x?flNm=a_2.jpg"}]
+    (d / "_meta.json").write_text(json.dumps(m, ensure_ascii=False), encoding="utf-8")
+    assert n_missing(d) == 1
