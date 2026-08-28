@@ -124,6 +124,27 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 
 ---
 
+### 5-A. 동영상 첨부 (사내 영상)
+
+유튜브에 올릴 수 없는 사내 촬영 영상은 **비공개 버킷 `reports-video` + `posts.video_path`** 로 붙인다. 상세 페이지가 마크다운 본문 **위에** `<video controls>` 플레이어를 자동으로 띄운다(`components/reports/report-video.tsx`). 본문에 태그를 쓸 필요가 없다.
+
+1. **`faststart` 를 반드시 넣는다.** 원본을 그대로 쓸 때도 remux 한 번은 필요하다(화질 손실 없음, 수십 초).
+
+   ```
+   ffmpeg -i 원본.mp4 -c copy -movflags +faststart 게시용.mp4
+   ```
+
+   - 🔴 **`+faststart` 를 빠뜨리면** moov atom 이 파일 끝에 남아 **파일을 다 받기 전까지 재생이 시작되지 않는다**(오류 없이 그냥 멈춰 있어 원인을 찾기 어렵다). 확인은 `head -c 48 파일.mp4 | od -c` — 앞머리에 `moov` 가 보이면 정상이다.
+   - 용량을 줄여야 하면 `-c:v libx264 -preset fast -crf 28 -c:a aac -b:a 128k` 를 더한다. 다만 **움직임이 많은 실사 영상은 crf 24 로도 절반밖에 안 줄어든다**(실측: 328MB → crf24 약 190MB / crf28 129MB). 줄이는 값에 비해 화질을 잃으므로, 용량 제약이 실제로 없으면 원본을 그대로 쓰는 편이 낫다.
+   - 🔴 **파일당 상한은 버킷 설정이 아니라 프로젝트 전역 `fileSizeLimit` 이 결정한다.** 버킷에 512MB 를 걸어 놔도 전역이 50MB 면 **413 EntityTooLarge** 로 거부된다(2026-08-28 실측으로 걸렸다). 현재 전역값은 512MB. 확인·변경은 Management API `GET/PATCH /v1/projects/<ref>/config/storage`.
+
+2. **업로드**: `reports-video` 버킷에 객체 키를 올린다(비공개라 공개 URL 이 없다). Storage REST 는 `apikey` 헤더 필수.
+3. **INSERT/UPDATE**: `posts.video_path` 에 객체 키를 넣는다. 사내 영상은 대개 **`is_confidential: true`**(§2-C).
+4. **캐시 무효화**: `posts`·`post:<id>`(§2-B).
+
+- 재생은 인증 프록시 `/api/reports/[id]/video` 만 거친다 — 로그인·역할을 확인한 뒤 **단기 서명 URL 로 307** 한다(구간 탐색을 Storage 가 직접 처리하게 하려고. 바이트를 함수로 중계하면 탐색이 아예 안 된다).
+- 썸네일(`thumbnail_url`)은 **사외비 영상이면 비워 둔다** — 그 컬럼은 public 버킷 URL 이라 프레임 한 장이 그대로 새어 나간다.
+
 ## 6. Mermaid 다이어그램
 
 - ` ```mermaid ` 코드펜스로 작성하면 `MermaidBlock`이 SVG로 렌더.
