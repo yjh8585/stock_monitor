@@ -149,7 +149,7 @@
 **API 라우트 분류**:
 
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만)
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
 **이 목록이 라우트 분류의 정본이다** — 새 `app/api/**/route.ts`를 만들면 여기와 `proxy.ts`를 함께 갱신한다(AGENTS.md 는 이 규칙만 싣고 목록은 중복하지 않는다). `/api/revalidate*`은 SSRF·쿠키 가드 패치 이력이 있어 회귀에 주의한다(commit `ea090be`).
@@ -629,7 +629,7 @@ UNIQUE: (source, note_date)
 
 #### `posts` (84행, 2026-08-06 실측) — 보고서 본문
 
-| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at | is_confidential | html_path |
+| id(bigint) | source_type | title | source_name | source_url | file_path | file_name | thumbnail_url | content | key_scenes(jsonb) | status | error_message | source_published_at | category | created_at | updated_at | is_confidential | html_path | video_path |
 
 **인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
 
@@ -644,6 +644,17 @@ UNIQUE: (source, note_date)
 - 🔴 **응답에 `Permissions-Policy` 헤더를 붙이지 말 것** — 보고서에 declared policy 가 생기면 안쪽 유튜브(교차 origin)로의 권한 위임이 조용히 끊긴다. 바깥 iframe 의 `allow` + `allowFullScreen` 이 그 위임의 유일한 통로다.
 - 🔴 **URL 을 이미지 확장자로 끝내지 말 것**(`/api/reports/1/cover.png` 금지) — proxy matcher 가 png/jpg/jpeg/gif/svg/ico/webp 로 끝나는 경로를 통째로 제외해 **인증이 아예 안 걸린다**. 삽화를 API 로 낸다면 `/api/reports/1/asset?f=cover.png` 처럼 확장자를 쿼리로 민다.
 - 업로드 UI 는 아직 없다(`/api/uploads/report` 는 `application/pdf` + public 버킷 전용). 1차 운용은 대시보드/스크립트로 `{YYYY-MM-DD}/{uuid}.html` 을 올리고 `posts.html_path` 를 UPDATE 한 뒤 **반드시** `POST /api/revalidate/posts/<id>`(헤더 `x-revalidate-secret`)로 `'use cache'` 엔트리를 깬다 — 안 깨면 최대 몇 시간 안 보인다.
+
+**버킷 `reports-video`** (비공개, public=false, 정책 없음 → service_role 전용, file_size_limit 512MB, 20260828000001):
+사내 촬영 영상처럼 외부에 올릴 수 없는 동영상을 저장한다. 객체 키는 `posts.video_path`(NULL = 첨부 없음), 재생은 인증 프록시 `/api/reports/[id]/video` 로만 — 그 라우트가 로그인 + 행 단위 역할 게이트를 확인한 뒤 **단기 서명 URL(1시간)로 307 리다이렉트**한다. 상세 페이지는 이것을 `<video controls>`(`components/reports/report-video.tsx`)로 마크다운 본문 **위에** 띄운다.
+
+- 🔴 **HTML 프록시와 달리 바이트를 직접 흘리지 않는다** — 영상은 100MB 안팎이고 브라우저가 탐색할 때마다 Range 요청을 새로 던진다. 서버리스로 중계하면 실행시간·대역폭을 태우고 `blob.stream()` 은 Range 를 해석하지 않아 **구간 탐색이 아예 안 된다**. 서명 URL 로 넘기면 Storage 가 Range 를 직접 처리한다.
+- 🔴 **`-movflags +faststart` 는 필수**다. 빠뜨리면 moov atom 이 파일 끝에 남아 **전체를 받기 전까지 재생이 시작되지 않는다**(오류 없이 멈춰 보인다). 원본을 그대로 쓸 때도 `ffmpeg -c copy -movflags +faststart` remux 한 번은 거친다.
+- 🔴 **파일당 상한은 버킷의 `file_size_limit` 이 아니라 프로젝트 전역 `fileSizeLimit` 이 결정한다** — 버킷에 512MB 를 걸어도 전역이 50MB 면 업로드가 **413 EntityTooLarge** 로 거부된다(2026-08-28 실측). 전역값은 Management API `GET/PATCH /v1/projects/<ref>/config/storage` 로만 보이고 SQL 로는 안 보인다. 2026-08-28 에 50MB → **512MB** 로 올렸다(조직 플랜은 Pro).
+- ⚠️ 용량이 문제되면 `-preset fast -crf 28` 로 재인코딩한다. 단 **움직임 많은 실사는 crf 24 로도 절반밖에 안 줄어든다**(실측 328MB → crf24 약 190MB / crf28 129MB) — 화질 손실 대비 이득이 작으니 제약이 실제로 있을 때만.
+- ⚠️ 플레이어는 `preload="metadata"` — `auto` 로 두면 페이지를 열기만 해도 파일을 통째로 받아 대역폭을 태운다.
+- ⚠️ 서명 URL 은 **만료 전까지 인증 없이 열리는 링크**다. 응답에 `Cache-Control: private, no-store` 를 걸어 캐시에 남기지 않는다.
+- 업로드 UI 는 없다. 스크립트로 객체를 올리고 `posts.video_path` 를 채운 뒤 **반드시** 캐시를 무효화한다(`posts`·`post:<id>`).
 
 > 본문(`content`) **작성 규칙·게시 절차·마크다운 렌더 함정**은 [`report.md`](./report.md) 참고.
 

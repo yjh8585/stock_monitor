@@ -1743,6 +1743,7 @@ export type Database = {
           thumbnail_url: string | null;
           title: string;
           updated_at: string;
+          video_path: string | null;
         };
         Insert: {
           category?: string | null;
@@ -1763,6 +1764,7 @@ export type Database = {
           thumbnail_url?: string | null;
           title: string;
           updated_at?: string;
+          video_path?: string | null;
         };
         Update: {
           category?: string | null;
@@ -1783,6 +1785,7 @@ export type Database = {
           thumbnail_url?: string | null;
           title?: string;
           updated_at?: string;
+          video_path?: string | null;
         };
         Relationships: [];
       };

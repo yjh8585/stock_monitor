@@ -11,6 +11,7 @@ import { PostSourceBadge } from '@/components/reports/post-source-badge';
 import { PostStatusBadge } from '@/components/reports/post-status-badge';
 import { PostStatusWatcher } from '@/components/reports/post-status-watcher';
 import { ReportEmbed } from '@/components/reports/report-embed';
+import { ReportVideo } from '@/components/reports/report-video';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -109,10 +110,11 @@ async function ReportDetailBody({ params }: PageProps) {
       {/*
         원본 자료 카드 — 링크가 하나도 없고 원본 HTML 이 바로 아래 실려 있으면 아예 감춘다.
         그러지 않으면 원본 보고서 **바로 위**에 "원본 자료 정보가 없습니다"가 떠서
-        서로 모순된 안내가 된다(실물 확인 2026-08-21). html_path 가 없는 기존 글은
+        서로 모순된 안내가 된다(실물 확인 2026-08-21). 첨부 동영상(video_path)도 같은 이유로
+        함께 판정한다. html_path·video_path 가 둘 다 없는 기존 글은
         지금까지와 똑같이 빈 안내를 그대로 보여 준다 — 그쪽은 실제로 자료가 없다는 뜻이라 맞다.
       */}
-      {post.source_url || reportFileUrl || !post.html_path ? (
+      {post.source_url || reportFileUrl || !(post.html_path || post.video_path) ? (
         <Card>
           <CardContent className="space-y-2 p-4 text-sm">
             <div className="text-muted-foreground font-medium">원본 자료</div>
@@ -167,6 +169,9 @@ async function ReportDetailBody({ params }: PageProps) {
 
       {/* 원본 HTML 첨부가 있으면 마크다운 본문 위에. 없는 글(기존 전량)은 이 블록이 통째로 빠져 동작이 동일하다. */}
       {post.html_path ? <ReportEmbed postId={post.id} title={post.title} /> : null}
+
+      {/* 첨부 동영상이 있으면 마크다운 본문 위에. 없는 글(기존 전량)은 이 블록이 통째로 빠져 동작이 동일하다. */}
+      {post.video_path ? <ReportVideo postId={post.id} title={post.title} /> : null}
 
       {post.content ? <MarkdownView content={post.content} /> : null}
     </article>
