@@ -351,6 +351,33 @@ def dedup_key(row: dict) -> str:
     return f"{row.get('corp_code', '')}|{nm}"
 
 
+def load_ledger(path: str) -> dict:
+    """기존 대장을 읽는다. 없거나 깨졌으면 빈 대장으로 본다(첫 실행·파일 손상 대비)."""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with io.open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (ValueError, OSError):
+        return {}
+
+
+def merge_rows(old: list, new: list) -> list:
+    """접수번호(rcp)를 열쇠로 기존 대장과 이번 스캔을 합친다.
+
+    🔴 **대장은 덮어쓰기가 아니라 병합이다.** cron 이 `--years 1` 로 매주 돌기 때문에
+       통째로 다시 쓰면 창(窓) 밖의 과거 행이 조용히 사라진다 — 2026-09-01 실행에서
+       실제로 5년치 2,181행이 1년치 417행으로 잘렸고, 행마다 있던 분석 필드
+       (method_dcf·values_mn·deal_price_mn)까지 함께 날아갔다.
+    같은 rcp 는 **이번 스캔이 이긴다**(본문 재파싱 결과를 반영해야 하므로).
+    """
+    by_rcp = {r.get("rcp"): r for r in old if r.get("rcp")}
+    for r in new:
+        if r.get("rcp"):
+            by_rcp[r["rcp"]] = r
+    return sorted(by_rcp.values(), key=lambda r: (r.get("dt") or "", r.get("rcp") or ""))
+
+
 def mark_latest(rows: list) -> None:
     """dedup 키별로 접수일이 가장 늦은 것에 is_latest 를 세운다.
     🔴 「정정본을 버린다」가 아니라 「정정본을 최신본으로 남긴다」 — 재확보 실측에서
@@ -465,15 +492,24 @@ def main() -> None:
         r["induty"] = industry(r["corp_code"]) if r.get("corp_code") else ""
         r["is_correction"] = bool(CORRECTION_RE.search(r.get("report_nm", "")))
         r["dedup_key"] = dedup_key(r)
+    # 🔴 최신본 판정은 **병합한 뒤에** 한다 — 병합 전에 하면 이번 창(窓) 안에서만 최신이 되어,
+    #    창 밖에 정정본이 있는 딜의 is_latest 가 뒤집힌다.
+    prev = load_ledger(LEDGER)
+    scanned = len(rows)
+    kept = len(prev.get("rows") or [])
+    rows = merge_rows(prev.get("rows") or [], rows)
     mark_latest(rows)
+    # 대장이 담은 기간은 「지금까지 훑은 최대 범위」다. 이번 창이 좁다고 되돌리지 않는다.
+    years = max(int(prev.get("years") or 0), args.years)
 
     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
     io.open(LEDGER, "w", encoding="utf-8", newline="\n").write(json.dumps({
         "source": "층1 — DART OpenAPI document.xml 「8. 외부평가에 관한 사항」",
-        "years": args.years,
+        "years": years,
         "total": len(rows),
         "rows": rows,
     }, ensure_ascii=False, indent=1))
+    print(f"\n대장 병합 — 기존 {kept}행 + 이번 스캔 {scanned}행 → {len(rows)}행 (창 {args.years}년 · 대장 {years}년)")
 
     # ── 통계 (검증 기준 대조) ──
     latest = [r for r in rows if r.get("is_latest")]
