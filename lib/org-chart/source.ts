@@ -11,6 +11,7 @@ import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
 
 export interface OrgChartMeta {
+  id: number;
   chart_date: string;
   title: string | null;
   width: number | null;
@@ -25,8 +26,10 @@ export async function getOrgCharts(): Promise<OrgChartMeta[]> {
 
   const { data, error } = await confidentialDb
     .from('org_charts')
-    .select('chart_date, title, width, height, created_at')
-    .order('chart_date', { ascending: false });
+    // 같은 날짜에 여러 판(인원 포함/미포함 등)이 있어 variant 로 안정 정렬한다.
+    .select('id, chart_date, title, width, height, created_at')
+    .order('chart_date', { ascending: false })
+    .order('variant', { ascending: true });
   if (error) {
     logger.error({ err: error }, 'org_charts 조회 실패');
     throw new Error(`Supabase org_charts 조회 실패: ${error.message}`);

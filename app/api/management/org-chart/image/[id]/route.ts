@@ -6,7 +6,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { confidentialDb } from '@/lib/supabase/confidential';
 
 interface RouteContext {
-  params: Promise<{ date: string }>;
+  params: Promise<{ id: string }>;
 }
 
 const BUCKET = 'org-charts';
@@ -21,15 +21,16 @@ export async function GET(_req: Request, { params }: RouteContext) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
-  const { date } = await params;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  // 같은 날짜에 여러 판이 있을 수 있어 날짜가 아니라 행 id 로 특정한다.
+  const { id } = await params;
+  if (!/^\d+$/.test(id)) {
     return new NextResponse('Bad Request', { status: 400 });
   }
 
   const { data: meta, error } = await confidentialDb
     .from('org_charts')
     .select('image_path')
-    .eq('chart_date', date)
+    .eq('id', Number(id))
     .maybeSingle();
   if (error || !meta) {
     return new NextResponse('Not Found', { status: 404 });

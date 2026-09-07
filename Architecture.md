@@ -142,14 +142,14 @@
   2. 투하자본·자금조달 표 — 모든 연속 구간 증감(▲파랑/▼빨강). 투하자본 = 순운전자본(채권+재고−채무) + CAPEX(유형+무형), 자금조달 = 현금+증자+차입금. 전체/연결 고정.
   3. 이인텔리전스 대여금 — KPI 3장(누적/당월/2026 YTD 계획대비 지급율) + 계획 대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적). 소스 `loan_entries`(억원 원본 `loan_eok`).
   - 소스 `finance_entries`. 억원=`value_mwon / 100`. 시점은 과거=연말(annual), 당해연도=최신월(YTD).
-- **org-chart** — 조직도: 시점별 조직도 이미지(비공개 버킷 `org-charts` PNG) + 날짜 드롭다운. admin·holdings·mobility 전용(hmobility·guest 차단, `permissions.ts`). 메타는 `org_charts`(사외비, §7-G), 이미지는 인증 프록시 `/api/management/org-chart/image/[date]`로 스트리밍. 적재는 로컬 `scripts/sync_org_chart.py`(Excel COM).
+- **org-chart** — 조직도: 시점별 조직도 이미지(비공개 버킷 `org-charts` PNG) + 드롭다운(날짜 — 제목 병기. 같은 날짜에 여러 판이 있다). admin·holdings·mobility 전용(hmobility·guest 차단, `permissions.ts`). 메타는 `org_charts`(사외비, §7-G), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍. 적재는 로컬 `scripts/sync_org_chart.py`(Excel COM).
 - **companies** — 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, INSERT graceful).
 - **upload** (admin 전용) — 월별손익 엑셀(`.xlsx`) 업로드 → `management-excel` 버킷 저장 + `management_uploads` 작업행 INSERT + `sync-management.yml` dry-run dispatch. UI가 `/api/management/upload/[jobId]`를 폴링, 완료 후 admin이 "적재 확정" → apply dispatch → 8 sync 실행 + 8종 태그 일괄 revalidate. 소스 `management_uploads`(사외비, §7-G). admin 역할만 접근(`permissions.ts`).
 
 **API 라우트 분류**:
 
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[date]` (조직도 이미지 프록시 — admin·holdings·mobility만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[id]` (조직도 이미지 프록시 — admin·holdings·mobility만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
 **이 목록이 라우트 분류의 정본이다** — 새 `app/api/**/route.ts`를 만들면 여기와 `proxy.ts`를 함께 갱신한다(AGENTS.md 는 이 규칙만 싣고 목록은 중복하지 않는다). `/api/revalidate*`은 SSRF·쿠키 가드 패치 이력이 있어 회귀에 주의한다(commit `ea090be`).
@@ -601,19 +601,23 @@ UNIQUE: (source, note_date)
 
 #### `org_charts` (신규, 20260624000002) — 조직도 이미지 메타 (사외비)
 
-| 컬럼          | 타입          | 설명                                             |
-| ------------- | ------------- | ------------------------------------------------ |
-| `chart_date`  | date PK       | 조직도 스냅샷 날짜 (시트명 `_YYYYMMDD`에서 파싱) |
-| `title`       | text          | 조직도 제목                                      |
-| `image_path`  | text NOT NULL | `org-charts` 버킷 객체 키                        |
-| `source_file` | text          | 원본 엑셀 파일명                                 |
-| `width`       | int           | 이미지 가로(px)                                  |
-| `height`      | int           | 이미지 세로(px)                                  |
-| `created_at`  | timestamptz   | 자동 설정                                        |
+| 컬럼          | 타입            | 설명                                             |
+| ------------- | --------------- | ------------------------------------------------ |
+| `id`          | bigint ident PK | 대리키 (20260907000001)                          |
+| `chart_date`  | date NOT NULL   | 조직도 스냅샷 날짜 (시트명 `_YYYYMMDD`에서 파싱) |
+| `variant`     | text NOT NULL   | 같은 날짜 안의 판 구분 슬러그. 기본판은 `''`     |
+| `title`       | text            | 조직도 제목 (드롭다운에 날짜와 병기)             |
+| `image_path`  | text NOT NULL   | `org-charts` 버킷 객체 키                        |
+| `source_file` | text            | 원본 엑셀 파일명                                 |
+| `width`       | int             | 이미지 가로(px)                                  |
+| `height`      | int             | 이미지 세로(px)                                  |
+| `created_at`  | timestamptz     | 자동 설정                                        |
 
-**PK**: chart_date (이력 누적 → upsert by chart_date)  
+**PK**: `id` · **UNIQUE**: `(chart_date, variant)` — upsert 키다.
+같은 시점에 여러 판(예: 2026-07-01 의 인원 포함/미포함)을 둘 수 있다(20260907000001).
+객체 키 규칙은 `<날짜>.png` / `<날짜>-<variant>.png`.  
 **RLS**: 정책 없음 (20260624000002) → anon 차단. `confidentialDb.from('org_charts')` 전용.  
-적재는 로컬 `scripts/sync_org_chart.py`(Excel COM, Windows+Excel 필요 — Vercel/GHA 자동 렌더 불가). 페이지 `/management/org-chart`(admin·holdings·mobility 전용)는 메타를 `'use cache'`로 캐싱(`lib/org-chart/source.ts`), 이미지는 인증 프록시 `/api/management/org-chart/image/[date]`로 스트리밍.
+적재는 로컬 `scripts/sync_org_chart.py`(Excel COM, Windows+Excel 필요 — Vercel/GHA 자동 렌더 불가). 페이지 `/management/org-chart`(admin·holdings·mobility 전용)는 메타를 `'use cache'`로 캐싱(`lib/org-chart/source.ts`), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍.
 
 **버킷 `org-charts`** (비공개, public=false, 정책 없음 → service_role 전용):  
 조직도 PNG 저장. anon 직접 접근 불가 — 인증 프록시 API를 통해서만 스트리밍.

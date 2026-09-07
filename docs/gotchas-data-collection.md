@@ -122,6 +122,11 @@ UzAuto IFRS 등 **스캔본**은 `pypdf`/`pdfplumber` 텍스트 추출이 0자�
 PrintArea 를 `UsedRange` 로만 잡으면 **셀 밖 도형(변경요약 박스 등)이 잘리므로**
 도형(`ws.Shapes[].BottomRightCell`)까지 포함해 범위를 잡고 여백을 0 으로 준다.
 
+**`Workbooks.Open` 은 상대 경로를 못 연다**(2026-09-07 실측). Excel 프로세스의 작업 폴더는
+파이썬과 다르므로 `ORG_CHART_EXCEL_PATH=참고/조직도/x.xlsx` 처럼 상대 경로를 주면
+"파일을 찾을 수 없습니다"(`com_error -2147352567`)로 죽는다 — 파일은 멀쩡히 그 자리에 있다.
+→ 경로는 넘기기 전에 `Path.resolve()` 한다(`sync_org_chart.py` 의 `resolve_excel`).
+
 ### 🔴 렌더 산출물 검증은 실제로 열어볼 것
 
 이미지/PDF 는 **"픽셀 해시가 다르다"만 보면 *내용이 뒤바뀐 것*을 못 잡는다.**

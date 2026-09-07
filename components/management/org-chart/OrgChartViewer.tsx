@@ -9,11 +9,16 @@ function formatDate(iso: string): string {
   return `${y}년 ${m}월 ${d}일`;
 }
 
+/** 같은 날짜에 여러 판(인원 포함/미포함 등)이 있어 날짜만으로는 못 가른다 → 제목을 병기한다. */
+function formatLabel(c: OrgChartMeta): string {
+  return c.title ? `${formatDate(c.chart_date)} — ${c.title}` : formatDate(c.chart_date);
+}
+
 export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
-  const [selected, setSelected] = useState(charts[0]?.chart_date ?? '');
+  const [selected, setSelected] = useState(charts[0]?.id ?? 0);
   const [expanded, setExpanded] = useState(false);
   const [fitToScreen, setFitToScreen] = useState(false);
-  const current = charts.find((c) => c.chart_date === selected);
+  const current = charts.find((c) => c.id === selected);
 
   // 원본 크기 팝업에서 마우스로 잡고 끌어 이동(grab-to-pan).
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -68,8 +73,9 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
 
   // 캐시버스트 토큰(?v=created_at) — 재렌더 시 토큰이 바뀌어 브라우저가 새 이미지를 받는다.
   const imgSrc = current
-    ? `/api/management/org-chart/image/${selected}?v=${encodeURIComponent(current.created_at)}`
+    ? `/api/management/org-chart/image/${current.id}?v=${encodeURIComponent(current.created_at)}`
     : '';
+  const currentLabel = current ? formatLabel(current) : '';
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
@@ -80,17 +86,17 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
         <select
           id="org-date"
           value={selected}
-          onChange={(e) => setSelected(e.target.value)}
+          onChange={(e) => setSelected(Number(e.target.value))}
           className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
         >
           {charts.map((c) => (
-            <option key={c.chart_date} value={c.chart_date}>
-              {formatDate(c.chart_date)}
+            <option key={c.id} value={c.id}>
+              {formatLabel(c)}
             </option>
           ))}
         </select>
         <span className="text-sm text-muted-foreground">
-          현재 표시: <strong className="text-foreground">{formatDate(selected)}</strong>
+          현재 표시: <strong className="text-foreground">{currentLabel}</strong>
         </span>
         {current && (
           <button
@@ -111,7 +117,7 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
           <img
             key={selected}
             src={imgSrc}
-            alt={`조직도 ${formatDate(selected)}`}
+            alt={`조직도 ${currentLabel}`}
             onClick={() => setExpanded(true)}
             title="클릭하면 전체화면으로 크게 봅니다"
             className="h-auto w-full min-w-[1000px] cursor-zoom-in"
@@ -124,16 +130,14 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
           className="fixed inset-0 z-50 flex flex-col bg-black/90"
           role="dialog"
           aria-modal="true"
-          aria-label={`조직도 전체화면 ${formatDate(selected)}`}
+          aria-label={`조직도 전체화면 ${currentLabel}`}
           onClick={() => setExpanded(false)}
         >
           <div
             className="flex shrink-0 items-center justify-between gap-2 px-4 py-2 text-white"
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="text-sm font-medium">
-              한세모빌리티 조직도 — {formatDate(selected)}
-            </span>
+            <span className="text-sm font-medium">{currentLabel}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -168,7 +172,7 @@ export default function OrgChartViewer({ charts }: { charts: OrgChartMeta[] }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imgSrc}
-              alt={`조직도 ${formatDate(selected)}`}
+              alt={`조직도 ${currentLabel}`}
               draggable={false}
               className={
                 fitToScreen ? 'max-h-full max-w-full object-contain' : 'max-w-none bg-white'

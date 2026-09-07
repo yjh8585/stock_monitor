@@ -1512,27 +1512,33 @@ export type Database = {
           chart_date: string;
           created_at: string;
           height: number | null;
+          id: number;
           image_path: string;
           source_file: string | null;
           title: string | null;
+          variant: string;
           width: number | null;
         };
         Insert: {
           chart_date: string;
           created_at?: string;
           height?: number | null;
+          id?: never;
           image_path: string;
           source_file?: string | null;
           title?: string | null;
+          variant?: string;
           width?: number | null;
         };
         Update: {
           chart_date?: string;
           created_at?: string;
           height?: number | null;
+          id?: never;
           image_path?: string;
           source_file?: string | null;
           title?: string | null;
+          variant?: string;
           width?: number | null;
         };
         Relationships: [];

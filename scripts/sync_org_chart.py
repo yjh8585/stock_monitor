@@ -6,13 +6,18 @@ Vercel·GHA엔 Excel/LibreOffice가 없어 서버 자동 렌더 불가.
 소스: ORG_CHART_EXCEL_PATH env 우선, 없으면 참고/조직도/*.xlsx 최신(mtime).
 사외비: stdout에 임원명·인원수 등 셀 값 비노출 — 시트명·날짜·행수·이미지 크기만 로그.
 
+같은 날짜에 여러 판(예: 인원 포함/미포함)을 둘 수 있다 — `--variant` 슬러그로 가른다.
+빈 슬러그가 기본판이고, 객체 키는 '<날짜>.png' / '<날짜>-<slug>.png'.
+
 사용:
   python scripts/sync_org_chart.py --dry-run          # 렌더만, 업로드/적재 없음
   python scripts/sync_org_chart.py                    # 렌더 + 업로드 + 적재 + revalidate(dev)
   python scripts/sync_org_chart.py --revalidate-prod  # + 프로덕션 캐시 무효화
+  python scripts/sync_org_chart.py --only 2026-07-01 --variant headcount --title '조직도 (인원 포함)'
 """
 import argparse
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -34,6 +39,7 @@ BUCKET = 'org-charts'
 GLOB = '*.xlsx'
 RENDER_ZOOM = 3.0  # PDF→PNG 확대 배율(고해상도 — "최대한 크게")
 TITLE = '한세모빌리티 조직도'
+VARIANT_RE = re.compile(r'[a-z0-9-]+')  # 객체 키에 그대로 쓰이므로 ascii 슬러그만 허용
 
 
 def resolve_excel() -> Path:
@@ -42,7 +48,7 @@ def resolve_excel() -> Path:
         p = Path(env)
         if not p.exists():
             raise FileNotFoundError(f'ORG_CHART_EXCEL_PATH 없음: {p}')
-        return p
+        return p.resolve()  # Excel COM은 상대 경로를 못 연다
     base = Path(__file__).resolve().parent.parent / '참고' / '조직도'
     cands = sorted(
         (p for p in base.glob(GLOB) if not p.name.startswith('~$')),
@@ -130,7 +136,23 @@ def main() -> int:
     ap = argparse.ArgumentParser(description='조직도 엑셀 → PNG 렌더 → org_charts 적재')
     ap.add_argument('--dry-run', action='store_true', help='렌더만, 업로드/적재 없음')
     ap.add_argument('--revalidate-prod', action='store_true', help='적재 후 프로덕션 캐시 무효화')
+    ap.add_argument(
+        '--only',
+        action='append',
+        metavar='YYYY-MM-DD',
+        help='이 날짜 시트만 렌더(여러 번 지정 가능). 생략하면 Kor 시트 전부.',
+    )
+    ap.add_argument(
+        '--variant',
+        default='',
+        help="같은 날짜 안의 판 구분 슬러그(ascii). 기본판은 빈 값.",
+    )
+    ap.add_argument('--title', default=TITLE, help='조직도 제목(화면 드롭다운에 표시)')
     args = ap.parse_args()
+
+    if args.variant and not VARIANT_RE.fullmatch(args.variant):
+        logger.error(f'--variant 는 소문자·숫자·하이픈만 허용: {args.variant!r}')
+        return 1
 
     xlsx = resolve_excel()
     logger.info(f'소스 파일: {xlsx.name}')
@@ -140,6 +162,8 @@ def main() -> int:
     wb = openpyxl.load_workbook(xlsx, read_only=True)
     kor = parse_kor_sheets(wb.sheetnames)
     wb.close()
+    if args.only:
+        kor = [t for t in kor if t[1] in set(args.only)]
     logger.info(f'Kor 시트 {len(kor)}개: {[d for _, d in kor]}')
     if not kor:
         logger.error('Kor 시트 없음 — 종료')
@@ -156,12 +180,13 @@ def main() -> int:
             logger.info(f'  렌더 {iso}: {w}x{h}px')
             if args.dry_run:
                 continue
-            key = f'{iso}.png'
+            key = f'{iso}-{args.variant}.png' if args.variant else f'{iso}.png'
             upload_png(key, out)
             rows.append(
                 {
                     'chart_date': iso,
-                    'title': TITLE,
+                    'variant': args.variant,
+                    'title': args.title,
                     'image_path': key,
                     'source_file': xlsx.name,
                     'width': w,
@@ -174,7 +199,7 @@ def main() -> int:
         logger.info('dry-run 완료 (업로드/적재 생략)')
         return 0
 
-    n = upsert_rows('org_charts', rows, 'chart_date')  # 자동 revalidate(dev)
+    n = upsert_rows('org_charts', rows, 'chart_date,variant')  # 자동 revalidate(dev)
     logger.info(f'org_charts upsert {n}행')
     if args.revalidate_prod:
         revalidate_tags_prod(['org_charts'])
