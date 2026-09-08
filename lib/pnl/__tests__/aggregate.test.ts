@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { grossProfitOf, preparePnlData, prepareYoYView, ratioOfRevenue } from '@/lib/pnl/aggregate';
+import {
+  currentFiscalYear,
+  getDisplayYearLabels,
+  grossProfitOf,
+  preparePnlData,
+  prepareYoYView,
+  ratioOfRevenue,
+} from '@/lib/pnl/aggregate';
 import type { AggregatedRow, PnlEntry } from '@/lib/pnl/types';
 
 describe('vitest sanity — aggregate.ts', () => {
@@ -257,5 +264,51 @@ describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', ()
     expect(prepared.annualByBasis.standalone).toHaveLength(2);
     const standYears = prepared.annualByBasis.standalone.map((e) => e.period_year).sort();
     expect(standYears).toEqual([2024, 2025]);
+  });
+});
+
+describe('연도 상한 동적화', () => {
+  // 이 파일엔 공용 mkEntry 헬퍼가 없어 PnlEntry 필수 필드를 채운 최소 객체를 직접 만든다.
+  function mkEntry(
+    overrides: Partial<PnlEntry> & Pick<PnlEntry, 'basis' | 'period_year' | 'period_month'>
+  ): PnlEntry {
+    return {
+      year_label: String(overrides.period_year),
+      is_plan: false,
+      is_estimate: false,
+      sil: 'SIL1',
+      division: '구동',
+      factory: 'F1',
+      product: 'P1',
+      customer: 'C1',
+      revenue: 100,
+      material_cost: null,
+      labor_cost: null,
+      expense: null,
+      sga: null,
+      rnd: null,
+      op_income: 10,
+      ...overrides,
+    };
+  }
+
+  it('현재 연도 실적이 라벨에 포함된다 — 2027 에 화면이 멈추지 않는다', () => {
+    const thisYear = currentFiscalYear();
+    const entries: PnlEntry[] = [
+      mkEntry({ basis: 'standalone', period_year: thisYear, period_month: 1 }),
+      mkEntry({ basis: 'standalone', period_year: thisYear - 1, period_month: 1 }),
+    ];
+
+    const labels = getDisplayYearLabels(entries, 'standalone');
+
+    expect(labels).toContain(String(thisYear));
+    expect(labels).toContain(String(thisYear - 1));
+  });
+
+  it('하한(2023) 이전 연도는 계속 잘린다', () => {
+    const entries: PnlEntry[] = [
+      mkEntry({ basis: 'standalone', period_year: 2022, period_month: 1 }),
+    ];
+    expect(getDisplayYearLabels(entries, 'standalone')).not.toContain('2022');
   });
 });

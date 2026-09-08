@@ -7,6 +7,7 @@
  * 9~10개 우측 컬럼은 모두 동일하다.
  */
 import { calcCagr, invTurnover } from './format';
+import { currentFiscalYear } from './pnl/aggregate';
 import type { FinancialYear } from './types';
 import type { StickyColumn } from '@/components/common/StickyTable';
 
@@ -20,7 +21,9 @@ export interface FinancialRowBase {
   market_cap: number | null;
 }
 
-const SUPPORTED_YEARS = ['2026', '2025', '2024', '2023'] as const;
+const SUPPORTED_YEARS: readonly string[] = Array.from({ length: 4 }, (_, i) =>
+  String(currentFiscalYear() - i)
+);
 const FALLBACK_YEAR = '2025';
 
 /** 데이터가 존재하는 가장 최근 연도 결정 (revenue 기준) */

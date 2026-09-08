@@ -9,6 +9,20 @@
 import type { AggregatedRow, Basis, DimensionKey, MetricKey, PnlEntry } from './types';
 import { METRIC_ORDER } from './types';
 
+/** 손익 데이터가 존재하는 첫 해 — 데이터 사실이므로 고정값이다. */
+export const PNL_MIN_YEAR = 2023;
+
+/**
+ * 표시 기준 연도(서울). 라벨 상한과 「진행 중 연도(YTD)」 판정에 쓴다.
+ *
+ * UTC 로 읽으면 연말연시 9시간 동안 한 해가 밀린다 — 반드시 Asia/Seoul 로 구한다.
+ * 하드코딩(`<= 2026`)이었을 때는 해가 바뀌면 손익 화면이 조용히 2026 에 고정됐다.
+ */
+export function currentFiscalYear(): number {
+  const seoulDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  return parseInt(seoulDate.slice(0, 4), 10);
+}
+
 /** 부동소수 누적 오차를 잘라내는 헬퍼 (백만원 단위, 소수 4자리까지 의미 있음) */
 const ROUND_DECIMALS = 4;
 function round(n: number): number {
@@ -58,15 +72,15 @@ export function getDisplayYearLabels(entries: readonly PnlEntry[], basis: Basis)
     } else {
       // 별도: period_year 기준 4자리 라벨. 월별/연간 어느 입력이든 동일하게 동작.
       const y = e.period_year;
-      if (y >= 2023 && y <= 2026) labels.add(String(y));
+      if (y >= PNL_MIN_YEAR && y <= currentFiscalYear()) labels.add(String(y));
     }
   }
   if (basis === 'consolidated') {
-    // 연결: 2023~2026만 (라벨 앞 4글자 기준)
+    // 연결: PNL_MIN_YEAR~현재 연도만 (라벨 앞 4글자 기준)
     return Array.from(labels)
       .filter((lbl) => {
         const y = parseInt(lbl.slice(0, 4), 10);
-        return y >= 2023 && y <= 2026;
+        return y >= PNL_MIN_YEAR && y <= currentFiscalYear();
       })
       .sort();
   }
@@ -511,8 +525,8 @@ export function prepareYoYView(
  * 한 함수 호출로 정리된다. 클라이언트 상태(basis 토글 등)에 무관한 순수 변환만 담당.
  *
  * 정책 (기존 PnlDashboard 로직과 동일):
- * - 연결 연간: DB의 period_month=0 행을 그대로 사용. 단 '2026(P)' 계획값은 표시에서 제외 (사용자 요구).
- * - 연결 2026 YTD: monthly 1~N월을 합산해 period_month=0 행으로 derive (year_label='2026').
+ * - 연결 연간: DB의 period_month=0 행을 그대로 사용. 단 진행 중 연도의 계획값(`{연도}(P)`)은 표시에서 제외 (사용자 요구).
+ * - 연결 진행 중 연도 YTD: monthly 1~N월을 합산해 period_month=0 행으로 derive (year_label=현재 연도).
  * - 별도 연간: 전체 연도 월별 → 연간 derive (DB에 별도 연간 행이 없음).
  * - annualByBasis / monthlyByBasis: basis별 분리한 reference (차트가 작은 배열만 처리하도록).
  */
@@ -523,12 +537,13 @@ export interface PreparedPnlData {
 }
 
 export function preparePnlData(data: readonly PnlEntry[]): PreparedPnlData {
-  // 연결 연간: DB의 period_month=0 행을 그대로 사용. '2026(P)' 계획값은 표시에서 제외.
+  const thisYear = currentFiscalYear();
+  // 연결 연간: DB의 period_month=0 행을 그대로 사용. 진행 중 연도의 계획값은 표시에서 제외.
   const consolidatedAnnual = data.filter(
-    (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== '2026(P)'
+    (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== `${thisYear}(P)`
   );
-  // 연결 2026 YTD: monthly 1~N월 합산 → period_month=0 derive (year_label='2026').
-  const consolidated2026Ytd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === 2026);
+  // 연결 진행 중 연도 YTD: monthly 1~N월 합산 → period_month=0 derive.
+  const consolidatedYtd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === thisYear);
   // 별도 연간: 월별만 적재되므로 전체 연도 derive.
   const standaloneMonthly = data.filter(
     (e) => e.basis === 'standalone' && e.period_month >= 1 && e.period_month <= 12
@@ -537,7 +552,7 @@ export function preparePnlData(data: readonly PnlEntry[]): PreparedPnlData {
 
   const annualEntries: PnlEntry[] = [
     ...consolidatedAnnual,
-    ...consolidated2026Ytd,
+    ...consolidatedYtd,
     ...standaloneAnnual,
   ];
 

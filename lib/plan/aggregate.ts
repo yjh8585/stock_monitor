@@ -1,5 +1,10 @@
 /** 손익 계획 차트 시리즈 빌더 (순수 함수). */
-import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
+import {
+  aggregateBy,
+  currentFiscalYear,
+  entriesForYear,
+  getDisplayYearLabels,
+} from '@/lib/pnl/aggregate';
 import type { PreparedPnlData } from '@/lib/pnl/aggregate';
 import type { Basis } from '@/lib/pnl/types';
 import type { AchievementPoint, PlanRow } from './types';
@@ -159,7 +164,7 @@ export function buildCorpAchievement(
 ): AchievementPoint[] {
   const planRows = pickRows(rows, '손익', item, basis);
   const planPts = buildAchievement(planRows, { unit: '억원' });
-  // pnl_entries 연간(+2026 YTD) 전사 합계 → 백만원이므로 ÷100 = 억원
+  // pnl_entries 연간(+진행 중 연도 YTD) 전사 합계 → 백만원이므로 ÷100 = 억원
   const annual = prepared.annualByBasis[basis];
   const labels = getDisplayYearLabels(annual, basis);
   const entriesActualByYear = new Map<number, { value: number; ytd: boolean }>();
@@ -167,7 +172,10 @@ export function buildCorpAchievement(
     const yr = parseInt(lbl.slice(0, 4), 10);
     const agg = aggregateBy(entriesForYear(annual, basis, lbl), []);
     if (agg.length > 0) {
-      entriesActualByYear.set(yr, { value: agg[0][metric] / 100, ytd: lbl === '2026' });
+      entriesActualByYear.set(yr, {
+        value: agg[0][metric] / 100,
+        ytd: lbl === String(currentFiscalYear()),
+      });
     }
   }
   const years = new Set<number>([...planPts.map((p) => p.year), ...entriesActualByYear.keys()]);
