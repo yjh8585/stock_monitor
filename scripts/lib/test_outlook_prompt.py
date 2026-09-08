@@ -46,6 +46,19 @@ def test_시장_헤더에_기준월이_표시된다():
   assert '(202606 기준 최근 12개월)' in digest
 
 
+def test_리콜_조회_전부_실패하면_recalls가_None이어도_에러없이_알수없음으로_표시된다():
+  """NHTSA 리콜 조회가 전부 실패하면 recalls=None(=알 수 없음)이 온다.
+  '0건'으로 오독시키지 않고 '조회 실패'로 렌더해야 한다(Task 12 브리프)."""
+  digest = build_digest(
+    model_name='Jeep Grand Cherokee',
+    markets=[], production_gap=None,
+    safety={'model_year': 2026, 'recalls': None, 'complaint_count': None},
+    inventory=None, web_results=[],
+  )
+  assert '조회 실패(알 수 없음)' in digest
+  assert '리콜 0건' not in digest
+
+
 def test_anchor_month_없으면_기준월_문구를_생략한다():
   digest = build_digest(
     model_name='X',

@@ -73,18 +73,23 @@ def build_digest(*, model_name, markets, production_gap, safety, inventory, web_
               + ('  ※ 최신월 미공개(평균 2배 초과)' if r.get('outlier_excluded') else ''))
   if safety:
     rec = safety['recalls']
-    comps = ', '.join(f'{c}({n}건)' for c, n in rec.get('top_components') or [])
+    # rec 는 리콜 조회가 전부 실패하면 None(=알 수 없음)이다. "0건"으로 쓰면 AI 가 무결점으로 읽는다.
+    comps = ', '.join(f'{c}({n}건)' for c, n in rec.get('top_components') or []) if rec else ''
     # complaint_count 는 조회 실패 시 None(=알 수 없음)이다. "0건"으로 쓰면 AI 가 무결점으로 읽는다.
     cc = safety.get('complaint_count')
+    recall_line = (f"{rec['count']}건 {('— ' + comps) if comps else ''}"
+                   if rec else '조회 실패(알 수 없음)')
     parts.append(
       f"[NHTSA {safety['model_year']}년형]\n"
-      f"  리콜 {rec['count']}건 {('— ' + comps) if comps else ''}\n"
+      f"  리콜 {recall_line}\n"
       f"  소비자 불만 {f'{cc}건' if cc is not None else '조회 실패(알 수 없음)'}"
     )
     parts.append('')
   parts += _fmt_rival_block(
     'NHTSA 리콜·불만', rival_safety,
-    lambda r: f"{r['model']} ({r['model_year']}년형): 리콜 {r['recall_count']}건 · 불만 "
+    lambda r: f"{r['model']} ({r['model_year']}년형): 리콜 "
+              + (f"{r['recall_count']}건" if r.get('recall_count') is not None else '알 수 없음')
+              + " · 불만 "
               + (f"{r['complaint_count']}건" if r.get('complaint_count') is not None else '알 수 없음'))
   if web_results:
     parts.append('[최근 웹 검색 결과]')

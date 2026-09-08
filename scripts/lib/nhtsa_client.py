@@ -196,10 +196,14 @@ def _fetch(entry: tuple[str, list[str], list[str]], years: list[int], label: str
     if not variants:
       continue
     all_recalls: list[dict] = []
+    recall_ok = False
     for model in variants:
       recalls = _get(RECALL_URL, make, model, year)
-      if recalls:
-        all_recalls.extend(recalls)
+      if recalls is None:
+        logger.warning(f'NHTSA 리콜 조회 실패 {make}/{model}/{year}')
+        continue
+      recall_ok = True
+      all_recalls.extend(recalls)
     # 불만은 목록이 따로라 같은 연도에서 다시 푼다(리콜 이름을 그대로 쓰면 400 이 난다).
     # 불만 목록을 못 받으면 리콜 이름으로라도 시도한다 — 아예 건너뛰면 0 건으로 남는다.
     total_complaints, any_ok = 0, False
@@ -213,8 +217,12 @@ def _fetch(entry: tuple[str, list[str], list[str]], years: list[int], label: str
         total_complaints += len(complaints)
         if detail:  # 원문은 대상 차종만 들고 있는다 — 경쟁까지 모으면 페이로드가 수백 배로 뛴다
           all_complaints.extend(complaints)
-    # 리콜이 0건이어도 매칭된 파생형이 있으면 유효한 결과다(실제로 리콜이 없는 차종).
-    summary = summarize_recalls(all_recalls) if detail else {'count': len(all_recalls)}
+    # 한 건도 성공 못 했으면 None(=알 수 없음). 0 으로 두면 "리콜 없는 안전한 차"로 오독된다.
+    # 리콜이 0건이어도 매칭된 파생형이 있고 조회가 성공했으면 유효한 결과다.
+    if not recall_ok:
+      summary = None
+    else:
+      summary = summarize_recalls(all_recalls) if detail else {'count': len(all_recalls)}
     out = {
       'model_year': year,
       'variants': variants,

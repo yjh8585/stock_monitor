@@ -755,3 +755,31 @@ export async function POST(req: Request) {
 **판정 기준.** 「이 라우트가 세션을 요구하나」가 아니라 **「역할을 구분하나」**다. 세션 검사는
 `proxy.ts` 가 이미 한다 — 그것만으로 끝났다고 보면 이 사고가 반복된다. 게시 권한 판정은
 `canPublishReports`(admin·holdings·mobility), 관리자 전용은 `isAdmin` 이다.
+
+## NHTSA 리콜 조회 실패가 「리콜 0건」이 된다 · 캐시 태그 매핑 누락 (2026-09-08)
+
+**증상 1.** `scripts/lib/nhtsa_client.py` 의 `_get()` 은 실패에 `None`, 진짜 0건에 `[]` 를 준다.
+그런데 리콜 루프는 `if recalls:` 하나로 둘을 똑같이 흘려보냈다. 네트워크가 통째로 죽어도
+결과는 `recalls: {'count': 0}` — 화면에는 **「리콜 없는 안전한 차」**로 나온다. 바로 아래 불만
+루프는 같은 문제를 `any_ok` 로 이미 막고 있었다(형제 코드가 옳게 돼 있는데 따라가지 않은 것).
+
+**처방.** `_fetch` 의 리콜 루프에도 `recall_ok` 를 달아 한 건도 성공 못 하면 `recalls=None`
+(=알 수 없음)을 준다. **소비하는 쪽도 함께 고쳐야** 이 수정이 무의미해지지 않는다 —
+`scripts/lib/outlook_prompt.py`(AI 프롬프트 렌더)와 `scripts/collect_oem_model_outlook.py`
+(경쟁 차종 summary)가 `safety['recalls']['count']` 를 non-null 로 가정하고 있어서 `None` 을
+`.get()`/`['count']` 하면 죽는다 — `if rec else '조회 실패(알 수 없음)'` 로 감쌀 것.
+
+**증상 2.** 캐시 태그 매핑이 3곳(TS `cacheTag()` 전수 · `app/api/revalidate/route.ts` 의
+`ALL_TAGS` · `scripts/lib/revalidate.py` 의 `COLUMN_TO_TAGS`)에 흩어져 있어 한쪽만 추가하면
+구멍이 생긴다. 실측: `hyundai_retail_sales` 가 `COLUMN_TO_TAGS` 에 키 자체가 없었고,
+`humanoid_stocks_view` 가 읽는 원천 테이블(`companies`·`financials`·`exchange_rates_live`·
+`company_pages`)의 매핑에 그 태그가 없어 회사·재무를 수집해도 `/humanoid` 가 낡은 채로 남았다.
+
+**처방.** `scripts/verify_revalidate_tags.py` 신설 — (1)⊄(2) 면 「tag=all 로 안 풀리는 태그」,
+(3)⊄(2) 면 「존재하지 않는 태그를 수집기가 부른다」로 실패(exit 1). 🔴 **실측으로 route.ts
+`ALL_TAGS` 에 이미 다른 태그 다수(`stellantis-shipments`·`uzbekistan-auto-stats`·
+`cox-brand-inventory`·`org_charts`·`oem_production_model_country_month`·`oem-kia-retail` 등)가
+누락돼 있었다** — 이번 커밋은 `oem-hyundai-retail` 을 포함해 이 검사기가 잡아내는 기존
+누락을 **당장 다 고치지 않고 알려진 미결로 남긴다**(TS 파일은 다른 작업과 충돌 방지를 위해
+후속 Task 로 미룸). 검사기가 exit 1 을 내는 것이 정상 상태다 — 「위반 0건」이 아니라
+「알려진 위반 목록이 안 늘었나」로 판정할 것.

@@ -36,13 +36,17 @@ COLUMN_TO_TAGS = {
         'domestic_stocks_view',
         'parts_top100_stocks_view',
         'companies',
+        'humanoid_stocks_view',
     ],
     'financials': [
         'related_stocks_view',
         'domestic_stocks_view',
         'parts_top100_stocks_view',
         'financials',
+        'humanoid_stocks_view',
     ],
+    # humanoid_stocks_view 가 JOIN 하는 원천 — company_pages 자체는 다른 곳에서 안 쓰인다.
+    'company_pages': ['humanoid_stocks_view'],
     # 네이버 증권사 리포트 — /humanoid/research 한 화면만 읽는다.
     # 수집(하루 1회)과 요약(회차당 20건)이 각각 쓰므로 뷰 태그를 딸려 넣지 않는다.
     'research_reports': ['research_reports'],
@@ -57,7 +61,9 @@ COLUMN_TO_TAGS = {
     # 사용자가 주시하는 주가·등락률은 각 뷰 태그로 즉시 갱신되므로 영향 없다.
     # 짝이 되는 source.ts 의 cacheTag('exchange_rates_live') 도 함께 제거돼 있다
     # (한쪽만 되돌리면 조용히 원상복구된다). 배경 → docs/isr-write-optimization.md
-    'exchange_rates_live': ['exchange_rates_live'],
+    # humanoid_stocks_view 는 위 3개(related/domestic/parts_top100)보다 훨씬 가벼운 별도 뷰라
+    # 이 절감 사유가 적용되지 않는다 — /humanoid 가 환율 수집 후에도 낡은 채로 남던 구멍(Task 12).
+    'exchange_rates_live': ['exchange_rates_live', 'humanoid_stocks_view'],
     'exchange_rates': ['exchange_rates'],
     # 매크로·시계열
     'market_series': ['market_series'],
@@ -78,6 +84,7 @@ COLUMN_TO_TAGS = {
     'hyundai_sales': ['oem-hyundai-sales'],
     'hyundai_export_regions': ['oem-hyundai-export-regions'],
     'hyundai_quarterly_earnings': ['oem-hyundai-quarterly'],
+    'hyundai_retail_sales': ['oem-hyundai-retail'],
     'kia_sales': ['oem-kia-sales'],
     'kia_export_regions': ['oem-kia-export-regions'],
     'stellantis_na_sales': ['oem-stellantis-na-sales'],

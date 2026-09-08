@@ -1,3 +1,4 @@
+import lib.nhtsa_client as nhtsa_client
 from lib.nhtsa_client import (
   NHTSA_COMPETITOR_MAP,
   NHTSA_MODEL_MAP,
@@ -67,6 +68,25 @@ def test_latest는_앞의_2건만_담는다():
   assert len(out['latest']) == 2
   assert out['latest'][0] == 'first'
   assert out['latest'][1] == 'second'
+
+
+def test_get이_전부_None이면_recalls도_None이다(monkeypatch):
+  # _get 이 통째로 실패(네트워크 다운 등)해도 recall_ok 가 False 라 recalls 는 None(=알 수 없음).
+  # 0 으로 두면 "리콜 없는 안전한 차"로 오독된다(Task 12 브리프).
+  monkeypatch.setattr(nhtsa_client, '_resolve', lambda *a, **k: ['grand cherokee'])
+  monkeypatch.setattr(nhtsa_client, '_get', lambda *a, **k: None)
+  out = nhtsa_client._fetch(('jeep', ['grand cherokee'], []), [2026], 'grand_cherokee', detail=True)
+  assert out is not None
+  assert out['recalls'] is None
+
+
+def test_get이_빈배열이면_recalls_count는_0이다(monkeypatch):
+  # 조회는 성공했는데 실제로 리콜이 0건인 정상 케이스는 None 이 아니라 {'count': 0} 이어야 한다.
+  monkeypatch.setattr(nhtsa_client, '_resolve', lambda *a, **k: ['grand cherokee'])
+  monkeypatch.setattr(nhtsa_client, '_get', lambda *a, **k: [])
+  out = nhtsa_client._fetch(('jeep', ['grand cherokee'], []), [2026], 'grand_cherokee', detail=True)
+  assert out is not None
+  assert out['recalls']['count'] == 0
 
 
 def test_top_components는_상위_3개까지만_나온다():

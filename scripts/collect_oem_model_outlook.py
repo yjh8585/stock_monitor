@@ -346,8 +346,10 @@ def _load_competitor_context(client, markets: list[dict],
         safety_cache[name] = fetch_competitor_safety(name, years=MODEL_YEARS)
       s = safety_cache[name]
       if s:
+        # recalls 는 리콜 조회가 전부 실패하면 None(=알 수 없음) — "0건"으로 쓰면 안전한 차로 오독된다.
+        recalls = s['recalls']
         saf_rows.append({'model': name, 'model_year': s['model_year'],
-                         'recall_count': s['recalls']['count'],
+                         'recall_count': recalls['count'] if recalls else None,
                          'complaint_count': s['complaint_count']})
     if inv_rows:
       inventory_out.append({'market': mk['market'], 'models': inv_rows})
