@@ -21,17 +21,22 @@ export interface FinancialRowBase {
   market_cap: number | null;
 }
 
-const SUPPORTED_YEARS: readonly string[] = Array.from({ length: 4 }, (_, i) =>
-  String(currentYear() - i)
-);
-const FALLBACK_YEAR = '2025';
+/**
+ * 지원 창(최근 4년, 당해 포함) — 호출 시점마다 계산한다.
+ * 🔴 모듈 최상단 상수로 두면 모듈 평가 시점에 한 번만 계산돼 장수 프로세스가
+ * 해를 넘겨도 옛 창이 그대로 남는다('2025' 리터럴이었을 때는 2029부터 창 밖 값을 돌려줬다).
+ */
+function supportedYears(): readonly string[] {
+  return Array.from({ length: 4 }, (_, i) => String(currentYear() - i));
+}
 
-/** 데이터가 존재하는 가장 최근 연도 결정 (revenue 기준) */
+/** 데이터가 존재하는 가장 최근 연도 결정 (revenue 기준). 창 어디에도 없으면 가장 오래된 지원 연도. */
 export function resolveLatestYear<R extends FinancialRowBase>(rows: R[]): string {
-  for (const year of SUPPORTED_YEARS) {
+  const years = supportedYears();
+  for (const year of years) {
     if (rows.some((r) => r.financials_by_year?.[year]?.revenue != null)) return year;
   }
-  return FALLBACK_YEAR;
+  return years[years.length - 1];
 }
 
 /**

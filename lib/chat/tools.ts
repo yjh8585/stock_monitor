@@ -9,6 +9,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { currentYear } from '@/lib/currentYear';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import { HANSAE_RESTRICTED_ROLES, type UserRole } from './types';
 
@@ -237,8 +238,8 @@ async function runQueryFinancials(input: unknown, role: UserRole): Promise<unkno
   if (cErr) throw new Error(cErr.message);
   if (!c) return { error: `ticker '${args.company_ticker}' 회사 없음` };
 
-  const fromY = args.from_year ?? new Date().getFullYear() - 4;
-  const toY = args.to_year ?? new Date().getFullYear();
+  const fromY = args.from_year ?? currentYear() - 4;
+  const toY = args.to_year ?? currentYear();
   const q = sb
     .from('financials')
     .select(

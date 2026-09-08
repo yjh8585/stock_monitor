@@ -13,6 +13,7 @@
  *  - '내수'   : 한국 공장 내수만
  *  - '수출'   : 한국 공장 수출만
  */
+import { currentYear } from '@/lib/currentYear';
 import type {
   CompanyKpiSummary,
   CompanyPowertrain,
@@ -125,11 +126,11 @@ function periodYear(period: string): string {
  *  - 12개월 미만 + 현재 연도 → 'YYYY YTD' (진행 중)
  *  - 12개월 미만 + 과거 연도 → 'YYYY.NN' (출처 한계, 사용자 명시) */
 function annualYearLabel(year: string, monthSet: Set<number>): { key: string; isYtd: boolean } {
-  const currentYear = new Date().getFullYear();
+  const nowYear = currentYear();
   const monthCount = monthSet.size;
   if (monthCount === 12) return { key: year, isYtd: false };
   const yNum = parseInt(year, 10);
-  if (yNum === currentYear) return { key: `${year} YTD`, isYtd: true };
+  if (yNum === nowYear) return { key: `${year} YTD`, isYtd: true };
   // 과거 연도 미완 — 마지막 월까지 표시.
   const lastMonth = monthCount > 0 ? Math.max(...monthSet) : 0;
   return { key: `${year}.${String(lastMonth).padStart(2, '0')}`, isYtd: false };
@@ -199,7 +200,6 @@ export function aggregateAnnualSeries(
     const monthsStr = yearMonths.get(year) ?? new Set<string>();
     const monthSet = new Set([...monthsStr].map((s) => parseInt(s, 10)));
     const isFull = monthSet.size === 12;
-    const isCurrentYear = parseInt(year, 10) === new Date().getFullYear();
     const isYtdForYoY = !isFull;
     const prevYear = String(parseInt(year, 10) - 1);
     let prevSales: number;
@@ -633,7 +633,6 @@ export function aggregateKiaExportRegions(
 
   // 연간 모드: 12월까지 채워졌는지 판단
   const monthsByYear = new Map<string, Set<number>>();
-  const currentYear = new Date().getFullYear();
   for (const r of filtered) {
     const y = periodYear(r.year_period);
     const m = parseInt(r.year_period.slice(-2), 10);
@@ -641,7 +640,6 @@ export function aggregateKiaExportRegions(
     monthsByYear.get(y)!.add(m);
   }
 
-  void currentYear;
   const byPeriod = new Map<string, KiaExportRegionPoint>();
   for (const r of filtered) {
     let key: string;
@@ -780,7 +778,6 @@ export function aggregateKiaDomesticByModel(
 
   // annual 모드용 12월 완비 판정
   const monthsByYear = new Map<string, Set<number>>();
-  const currentYear = new Date().getFullYear();
   if (mode === 'annual') {
     for (const r of filtered) {
       const y = periodYear(r.year_period);
@@ -790,7 +787,6 @@ export function aggregateKiaDomesticByModel(
     }
   }
 
-  void currentYear;
   const byPeriod = new Map<string, KiaDomesticByModelPoint>();
   for (const r of filtered) {
     let key: string;
@@ -851,7 +847,6 @@ export function aggregateKiaRetailRegions(
   if (months.length === 0) return [];
 
   const monthsByYear = new Map<string, Set<number>>();
-  const currentYear = new Date().getFullYear();
   if (mode === 'annual') {
     for (const r of months) {
       const y = periodYear(r.year_period);
@@ -861,7 +856,6 @@ export function aggregateKiaRetailRegions(
     }
   }
 
-  void currentYear;
   const byPeriod = new Map<string, KiaRetailRegionPoint>();
   for (const r of months) {
     let key: string;
@@ -1088,7 +1082,6 @@ export function aggregateKiaExportTypeMix(
 
   // 연간 모드: 12월까지 채워졌는지 판단해 YTD 라벨
   const monthsByYear = new Map<string, Set<number>>();
-  const currentYear = new Date().getFullYear();
   for (const r of filtered) {
     const y = periodYear(r.year_period);
     const m = parseInt(r.year_period.slice(-2), 10);
@@ -1096,7 +1089,6 @@ export function aggregateKiaExportTypeMix(
     monthsByYear.get(y)!.add(m);
   }
 
-  void currentYear;
   const byPeriod = new Map<string, KiaExportTypeMixPoint>();
   for (const r of filtered) {
     let key: string;

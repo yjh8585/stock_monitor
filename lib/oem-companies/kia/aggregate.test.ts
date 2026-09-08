@@ -3,6 +3,7 @@
  * 현대차 패턴 + Kia 특이사항(Aggregate 모델 제외, CKD region 포함) 검증.
  */
 import { describe, expect, it } from 'vitest';
+import { currentYear } from '@/lib/currentYear';
 import type {
   CompanySaleRowWithPt,
   KiaExportRegionRow,
@@ -294,11 +295,15 @@ describe('aggregateKiaExportRegions', () => {
   });
 
   it('진행 중 연도(12월 미만) → YYYY YTD 라벨 + is_ytd=true', () => {
+    // annualYearLabel의 「진행 중 연도」 판정은 currentYear() 기준이라
+    // fixture도 전년(완비)·당해(4개월치)로 당해를 따라가야 한다(2026-09-08 회귀).
+    const prevYear = currentYear() - 1;
+    const thisYear = currentYear();
     const rows: KiaExportRegionRow[] = [];
     for (let m = 1; m <= 12; m++) {
       rows.push(
         exportRow({
-          period: `2025-${String(m).padStart(2, '0')}`,
+          period: `${prevYear}-${String(m).padStart(2, '0')}`,
           region: 'U.S.',
           type: 'Passenger Car',
           units: 100,
@@ -308,7 +313,7 @@ describe('aggregateKiaExportRegions', () => {
     for (let m = 1; m <= 4; m++) {
       rows.push(
         exportRow({
-          period: `2026-${String(m).padStart(2, '0')}`,
+          period: `${thisYear}-${String(m).padStart(2, '0')}`,
           region: 'U.S.',
           type: 'Passenger Car',
           units: 100,
@@ -317,9 +322,9 @@ describe('aggregateKiaExportRegions', () => {
     }
     const out = aggregateKiaExportRegions(rows, 'annual');
     expect(out).toHaveLength(2);
-    expect(out[0].period).toBe('2025');
+    expect(out[0].period).toBe(String(prevYear));
     expect(out[0].is_ytd).toBe(false);
-    expect(out[1].period).toBe('2026 YTD');
+    expect(out[1].period).toBe(`${thisYear} YTD`);
     expect(out[1].is_ytd).toBe(true);
   });
 });

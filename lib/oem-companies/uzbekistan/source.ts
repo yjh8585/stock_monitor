@@ -4,6 +4,7 @@
  */
 import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
+import { currentYear } from '@/lib/currentYear';
 import logger from '@/lib/logger';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 
@@ -246,12 +247,12 @@ function aggregateAnnualByCompany(rows: UzbekistanRow[]): UzbekistanCompanyMonth
       p.total += r.units;
     }
     // YTD 라벨
-    const currentYear = new Date().getFullYear();
+    const nowYear = currentYear();
     for (const [y, p] of byYear) {
       const ms = monthsByYear.get(y)?.size ?? 0;
       const yNum = parseInt(y, 10);
       if (ms < 12) {
-        if (yNum === currentYear) {
+        if (yNum === nowYear) {
           p.period_label = `${y} YTD`;
           p.is_ytd = true;
         } else {

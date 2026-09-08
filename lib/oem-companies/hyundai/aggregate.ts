@@ -7,6 +7,7 @@
  * 공통 함수(monthly/annual series · KPI · TopModels · PtMix)는 KG 구현과 거의 동일 —
  * CompanySaleRow 기반이라 회사 무관. 향후 공통화 검토 가능.
  */
+import { currentYear } from '@/lib/currentYear';
 import type {
   CompanyKpiSummary,
   CompanyPowertrain,
@@ -209,14 +210,14 @@ export function aggregateHyundaiShipmentBreakdown(
       cur.export += r.sales_units;
     }
   }
-  const currentYear = new Date().getFullYear();
+  const nowYear = currentYear();
   const years = [...byYear.keys()].sort();
   return years.map((y) => {
     const v = byYear.get(y)!;
     const monthCount = v.months.size;
     let label: string;
     if (monthCount === 12) label = y;
-    else if (parseInt(y, 10) === currentYear) label = `${y} YTD`;
+    else if (parseInt(y, 10) === nowYear) label = `${y} YTD`;
     else {
       const lastMm = Math.max(...[...v.months].map((s) => parseInt(s, 10)));
       label = `${y}.${String(lastMm).padStart(2, '0')}`;

@@ -16,7 +16,7 @@ import {
   aggregateOtherModelSeries,
   aggregateUsaOemSeries,
   HEATMAP_FORCED_COUNTRIES,
-  TARGET_YEAR,
+  targetYear,
 } from './aggregate';
 
 /** oem_sales_country_group_year 뷰 행 (연·OEM·국가 사전 집계). */
@@ -39,21 +39,21 @@ function mcm(
 }
 
 describe('aggregateCountryTop15', () => {
-  it('TARGET_YEAR 밖 rows 무시', () => {
+  it('targetYear() 밖 rows 무시', () => {
     const result = aggregateCountryTop15([
-      cgy('Toyota Group', 'Japan', TARGET_YEAR - 1, 100), // 전년 → 무시
-      cgy('Toyota Group', 'Japan', TARGET_YEAR, 50),
-      cgy('Toyota Group', 'Japan', TARGET_YEAR + 1, 999), // 익년 → 무시
+      cgy('Toyota Group', 'Japan', targetYear() - 1, 100), // 전년 → 무시
+      cgy('Toyota Group', 'Japan', targetYear(), 50),
+      cgy('Toyota Group', 'Japan', targetYear() + 1, 999), // 익년 → 무시
     ]);
     expect(result).toEqual([{ name: 'Japan', sales: 50 }]);
   });
 
   it('country별 합계 + sales 내림차순 정렬', () => {
     const result = aggregateCountryTop15([
-      cgy('A', 'USA', TARGET_YEAR, 100),
-      cgy('B', 'USA', TARGET_YEAR, 200),
-      cgy('B', 'Japan', TARGET_YEAR, 500),
-      cgy('C', 'Korea', TARGET_YEAR, 50),
+      cgy('A', 'USA', targetYear(), 100),
+      cgy('B', 'USA', targetYear(), 200),
+      cgy('B', 'Japan', targetYear(), 500),
+      cgy('C', 'Korea', targetYear(), 50),
     ]);
     expect(result).toEqual([
       { name: 'Japan', sales: 500 },
@@ -65,7 +65,7 @@ describe('aggregateCountryTop15', () => {
   it('TOP15 슬라이스 — 16개 country 입력 시 15개만', () => {
     const rows: OemCountryGroupYear[] = [];
     for (let i = 0; i < 16; i++) {
-      rows.push(cgy('A', `C${i}`, TARGET_YEAR, 100 - i)); // C0=100, C1=99, ..., C15=85
+      rows.push(cgy('A', `C${i}`, targetYear(), 100 - i)); // C0=100, C1=99, ..., C15=85
     }
     const result = aggregateCountryTop15(rows);
     expect(result).toHaveLength(15);
@@ -87,7 +87,7 @@ describe('aggregateOemCountryMatrix', () => {
       for (let ci = 0; ci < 11; ci++) {
         const country = ci === 10 ? 'Korea' : `C${ci}`;
         const sales = ci === 10 ? 1 : (12 - oi) * (11 - ci) * 100; // OEM00이 최대, C0이 최대
-        rows.push(cgy(oem, country, TARGET_YEAR, sales));
+        rows.push(cgy(oem, country, targetYear(), sales));
       }
     }
     const { oems, countries, matrix } = aggregateOemCountryMatrix(rows);
@@ -109,17 +109,17 @@ describe('aggregateOemCountryMatrix', () => {
 
   it('Korea가 TOP10 안에 이미 있으면 중복 추가 안 함', () => {
     const rows: OemCountryGroupYear[] = [
-      cgy('A', 'Korea', TARGET_YEAR, 9999),
-      cgy('A', 'USA', TARGET_YEAR, 100),
+      cgy('A', 'Korea', targetYear(), 9999),
+      cgy('A', 'USA', targetYear(), 100),
     ];
     const { countries } = aggregateOemCountryMatrix(rows);
     expect(countries.filter((c) => c === 'Korea')).toHaveLength(1);
   });
 
-  it('TARGET_YEAR 밖 무시', () => {
+  it('targetYear() 밖 무시', () => {
     const rows: OemCountryGroupYear[] = [
-      cgy('A', 'USA', TARGET_YEAR - 1, 999),
-      cgy('A', 'USA', TARGET_YEAR, 100),
+      cgy('A', 'USA', targetYear() - 1, 999),
+      cgy('A', 'USA', targetYear(), 100),
     ];
     const { oems, matrix } = aggregateOemCountryMatrix(rows);
     expect(oems).toEqual(['A']);

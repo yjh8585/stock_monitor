@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
+import { currentYear } from '@/lib/currentYear';
 import type {
   ModelMonthlySeries,
   OemSalesGroupMonth,
@@ -13,8 +14,6 @@ import KpiCards from './KpiCards';
 import { findLatestYm } from './helpers';
 import type { CountryTop15Row } from './CountryTop15';
 import type { OemCountryMatrix } from './OemCountryHeatmap';
-
-const YTD_YEAR = 2026;
 
 // 차트 컴포넌트는 모두 recharts 의존 — 클라이언트 번들 최소화 위해 동적 import.
 // KpiCards는 가벼운 div 카드라 정적 import.
@@ -102,7 +101,7 @@ export default function OemDashboard({
   otherModelSeries,
 }: Props) {
   const latestMonth2026 = useMemo(() => {
-    const ym = findLatestYm(groupMonth, YTD_YEAR);
+    const ym = findLatestYm(groupMonth, currentYear());
     return ym ? ym % 100 : null;
   }, [groupMonth]);
   const ytdSuffix = latestMonth2026 ? ` (1~${latestMonth2026}월)` : '';

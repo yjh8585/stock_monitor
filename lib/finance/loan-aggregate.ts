@@ -4,12 +4,11 @@
  * - 단위: loan_eok = 억원 (소스가 이미 억원, 환산 없음).
  * - 차트: 재고 계획대비 차트(InventoryAchievementChart)를 재사용하므로
  *   AchievementMonthPoint[]를 반환(plan/actual/rate). 2025는 계획 없어 plan=null.
- * - KPI: 당월(최신 실적월)·누적(전체 실적 합)·2026 YTD 동기간 지급율.
+ * - KPI: 당월(최신 실적월)·누적(전체 실적 합)·당해 YTD 동기간 지급율.
  */
+import { currentYear } from '@/lib/currentYear';
 import type { AchievementMonthPoint } from '@/lib/inventory/types';
 import type { LoanKpis, LoanRow } from './types';
-
-const YTD_YEAR = 2026;
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -58,8 +57,9 @@ export function buildLoanAchievement(rows: readonly LoanRow[]): AchievementMonth
   return pts.sort((a, b) => a.year - b.year || a.month - b.month);
 }
 
-/** KPI — 당월(최신 실적월) · 누적(전체 실적 합) · 2026 YTD 동기간 지급율. */
+/** KPI — 당월(최신 실적월) · 누적(전체 실적 합) · 당해 YTD 동기간 지급율. */
 export function buildLoanKpis(rows: readonly LoanRow[]): LoanKpis {
+  const ytdYear = currentYear();
   const empty: LoanKpis = {
     latestLabel: '—',
     currentMonthEok: null,
@@ -82,11 +82,11 @@ export function buildLoanKpis(rows: readonly LoanRow[]): LoanKpis {
   // 누적 대여금 = 전체(2025~) 실적 합
   const cumulativeEok = round1(actuals.reduce((s, r) => s + (r.loan_eok ?? 0), 0));
 
-  // 2026 YTD 지급율 = 2026 실적 누적 / 2026 동기간 계획 누적 × 100
+  // 당해 YTD 지급율 = 당해 실적 누적 / 당해 동기간 계획 누적 × 100
   let ytdActualEok: number | null = null;
   let ytdPlanEok: number | null = null;
   let paymentRatePct: number | null = null;
-  const ytdActuals = actuals.filter((r) => r.period_year === YTD_YEAR);
+  const ytdActuals = actuals.filter((r) => r.period_year === ytdYear);
   if (ytdActuals.length > 0) {
     const maxMonth = Math.max(...ytdActuals.map((r) => r.period_month));
     ytdActualEok = round1(
@@ -97,7 +97,7 @@ export function buildLoanKpis(rows: readonly LoanRow[]): LoanKpis {
     const planYtd = rows.filter(
       (r) =>
         r.kind === '계획' &&
-        r.period_year === YTD_YEAR &&
+        r.period_year === ytdYear &&
         r.period_month <= maxMonth &&
         r.loan_eok !== null
     );

@@ -28,7 +28,7 @@ import {
   NA_COUNTRY,
   NA_MODEL_TARGETS,
   OTHER_MODEL_TARGETS,
-  TARGET_YEAR,
+  targetYear,
 } from './aggregate';
 
 const SUPABASE_PAGE_SIZE = 1000;
@@ -198,7 +198,11 @@ export async function getOemData() {
   ] = await Promise.all([
     fetchAll(supabase, 'oem_sales_group_month', ['oem_group', 'year_month']),
     fetchAll(supabase, 'oem_sales_group_pt_month', ['oem_group', 'powertrain', 'year_month']),
-    fetchCountryGroupYear(supabase, TARGET_YEAR),
+    // 🔴 'use cache' 함수 안에서 targetYear() 를 부르므로 캐시 키에 연도가 안 들어간다 —
+    // cacheLife('days') 라 해가 바뀌어도 최대 하루는 옛 연도 결과가 남을 수 있다.
+    // 사용자 결정(2026-09-08): 허용 범위. 연도를 캐시 키로 올리려면 인자로 빼야 하는데
+    // 그러면 매일 새 캐시 엔트리가 생겨 ISR Write 가 는다.
+    fetchCountryGroupYear(supabase, targetYear()),
     fetchUsaGroupMonth(supabase),
     fetchAll(supabase, 'oem_sales_type_seg_month', ['vehicle_type', 'segment', 'year_month']),
     fetchModelRows(

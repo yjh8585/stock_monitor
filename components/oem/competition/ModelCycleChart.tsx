@@ -32,6 +32,7 @@ import {
   TOTAL_LABEL_ANCHOR,
 } from '@/components/oem-companies/common/chartStyle';
 import { useHiddenSeries } from '@/components/oem-companies/common/useHiddenSeries';
+import { currentYear } from '@/lib/currentYear';
 import type { CompetitionMarket, ModelCycleEntry } from '@/lib/oem-competition/types';
 import { useChartHeight } from '@/lib/useChartHeight';
 import {
@@ -222,7 +223,7 @@ export default function ModelCycleChart({
 }) {
   const rowHeight = useChartHeight(48, 56, 64);
   const { hidden, isHidden, toggle } = useHiddenSeries();
-  const baseYear = Number(noteDate?.slice(0, 4)) || new Date().getFullYear();
+  const baseYear = Number(noteDate?.slice(0, 4)) || currentYear();
   // `?? []` — 2026-08-14 이전 적재분에는 이 필드가 아예 없다(캐시 페이로드 방어와 같은 이유).
   const rows = buildRows(market.modelCycle ?? [], baseYear, market.modelBrands);
   const title = '신차 사이클 비교';

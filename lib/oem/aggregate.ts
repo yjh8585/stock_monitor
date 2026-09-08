@@ -9,6 +9,7 @@
  */
 import { ymLabel as ymLabelFn, shortenOemName } from '@/components/oem/helpers';
 import type { UsaOemTimeSeriesData } from '@/components/oem/UsaOemTrendChart';
+import { currentYear } from '@/lib/currentYear';
 import type {
   ModelMonthlySeries,
   OemCountryGroupYear,
@@ -18,8 +19,16 @@ import type {
 
 export const COUNTRY_TOP_N = 15;
 export const HEATMAP_TOP_N = 10;
-/** 대시보드 국가 TOP15·OEM×국가 매트릭스 집계 대상 연도. */
-export const TARGET_YEAR = 2025;
+
+/**
+ * 대시보드 국가 TOP15·OEM×국가 매트릭스 집계 대상 연도 = **직전 완결 연도**.
+ *
+ * 연간 사전 집계 뷰를 읽으므로 진행 중 연도를 쓰면 부분 실적으로 국가 순위가 흔들린다.
+ * 사용자 결정(2026-09-08): 상수 고정이 아니라 현재 연도에서 파생한다.
+ */
+export function targetYear(): number {
+  return currentYear() - 1;
+}
 /** 매트릭스 강제 포함 국가 (TOP10 누락 시에도 컬럼 표시) */
 export const HEATMAP_FORCED_COUNTRIES = ['Korea'];
 
@@ -106,13 +115,14 @@ export const OTHER_MODEL_TARGETS: ModelTarget[] = [
   },
 ];
 
-/** TARGET_YEAR Country별 합계 TOP15. 입력은 oem_sales_country_group_year 뷰 행(연 사전 집계). */
+/** 직전 완결 연도 Country별 합계 TOP15. 입력은 oem_sales_country_group_year 뷰 행(연 사전 집계). */
 export function aggregateCountryTop15(
   rows: OemCountryGroupYear[]
 ): { name: string; sales: number }[] {
+  const year = targetYear();
   const m = new Map<string, number>();
   for (const r of rows) {
-    if (r.year !== TARGET_YEAR) continue;
+    if (r.year !== year) continue;
     m.set(r.country, (m.get(r.country) ?? 0) + r.sales);
   }
   return [...m.entries()]
@@ -121,16 +131,17 @@ export function aggregateCountryTop15(
     .map(([name, sales]) => ({ name, sales }));
 }
 
-/** TOP10 OEM × TOP10 Country 매트릭스 (TARGET_YEAR) + Korea 강제 포함. 입력은 연 사전 집계 뷰 행. */
+/** TOP10 OEM × TOP10 Country 매트릭스 (직전 완결 연도) + Korea 강제 포함. 입력은 연 사전 집계 뷰 행. */
 export function aggregateOemCountryMatrix(rows: OemCountryGroupYear[]): {
   oems: string[];
   countries: string[];
   matrix: number[][];
 } {
+  const year = targetYear();
   const oemTotal = new Map<string, number>();
   const countryTotal = new Map<string, number>();
   for (const r of rows) {
-    if (r.year !== TARGET_YEAR) continue;
+    if (r.year !== year) continue;
     oemTotal.set(r.oem_group, (oemTotal.get(r.oem_group) ?? 0) + r.sales);
     countryTotal.set(r.country, (countryTotal.get(r.country) ?? 0) + r.sales);
   }
@@ -148,7 +159,7 @@ export function aggregateOemCountryMatrix(rows: OemCountryGroupYear[]): {
   const countrySet = new Set(countries);
   const cell = new Map<string, number>();
   for (const r of rows) {
-    if (r.year !== TARGET_YEAR) continue;
+    if (r.year !== year) continue;
     if (!oemSet.has(r.oem_group) || !countrySet.has(r.country)) continue;
     const k = `${r.oem_group}|${r.country}`;
     cell.set(k, (cell.get(k) ?? 0) + r.sales);
