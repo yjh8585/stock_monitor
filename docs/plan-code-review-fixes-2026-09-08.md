@@ -925,3 +925,948 @@ Expected: 둘 다 통과. `check-all` 이 **4단계를 전부 완주**하는지 
 - 리뷰 지적 미처리 8건: `scripts/lib/nhtsa_client.py:201`(수집 실패가 「리콜 0건」으로 둔갑) · `scripts/lib/revalidate.py:32`(`humanoid_stocks_view`·`hyundai_retail_sales` 태그 매핑 누락) · `app/api/cron/sentiment/route.ts:39`(에러를 버려 200 ok) · `lib/hansae/data.ts:89`(KST 09시 컷오프) · `lib/chat/tools.ts:194`(한세 게이트 누락) · `lib/chat/tools.ts:206`(PostgREST `or()` 인젝션) · `lib/auth/actions.ts:14`(오픈 리다이렉트 `/\`) · `app/api/news/search/route.ts:88`(날짜 하나로 전체 502)
 - 부가 9건(리뷰 「지적하지 않았지만 확인된 것」 — `app/api/stock-prices/route.ts:16` id 무검증 등)
 - `lib/oem-companies/hyundai/source.ts:100` 의 `.range(0, 9999)` — 현재 876행이라 안전하지만 10,000행 초과 시 조용히 잘린다
+
+---
+
+# 2차 — 남은 지적 전량 (2026-09-08 오후)
+
+1차에서 「이번 범위 밖」으로 남긴 것을 전부 처리한다. 산출물·완료 정의는 1차와 같다
+(**같은 코드리뷰에서 나온 지적을 코드로 없애는 것**)이므로 새 계획서를 내지 않고 여기 잇는다.
+
+## 사용자 지시 원문 (2026-09-08 오후)
+
+> 남은 일 진행해
+
+AskUserQuestion 으로 확정한 것 3건:
+
+1. **OEM 대시보드 `TARGET_YEAR`** → 「직전 완결 연도」(현재 연도 − 1). 지금 화면은 그대로 2025 이고
+   2027 이 되면 자동으로 2026 으로 넘어간다.
+2. **`Forecast2026.tsx`** → `AnnualForecast.tsx` 로 **개명**(`git mv`, import 하는 곳도 같이).
+3. **`/api/chat`** → **guest 만 403**. 나머지 4역할은 그대로.
+
+## 2차 Global Constraints (1차 것에 더한다)
+
+- 1차의 Global Constraints 는 전부 그대로 유효하다 — 특히 **경로 명시 `git add`**,
+  **사외비 금액 비노출**, **각 Task 끝에서 `npm run check-all` 통과**.
+- **연도를 코드에 박지 않는다.** 새로 쓰는 판정은 ⓐ 데이터에서 파생하거나 ⓑ `currentYear()`
+  에서 파생한다. 리터럴 연도가 정당한 자리는 **`PNL_MIN_YEAR = 2023`(데이터가 시작한 해)** 뿐이다.
+- **연도를 다루는 수정은 미래 시각에서 돌려 봐야 검증이 끝난다.** 1차 Task 7 에서 이 절차가 없어
+  회귀 2건을 계획서가 직접 만들어 냈다. 해당 Task 는 `vi.setSystemTime` 으로 **최소 2개 시점**
+  (현재, 그리고 다음 해 1월 5일)에서 단위 테스트를 돌린다.
+- **파이썬은 `scripts/venv/Scripts/python.exe`** 로 돌린다. 출력이 있는 실행에는
+  `PYTHONIOENCODING=utf-8` 프리픽스를 붙인다(`-m py_compile` 은 불필요).
+- `Asia/Seoul` 로 연·월·일을 구한다. `new Date().getFullYear()` 는 Vercel(UTC)에서 연초 9시간
+  동안 한 해가 밀리므로 **새 코드에 쓰지 않는다.**
+
+## 2차 File Structure
+
+| 파일                                                                                                                                                                | 책임                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `lib/currentYear.ts` · `lib/currentYear.test.ts` (신설)                                                                                                             | 서울 기준 달력 연도 단일 출처 (Task 8)                |
+| `lib/pnl/aggregate.ts` · `lib/plan/aggregate.ts` · `lib/stockSort.ts`                                                                                               | `currentFiscalYear` 폐기 → `currentYear` (Task 8)     |
+| `lib/pnl/periodColumns.ts` · `periodColumns.test.ts` (신설)                                                                                                         | 손익 표 「연간 N개 + 진행 연도 YTD」 열 파생 (Task 9) |
+| `components/management/pnl/CostStructure.tsx` · `FixedVariableBep.tsx` · `FixedVariableStructure.tsx`                                                               | 위 함수로 교체 (Task 9)                               |
+| `components/management/pnl/AnnualForecast.tsx` (개명) · `PnlDashboard.tsx`                                                                                          | 연도 무관 추정 (Task 10)                              |
+| `lib/finance/loan-aggregate.ts` · `components/oem/OemDashboard.tsx` · `lib/oem/aggregate.ts` · `lib/oem-companies/{kia,hyundai,uzbekistan}/*` · `lib/chat/tools.ts` | 연도 하드코딩·UTC 연도 제거 (Task 11)                 |
+| `scripts/lib/nhtsa_client.py` · `scripts/lib/revalidate.py` · `app/api/revalidate/route.ts` · `scripts/verify_revalidate_tags.py` (신설)                            | 수집 실패 은폐 · 태그 매핑 (Task 12)                  |
+| `app/api/cron/sentiment/route.ts` · `lib/hansae/data.ts` · `lib/chat/tools.ts` · `lib/auth/actions.ts` · `app/api/news/search/route.ts`                             | 라우트·유틸 지적 6건 (Task 13)                        |
+| `app/api/chat/route.ts` · `lib/auth/permissions.ts`                                                                                                                 | guest 챗봇 차단 (Task 14)                             |
+| `lib/pnl/__tests__/aggregate.test.ts` · JSDoc 3곳                                                                                                                   | 1차의 미검증 항목 보강 (Task 15)                      |
+
+---
+
+## Task 8: 연도 단일 출처 `lib/currentYear.ts` 신설
+
+**왜**: 1차에서 만든 `currentFiscalYear` 는 이름이 **회계연도**를 시사하는데 실제로는 **달력 연도**다.
+이 레포에는 `companies.fiscal_year_end_month`(회사별 결산월)로 진짜 회계연도를 −1 보정하는 규칙이
+따로 있어(AGENTS.md 「비-12월 결산 fiscal_year」) 이름이 정면으로 충돌한다.
+게다가 **공개 유틸 `lib/stockSort.ts` 가 손익 도메인 `lib/pnl/aggregate.ts` 를 import** 하는
+계층 역전이 생겼다. 둘은 같은 수술로 풀린다.
+
+**Files:**
+
+- Create: `lib/currentYear.ts`
+- Create: `lib/currentYear.test.ts`
+- Modify: `lib/pnl/aggregate.ts` (함수 제거 + import 로 교체)
+- Modify: `lib/plan/aggregate.ts:4,177`
+- Modify: `lib/stockSort.ts:10,25`
+- Modify: `lib/pnl/__tests__/aggregate.test.ts:3,200,250,317`
+
+**Interfaces:**
+
+- Produces: `export function currentYear(): number` — 서울 기준 달력 연도.
+  Task 9~11 이 전부 이것을 쓴다. 다른 이름을 만들지 말 것.
+- `PNL_MIN_YEAR` 는 `lib/pnl/aggregate.ts` 에 **그대로 둔다** — 손익 데이터가 시작한 해라
+  손익 도메인의 사실이지 공용 상수가 아니다.
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다** — `lib/currentYear.test.ts`
+
+```typescript
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { currentYear } from './currentYear';
+
+describe('currentYear', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('UTC 로는 전년인 순간에도 서울 연도를 준다', () => {
+    // 2026-12-31T16:00Z = 서울 2027-01-01 01:00
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-12-31T16:00:00Z'));
+    expect(currentYear()).toBe(2027);
+  });
+
+  it('UTC 로는 이미 새해인 순간에도 서울이 아직 전년이면 전년을 준다', () => {
+    // 2026-01-01T00:30Z = 서울 2026-01-01 09:30 → 같은 해라 경계가 안 잡힌다.
+    // 반대 방향 경계: 서울이 아직 12/31 인 순간은 UTC 로도 12/31 이므로
+    // 서울 기준이 UTC 보다 **앞서기만** 한다는 사실을 명시적으로 고정한다.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00Z'));
+    expect(currentYear()).toBe(2026);
+  });
+});
+```
+
+- [ ] **Step 2: 실패를 확인한다**
+
+`npx vitest run lib/currentYear.test.ts` → `Cannot find module './currentYear'`
+
+- [ ] **Step 3: 구현한다** — `lib/currentYear.ts`
+
+```typescript
+/**
+ * 서울 기준 **달력 연도**.
+ *
+ * 화면 라벨·「진행 중 연도(YTD)」 판정·연도 상한을 전부 여기서 파생시킨다.
+ * 연도를 코드에 박으면 해가 바뀌는 순간 화면이 조용히 지난해에 멈춘다(2026 하드코딩 사고).
+ *
+ * 🔴 `new Date().getFullYear()` 를 쓰지 말 것 — 서버 로컬시간이라 Vercel(UTC)에서는
+ * 매년 1월 1일 00:00~09:00(KST) 동안 전년을 돌려준다.
+ *
+ * 🔴 회사별 **회계연도**(`companies.fiscal_year_end_month` 로 −1 보정하는 그것)와는
+ * 다른 개념이다. 재무 fiscal_year 판정에 이 함수를 쓰지 말 것.
+ */
+export function currentYear(): number {
+  const seoulDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  return parseInt(seoulDate.slice(0, 4), 10);
+}
+```
+
+- [ ] **Step 4: 통과를 확인한다** — `npx vitest run lib/currentYear.test.ts`
+
+- [ ] **Step 5: 호출부 4곳을 옮긴다**
+
+`lib/pnl/aggregate.ts` — `currentFiscalYear` 정의를 **지우고** 맨 위 import 에
+`import { currentYear } from '../currentYear';` 를 넣은 뒤 본문 2곳(`:75`, `:83`)을 `currentYear()` 로 바꾼다.
+`lib/plan/aggregate.ts` — import 출처를 `'@/lib/currentYear'` 로, 호출을 `currentYear()` 로.
+`lib/stockSort.ts` — `import { currentFiscalYear } from './pnl/aggregate';` 를
+`import { currentYear } from './currentYear';` 로 바꾼다. **이 줄이 계층 역전 해소의 본체다.**
+`lib/pnl/__tests__/aggregate.test.ts` — import 와 `const thisYear = currentYear();` 3곳.
+
+🔴 `currentFiscalYear` 라는 이름이 레포 어디에도 남지 않아야 한다:
+`grep -rn "currentFiscalYear" --include=*.ts --include=*.tsx lib components app` 가 0건.
+
+- [ ] **Step 6: 검증 + 커밋**
+
+```bash
+npm run check-all
+git add lib/currentYear.ts lib/currentYear.test.ts lib/pnl/aggregate.ts lib/plan/aggregate.ts lib/stockSort.ts lib/pnl/__tests__/aggregate.test.ts
+git commit -m "refactor(연도): currentFiscalYear를 lib/currentYear.ts로 분리·개명 — 계층 역전 해소"
+```
+
+---
+
+## Task 9: 손익 표 열을 데이터에서 파생 (연간 N개 + 진행 연도 YTD)
+
+**왜**: 세 컴포넌트가 **똑같은 열 정의를 각자 복제**해 두고 연도를 리터럴로 박았다.
+2027-01-01 이 되면 세 화면이 전부 2023·2024·2025 연간 + 「2026 YTD」에 멈춘다.
+
+**연도 무관 규칙**(1차 Task 7 이 손익 라벨에 쓴 것과 **같은 규칙**을 쓴다):
+
+- **연간 열** = 데이터에 `period_kind='annual'` 행이 있는 연도 전부, 오름차순.
+- **YTD 열** = `period_kind='monthly'` 행이 있는 **가장 큰 연도**. 단 그 연도에 연간 행이
+  **이미 있으면 만들지 않는다**(확정 연간이 들어오면 YTD 는 사라진다).
+- YTD 라벨 = 최대 월이 12 면 `'2026'`, 아니면 `'2026 YTD'` — 현행과 동일.
+
+**Files:**
+
+- Create: `lib/pnl/periodColumns.ts`
+- Create: `lib/pnl/__tests__/periodColumns.test.ts`
+- Modify: `components/management/pnl/CostStructure.tsx:42-78,130`
+- Modify: `components/management/pnl/FixedVariableBep.tsx:58-81`
+- Modify: `components/management/pnl/FixedVariableStructure.tsx:238-272,415`
+
+**Interfaces:**
+
+- Consumes: 없음(순수 함수).
+- Produces:
+
+```typescript
+export interface PeriodRowLike {
+  period_year: number;
+  period_kind: string;
+  period_month: number;
+}
+
+export interface PeriodColumn<T> {
+  /** 화면 라벨 — '2024' 또는 '2026 YTD' */
+  label: string;
+  /** 그 열에 속하는 행인가 */
+  match: (r: T) => boolean;
+  /** YTD 열이면 누적 개월 수, 연간 열이면 null */
+  ytdMonths: number | null;
+}
+
+export function buildPeriodColumns<T extends PeriodRowLike>(
+  rows: readonly T[],
+  extraFilter?: (r: T) => boolean
+): PeriodColumn<T>[];
+```
+
+`extraFilter` 는 `CostStructure` 의 `r.kind === 'actual'` 처럼 **그 화면에만 있는 추가 조건**이다.
+넘기면 열 목록을 고를 때도, `match` 안에서도 함께 적용된다. 안 넘기면 항상 통과.
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다** — `lib/pnl/__tests__/periodColumns.test.ts`
+
+```typescript
+import { describe, expect, it } from 'vitest';
+import { buildPeriodColumns } from '../periodColumns';
+
+interface Row {
+  period_year: number;
+  period_kind: string;
+  period_month: number;
+  kind?: string;
+}
+
+const annual = (y: number, kind = 'actual'): Row => ({
+  period_year: y,
+  period_kind: 'annual',
+  period_month: 0,
+  kind,
+});
+const monthly = (y: number, m: number, kind = 'actual'): Row => ({
+  period_year: y,
+  period_kind: 'monthly',
+  period_month: m,
+  kind,
+});
+
+describe('buildPeriodColumns', () => {
+  it('연간 행이 있는 연도를 오름차순 열로 만든다', () => {
+    const cols = buildPeriodColumns([annual(2025), annual(2023), annual(2024)]);
+    expect(cols.map((c) => c.label)).toEqual(['2023', '2024', '2025']);
+    expect(cols.every((c) => c.ytdMonths === null)).toBe(true);
+  });
+
+  it('월별만 있는 최신 연도는 YTD 열이 되고 최대 월을 라벨에 쓴다', () => {
+    const cols = buildPeriodColumns([annual(2024), monthly(2025, 1), monthly(2025, 3)]);
+    expect(cols.map((c) => c.label)).toEqual(['2024', '2025 YTD']);
+    expect(cols[1].ytdMonths).toBe(3);
+  });
+
+  it('12개월이 다 차면 YTD 표기를 떼고 연도만 쓴다', () => {
+    const rows = Array.from({ length: 12 }, (_, i) => monthly(2025, i + 1));
+    const cols = buildPeriodColumns(rows);
+    expect(cols.map((c) => c.label)).toEqual(['2025']);
+    expect(cols[0].ytdMonths).toBe(12);
+  });
+
+  it('확정 연간 행이 들어온 연도는 YTD 열을 만들지 않는다', () => {
+    const cols = buildPeriodColumns([annual(2025), monthly(2025, 4)]);
+    expect(cols.map((c) => c.label)).toEqual(['2025']);
+    expect(cols[0].ytdMonths).toBeNull();
+    // 연간 열의 match 는 연간 행만 받는다
+    expect(cols[0].match(annual(2025))).toBe(true);
+    expect(cols[0].match(monthly(2025, 4))).toBe(false);
+  });
+
+  it('YTD 열의 match 는 1~최대월만 받는다', () => {
+    const cols = buildPeriodColumns([monthly(2025, 2), monthly(2025, 5)]);
+    const ytd = cols[0];
+    expect(ytd.match(monthly(2025, 5))).toBe(true);
+    expect(ytd.match(monthly(2025, 6))).toBe(false);
+    expect(ytd.match(monthly(2024, 3))).toBe(false);
+  });
+
+  it('extraFilter 로 걸러진 행은 열 목록에도 안 잡힌다', () => {
+    const rows = [annual(2024), annual(2025, 'plan'), monthly(2026, 2, 'plan')];
+    const cols = buildPeriodColumns(rows, (r) => r.kind === 'actual');
+    expect(cols.map((c) => c.label)).toEqual(['2024']);
+  });
+
+  it('빈 입력은 빈 배열', () => {
+    expect(buildPeriodColumns([])).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: 실패를 확인한다** — `npx vitest run lib/pnl/__tests__/periodColumns.test.ts`
+
+- [ ] **Step 3: 구현한다** — `lib/pnl/periodColumns.ts`
+
+```typescript
+/**
+ * 손익 표 3종(비용구조·고정변동 구조·BEP)이 공통으로 쓰는 「연도 열」 파생.
+ *
+ * 🔴 연도를 코드에 박지 않는다 — 열은 **데이터에 실제로 있는 연도**에서 나온다.
+ * 셋이 각자 2023·2024·2025 를 리터럴로 들고 있었고, 그래서 해가 바뀌면 세 화면이
+ * 동시에 지난해에 멈췄다.
+ *
+ * 규칙은 `preparePnlData` 의 연간 derive 와 같다 — **확정 연간 행이 있는 연도는
+ * 그것을 쓰고, 없는 연도만 월별 누적(YTD)으로 만든다.**
+ */
+
+export interface PeriodRowLike {
+  period_year: number;
+  period_kind: string;
+  period_month: number;
+}
+
+export interface PeriodColumn<T> {
+  /** 화면 라벨 — '2024' 또는 '2026 YTD' */
+  label: string;
+  /** 그 열에 속하는 행인가 */
+  match: (r: T) => boolean;
+  /** YTD 열이면 누적 개월 수, 연간 열이면 null */
+  ytdMonths: number | null;
+}
+
+const PASS = () => true;
+
+export function buildPeriodColumns<T extends PeriodRowLike>(
+  rows: readonly T[],
+  extraFilter: (r: T) => boolean = PASS
+): PeriodColumn<T>[] {
+  const annualYears = new Set<number>();
+  /** 연도 → 그 연도 월별 행의 최대 월 */
+  const monthlyMax = new Map<number, number>();
+
+  for (const r of rows) {
+    if (!extraFilter(r)) continue;
+    if (r.period_kind === 'annual') {
+      annualYears.add(r.period_year);
+    } else if (r.period_kind === 'monthly') {
+      const prev = monthlyMax.get(r.period_year) ?? 0;
+      if (r.period_month > prev) monthlyMax.set(r.period_year, r.period_month);
+    }
+  }
+
+  const columns: PeriodColumn<T>[] = [...annualYears]
+    .sort((a, b) => a - b)
+    .map((year) => ({
+      label: String(year),
+      ytdMonths: null,
+      match: (r: T) => extraFilter(r) && r.period_year === year && r.period_kind === 'annual',
+    }));
+
+  // 진행 중 연도 = 월별만 있고 확정 연간이 아직 없는 연도 중 가장 큰 것.
+  const ytdYear = [...monthlyMax.keys()]
+    .filter((y) => !annualYears.has(y))
+    .sort((a, b) => b - a)[0];
+
+  if (ytdYear !== undefined) {
+    const months = monthlyMax.get(ytdYear) ?? 0;
+    columns.push({
+      label: months === 12 ? String(ytdYear) : `${ytdYear} YTD`,
+      ytdMonths: months,
+      match: (r: T) =>
+        extraFilter(r) &&
+        r.period_year === ytdYear &&
+        r.period_kind === 'monthly' &&
+        r.period_month >= 1 &&
+        r.period_month <= months,
+    });
+  }
+
+  return columns;
+}
+```
+
+- [ ] **Step 4: 통과를 확인한다** — `npx vitest run lib/pnl/__tests__/periodColumns.test.ts`
+
+- [ ] **Step 5: `CostStructure.tsx` 를 교체한다**
+
+`maxYtdMonth`·`buildColumnDefs` 지역 함수를 **지우고** `buildPeriodColumns(costStructure, (r) => r.kind === 'actual')` 를 쓴다.
+`ColumnDef` 타입 선언도 `PeriodColumn<CostStructureRow>` 로 갈음한다(같은 파일에 남은 참조를 전수 grep 해 고칠 것).
+
+`:130` 의 부제 문구는 열에서 파생시킨다 — YTD 열이 없으면 그 문장을 아예 내지 않는다:
+
+```tsx
+{
+  (() => {
+    const ytd = columns.find((c) => c.ytdMonths !== null);
+    return ytd
+      ? `연결 기준 · ${ytd.label.slice(0, 4)}은 1~${ytd.ytdMonths}월 누적(YTD) 실적 · 단위 백만원`
+      : '연결 기준 · 단위 백만원';
+  })();
+}
+```
+
+🔴 **`useMemo` 의존성 배열을 그대로 둘 것** — `[costStructure]` 로 충분하다.
+
+- [ ] **Step 6: `FixedVariableBep.tsx` 를 교체한다**
+
+`maxYtdMonth` 를 지우고 `buildData` 안의 `defs` 를 `buildPeriodColumns(rows)` 로 바꾼다.
+`{ year, match }` 를 쓰던 자리는 `{ label, match }` 가 되므로 **`d.year` → `d.label`** 로 고친다.
+이 화면은 `kind` 필터가 없으므로 `extraFilter` 를 넘기지 않는다.
+
+- [ ] **Step 7: `FixedVariableStructure.tsx` 를 교체한다**
+
+`maxYtdMonth`·`buildYearGroups` 를 지우고 `buildPeriodColumns(rows)` 를 쓴다.
+`:366` 의 주석(`2026이면 월 누적, 그 외 연간`)은 `진행 연도면 월 누적, 그 외 연간` 으로 고친다.
+`:415` 의 부제는 CostStructure 와 같은 방식으로 열에서 파생시킨다.
+
+- [ ] **Step 8: 화면 확인**
+
+`npm run dev` 로 `/management/pnl` 을 admin 으로 열어 **열 라벨과 열 개수**가 바뀌지 않았는지 본다.
+🔴 **금액은 보고하지 않는다** — 「열 4개, 라벨 2023·2024·2025·2026 YTD 로 이전과 동일」까지만.
+확인이 끝나면 **dev 서버를 반드시 종료**한다.
+
+- [ ] **Step 9: 검증 + 커밋**
+
+```bash
+npm run check-all
+git add lib/pnl/periodColumns.ts lib/pnl/__tests__/periodColumns.test.ts components/management/pnl/CostStructure.tsx components/management/pnl/FixedVariableBep.tsx components/management/pnl/FixedVariableStructure.tsx
+git commit -m "fix(손익): 표 3종의 연도 열을 데이터에서 파생 — 2027에 화면이 멈추던 것"
+```
+
+---
+
+## Task 10: `Forecast2026.tsx` → `AnnualForecast.tsx` 개명 + 연도 무관화
+
+**왜**: 「2025 실적 → 2026 추정」이 파일명·변수명·화면 문구에 전부 박혀 있다.
+1차에서 `lib/` 만 고쳐 놔서, 지금 상태로 해가 바뀌면 **라벨만 2027 로 넘어가고 카드는 2025/2026 에
+남아 오히려 더 헷갈린다.**
+
+**연도 무관 규칙**:
+
+- `targetYear` = 월별 실적이 있는 가장 큰 연도(= 추정 대상, 옛 2026).
+- `baseYear` = `targetYear - 1`(= 직전 실적, 옛 2025).
+- `cagrFromYear` = `PNL_MIN_YEAR`(= 옛 2023). CAGR 기간은 `baseYear - cagrFromYear` 년.
+- 정상비율 평균 대상 = `cagrFromYear` ~ `baseYear - 1`(= 옛 2023·2024).
+
+**Files:**
+
+- Rename: `components/management/pnl/Forecast2026.tsx` → `AnnualForecast.tsx` (**`git mv`**)
+- Modify: `components/management/pnl/PnlDashboard.tsx:12,63`
+
+- [ ] **Step 1: `git mv` 로 옮긴다**
+
+```bash
+git mv components/management/pnl/Forecast2026.tsx components/management/pnl/AnnualForecast.tsx
+```
+
+🔴 파일을 새로 쓰고 옛것을 지우지 말 것 — `git mv` 여야 히스토리가 이어진다.
+
+- [ ] **Step 2: 컴포넌트 이름과 import 를 고친다**
+
+`AnnualForecast.tsx` 의 `export default function Forecast2026(...)` → `AnnualForecast`.
+`PnlDashboard.tsx:12` 의 import 경로·이름, `:63` 의 사용처를 같이 고친다.
+
+- [ ] **Step 3: 연도를 파생값으로 바꾼다**
+
+`useMemo` 맨 앞에서 두 연도를 구한다:
+
+```typescript
+// 추정 대상 = 월별 실적이 들어온 가장 큰 연도. 연도를 코드에 박으면 해가 바뀔 때 멈춘다.
+const targetYear = monthlyByBasis[basis].reduce(
+  (max, e) => (e.period_month >= 1 && e.period_year > max ? e.period_year : max),
+  PNL_MIN_YEAR
+);
+const baseYear = targetYear - 1;
+```
+
+그 아래 리터럴을 전부 치환한다 — `2026` → `targetYear`, `2025` → `baseYear`,
+`2024` → `baseYear - 1`, `2023` → `PNL_MIN_YEAR`.
+변수명도 같이 고친다: `actual2025` → `actualBase`, `ytd_2025` → `ytdBase`, `ytd_2026` → `ytdTarget`.
+`rev24`/`rev25Cs`/`op25Cs`/`v24`/`v25` → `revPrev`/`revBase`/`opBase`/`vPrev`/`vBase`.
+
+- [ ] **Step 4: 화면 문구를 템플릿으로 바꾼다**
+
+`'3. 2026 연간 추정'` → `` `3. ${targetYear} 연간 추정` ``,
+`'2026 매출 추정'` → `` `${targetYear} 매출 추정` ``,
+`actualLabel="2025 실적"` → ``actualLabel={`${baseYear} 실적`}`` …
+표 헤더(`'2024 비율'`·`'2025 실제 비율'`·`'2025 초과액'`), 행 라벨, 하단 설명문의 연도까지 전부.
+
+🔴 `rowToggleProps` 의 **첫 인자(키)는 문자열 리터럴 그대로 둔다** — `'evi-actual2025'` 같은 키는
+화면 표시가 아니라 행 강조 식별자라 연도와 무관해야 안정적이다. **두 번째 인자(읽어 주는 라벨)만**
+템플릿으로 바꾼다.
+
+- [ ] **Step 5: 남은 리터럴이 없는지 기계로 확인한다**
+
+```bash
+grep -nE "\b20(2[3-9]|3[0-9])\b" components/management/pnl/AnnualForecast.tsx
+```
+
+남아도 되는 것은 **주석 안의 설명**뿐이다. JSX 텍스트·조건식에 연도가 남으면 실패.
+
+- [ ] **Step 6: 화면 확인 + 검증 + 커밋**
+
+`/management/pnl` 3번 카드의 라벨이 이전과 같은지 본다(금액 비보고). dev 서버 종료.
+
+```bash
+npm run check-all
+git add components/management/pnl/AnnualForecast.tsx components/management/pnl/PnlDashboard.tsx
+git commit -m "fix(손익): 연간 추정을 연도 무관하게 — Forecast2026 -> AnnualForecast 개명"
+```
+
+---
+
+## Task 11: 남은 연도·UTC 하드코딩 전량 제거
+
+**Files:**
+
+- Modify: `lib/finance/loan-aggregate.ts:12`
+- Modify: `components/oem/OemDashboard.tsx:17`
+- Modify: `lib/oem/aggregate.ts:22` + `lib/oem/aggregate.test.ts` + `lib/oem/source.ts:201`
+- Modify: `lib/oem-companies/kia/aggregate.ts:128,202,636,783,854,1091`
+- Modify: `lib/oem-companies/hyundai/aggregate.ts:212`
+- Modify: `lib/oem-companies/uzbekistan/source.ts:249`
+- Modify: `lib/chat/tools.ts:229-230`
+- Modify: `lib/stockSort.ts` (`FALLBACK_YEAR`)
+
+- [ ] **Step 1: `YTD_YEAR` 2곳을 `currentYear()` 로**
+
+```typescript
+// lib/finance/loan-aggregate.ts
+import { currentYear } from '@/lib/currentYear';
+// const YTD_YEAR = 2026;  ← 삭제
+```
+
+`:89`, `:100` 의 `YTD_YEAR` 를 함수 본문 첫 줄에서 뽑은 `const ytdYear = currentYear();` 로 바꾼다.
+🔴 **모듈 최상단 `const ytdYear = currentYear()` 로 두지 말 것** — 모듈 평가 시점에 한 번만
+계산돼 장수 프로세스가 해를 넘기면 옛 값이 굳는다. **함수 안에서 부른다.**
+`components/oem/OemDashboard.tsx:105` 도 같은 방식(`useMemo` 안에서 호출).
+
+- [ ] **Step 2: `TARGET_YEAR` 를 「직전 완결 연도」로**
+
+사용자 결정: **현재 연도 − 1**. `lib/oem/aggregate.ts`:
+
+```typescript
+/**
+ * 대시보드 국가 TOP15·OEM×국가 매트릭스 집계 대상 연도 = **직전 완결 연도**.
+ *
+ * 연간 사전 집계 뷰를 읽으므로 진행 중 연도를 쓰면 부분 실적으로 국가 순위가 흔들린다.
+ * 사용자 결정(2026-09-08): 상수 고정이 아니라 현재 연도에서 파생한다.
+ */
+export function targetYear(): number {
+  return currentYear() - 1;
+}
+```
+
+🔴 **상수 `TARGET_YEAR` 를 지우고 함수로 바꾼다** — 상수로 두면 모듈 평가 시점에 굳는다.
+`lib/oem/source.ts:201` 의 `fetchCountryGroupYear(supabase, TARGET_YEAR)` 를 `targetYear()` 로.
+`lib/oem/aggregate.ts:115,133,151` 의 비교도 각 함수 안에서 `const year = targetYear();` 로 뽑아 쓴다.
+`lib/oem/aggregate.test.ts` 의 `TARGET_YEAR` 참조 9곳을 `targetYear()` 로 바꾼다.
+
+🔴 **`lib/oem/source.ts` 의 `'use cache'` 함수 안에서 `targetYear()` 를 부르면
+캐시 키에 연도가 안 들어간다.** `cacheLife` 가 만료되기 전까지 옛 연도 결과가 남는다 —
+현재 `cacheLife('days')` 이므로 해가 바뀌고 최대 하루 지연된다. **허용 범위이며 그대로 둔다.**
+(연도를 캐시 키로 올리려면 인자로 빼야 하는데, 그러면 매일 새 캐시 엔트리가 생겨 ISR Write 가 는다.)
+이 판단을 주석으로 남길 것.
+
+- [ ] **Step 3: `new Date().getFullYear()` 8곳을 `currentYear()` 로**
+
+`kia/aggregate.ts` 6곳 · `hyundai/aggregate.ts` 1곳 · `uzbekistan/source.ts` 1곳 · `chat/tools.ts` 2곳.
+전부 `import { currentYear } from '@/lib/currentYear';` 를 더하고 호출만 바꾼다.
+
+`kia/aggregate.ts:202` 의 `isCurrentYear` 는 **lint 가 잡은 죽은 변수**다 — 선언째 지운다.
+지운 뒤 그 줄이 쓰던 다른 변수가 고아가 되지 않는지 확인할 것.
+
+`components/oem/competition/ModelCycleChart.tsx:225` 의 `new Date().getFullYear()` 는
+`noteDate` 파싱 실패 시의 **폴백**이다. 여기도 `currentYear()` 로 바꾼다.
+
+- [ ] **Step 4: `stockSort.ts` 의 `FALLBACK_YEAR` 를 창 안으로**
+
+```typescript
+// 지원 창(최근 4년) 어디에도 매출이 없으면 가장 오래된 지원 연도를 준다.
+// '2025' 리터럴이었을 때는 2029 부터 창 밖 값을 돌려줬다.
+const FALLBACK_YEAR = SUPPORTED_YEARS[SUPPORTED_YEARS.length - 1];
+```
+
+🔴 `SUPPORTED_YEARS` 도 **모듈 상수라 평가 시점에 굳는다.** 함수 안에서 만들도록 바꾼다:
+`resolveLatestYear` 첫 줄에서 `const years = supportedYears();` 를 뽑고, `supportedYears()` 는
+`Array.from({ length: 4 }, (_, i) => String(currentYear() - i))` 를 돌려주는 지역 함수로 둔다.
+`SUPPORTED_YEARS` 를 밖에서 import 하는 곳이 있는지 grep 해 확인할 것.
+
+- [ ] **Step 5: 미래 시각 회귀 테스트**
+
+`lib/stockSort.test.ts` 가 있으면 거기에, 없으면 만든다:
+
+```typescript
+it('해가 바뀌어도 지원 연도 창이 따라 올라간다', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2030-01-05T00:00:00+09:00'));
+  const rows = [{ financials_by_year: { '2029': { revenue: 1 } } } as never];
+  expect(resolveLatestYear(rows)).toBe('2029');
+  vi.useRealTimers();
+});
+```
+
+- [ ] **Step 6: 기계 확인 + 검증 + 커밋**
+
+```bash
+grep -rn "new Date().getFullYear()" --include=*.ts --include=*.tsx lib components app
+```
+
+0건이어야 한다.
+
+```bash
+npm run check-all
+git add lib/finance/loan-aggregate.ts components/oem/OemDashboard.tsx lib/oem/aggregate.ts lib/oem/aggregate.test.ts lib/oem/source.ts lib/oem-companies/kia/aggregate.ts lib/oem-companies/hyundai/aggregate.ts lib/oem-companies/uzbekistan/source.ts lib/chat/tools.ts lib/stockSort.ts components/oem/competition/ModelCycleChart.tsx
+git commit -m "fix(연도): 남은 하드코딩·UTC 연도 전량 제거 — 모듈 상수 대신 함수 호출로"
+```
+
+---
+
+## Task 12: 수집 쪽 지적 2건 — 실패 은폐 · 태그 매핑
+
+### 12-A. `scripts/lib/nhtsa_client.py` — 리콜 조회 실패가 「리콜 0건」이 된다
+
+**증상**: `_get()` 은 실패에 `None`, 진짜 0건에 `[]` 를 준다. 그런데 리콜 루프는
+`if recalls:` 하나로 둘을 똑같이 흘려보낸다. 네트워크가 통째로 죽어도 결과는
+`recalls: {'count': 0}` — 화면에는 **「리콜 없는 안전한 차」**로 나온다.
+바로 아래 불만 루프는 같은 문제를 `any_ok` 로 이미 막고 있다. **형제 코드가 옳게 돼 있는데
+따라가지 않은 것**(1차에서 `docs/gotchas-data-collection.md` 에 적은 그 패턴이다).
+
+- [ ] **Step 1: 리콜 루프에 `recall_ok` 를 단다** (`_fetch` 안)
+
+```python
+    all_recalls: list[dict] = []
+    recall_ok = False
+    for model in variants:
+      recalls = _get(RECALL_URL, make, model, year)
+      if recalls is None:
+        logger.warning(f'NHTSA 리콜 조회 실패 {make}/{model}/{year}')
+        continue
+      recall_ok = True
+      all_recalls.extend(recalls)
+```
+
+- [ ] **Step 2: 한 건도 성공 못 했으면 `None` 을 넣는다**
+
+```python
+    # 한 건도 성공 못 했으면 None(=알 수 없음). 0 으로 두면 "리콜 없는 안전한 차"로 오독된다.
+    if not recall_ok:
+      summary = None
+    else:
+      summary = summarize_recalls(all_recalls) if detail else {'count': len(all_recalls)}
+```
+
+- [ ] **Step 3: 소비하는 쪽이 `None` 을 견디는지 확인한다**
+
+```bash
+grep -rn "'recalls'\|\.recalls\b" --include=*.py --include=*.ts --include=*.tsx scripts lib components app
+```
+
+TS 쪽 타입이 `recalls: {...}` 로 non-null 이면 `| null` 을 더하고 화면은 「데이터 없음」으로
+떨어지게 한다. 🔴 **`recalls` 가 null 인 것을 「0건」으로 렌더하면 이 수정이 무의미해진다.**
+
+- [ ] **Step 4: 순수 함수 회귀 테스트** — `scripts/lib/test_nhtsa_client.py` 가 있으면 거기에,
+      없으면 `_fetch` 를 `_get` 만 monkeypatch 해 두 경우를 고정한다:
+      ① `_get` 이 항상 `None` → 결과의 `recalls` 가 `None`.
+      ② `_get` 이 항상 `[]` → 결과의 `recalls['count']` 가 `0`.
+
+```bash
+PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q
+```
+
+### 12-B. 캐시 태그 매핑 누락 — 수집은 성공했는데 화면이 낡는다
+
+**실측 확인한 구멍 2개**:
+
+1. `hyundai_retail_sales` 가 `COLUMN_TO_TAGS` 에 **키 자체가 없다.** 태그 `oem-hyundai-retail`
+   (`lib/oem-companies/hyundai/source.ts:270`)은 `app/api/revalidate/route.ts` 의 `ALL_TAGS` 에도
+   **없다** — 그래서 `tag=all` 로도 안 풀린다.
+2. `humanoid_stocks_view` 는 `ALL_TAGS` 엔 있지만, 그 뷰가 읽는 원천 테이블
+   (`companies`·`financials`·`exchange_rates_live`·`company_pages`)의 매핑에 이 태그가 없다.
+   회사·재무를 수집해도 `/humanoid` 가 낡은 채로 남는다.
+
+**처방은 두 줄 추가가 아니라 검사기다.** 같은 종류의 구멍이 또 생기지 않게 기계로 감시한다
+(AGENTS.md 「기계로 판정 가능한 것은 전부 스크립트로 — 토큰 0」).
+
+- [ ] **Step 1: 구멍 2개를 먼저 메운다**
+
+`scripts/lib/revalidate.py`:
+
+```python
+    'hyundai_retail_sales': ['oem-hyundai-retail'],
+```
+
+를 `hyundai_quarterly_earnings` 줄 다음에 넣고,
+`companies`·`financials`·`exchange_rates_live` 세 키의 리스트에 `'humanoid_stocks_view'` 를 더한다.
+(`company_pages` 키가 없으면 새로 만든다 — 뷰가 읽는 테이블이다.)
+
+`app/api/revalidate/route.ts` 의 `ALL_TAGS` 에 `'oem-hyundai-retail'` 을 더한다
+(`'oem-hyundai-quarterly'` 다음 줄, 기존 정렬을 따를 것).
+
+- [ ] **Step 2: 검사기를 만든다** — `scripts/verify_revalidate_tags.py`
+
+세 곳의 정합성을 본다. 실패면 exit 1, 성공이면 요약 한 줄.
+
+1. TS 소스의 `cacheTag('X')` 전수 (동적 ``cacheTag(`company:${id}`)`` 는 제외 — 백틱 리터럴은 건너뛴다)
+2. `app/api/revalidate/route.ts` 의 `ALL_TAGS`
+3. `scripts/lib/revalidate.py` 의 `COLUMN_TO_TAGS` 값 합집합
+
+**판정**: (1) ⊄ (2) 면 「`tag=all` 로 안 풀리는 태그」로 실패. (3) ⊄ (2) 면 「존재하지 않는 태그를
+수집기가 부른다」로 실패. (2) − (1) 은 **경고만**(쓰던 태그를 지운 잔재일 수 있다).
+
+🔴 첫머리에 `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` 를 넣는다 —
+콘솔이 CP949 라 기호 출력에서 죽는다.
+🔴 정규식은 `cacheTag\(\s*'([a-zA-Z0-9_\-]+)'\s*\)` 로 **작은따옴표 리터럴만** 잡는다.
+
+- [ ] **Step 3: 검사기를 돌려 통과시킨다**
+
+```bash
+PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py
+```
+
+🔴 **처음 돌렸을 때 「위반 0건」이 나오면 검사기를 의심할 것** — Step 1 을 되돌려 놓고
+돌렸을 때 **반드시 2건이 잡혀야** 검사기가 실제로 작동하는 것이다. 확인 후 Step 1 을 되살린다.
+
+- [ ] **Step 4: AGENTS.md 검증 명령 목록에 한 줄 추가**
+
+🔴 **AGENTS.md 자동 로드 분량 여유가 5바이트뿐이다.** 한 줄을 더하려면 **같은 커밋에서
+다른 줄을 그만큼 줄여야** 한다. `verify_docs.py` 로 확인하고, 상한을 올려서 통과시키지 말 것.
+줄일 여지가 없으면 **AGENTS.md 를 건드리지 말고** `docs/gotchas-data-collection.md` 에만 적는다.
+
+- [ ] **Step 5: 검증 + 커밋**
+
+```bash
+PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q
+PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py
+PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/verify_docs.py
+npm run check-all
+git add scripts/lib/nhtsa_client.py scripts/lib/revalidate.py scripts/verify_revalidate_tags.py app/api/revalidate/route.ts
+git commit -m "fix(수집): NHTSA 리콜 조회 실패를 0건으로 숨기던 것 + 캐시 태그 누락 2건 + 정합성 검사기"
+```
+
+---
+
+## Task 13: 라우트·유틸 지적 6건
+
+한 파일에 하나씩, 서로 독립이다. **6개를 한 커밋에 담지 말고 논리 단위로 2~3커밋**으로 나눈다.
+
+- [ ] **Step 1: `app/api/cron/sentiment/route.ts:39` — DB 실패가 200 ok 가 된다**
+
+`const { data: candidates } = await sb...` 가 `error` 를 안 받는다. 조회가 실패하면 `candidates` 가
+`null` → `?? []` → 「분석할 글 없음」 → `analyzed: 0` 으로 **성공 응답**이 나간다.
+cron 이 조용히 아무것도 안 하는데 모니터링은 초록이다.
+
+```typescript
+    const { data: candidates, error: candErr } = await sb
+      ...
+    if (candErr) {
+      logger.error({ err: candErr, ticker: c.ticker }, '감성 분석 후보 조회 실패');
+      return NextResponse.json(
+        { ok: false, error: 'candidates_query_failed', ticker: c.ticker },
+        { status: 500 }
+      );
+    }
+```
+
+같은 핸들러의 `already` 조회(`:52` 부근)도 **같은 함정**이다 — 실패하면 이미 분석한 글을
+다시 분석해 요금이 두 배로 나간다. 같이 고친다.
+`logger` 가 import 돼 있는지 확인하고 없으면 `@/lib/logger` 에서 가져온다.
+
+- [ ] **Step 2: `lib/hansae/data.ts:89` — 「오늘」이 KST 09시부터다**
+
+`start.setUTCHours(0,0,0,0)` 은 UTC 자정 = **KST 09:00**. KST 00:00~09:00 에 나온 뉴스가
+「오늘 뉴스」에서 빠진다. 장 시작 전 뉴스가 통째로 사라지는 자리다.
+
+```typescript
+// KST 자정 — UTC 자정(setUTCHours)은 서울 09시라 새벽 뉴스가 통째로 빠진다.
+const seoulToday = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+const start = new Date(`${seoulToday}T00:00:00+09:00`);
+```
+
+🔴 이렇게 만든 `Date` 를 다시 `getUTC*` 로 읽지 말 것(전역 규칙). 여기서는
+`start.toISOString()` 으로 넘기므로 안전하다.
+
+- [ ] **Step 3: `lib/chat/tools.ts:206` — 사용자 입력이 PostgREST `or()` 에 그대로 들어간다**
+
+``const term = `%${args.query}%`; q = q.or(`name.ilike.${term},...`)`` —
+검색어에 **콤마 하나만 들어가도** PostgREST 가 필터 구분자로 읽어 400 이 난다.
+괄호·점도 같다. 챗봇 사용자가 「현대, 기아」라고 치면 조회가 깨진다.
+
+```typescript
+if (args.query) {
+  // PostgREST 의 or() 는 콤마·괄호를 구분자로 읽는다 — 검색어에 섞이면 필터가 깨진다.
+  // ilike 패턴 메타문자(% _)도 함께 무력화한다.
+  const safe = args.query.replace(/[,().*%_\\]/g, ' ').trim();
+  if (safe) {
+    const term = `%${safe}%`;
+    q = q.or(`name.ilike.${term},name_kr.ilike.${term},ticker.ilike.${term}`);
+  }
+}
+```
+
+- [ ] **Step 4: `lib/chat/tools.ts:194` — `runQueryCompanies` 만 한세 차단을 안 거친다**
+
+같은 파일의 `runQueryFinancials` 는 `isHansaeRestricted(role, ticker)` 로 막는데
+`runQueryCompanies` 는 `role` 을 **인자로 받지도 않는다.** 제한 역할이 한세 4종목의 이름·시세·
+사업개요를 그대로 가져갈 수 있다.
+
+`runQueryCompanies(input: unknown, role: UserRole)` 로 시그니처를 맞추고(다른 실행기와 동일),
+제한 역할이면 **결과에서 한세 티커 행을 걸러낸다**:
+
+```typescript
+const rows = data ?? [];
+// 제한 역할에는 한세 종목을 목록에서 뺀다. 목록 조회라 에러 대신 필터가 맞다
+// (runQueryFinancials 는 티커를 콕 집어 묻는 조회라 에러를 돌려준다).
+const visible = HANSAE_RESTRICTED_ROLES.has(role)
+  ? rows.filter((r) => !HANSAE_TICKERS.includes(r.ticker ?? ''))
+  : rows;
+return { rows: visible, count: visible.length };
+```
+
+🔴 **디스패처가 `role` 을 넘기고 있는지 확인할 것.** 안 넘기면 그쪽도 고친다 —
+안 고치면 타입은 통과해도 `role` 이 `undefined` 라 게이트가 조용히 무력화된다.
+
+- [ ] **Step 5: `lib/auth/actions.ts:14` — `sanitizeNext` 오픈 리다이렉트**
+
+`//evil.com` 은 막는데 **`/\evil.com`** 은 통과한다. 브라우저가 백슬래시를 슬래시로 정규화해
+프로토콜 상대 URL 로 읽는다.
+
+```typescript
+function sanitizeNext(next: unknown): string {
+  if (typeof next !== 'string') return '/';
+  // `//evil.com` 뿐 아니라 `/\evil.com` 도 브라우저가 프로토콜 상대 URL 로 읽는다.
+  // 제어문자·개행이 섞인 값도 헤더를 오염시키므로 함께 막는다.
+  if (!next.startsWith('/')) return '/';
+  if (/^\/[/\\]/.test(next)) return '/';
+  if (/[\x00-\x1f\x7f]/.test(next)) return '/';
+  if (next.startsWith('/login')) return '/';
+  return next;
+}
+```
+
+`lib/auth/actions.test.ts` 가 있으면 케이스를 더하고, 없으면 만든다:
+`'/\\evil.com'` · `'//evil.com'` · `'/reports'`(통과) · `'/login?x=1'` · `'/a\nb'`.
+
+- [ ] **Step 6: `app/api/news/search/route.ts:88` — `pubDate` 하나가 깨지면 전체 502**
+
+`new Date(pub).toISOString()` 은 파싱 실패 시 `Invalid Date` 가 되고 `toISOString()` 이
+`RangeError` 를 던진다. 항목 하나 때문에 **검색 응답 전체**가 죽는다.
+
+```typescript
+// 날짜 하나가 깨졌다고 검색 전체를 죽이지 않는다 — 그 항목만 published_at=null.
+let publishedAt: string | null = null;
+if (pub) {
+  const d = new Date(pub);
+  if (!Number.isNaN(d.getTime())) publishedAt = d.toISOString();
+}
+```
+
+- [ ] **Step 7: 검증 + 커밋 (2~3개로 나눈다)**
+
+```bash
+npm run check-all
+git add app/api/cron/sentiment/route.ts app/api/news/search/route.ts
+git commit -m "fix(라우트): 조회 실패를 성공으로 보고하던 것 + 날짜 하나로 검색 전체가 죽던 것"
+git add lib/auth/actions.ts lib/auth/actions.test.ts
+git commit -m "fix(인증): sanitizeNext 가 백슬래시 오픈 리다이렉트를 놓치던 것"
+git add lib/chat/tools.ts lib/hansae/data.ts
+git commit -m "fix(챗봇): 회사 조회 한세 차단 누락 + or() 필터 주입 + 오늘 뉴스 KST 자정"
+```
+
+---
+
+## Task 14: `/api/chat` 에 guest 게이트
+
+사용자 결정: **guest 만 403.** 데이터 유출은 아니지만(도구 화이트리스트가 사외비를 뺀다)
+요금이 나가는 통로다.
+
+**Files:**
+
+- Modify: `lib/auth/permissions.ts` (+ `permissions.test.ts`)
+- Modify: `app/api/chat/route.ts:59` 부근
+
+- [ ] **Step 1: 판정 함수를 더한다** — `lib/auth/permissions.ts`
+
+```typescript
+/**
+ * 챗봇 사용 권한 — `/api/chat`.
+ *
+ * 사용자 결정(2026-09-08): guest 만 막는다. 사외비 유출 경로는 아니지만
+ * (`lib/chat/tools.ts` 화이트리스트가 사외비 테이블을 뺀다) 호출마다 Anthropic 요금이 난다.
+ */
+export function canUseChat(role: Role): boolean {
+  return role !== 'guest';
+}
+```
+
+- [ ] **Step 2: 테스트를 더한다** — 5역할 전부 고정한다(4개 true, guest false).
+
+- [ ] **Step 3: 라우트에 건다** — `app/api/chat/route.ts`
+
+이미 `getCurrentUser()` 를 부르고 있으므로(`:59`) 그 판정 **바로 다음 줄**에 넣는다.
+🔴 **응답 형태를 그 라우트의 기존 오류 응답과 맞출 것** — 이 라우트는 스트리밍(SSE)이라
+다른 라우트의 `fail()` 헬퍼와 형태가 다를 수 있다. **먼저 기존 401 응답을 읽고 그 모양을 따른다.**
+
+- [ ] **Step 4: 검증 + 커밋**
+
+```bash
+npm run check-all
+git add lib/auth/permissions.ts lib/auth/permissions.test.ts app/api/chat/route.ts
+git commit -m "feat(권한): guest 는 챗봇을 쓸 수 없게 — 요금 통로 차단"
+```
+
+---
+
+## Task 15: 1차의 미검증 항목 보강
+
+- [ ] **Step 1: 1차 Task 7 fix 의 회귀 테스트를 만든다**
+
+1차에서 `preparePnlData` 를 「**확정 연간 행이 없는 연도만** 월별에서 derive」로 고쳤는데
+**회귀 테스트가 없다** — 되돌려도 기존 테스트가 전부 통과한다.
+`lib/pnl/__tests__/aggregate.test.ts` 에 순수 입력으로 두 케이스를 고정한다:
+
+```typescript
+it('확정 연간 행이 있는 연도는 월별에서 다시 derive 하지 않는다', () => {
+  // 연간 1행 + 같은 해 월별 2행 → 연간 값이 살아야 하고 월별 합으로 덮이면 안 된다
+});
+
+it('연간 행이 없는 연도만 월별 누적으로 만든다', () => {
+  // 전년은 연간, 올해는 월별만 → 두 해가 모두 나오고 올해만 derive
+});
+```
+
+- [ ] **Step 2: `(P)` 계획값 누출 회귀를 미래 시각으로 고정한다**
+
+```typescript
+it('해가 바뀌어도 (P) 계획 라벨은 실적 집계에 안 섞인다', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2027-06-15T00:00:00+09:00'));
+  // year_label '2026(P)' 행이 consolidatedAnnual 에 안 들어가야 한다
+  vi.useRealTimers();
+});
+```
+
+- [ ] **Step 3: JSDoc 에 남은 2026 을 고친다**
+
+`lib/pnl/aggregate.ts:57-58` · `lib/finance/pnl-derived.ts:60`.
+설명이 「2026」을 예로 드는 자리면 **「진행 연도」**로 바꾼다. 날짜가 붙은 완료 기록은 그대로 둔다.
+
+- [ ] **Step 4: 검증 + 커밋**
+
+```bash
+npm run check-all
+git add lib/pnl/__tests__/aggregate.test.ts lib/pnl/aggregate.ts lib/finance/pnl-derived.ts
+git commit -m "test(손익): 1차 연도 수정의 회귀 테스트 보강 + JSDoc 연도 잔재 정리"
+```
+
+---
+
+## 2차 최종 확인
+
+- [ ] `npm run check-all` 4단계 통과
+- [ ] `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q` 통과
+- [ ] `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/verify_docs.py` 오류 0
+- [ ] `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py` 통과
+- [ ] `grep -rn "new Date().getFullYear()" --include=*.ts --include=*.tsx lib components app` 0건
+- [ ] `grep -rn "currentFiscalYear" --include=*.ts --include=*.tsx lib components app` 0건
+- [ ] `/management/pnl` · `/oem` 을 dev 서버로 열어 열·라벨이 이전과 같은지 확인(**금액 비보고**), 서버 종료
+- [ ] `HANDOFF.md` 의 「재개 지점 — 남은 일」에서 **이번에 없앤 항목을 지운다**
