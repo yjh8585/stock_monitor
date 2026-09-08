@@ -604,7 +604,7 @@ function round1(n: number): number {
 }
 
 /** 대상 표기가 여러 개인 차종(아반떼 중국의 2개 모델명)을 한 줄로 합치기 위한 버킷 키. */
-const TARGET_BUCKET = ' target';
+const TARGET_BUCKET = '\u0000target';
 
 /** 기준별 집계 창(start~end, 둘 다 포함). offsetYears=1 이면 전년 동기. */
 export function periodWindow(

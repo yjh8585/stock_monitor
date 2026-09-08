@@ -145,3 +145,41 @@ Management API(`GET /v1/projects/{ref}/types/typescript`)의 출력으로 통째
 🔴 **typecheck 초록이 "타입이 스키마와 맞다"는 뜻은 아니다.** `PostRepository` 는 클라이언트를
 untyped `SupabaseClient` 로 캐스트하고 `posts` 는 `confidentialDb` 대상이 아니라, `database.types.ts` 를
 갱신하지 않아도 컴파일은 통과한다. 갱신 여부는 컴파일러가 아니라 사람이 확인해야 한다.
+
+---
+
+## 8. 소스에 박힌 NUL 바이트가 Grep 도구에서 파일을 통째로 지운다 (2026-09-08 실측)
+
+**증상**: `lib/oem-competition/source.ts` 는 `recall_count` 를 3번 쓰는데, Grep 도구(ripgrep)로
+`lib/oem-competition/` 을 훑으면 **그 파일만 결과에 없다.** 경고도 없고 exit 0 이다.
+
+```
+rg -c "recall_count" lib/oem-competition/        → types·signals·두 test 만 (source.ts 없음)
+rg -c "recall_count" lib/oem-competition/source.ts → 3
+```
+
+**원인**: `:607` 에 **날 NUL 바이트**가 들어 있었다 — `const TARGET_BUCKET = '<NUL>target';`
+(Map 키가 실제 시장명과 충돌하지 않게 고른 센티넬). ripgrep 은 **디렉터리를 훑을 때만** 이진 파일을
+건너뛰고, 파일을 명시하면 그냥 읽는다. Grep 도구는 전자라서 **파일이 통째로 안 보인다.**
+`grep` 은 그래도 `Binary file ... matches` 라고 알려 주지만 ripgrep 은 조용하다.
+
+**실제 피해**: 이 함정 때문에 「`recalls` 소비처 전수 grep」이 0건을 냈고, NHTSA 리콜 실패를
+`None` 으로 구분하는 수정이 **화면까지 이어지지 않은 채 완료로 보고**됐다. 검수에서야 잡혔다.
+
+**처방**: 값은 그대로 두고 **표기만 이스케이프로** 바꾼다 — 런타임 문자열은 완전히 동일하다.
+
+```ts
+const TARGET_BUCKET = '\u0000target';   // 소스에 날 NUL 을 넣지 않는다
+```
+
+**전수 점검** (추적 파일만, venv 를 안 훑어 빠르다):
+
+```bash
+git ls-files -z | grep -zZ -E '\.(ts|tsx|py|sql|md|json)$' | xargs -0 grep -lP '\x00'
+```
+
+2026-09-08 기준 0건. 🔴 **`\x00` 을 문자열 리터럴에 날것으로 넣지 말 것** — 센티넬이 필요하면
+`'\u0000...'` 이스케이프나 `Symbol` 을 쓴다.
+
+🔴 이것은 **「0건이 나와도 없다고 결론 내지 마라」의 세 번째 사례**다(앞의 둘: UTF-16LE 로그 ·
+Bash 인라인 한글). 넓게 훑어 0건이면 **파일을 콕 집어 다시 세어 보라.**
