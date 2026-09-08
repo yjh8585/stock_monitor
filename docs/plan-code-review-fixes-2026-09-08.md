@@ -16,15 +16,15 @@
 
 **AskUserQuestion 결정 (2026-09-08):**
 
-| 질문                                                                              | 사용자 선택                                            |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| 리뷰 범위 / 강도                                                                  | 핵심 모듈 전수 감사 · max                              |
-| 보고서 게시(`/reports/new`·`POST /api/posts`·`POST /api/uploads/report`) 허용 역할 | **admin + holdings + mobility**                        |
-| `scripts/dart_eval/` 진단 JSON 9개                                                | **추적 해제** (`.gitignore` + `git rm --cached`)       |
-| 작업 범위                                                                         | **상위 3군 먼저** (권한 / 값 오류 / check-all)         |
-| 손익 연도 상한 처리 (심문)                                                        | **현재 연도로 동적화** (상한 제거 아님)                |
-| `lib/stockSort.ts` 연도 하드코딩 (심문 — 범위 밖 항목)                            | **같이 고친다**                                        |
-| 스텔란티스 100배 검증 방법 (심문)                                                 | **순수 함수로 뽑아 테스트**                            |
+| 질문                                                                               | 사용자 선택                                      |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 리뷰 범위 / 강도                                                                   | 핵심 모듈 전수 감사 · max                        |
+| 보고서 게시(`/reports/new`·`POST /api/posts`·`POST /api/uploads/report`) 허용 역할 | **admin + holdings + mobility**                  |
+| `scripts/dart_eval/` 진단 JSON 9개                                                 | **추적 해제** (`.gitignore` + `git rm --cached`) |
+| 작업 범위                                                                          | **상위 3군 먼저** (권한 / 값 오류 / check-all)   |
+| 손익 연도 상한 처리 (심문)                                                         | **현재 연도로 동적화** (상한 제거 아님)          |
+| `lib/stockSort.ts` 연도 하드코딩 (심문 — 범위 밖 항목)                             | **같이 고친다**                                  |
+| 스텔란티스 100배 검증 방법 (심문)                                                  | **순수 함수로 뽑아 테스트**                      |
 
 ## 심문(`grill-me`)에서 뒤집힌 것
 
@@ -53,16 +53,16 @@
 
 ## File Structure
 
-| 파일                                                                            | 이번 계획에서의 책임                                  |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `scripts/dart_eval/.gitignore`                                                  | 진단 산출물 추적 해제 (Task 0)                        |
-| `lib/auth/permissions.ts` · `permissions.test.ts`                               | 게시 권한 판정 `canPublishReports` 신설 (Task 1)      |
-| `app/api/companies/route.ts` · `posts/route.ts` · `uploads/report/route.ts`     | POST 에 역할 게이트 (Task 2)                          |
-| `app/reports/new/page.tsx` · `app/reports/page.tsx`                             | 게시 화면 게이트 (Task 3)                             |
-| `lib/stellantis-forecast/source.ts` · `aggregate.test.ts`                       | 백만원→억원 환산을 순수 함수로 분리 + 테스트 (Task 4) |
-| `lib/oem/source.ts` · `lib/oem-companies/*/source.ts` 5개                       | 페이징 10곳에 결정적 정렬 (Task 5)                    |
-| `lib/oem-companies/stellantis-na/aggregate.ts` · `aggregate.test.ts`            | 진행 중 연도 YoY 를 전년 동기로 (Task 6)              |
-| `lib/pnl/aggregate.ts` · `lib/plan/aggregate.ts` · `lib/stockSort.ts`           | 연도 하드코딩 제거 (Task 7)                           |
+| 파일                                                                        | 이번 계획에서의 책임                                  |
+| --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `scripts/dart_eval/.gitignore`                                              | 진단 산출물 추적 해제 (Task 0)                        |
+| `lib/auth/permissions.ts` · `permissions.test.ts`                           | 게시 권한 판정 `canPublishReports` 신설 (Task 1)      |
+| `app/api/companies/route.ts` · `posts/route.ts` · `uploads/report/route.ts` | POST 에 역할 게이트 (Task 2)                          |
+| `app/reports/new/page.tsx` · `app/reports/page.tsx`                         | 게시 화면 게이트 (Task 3)                             |
+| `lib/stellantis-forecast/source.ts` · `aggregate.test.ts`                   | 백만원→억원 환산을 순수 함수로 분리 + 테스트 (Task 4) |
+| `lib/oem/source.ts` · `lib/oem-companies/*/source.ts` 5개                   | 페이징 10곳에 결정적 정렬 (Task 5)                    |
+| `lib/oem-companies/stellantis-na/aggregate.ts` · `aggregate.test.ts`        | 진행 중 연도 YoY 를 전년 동기로 (Task 6)              |
+| `lib/pnl/aggregate.ts` · `lib/plan/aggregate.ts` · `lib/stockSort.ts`       | 연도 하드코딩 제거 (Task 7)                           |
 
 ---
 
@@ -146,7 +146,7 @@ format:check 가 exit 1 이라 typecheck·test 가 아예 실행되지 않았다
 - Consumes: `lib/auth/roles.ts` 의 `Role`·`ROLES`
 - Produces: **`canPublishReports(role: Role): boolean`** — Task 2 의 세 라우트와 Task 3 의 두 화면이 부른다.
 
-**왜 `canAccessConfidentialReports` 를 재사용하지 않는가:** 지금은 명단이 같지만(admin·holdings·mobility) 의미가 다르다. 하나는 *사외비 열람*, 하나는 *게시*다. 한쪽 명단이 바뀔 때 다른 쪽이 조용히 따라 바뀌면 안 되므로 별도 함수로 둔다.
+**왜 `canAccessConfidentialReports` 를 재사용하지 않는가:** 지금은 명단이 같지만(admin·holdings·mobility) 의미가 다르다. 하나는 _사외비 열람_, 하나는 *게시*다. 한쪽 명단이 바뀔 때 다른 쪽이 조용히 따라 바뀌면 안 되므로 별도 함수로 둔다.
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
@@ -216,7 +216,7 @@ git commit -m "feat(권한): 보고서 게시 판정 canPublishReports 신설 �
 
 ## Task 2: API 라우트 3곳에 역할 게이트
 
-**배경(실측):** `lib/auth/permissions.ts:79` 의 `canAccess` 는 `/api/*` 에 대해 `return true` 다. `proxy.ts` 의 세션 검사만 통과하면 **어떤 역할이든** API 를 부를 수 있다. 유일한 예외 `/api/management/org-chart` 의 주석이 이를 자백한다 — *"canAccess의 /management 분기는 '/api/...' 접두사를 매칭하지 못하므로 명시적으로 처리"*.
+**배경(실측):** `lib/auth/permissions.ts:79` 의 `canAccess` 는 `/api/*` 에 대해 `return true` 다. `proxy.ts` 의 세션 검사만 통과하면 **어떤 역할이든** API 를 부를 수 있다. 유일한 예외 `/api/management/org-chart` 의 주석이 이를 자백한다 — _"canAccess의 /management 분기는 '/api/...' 접두사를 매칭하지 못하므로 명시적으로 처리"_.
 
 **Files:** Modify `app/api/companies/route.ts`(POST, 64줄) · `app/api/posts/route.ts`(POST, 40줄) · `app/api/uploads/report/route.ts`(POST, 16줄)
 
@@ -236,13 +236,13 @@ import { isAdmin } from '@/lib/auth/permissions';
 `export async function POST(req: Request) {` **바로 다음 줄**에 삽입한다:
 
 ```typescript
-  // 회사 마스터 INSERT + GHA workflow_dispatch — 화면(/management/companies)이
-  // ADMIN_ONLY_PATHS 라 API 도 admin 으로 맞춘다. proxy.ts 는 세션만 보고
-  // canAccess 는 '/api/*' 를 판정하지 않으므로 여기서 직접 막는다.
-  const user = await getCurrentUser();
-  if (!user || !isAdmin(user.role)) {
-    return NextResponse.json(fail('FORBIDDEN', '권한이 없습니다.'), { status: 403 });
-  }
+// 회사 마스터 INSERT + GHA workflow_dispatch — 화면(/management/companies)이
+// ADMIN_ONLY_PATHS 라 API 도 admin 으로 맞춘다. proxy.ts 는 세션만 보고
+// canAccess 는 '/api/*' 를 판정하지 않으므로 여기서 직접 막는다.
+const user = await getCurrentUser();
+if (!user || !isAdmin(user.role)) {
+  return NextResponse.json(fail('FORBIDDEN', '권한이 없습니다.'), { status: 403 });
+}
 ```
 
 - [ ] **Step 2: `/api/posts` POST 에 게시 게이트**
@@ -257,12 +257,12 @@ import { canPublishReports } from '@/lib/auth/permissions';
 `export async function POST(req: Request) {` **바로 다음 줄**에 삽입한다:
 
 ```typescript
-  // 게시는 admin·holdings·mobility 만(사용자 결정 2026-09-08). 본문 생성이
-  // maxDuration=300 짜리 LLM 작업이라 과금 통로이기도 하다.
-  const user = await getCurrentUser();
-  if (!user || !canPublishReports(user.role)) {
-    return NextResponse.json(fail('FORBIDDEN', '게시 권한이 없습니다.'), { status: 403 });
-  }
+// 게시는 admin·holdings·mobility 만(사용자 결정 2026-09-08). 본문 생성이
+// maxDuration=300 짜리 LLM 작업이라 과금 통로이기도 하다.
+const user = await getCurrentUser();
+if (!user || !canPublishReports(user.role)) {
+  return NextResponse.json(fail('FORBIDDEN', '게시 권한이 없습니다.'), { status: 403 });
+}
 ```
 
 - [ ] **Step 3: `/api/uploads/report` POST 에 게시 게이트**
@@ -270,12 +270,12 @@ import { canPublishReports } from '@/lib/auth/permissions';
 Step 2 와 같은 import 를 추가하고, `export async function POST(req: Request) {` 바로 다음 줄에 삽입한다:
 
 ```typescript
-  // 게시 폼(new-post-form.tsx:65)이 POST /api/posts 직전에 부르는 업로드다.
-  // 같은 게이트를 걸지 않으면 100MB 업로드만 열린 채로 남는다.
-  const user = await getCurrentUser();
-  if (!user || !canPublishReports(user.role)) {
-    return NextResponse.json(fail('FORBIDDEN', '업로드 권한이 없습니다.'), { status: 403 });
-  }
+// 게시 폼(new-post-form.tsx:65)이 POST /api/posts 직전에 부르는 업로드다.
+// 같은 게이트를 걸지 않으면 100MB 업로드만 열린 채로 남는다.
+const user = await getCurrentUser();
+if (!user || !canPublishReports(user.role)) {
+  return NextResponse.json(fail('FORBIDDEN', '업로드 권한이 없습니다.'), { status: 403 });
+}
 ```
 
 - [ ] **Step 4: 정적 검사**
@@ -335,17 +335,19 @@ export default async function NewReportPage() {
 `app/reports/page.tsx` 는 **103줄에서 이미 `currentUser` 를 조회한다.** 새로 조회하지 말고 그 값을 쓴다. 상단 import 의 `canAccessConfidentialReports` 옆에 `canPublishReports` 를 더하고, `includeConfidential` 계산 바로 아래에 추가한다:
 
 ```typescript
-  const canPublish = currentUser ? canPublishReports(currentUser.role) : false;
+const canPublish = currentUser ? canPublishReports(currentUser.role) : false;
 ```
 
 그리고 138줄의 `<Link>` 를 감싼다:
 
 ```tsx
-        {canPublish && (
-          <Link href="/reports/new" className={buttonVariants()}>
-            + 글쓰기
-          </Link>
-        )}
+{
+  canPublish && (
+    <Link href="/reports/new" className={buttonVariants()}>
+      + 글쓰기
+    </Link>
+  );
+}
 ```
 
 **`buttonVariants()` 와 자식 텍스트 `+ 글쓰기` 는 그대로 둔다.**
@@ -367,9 +369,9 @@ npm run dev
 `.env.local` 에 5역할 계정이 모두 있다(확인 완료). **mobility(허용)** 와 **guest(차단)** 로 각각 로그인해 확인한다:
 
 | 역할     | `/reports` 「+ 글쓰기」 | `/reports/new` 직접 진입 |
-| -------- | ---------------------- | ------------------------ |
-| mobility | 보인다                 | 폼이 뜬다                |
-| guest    | 안 보인다              | `/reports` 로 튕긴다     |
+| -------- | ----------------------- | ------------------------ |
+| mobility | 보인다                  | 폼이 뜬다                |
+| guest    | 안 보인다               | `/reports` 로 튕긴다     |
 
 콘솔·네트워크 에러를 함께 본다. 포트 3000 은 다른 앱이 점유해 3001+ 로 자동 배정된다. **확인 후 dev 서버를 반드시 종료한다.**
 
@@ -510,23 +512,23 @@ DB 함수 안에 있어 지금까지 테스트로 못 잡았다."
 
 ## Task 5: `.range()` 페이징에 결정적 정렬 추가
 
-**배경(실측):** `lib/oem/source.ts:89` 의 주석이 이 증상을 이미 적어 놨다 — *"`.range()` 페이지네이션은 반드시 **결정적 전체 정렬**과 함께 써야 한다. ORDER BY 없이는 페이지 경계에서 순서가 흔들려 행이 누락·중복된다(특정 연도가 통째로 빠지는 증상)."* 그 파일의 `fetchModelRows` 는 고쳤는데 **바로 위 `fetchAll` 은 정렬 없이, 그것도 `Promise.all` 로 페이지를 동시에 던진다.**
+**배경(실측):** `lib/oem/source.ts:89` 의 주석이 이 증상을 이미 적어 놨다 — _"`.range()` 페이지네이션은 반드시 **결정적 전체 정렬**과 함께 써야 한다. ORDER BY 없이는 페이지 경계에서 순서가 흔들려 행이 누락·중복된다(특정 연도가 통째로 빠지는 증상)."_ 그 파일의 `fetchModelRows` 는 고쳤는데 **바로 위 `fetchAll` 은 정렬 없이, 그것도 `Promise.all` 로 페이지를 동시에 던진다.**
 
 **위험도 실측 (2026-09-08, 페이지 크기 1000):**
 
-| 파일:줄                      | 테이블                     | 행수       | 페이지 | `.order()` 로 넣을 PK 컬럼                                                              |
-| ---------------------------- | -------------------------- | ---------- | ------ | --------------------------------------------------------------------------------------- |
-| `oem/source.ts:202`          | `oem_sales_group_pt_month` | **15,818** | 16     | `oem_group`, `powertrain`, `year_month`                                                   |
-| `kia/source.ts:115`          | `kia_retail_sales`         | **15,490** | 16     | `period_type`, `year_period`, `plant`, `vehicle_model`, `region`                          |
-| `oem/source.ts:205`          | `oem_sales_type_seg_month` | **14,029** | 15     | `vehicle_type`, `segment`, `year_month`                                                   |
-| `hyundai/source.ts:83`       | `hyundai_sales`            | **10,230** | 11     | `period_type`, `year_period`, `region`, `factory`, `vehicle_model`                        |
-| `oem/source.ts:201`          | `oem_sales_group_month`    | **5,817**  | 6      | `oem_group`, `year_month`                                                                 |
-| `hyundai/source.ts:146`      | `hyundai_retail_sales`     | **3,955**  | 4      | `period_type`, `year_period`, `region`, `vehicle_type`, `vehicle_model`                   |
-| `kia/source.ts:70`           | `kia_sales`                | **3,854**  | 4      | `period_type`, `year_period`, `region`, `factory`, `vehicle_model`                        |
-| `kia/source.ts:90`           | `kia_export_regions`       | **1,635**  | 2      | `period_type`, `year_period`, `source`, `region_name`, `vehicle_type`                     |
-| `kg-mobility/source.ts:53`   | `kg_mobility_sales`        | **1,076**  | 2      | `period_type`, `year_period`, `region`, `vehicle_model`                                   |
-| `stellantis-na/source.ts:53` | `stellantis_na_sales`      | 995        | 1      | `period_type`, `year_period`, `brand`, `vehicle_model`, `region`                          |
-| `uzbekistan/source.ts:151`   | `uzbekistan_auto_stats`    | 573        | 1      | `kind`, `period_type`, `year_period`, `company`, `brand`, `vehicle_model`, `source_type`   |
+| 파일:줄                      | 테이블                     | 행수       | 페이지 | `.order()` 로 넣을 PK 컬럼                                                               |
+| ---------------------------- | -------------------------- | ---------- | ------ | ---------------------------------------------------------------------------------------- |
+| `oem/source.ts:202`          | `oem_sales_group_pt_month` | **15,818** | 16     | `oem_group`, `powertrain`, `year_month`                                                  |
+| `kia/source.ts:115`          | `kia_retail_sales`         | **15,490** | 16     | `period_type`, `year_period`, `plant`, `vehicle_model`, `region`                         |
+| `oem/source.ts:205`          | `oem_sales_type_seg_month` | **14,029** | 15     | `vehicle_type`, `segment`, `year_month`                                                  |
+| `hyundai/source.ts:83`       | `hyundai_sales`            | **10,230** | 11     | `period_type`, `year_period`, `region`, `factory`, `vehicle_model`                       |
+| `oem/source.ts:201`          | `oem_sales_group_month`    | **5,817**  | 6      | `oem_group`, `year_month`                                                                |
+| `hyundai/source.ts:146`      | `hyundai_retail_sales`     | **3,955**  | 4      | `period_type`, `year_period`, `region`, `vehicle_type`, `vehicle_model`                  |
+| `kia/source.ts:70`           | `kia_sales`                | **3,854**  | 4      | `period_type`, `year_period`, `region`, `factory`, `vehicle_model`                       |
+| `kia/source.ts:90`           | `kia_export_regions`       | **1,635**  | 2      | `period_type`, `year_period`, `source`, `region_name`, `vehicle_type`                    |
+| `kg-mobility/source.ts:53`   | `kg_mobility_sales`        | **1,076**  | 2      | `period_type`, `year_period`, `region`, `vehicle_model`                                  |
+| `stellantis-na/source.ts:53` | `stellantis_na_sales`      | 995        | 1      | `period_type`, `year_period`, `brand`, `vehicle_model`, `region`                         |
+| `uzbekistan/source.ts:151`   | `uzbekistan_auto_stats`    | 573        | 1      | `kind`, `period_type`, `year_period`, `company`, `brand`, `vehicle_model`, `source_type` |
 
 **위 9개는 지금 이 순간 실제로 여러 페이지를 돈다 — 결함이 활성 상태다.** 아래 2개는 아직 단일 페이지지만 `stellantis_na_sales` 는 **995행으로 경계(1000) 코앞**이라 다섯 행만 늘면 즉시 위험해진다. 둘 다 함께 고친다.
 
@@ -553,17 +555,17 @@ async function fetchAll<TName extends keyof Database['public']['Tables']>(
 첫 페이지 쿼리(50~52줄)를 바꾼다:
 
 ```typescript
-  let firstQuery = supabase.from(table).select('*', { count: 'exact' });
-  for (const col of orderColumns) firstQuery = firstQuery.order(col);
-  const first = await firstQuery.range(0, SUPABASE_PAGE_SIZE - 1);
+let firstQuery = supabase.from(table).select('*', { count: 'exact' });
+for (const col of orderColumns) firstQuery = firstQuery.order(col);
+const first = await firstQuery.range(0, SUPABASE_PAGE_SIZE - 1);
 ```
 
 병렬 배치 안(68~70줄)도 바꾼다:
 
 ```typescript
-      let pageQuery = supabase.from(table).select('*');
-      for (const col of orderColumns) pageQuery = pageQuery.order(col);
-      batch.push(pageQuery.range(offset, offset + SUPABASE_PAGE_SIZE - 1));
+let pageQuery = supabase.from(table).select('*');
+for (const col of orderColumns) pageQuery = pageQuery.order(col);
+batch.push(pageQuery.range(offset, offset + SUPABASE_PAGE_SIZE - 1));
 ```
 
 함수 위에 docstring 을 붙인다:
@@ -654,34 +656,34 @@ git commit -m "fix(OEM): .range() 페이징 11곳에 결정적 정렬 — 행이
 `lib/oem-companies/stellantis-na/aggregate.test.ts` 의 기존 `describe('aggregateAnnualSeries', ...)`(127줄) 블록 **안**에 추가한다:
 
 ```typescript
-  it('진행 중 연도는 전년 동기 분기와 비교하고 YTD 라벨을 단다', () => {
-    const rows: StellantisNaSaleRow[] = [];
-    for (let q = 1; q <= 4; q++) {
-      rows.push(row({ period: `2025-Q${q}`, brand: 'Jeep', model: 'X', units: 100 }));
-    }
-    rows.push(row({ period: '2026-Q1', brand: 'Jeep', model: 'X', units: 110 }));
+it('진행 중 연도는 전년 동기 분기와 비교하고 YTD 라벨을 단다', () => {
+  const rows: StellantisNaSaleRow[] = [];
+  for (let q = 1; q <= 4; q++) {
+    rows.push(row({ period: `2025-Q${q}`, brand: 'Jeep', model: 'X', units: 100 }));
+  }
+  rows.push(row({ period: '2026-Q1', brand: 'Jeep', model: 'X', units: 110 }));
 
-    const out = aggregateAnnualSeries(withPt(rows));
-    const y2026 = out.find((p) => p.period === '2026')!;
+  const out = aggregateAnnualSeries(withPt(rows));
+  const y2026 = out.find((p) => p.period === '2026')!;
 
-    expect(y2026.period_label).toBe('2026 YTD');
-    // 110 vs 2025-Q1 의 100 → +10%. 전년 만년(400)과 비교하면 -72.5% 가 나온다(옛 버그).
-    expect(y2026.yoy_pct).toBeCloseTo(10, 1);
-  });
+  expect(y2026.period_label).toBe('2026 YTD');
+  // 110 vs 2025-Q1 의 100 → +10%. 전년 만년(400)과 비교하면 -72.5% 가 나온다(옛 버그).
+  expect(y2026.yoy_pct).toBeCloseTo(10, 1);
+});
 
-  it('4개 분기가 다 찬 연도는 전년 만년과 비교하고 YTD 를 붙이지 않는다', () => {
-    const rows: StellantisNaSaleRow[] = [];
-    for (let q = 1; q <= 4; q++) {
-      rows.push(row({ period: `2025-Q${q}`, brand: 'Jeep', model: 'X', units: 100 }));
-      rows.push(row({ period: `2026-Q${q}`, brand: 'Jeep', model: 'X', units: 110 }));
-    }
+it('4개 분기가 다 찬 연도는 전년 만년과 비교하고 YTD 를 붙이지 않는다', () => {
+  const rows: StellantisNaSaleRow[] = [];
+  for (let q = 1; q <= 4; q++) {
+    rows.push(row({ period: `2025-Q${q}`, brand: 'Jeep', model: 'X', units: 100 }));
+    rows.push(row({ period: `2026-Q${q}`, brand: 'Jeep', model: 'X', units: 110 }));
+  }
 
-    const out = aggregateAnnualSeries(withPt(rows));
-    const y2026 = out.find((p) => p.period === '2026')!;
+  const out = aggregateAnnualSeries(withPt(rows));
+  const y2026 = out.find((p) => p.period === '2026')!;
 
-    expect(y2026.period_label).toBe('2026');
-    expect(y2026.yoy_pct).toBeCloseTo(10, 1);
-  });
+  expect(y2026.period_label).toBe('2026');
+  expect(y2026.yoy_pct).toBeCloseTo(10, 1);
+});
 ```
 
 - [ ] **Step 2: 실패를 확인한다**
@@ -786,7 +788,9 @@ describe('연도 상한 동적화', () => {
   });
 
   it('하한(2023) 이전 연도는 계속 잘린다', () => {
-    const entries: PnlEntry[] = [mkEntry({ basis: 'standalone', period_year: 2022, period_month: 1 })];
+    const entries: PnlEntry[] = [
+      mkEntry({ basis: 'standalone', period_year: 2022, period_month: 1 }),
+    ];
     expect(getDisplayYearLabels(entries, 'standalone')).not.toContain('2022');
   });
 });
@@ -827,29 +831,29 @@ export function currentFiscalYear(): number {
 `lib/pnl/aggregate.ts:61`:
 
 ```typescript
-      if (y >= PNL_MIN_YEAR && y <= currentFiscalYear()) labels.add(String(y));
+if (y >= PNL_MIN_YEAR && y <= currentFiscalYear()) labels.add(String(y));
 ```
 
 `:69`:
 
 ```typescript
-        return y >= PNL_MIN_YEAR && y <= currentFiscalYear();
+return y >= PNL_MIN_YEAR && y <= currentFiscalYear();
 ```
 
 `:528`(계획값 라벨 제외) — 현재 연도를 따라가게 한다:
 
 ```typescript
-  const thisYear = currentFiscalYear();
-  const consolidatedAnnual = data.filter(
-    (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== `${thisYear}(P)`
-  );
+const thisYear = currentFiscalYear();
+const consolidatedAnnual = data.filter(
+  (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== `${thisYear}(P)`
+);
 ```
 
 `:531`:
 
 ```typescript
-  // 연결 진행 중 연도 YTD: monthly 1~N월 합산 → period_month=0 derive.
-  const consolidatedYtd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === thisYear);
+// 연결 진행 중 연도 YTD: monthly 1~N월 합산 → period_month=0 derive.
+const consolidatedYtd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === thisYear);
 ```
 
 ⚠️ 변수명을 `consolidated2026Ytd` → `consolidatedYtd` 로 바꾸면 **아래 `annualEntries` 배열(535줄 부근)의 사용처도 함께 고친다.** typecheck 가 잡아 준다.
@@ -857,10 +861,10 @@ export function currentFiscalYear(): number {
 `lib/plan/aggregate.ts:170`:
 
 ```typescript
-      entriesActualByYear.set(yr, {
-        value: agg[0][metric] / 100,
-        ytd: lbl === String(currentFiscalYear()),
-      });
+entriesActualByYear.set(yr, {
+  value: agg[0][metric] / 100,
+  ytd: lbl === String(currentFiscalYear()),
+});
 ```
 
 상단에 `import { currentFiscalYear } from '@/lib/pnl/aggregate';` 를 추가한다. **순환 import 가 생기면**(`pnl/aggregate.ts` 가 `plan/` 을 import 하고 있으면) 헬퍼를 새 파일 `lib/fiscalYear.ts` 로 빼고 양쪽이 그것을 import 한다 — typecheck 와 vitest 가 순환을 알려 준다.

@@ -13,3 +13,7 @@ q2_targets.json
 _fetch_log.txt
 _pair_log.txt
 fetch_opinion_last_run.json
+
+# 진단·탐침 산출물 — 재생성 가능하므로 추적하지 않는다 (AGENTS.md 「진단 산출물은 임시」).
+# 계약·샘플로 남겨야 할 것이 생기면 파일명을 !예외로 적고 prettier 포맷을 맞출 것.
+*.json
