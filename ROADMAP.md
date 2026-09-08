@@ -220,10 +220,13 @@
 
 **목표**: 프로덕션 배포 준비 및 품질 보증
 
-- [ ] `npm run check-all` 전체 통과 (ESLint / Prettier / TypeScript)
-- [ ] E2E 테스트 (Playwright) — 주가 표 렌더링, 필터, 정렬, 팝업 검증
+- [x] `npm run check-all` 전체 통과 (ESLint / Prettier / TypeScript) — 2026-09-08 실측 EXIT=0 · vitest 462
+- [x] **전수 코드 리뷰 + 지적 전량 수정** (2026-09-08) — `lib/` · `scripts/lib/` · `app/api/` 196파일 / 37,562줄.
+      권한 게이트 · 연도 하드코딩 · 수집 실패 은폐 · 캐시 태그 정합성 등. 경위·남은 한계 = `HANDOFF.md` 맨 위 블록,
+      상세 = `docs/plan-code-review-fixes-2026-09-08.md`
+- [ ] E2E 테스트 (Playwright) — 주가 표 렌더링, 필터, 정렬, 팝업 검증 (일부만: 권한·OEM 6페이지·손익 열 라벨)
 - [ ] 성능 최적화 (Lighthouse 90+ 목표)
-- [ ] Vercel 프로덕션 배포
+- [ ] Vercel 프로덕션 배포 — 🔴 **master 29커밋이 미푸시라 프로덕션은 아직 옛 코드다**
 
 ---
 
