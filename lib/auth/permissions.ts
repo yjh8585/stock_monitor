@@ -33,6 +33,20 @@ export function canAccessConfidentialReports(role: Role): boolean {
 }
 
 /**
+ * 보고서 게시 권한 — `/reports/new` 화면과 게시 API 2종(`POST /api/posts`,
+ * `POST /api/uploads/report`)의 공통 게이트.
+ *
+ * 사용자 결정(2026-09-08): admin·holdings·mobility 만 게시한다.
+ * `canAccessConfidentialReports` 와 지금은 명단이 같지만 **의미가 다르므로**
+ * (열람 vs 게시) 재사용하지 않는다 — 한쪽 명단 변경이 다른 쪽에 새면 안 된다.
+ *
+ * 화이트리스트로 적어 새 역할이 추가돼도 기본은 차단되게 한다.
+ */
+export function canPublishReports(role: Role): boolean {
+  return role === 'admin' || role === 'holdings' || role === 'mobility';
+}
+
+/**
  * 역할별 라우트 접근 권한.
  *
  * - admin: 전체 허용

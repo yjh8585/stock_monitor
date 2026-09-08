@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canAccess } from './permissions';
+import { canAccess, canPublishReports } from './permissions';
 
 describe('canAccess — 조직도(/management/org-chart)', () => {
   const page = '/management/org-chart';
@@ -23,5 +23,18 @@ describe('canAccess — 조직도(/management/org-chart)', () => {
     expect(canAccess(api, 'mobility')).toBe(true);
     expect(canAccess(api, 'hmobility')).toBe(false);
     expect(canAccess(api, 'guest')).toBe(false);
+  });
+});
+
+describe('canPublishReports', () => {
+  it('admin·holdings·mobility 는 게시할 수 있다', () => {
+    expect(canPublishReports('admin')).toBe(true);
+    expect(canPublishReports('holdings')).toBe(true);
+    expect(canPublishReports('mobility')).toBe(true);
+  });
+
+  it('hmobility·guest 는 게시할 수 없다', () => {
+    expect(canPublishReports('hmobility')).toBe(false);
+    expect(canPublishReports('guest')).toBe(false);
   });
 });
