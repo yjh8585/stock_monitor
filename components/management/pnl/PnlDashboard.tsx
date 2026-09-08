@@ -9,7 +9,7 @@ import CustomerPerformance from './CustomerPerformance';
 import ProductPerformance from './ProductPerformance';
 import ProductCustomerCross from './ProductCustomerCross';
 import SilPerformance from './SilPerformance';
-import Forecast2026 from './Forecast2026';
+import AnnualForecast from './AnnualForecast';
 import LazyMount from '@/components/common/LazyMount';
 import type { PreparedPnlData } from '@/lib/pnl/aggregate';
 import type { Basis, CostStructureRow, FixedVariableRow, PnlEntry } from '@/lib/pnl/types';
@@ -60,7 +60,7 @@ export default function PnlDashboard({ prepared, costStructure, fixedVariable }:
         <FixedVariableBep fixedVariable={fixedVariable} />
       </LazyMount>
       <FixedVariableStructure fixedVariable={fixedVariable} />
-      <Forecast2026
+      <AnnualForecast
         monthlyByBasis={monthlyByBasis}
         annualByBasis={annualByBasis}
         costStructure={costStructure}
