@@ -102,9 +102,14 @@
 
 - 🔴 **AGENTS.md 자동 로드 분량 37,495B / 상한 37,500B — 여유 5바이트.** 이번 브랜치는 늘리지
   않았다(검사기 설명을 `docs/gotchas-*.md` 로만 적었다). **다음 추가는 물리적으로 불가능하다.**
-- 🔴 **미푸시다.** 프로덕션(Vercel)에는 안 올라갔다. `app/`·`components/` UI 변경이 있으므로
-  푸시하면 재배포된다. 배포 직후 **Cox 재고 캐시가 한 번은 안 풀릴 수 있다**(태그 이름을
-  `cox-brand-inventory` → `cox_brand_inventory` 로 통일했다). `cacheLife('days')` 라 최악 하루.
+- **푸시 완료** (`9f79851`, 2026-09-08). 프로덕션(Vercel)에 올라갔다.
+  - 🔴 **배포 직후 Cox 재고 캐시가 한 번은 안 풀릴 수 있다** — 태그 이름을
+    `cox-brand-inventory` → `cox_brand_inventory` 로 통일했다. `cacheLife('days')` 라 최악 하루.
+    이상해 보이면 `/api/revalidate` 로 `cox_brand_inventory` 를 한 번 쳐 주면 된다.
+  - 푸시가 **한 번 거부됐다** — 원격에 백업 봇의 일일 스냅샷(`20755e7`, `data/backups/` 만)이
+    먼저 올라와 있었다. 🔴 **rebase 하지 말 것**(HANDOFF·메모리에 적은 커밋 해시 14개가 전부 무효가
+    된다). `git merge origin/master` 로 받으면 해시가 보존된다. 백업 봇 커밋은 `data/backups/` 만
+    건드리므로 소스 충돌이 없다.
 - dev 서버를 띄웠다 끄면 `.next/dev/types/validator.ts` 가 잘린 채 남아 **`tsc` 가 그 생성 파일에서
   실패**할 수 있다. 소스 문제가 아니니 `.next/dev/types` 를 지우고 다시 돌리면 된다.
 
