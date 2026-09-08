@@ -19,6 +19,7 @@ import { LegendRow } from '@/components/charts/ChartLegend';
 import { OEM_COLORS } from '@/components/charts/palette';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import { useChartHeight } from '@/lib/useChartHeight';
+import { buildPeriodColumns } from '@/lib/pnl/periodColumns';
 import type { FixedVariableRow } from '@/lib/pnl/types';
 
 interface Props {
@@ -55,31 +56,9 @@ interface ChartRow {
   opMargin: number | null; // 영업이익률(%) = 공헌이익률 − 고정비율
 }
 
-function maxYtdMonth(rows: readonly FixedVariableRow[]): number {
-  let m = 0;
-  for (const r of rows) {
-    if (r.period_year === 2026 && r.period_kind === 'monthly' && r.period_month > m)
-      m = r.period_month;
-  }
-  return m;
-}
-
 /** 연도별 손익분기점·매출·공헌이익률·고정비율·영업이익률 집계. 매출/비용이 모두 없는 연도는 제외. */
 function buildData(rows: readonly FixedVariableRow[]): ChartRow[] {
-  const ytd = maxYtdMonth(rows);
-  const defs: { year: string; match: (r: FixedVariableRow) => boolean }[] = [
-    { year: '2023', match: (r) => r.period_year === 2023 && r.period_kind === 'annual' },
-    { year: '2024', match: (r) => r.period_year === 2024 && r.period_kind === 'annual' },
-    { year: '2025', match: (r) => r.period_year === 2025 && r.period_kind === 'annual' },
-    {
-      year: ytd === 12 ? '2026' : '2026 YTD',
-      match: (r) =>
-        r.period_year === 2026 &&
-        r.period_kind === 'monthly' &&
-        r.period_month >= 1 &&
-        r.period_month <= ytd,
-    },
-  ];
+  const defs = buildPeriodColumns(rows);
 
   const out: ChartRow[] = [];
   for (const d of defs) {
@@ -101,7 +80,7 @@ function buildData(rows: readonly FixedVariableRow[]): ChartRow[] {
     const opMargin = cmR !== null && fixedR !== null ? (cmR - fixedR) * 100 : null;
 
     out.push({
-      year: d.year,
+      year: d.label,
       bep: bepMwon !== null ? bepMwon / UNIT_DIVISOR : null,
       revenue: rev !== null ? rev / UNIT_DIVISOR : null,
       cmRate: cmR !== null ? cmR * 100 : null,

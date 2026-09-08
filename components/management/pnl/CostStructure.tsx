@@ -2,17 +2,12 @@
 
 import { useMemo } from 'react';
 import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
+import { buildPeriodColumns } from '@/lib/pnl/periodColumns';
 import type { CostStructureRow } from '@/lib/pnl/types';
 
 interface Props {
   costStructure: CostStructureRow[];
 }
-
-/** 표 컬럼 정의 — 연도 라벨, 매칭 필터 */
-type ColumnDef = {
-  label: string;
-  match: (r: CostStructureRow) => boolean;
-};
 
 /** 행 정의 — 단일 '구분' 컬럼에 depth 들여쓰기로 카테고리·계정을 함께 표시. */
 type RowDef = {
@@ -38,46 +33,6 @@ const ROW_DEFS: readonly RowDef[] = [
   { label: '외주가공비', depth: 2, accounts: ['외주가공비'], emphasis: 'normal' },
   { label: '영업이익', depth: 0, accounts: ['영업이익'], emphasis: 'footer' },
 ];
-
-/** 진행 연도(2026) monthly 실적의 최대 월수 계산 — 1~N월까지 적재된 데이터를 자동 합산. */
-function maxYtdMonth(rows: readonly CostStructureRow[], year: number): number {
-  let maxM = 0;
-  for (const r of rows) {
-    if (r.period_year !== year || r.period_kind !== 'monthly' || r.kind !== 'actual') continue;
-    if (r.period_month > maxM) maxM = r.period_month;
-  }
-  return maxM;
-}
-
-function buildColumnDefs(rows: readonly CostStructureRow[]): ColumnDef[] {
-  const ytdMonth = maxYtdMonth(rows, 2026);
-  const defs: ColumnDef[] = [
-    {
-      label: '2023',
-      match: (r) => r.period_year === 2023 && r.period_kind === 'annual' && r.kind === 'actual',
-    },
-    {
-      label: '2024',
-      match: (r) => r.period_year === 2024 && r.period_kind === 'annual' && r.kind === 'actual',
-    },
-    {
-      label: '2025',
-      match: (r) => r.period_year === 2025 && r.period_kind === 'annual' && r.kind === 'actual',
-    },
-  ];
-  if (ytdMonth > 0) {
-    defs.push({
-      label: ytdMonth === 12 ? '2026' : '2026 YTD',
-      match: (r) =>
-        r.period_year === 2026 &&
-        r.period_kind === 'monthly' &&
-        r.kind === 'actual' &&
-        r.period_month >= 1 &&
-        r.period_month <= ytdMonth,
-    });
-  }
-  return defs;
-}
 
 function fmtMillion(v: number | null | undefined): string {
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
@@ -113,9 +68,9 @@ function sumAccounts(rows: CostStructureRow[], accounts: readonly string[]): num
 export default function CostStructure({ costStructure }: Props) {
   const { highlighted, rowToggleProps } = useRowHighlight();
 
-  /** 컬럼별 필터링된 row 묶음 + 매출 캐시. 2026 YTD 컬럼은 데이터에서 최대 월 자동 검출. */
+  /** 컬럼별 필터링된 row 묶음 + 매출 캐시. YTD 컬럼은 데이터에서 최대 월 자동 검출. */
   const columns = useMemo(() => {
-    return buildColumnDefs(costStructure).map((col) => {
+    return buildPeriodColumns(costStructure, (r) => r.kind === 'actual').map((col) => {
       const rows = costStructure.filter(col.match);
       const revenue = sumAccounts(rows, ['매출']);
       return { ...col, rows, revenue };
@@ -127,8 +82,12 @@ export default function CostStructure({ costStructure }: Props) {
       <header className="mb-3">
         <h2 className="text-lg font-semibold">1. 전사 비용구조</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          연결 기준 · 2026은 1~{maxYtdMonth(costStructure, 2026) || 0}월 누적(YTD) 실적 · 단위
-          백만원
+          {(() => {
+            const ytd = columns.find((c) => c.ytdMonths !== null);
+            return ytd
+              ? `연결 기준 · ${ytd.label.slice(0, 4)}은 1~${ytd.ytdMonths}월 누적(YTD) 실적 · 단위 백만원`
+              : '연결 기준 · 단위 백만원';
+          })()}
         </p>
       </header>
       <div className="overflow-x-auto">

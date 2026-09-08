@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { buildPeriodColumns } from '@/lib/pnl/periodColumns';
 import type { FixedVariableRow } from '@/lib/pnl/types';
 
 interface Props {
@@ -235,42 +236,6 @@ const COST_COLS: readonly { label: string; costType: '고정비' | '변동비' |
   { label: '변동비', costType: '변동비' },
 ];
 
-/** 2026 monthly 행의 최대 월(YTD). 없으면 0. */
-function maxYtdMonth(rows: readonly FixedVariableRow[]): number {
-  let m = 0;
-  for (const r of rows) {
-    if (r.period_year === 2026 && r.period_kind === 'monthly' && r.period_month > m)
-      m = r.period_month;
-  }
-  return m;
-}
-
-function buildYearGroups(rows: readonly FixedVariableRow[]) {
-  const ytd = maxYtdMonth(rows);
-  return [
-    {
-      label: '2023',
-      match: (r: FixedVariableRow) => r.period_year === 2023 && r.period_kind === 'annual',
-    },
-    {
-      label: '2024',
-      match: (r: FixedVariableRow) => r.period_year === 2024 && r.period_kind === 'annual',
-    },
-    {
-      label: '2025',
-      match: (r: FixedVariableRow) => r.period_year === 2025 && r.period_kind === 'annual',
-    },
-    {
-      label: ytd === 12 ? '2026' : '2026 YTD',
-      match: (r: FixedVariableRow) =>
-        r.period_year === 2026 &&
-        r.period_kind === 'monthly' &&
-        r.period_month >= 1 &&
-        r.period_month <= ytd,
-    },
-  ];
-}
-
 /** 백만원 금액 — null/NaN은 '—'. */
 function fmtMillion(v: number | null): string {
   if (v === null || Number.isNaN(v)) return '—';
@@ -363,7 +328,7 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
     for (const r of fixedVariable) {
       if (isCost(r) && r.value_mwon !== null && r.period_year === maxYear) {
         const k = `${r.category2}|${r.category3}|${r.account}`;
-        m.set(k, (m.get(k) ?? 0) + r.value_mwon); // 2026이면 월 누적, 그 외 연간
+        m.set(k, (m.get(k) ?? 0) + r.value_mwon); // 진행 연도면 월 누적, 그 외 연간
       }
     }
     return m;
@@ -374,9 +339,14 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
     [detail, labor, amort, accountTotals]
   );
 
+  // 변동비율 기준행은 period_year=0 · period_kind='annual'로 저장돼 있어 그대로 두면
+  // 존재하지 않는 "0"년 연간 열이 생긴다 — 열 파생에서 제외한다.
   const yearGroups = useMemo(
     () =>
-      buildYearGroups(fixedVariable).map((g) => ({ ...g, rows: fixedVariable.filter(g.match) })),
+      buildPeriodColumns(fixedVariable, (r) => r.cost_type !== '변동비율').map((g) => ({
+        ...g,
+        rows: fixedVariable.filter(g.match),
+      })),
     [fixedVariable]
   );
 
@@ -401,7 +371,7 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
     return m;
   }, [fixedVariable]);
 
-  const ytdMonth = useMemo(() => maxYtdMonth(fixedVariable), [fixedVariable]);
+  const ytdGroup = yearGroups.find((g) => g.ytdMonths !== null);
   const dataColCount = yearGroups.length * COST_COLS.length;
 
   return (
@@ -412,7 +382,9 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
           <p className="mt-1 text-sm text-muted-foreground">
             연결 기준 · 단위 백만원 · 합계 = 고정비 + 변동비 · 영업이익 = 매출액 − 비용합계 ·
             변동비(%)는 기준 가정치(고정비% = 1 − 변동비%)
-            {ytdMonth > 0 ? ` · 2026은 1~${ytdMonth}월 누적(YTD)` : ' · 2026은 YTD(누적)'}
+            {ytdGroup
+              ? ` · ${ytdGroup.label.slice(0, 4)}은 1~${ytdGroup.ytdMonths}월 누적(YTD)`
+              : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
