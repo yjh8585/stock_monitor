@@ -662,6 +662,14 @@ UNIQUE: (source, note_date)
 
 > 본문(`content`) **작성 규칙·게시 절차·마크다운 렌더 함정**은 [`report.md`](./report.md) 참고.
 
+**새 사외비 테이블 5-step** (AGENTS.md 에서 이관 · 2026-09-09)
+
+1. 마이그레이션에서 `ENABLE ROW LEVEL SECURITY` — **정책은 만들지 않는다**(default deny).
+2. `generate_typescript_types` 로 `lib/database.types.ts` 갱신 (🔴 손으로 붙인 `TableRow`·`ViewRow` 를 덮지 말 것 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §7).
+3. `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES` 에 한 줄 추가 — **이 배열이 명단 정본이다.**
+4. 업로드 API 는 `confidentialDb...upsert` + `revalidateTag`.
+5. 페이지는 `'use cache'` + `cacheTag` + `confidentialDb...select`.
+
 ---
 
 ### 7-H. 토큰 · 매핑
@@ -1090,7 +1098,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
 
-- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨)
+- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다)
 
 ### `supabase/migrations/`
 
