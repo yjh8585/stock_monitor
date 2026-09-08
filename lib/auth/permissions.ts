@@ -47,6 +47,16 @@ export function canPublishReports(role: Role): boolean {
 }
 
 /**
+ * 챗봇 사용 권한 — `/api/chat`.
+ *
+ * 사용자 결정(2026-09-08): guest 만 막는다. 사외비 유출 경로는 아니지만
+ * (`lib/chat/tools.ts` 화이트리스트가 사외비 테이블을 뺀다) 호출마다 Anthropic 요금이 난다.
+ */
+export function canUseChat(role: Role): boolean {
+  return role !== 'guest';
+}
+
+/**
  * 역할별 라우트 접근 권한.
  *
  * - admin: 전체 허용

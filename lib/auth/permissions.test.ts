@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canAccess, canPublishReports } from './permissions';
+import { canAccess, canPublishReports, canUseChat } from './permissions';
 
 describe('canAccess — 조직도(/management/org-chart)', () => {
   const page = '/management/org-chart';
@@ -36,5 +36,18 @@ describe('canPublishReports', () => {
   it('hmobility·guest 는 게시할 수 없다', () => {
     expect(canPublishReports('hmobility')).toBe(false);
     expect(canPublishReports('guest')).toBe(false);
+  });
+});
+
+describe('canUseChat', () => {
+  it('guest 를 제외한 4역할은 챗봇을 쓸 수 있다', () => {
+    expect(canUseChat('admin')).toBe(true);
+    expect(canUseChat('holdings')).toBe(true);
+    expect(canUseChat('mobility')).toBe(true);
+    expect(canUseChat('hmobility')).toBe(true);
+  });
+
+  it('guest 는 챗봇을 쓸 수 없다', () => {
+    expect(canUseChat('guest')).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { canUseChat } from '@/lib/auth/permissions';
 import { streamChatLoop } from '@/lib/chat/loop';
 import type { ChatMessage, ChatStreamEvent } from '@/lib/chat/types';
 
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
   // 1) 세션 인증
   const user = await getCurrentUser();
   if (!user) return jsonError(401, 'unauthorized');
+  if (!canUseChat(user.role)) return jsonError(403, 'forbidden');
 
   // 2) rate limit
   const rl = checkRateLimit(`u:${user.id}`);
