@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { NextResponse } from 'next/server';
 
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { canPublishReports } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 import { fail, ok } from '@/lib/reports/api-response';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
@@ -13,6 +15,13 @@ const MAX_BYTES = 100 * 1024 * 1024; // 100MB
  * PDF 보고서 업로드. 폼 제출 전에 호출되어 file_path 를 반환한다.
  */
 export async function POST(req: Request) {
+  // 게시 폼(new-post-form.tsx:65)이 POST /api/posts 직전에 부르는 업로드다.
+  // 같은 게이트를 걸지 않으면 100MB 업로드만 열린 채로 남는다.
+  const user = await getCurrentUser();
+  if (!user || !canPublishReports(user.role)) {
+    return NextResponse.json(fail('FORBIDDEN', '업로드 권한이 없습니다.'), { status: 403 });
+  }
+
   let formData: FormData;
   try {
     formData = await req.formData();

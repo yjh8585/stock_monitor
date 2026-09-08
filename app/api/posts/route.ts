@@ -1,6 +1,8 @@
 import { revalidateTag } from 'next/cache';
 import { after, NextResponse } from 'next/server';
 
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { canPublishReports } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 
 export const maxDuration = 300; // PDF/웹 분석은 Claude API 호출로 최대 5분 소요
@@ -38,6 +40,13 @@ export async function GET(req: Request) {
  * 게시글 생성. 메타만 즉시 INSERT, 본문은 백그라운드 처리.
  */
 export async function POST(req: Request) {
+  // 게시는 admin·holdings·mobility 만(사용자 결정 2026-09-08). 본문 생성이
+  // maxDuration=300 짜리 LLM 작업이라 과금 통로이기도 하다.
+  const user = await getCurrentUser();
+  if (!user || !canPublishReports(user.role)) {
+    return NextResponse.json(fail('FORBIDDEN', '게시 권한이 없습니다.'), { status: 403 });
+  }
+
   let body: unknown;
   try {
     body = await req.json();

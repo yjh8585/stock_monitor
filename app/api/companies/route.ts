@@ -1,6 +1,8 @@
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { isAdmin } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 import { createCompanyInputSchema } from '@/lib/companies/schemas';
 import { fail, ok } from '@/lib/reports/api-response';
@@ -62,6 +64,14 @@ async function triggerOnboardWorkflow(
  *      dispatch 실패해도 INSERT는 유지 — graceful fallback.
  */
 export async function POST(req: Request) {
+  // 회사 마스터 INSERT + GHA workflow_dispatch — 화면(/management/companies)이
+  // ADMIN_ONLY_PATHS 라 API 도 admin 으로 맞춘다. proxy.ts 는 세션만 보고
+  // canAccess 는 '/api/*' 를 판정하지 않으므로 여기서 직접 막는다.
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user.role)) {
+    return NextResponse.json(fail('FORBIDDEN', '권한이 없습니다.'), { status: 403 });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
