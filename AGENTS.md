@@ -69,7 +69,7 @@ scripts/venv/Scripts/python.exe -m pytest scripts/lib -q         # 순수 함수
 python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 규칙 (venv 아닌 시스템 python)
 ```
 
-🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다(태그를 새로 만들면 `ALL_TAGS`·`COLUMN_TO_TAGS` 양쪽을 같이 갱신). 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
+🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다. **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(마지막을 빠뜨리면 수집이 성공해도 그 화면은 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)). 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
 
 테스트는 `lib/` 하위 순수 함수 대상(Vitest, node 환경). `vitest.config.ts`의 `@/*` alias는 tsconfig와 동일.
 

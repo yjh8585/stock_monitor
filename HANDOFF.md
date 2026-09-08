@@ -45,6 +45,12 @@
    `docs/gotchas-ci-deploy.md` §8. **넓게 훑어 0건이면 파일을 콕 집어 다시 세어라.**
 2. 🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다.** 위반이 나오면 그것이 회귀다.
    (한때 「exit 1 이 정상」이라 적혀 있었고, 그대로 뒀으면 다음 세션이 진짜 회귀를 넘겼을 것이다.)
+   **2026-09-09 에 역방향 검사를 붙였다** — 「태그는 있는데 그걸 부르는 원천 테이블 매핑이 없다」까지
+   본다(초판이 통과시키던 `hyundai_retail_sales` 유형). 판정은 순수 함수 `evaluate()` 이고
+   `scripts/lib/test_verify_revalidate_tags.py` 가 **검사기 자신을 시험한다.**
+   🔴 **매핑 면제는 `TAGS_WITHOUT_COLLECTOR` 뿐이다**(`oem_model_brand` — 마이그레이션 전용).
+   여기에 태그를 더하는 것은 「수집기가 안 건드린다」는 **주장**이니 함부로 늘리지 말 것 —
+   늘리면 검사기가 조용히 무력해진다(테스트가 목록을 못 박아 둬서 같이 고쳐야 한다).
 3. 🔴 **연도 규칙이 세 가지이고 자리마다 다르다.** 섞으면 값이 어긋난다.
    - **데이터 파생**(`buildPeriodColumns`·`AnnualForecast` 지역 `targetYear`) = 적재가 화면보다 늦는 자리
    - **`currentYear()`** = 라벨 상한·YTD 판정·창
@@ -62,13 +68,7 @@
 > 최종 전체 브랜치 리뷰가 **Critical 0 · 병합 가능**으로 판정한 뒤 남긴 것들이다.
 > 전부 「지금 깨지지 않는 것」이라 급하지 않다.
 
-**1순위 — 검사기의 역방향 구멍**
-
-`scripts/verify_revalidate_tags.py` 는 (cacheTag ⊆ ALL_TAGS)와 (COLUMN_TO_TAGS ⊆ ALL_TAGS)만 본다.
-**「cacheTag 는 있는데 그 태그를 부르는 원천 테이블 매핑이 없다」는 못 잡는다** —
-이번에 찾은 `hyundai_retail_sales` 가 정확히 그 유형이었으니 같은 구멍이 또 나도 통과시킨다.
-
-**2순위 — 이름·주석 정리 (동작 무관)**
+**1순위 — 이름·주석 정리 (동작 무관)**
 
 - `targetYear` 이름 충돌(위 「알아 둘 것」 5번). `lib/oem/aggregate.ts` 쪽을 `lastCompleteYear()` 로
   바꾸는 것이 자연스럽다.
@@ -78,7 +78,7 @@
   안 들어온다). 형제인 `hyundai`/`kia` 는 같은 개념을 `isComplete ? latest : latest-1` 로
   **데이터에서** 판정한다 — 같은 개념의 두 처리.
 
-**3순위 — 알려진 한계 (운영 데이터에선 미발생)**
+**2순위 — 알려진 한계 (운영 데이터에선 미발생)**
 
 - `lib/pnl/periodColumns.ts` — YTD 열을 항상 맨 뒤에 붙인다. 중간 연도만 monthly-only 면 열 순서가
   뒤집힌다.
@@ -91,7 +91,7 @@
 - `lib/finance/loan-aggregate.ts:62` — 매년 1월, 당해 실적 적재 전까지 YTD 지급율이 `—`.
   **틀린 값이 아니라 빈 값**이다.
 
-**4순위 — 무관한 기존 항목**
+**3순위 — 무관한 기존 항목**
 
 - lint 경고 2건 — `lib/oem-companies/kia/aggregate.ts` 의 `RETAIL_ANNUAL_MIN_YEAR`(커밋 `44e99d8`
   이전부터 존재) · `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES`(타입 전용 export).

@@ -780,6 +780,20 @@ GHA runner: sync_management_excel.py (apply)
 
 자동 매핑: `scripts/lib/revalidate.py::COLUMN_TO_TAGS` (수정 시 `revalidate_for_tables` 호출 가능).
 
+**정합성 검사기 — `scripts/verify_revalidate_tags.py`** (토큰 0, `exit 0` 이 정상)
+
+캐시 태그는 세 곳에 흩어져 있고(TS 의 `cacheTag('X')` · `app/api/revalidate/route.ts` 의 `ALL_TAGS` · `COLUMN_TO_TAGS`), 어긋나도 **에러가 안 나고 화면만 조용히 낡는다.** 세 방향을 모두 본다:
+
+| 검사                                             | 어긋나면                                             |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| cacheTag ⊄ ALL_TAGS                              | `tag=all` 로 무효화해도 그 페이지만 안 풀린다        |
+| COLUMN_TO_TAGS 값 ⊄ ALL_TAGS                     | 수집기가 존재하지 않는 태그를 부른다(오타·삭제 잔재) |
+| **역방향** — cacheTag 인데 원천 테이블 매핑 없음 | **수집이 성공해도 그 페이지는 영원히 낡는다**        |
+
+역방향 검사는 2026-09-09 추가분이다. 초판(①②만)이 `hyundai_retail_sales` 구멍을 **통과시킨** 것이 계기다 — 태그 `oem-hyundai-retail` 은 TS 에도 `ALL_TAGS` 에도 있었지만 그것을 부르는 매핑이 없었다. 첫 실행에서 **누락 태그 9개**를 잡았다(눈으로 찾은 건 2개였다).
+
+🔴 **매핑 면제는 `TAGS_WITHOUT_COLLECTOR` 뿐이다** — 현재 `oem_model_brand`(마이그레이션 전용 SSOT) 하나. 여기 태그를 더하는 것은 「수집기가 안 건드린다」는 주장이므로 함부로 늘리면 검사기가 조용히 무력해진다. 판정은 순수 함수 `evaluate()` 이고 `scripts/lib/test_verify_revalidate_tags.py` 가 **검사기 자신을 시험한다**(위반을 심어 실제로 잡히는지 · 면제가 이웃 태그까지 풀어 주지 않는지 · 낡은 면제를 경고하는지).
+
 ## 10. 자동화 (GitHub Actions + cron-job.org)
 
 ### 44개 워크플로 카테고리 (2026-08-25 실측)
