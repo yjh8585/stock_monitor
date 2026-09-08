@@ -7,7 +7,7 @@ import { PostList } from '@/components/reports/post-list';
 import { PostPagination } from '@/components/reports/post-pagination';
 import { buttonVariants } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { canAccessConfidentialReports } from '@/lib/auth/permissions';
+import { canAccessConfidentialReports, canPublishReports } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import type { PostSourceType } from '@/lib/reports/types';
 
@@ -107,6 +107,7 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
   // 판정 결과만 캐시 함수의 인자로 넘겨 역할별 캐시 엔트리를 분리한다.
   const currentUser = await getCurrentUser();
   const includeConfidential = currentUser ? canAccessConfidentialReports(currentUser.role) : false;
+  const canPublish = currentUser ? canPublishReports(currentUser.role) : false;
 
   const { rows, total, categories, sourceNames } = await getPostsListData({
     page,
@@ -135,9 +136,11 @@ async function ReportsBody({ searchParams }: ReportsPageProps) {
           <h1 className="text-lg font-semibold">보고서</h1>
           <p className="text-muted-foreground text-sm">전체 {total.toLocaleString()}건</p>
         </div>
-        <Link href="/reports/new" className={buttonVariants()}>
-          + 글쓰기
-        </Link>
+        {canPublish && (
+          <Link href="/reports/new" className={buttonVariants()}>
+            + 글쓰기
+          </Link>
+        )}
       </div>
 
       <Suspense>
