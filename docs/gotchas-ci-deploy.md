@@ -199,3 +199,46 @@ Bash 인라인 한글). 넓게 훑어 0건이면 **파일을 콕 집어 다시 �
 
 **처방**: `python -X utf8 <agents>/scripts/fix-hookify-wiring.py`
 (캐시 폴더가 여러 벌이라 손으로 고치면 빠뜨린다.)
+
+## 10. Supabase 보안 경고 메일 — 절반은 「의도된 설계」다 (2026-09-09 판정)
+
+`noreply@supabase.com` 의 「Action required: security vulnerabilities detected」는 **주 1회 자동 발송**이고,
+본문에 적힌 **데이터 기준일이 발송일보다 며칠 앞선다**(2026-09-08 발송분의 기준일은 09-06).
+🔴 **그래서 이미 고친 것이 다시 온다** — 2026-09-08 메일의 Critical 은 하루 전
+`20260907000002_rls_backup_tables.sql` 로 이미 막은 백업 테이블 2개였다.
+**메일을 읽기 전에 `get_advisors` 로 실시간 상태부터 볼 것.**
+
+**메일이 안 알려 주는 것**: 어느 테이블인지. 대시보드를 열지 않고 기계로 가리려면 —
+
+```sql
+-- Critical(rls_disabled_in_public) 의 정확한 목록. 0 이면 해소된 것이다.
+select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity = false;
+```
+
+### 남아 있는 두 경고는 고치지 말 것 (전수 확인 완료)
+
+| 경고                              | 건수 | 판정                                                                                                                                                                         |
+| --------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rls_enabled_no_policy` (INFO)    | 15   | **정본 정책 그 자체** — 사외비 격리는 「RLS enable + 정책 없음」(default deny)이다. 정책을 만들면 오히려 구멍이 난다                                                         |
+| `materialized_view_in_api` (WARN) | 3    | **추가 유출이 아니다** — 구체화 뷰엔 RLS 를 걸 수 없지만, 원본 `oem_sales_*` 테이블이 이미 `anon` 읽기를 전면 허용(`qual = true`)한다. 뷰를 막아도 원본에서 같은 값을 읽는다 |
+
+대상 뷰는 `oem_sales_usa_group_month` · `oem_sales_country_group_year` · `oem_competition_monthly_view` 셋이고,
+읽는 쪽은 `lib/oem/source.ts` · `lib/oem-competition/source.ts` 의 anon 클라이언트다.
+🔴 **여기서 `revoke` 를 하면 `/oem` 과 `/oem/competition` 이 조용히 빈 화면이 된다.**
+
+### 실제로 고칠 값어치가 있었던 것 — `function_search_path_mutable`
+
+트리거 함수에 검색 경로가 안 박혀 있으면 호출자의 `search_path` 를 따르므로,
+같은 이름의 함수·테이블을 앞선 스키마에 심어 가로채는 공격이 이론상 가능하다.
+본문을 건드릴 필요 없이 설정만 붙인다(`20260909000001_function_search_path.sql`):
+
+```sql
+alter function public.<이름>() set search_path = public, pg_temp;
+```
+
+`pg_catalog` 는 언제나 암묵적으로 먼저 검색되니 적지 않아도 되고, `pg_temp` 는 **맨 뒤**에 둔다
+(앞에 두면 임시 테이블로 같은 가로채기가 재현된다).
+
+🔴 **검증용 임시 테이블을 `public` 에 만들었으면 반드시 지울 것** — 안 지우면
+그것이 바로 다음 주 메일의 Critical(`rls_disabled_in_public`)로 돌아온다.
