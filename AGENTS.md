@@ -97,12 +97,13 @@ python -X utf8 scripts/verify-hookify-rules.py             # .claude/ 훅 규칙
 - [`app/`] **사외비 보고서**(`posts.is_confidential`)는 RLS가 anon 읽기를 막고 `canAccessConfidentialReports`(admin·holdings·mobility)가 service_role 조회를 게이트한다 — 목록·상세 `'use cache'` 함수에 `includeConfidential`을 **인자로** 넘겨 역할별 캐시를 분리하므로 **새 호출부에서 이 인자를 빠뜨리지 말 것**.
 - [`app/`] 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. 🔴 **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(2026-08-12 기준 12종 — 여기 다시 나열하지 말 것. 문서에 베껴 적었더니 9종·5종으로 갈려 있었다).
 - [`app/`] **공개는 `api/cron/*`·`api/revalidate*` 뿐이고 나머지는 세션 필수.** 새 `route.ts` 를 만들면 `proxy.ts` 의 `PUBLIC_PATH_PREFIXES` 와 [`Architecture.md §5`](./Architecture.md) 의 라우트 목록을 **함께** 갱신한다(목록 정본은 Architecture — 여기 중복하지 않는다. 두 곳에 두면 갈린다).
+- [`app/`] 🔴 **세션 통과 ≠ 권한** — `canAccess` 는 `/api/*` 에 `return true` 다. mutating 라우트는 핸들러 첫 줄에서 역할 판정 → **403 JSON**, 화면·버튼도 같이 → [`gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
 - [`app/`] `api/revalidate*`은 SSRF·쿠키 가드 패치 이력(commit `ea090be`). 회귀 주의.
 - [`components/`] `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - [`components/`] **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - [`lib/`] 공용 유틸·React 훅 목록 → [`Architecture.md §6`](./Architecture.md). **표 행 클릭 강조는 `useRowHighlight` 훅을 재사용**(인라인 재구현 금지 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. sticky 셀은 행 bg를 명시적으로 덮어야 따라온다)
 - [`lib/`] `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
-- [`lib/`] **`.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
+- [`lib/`] **`.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md). 🔴 조건은 「있다」가 아니라 **「유일하다」** — 키는 **PK 전체**로.
 - [`lib/`] `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT. 🔴 **역할을 추가하면 `roles.ts`·`users.ts`·`permissions.ts` 3곳을 모두 갱신**해야 한다(빠뜨리면 세션 거부 → `/login` 무한 리다이렉트). 계정 env 키·랜딩 redirect 주의 → [`Architecture.md 부록 B-2`](./Architecture.md). 새 라우트 권한은 `permissions.ts`.
 - [`lib/`] `lib/pnl/` · `lib/plan/` · `lib/inventory/` · `lib/personnel/` · `lib/finance/` · `lib/org-chart/` — **전부 사외비**라 `confidentialDb` 경유 필수.
 - [`lib/`] `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.

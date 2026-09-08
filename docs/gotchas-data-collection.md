@@ -691,3 +691,67 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 
 ⚠️ **같은 형태를 다른 수집기에서도 찾을 것** — 판정 기준은 「쓰기 모드가 `"w"` 인가」가 아니라
 **「부르는 쪽의 창이 산출물의 범위보다 좁은가」**다.
+
+## 형제 함수가 이미 옳게 고쳐져 있는데 따라가지 않는다 (2026-09-08)
+
+**증상.** 2026-09-08 전수 코드리뷰에서 **같은 형태의 결함이 세 번** 나왔다. 셋 다
+**바로 옆에 올바른 구현이 있는데 그것을 따르지 않은 것**이었다.
+
+| 결함                                                                                         | 옆에 있던 올바른 구현                                                           |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `lib/oem/source.ts` 의 `fetchAll` 이 `.order()` 없이 `.range()` 페이징 (+`Promise.all` 병렬) | **같은 파일 `fetchModelRows`** 가 PK 4컬럼 정렬 + 그 이유를 주석으로 적어 뒀다  |
+| `lib/stellantis-forecast/source.ts` 가 백만원을 억원 필드에 환산 없이 담아 KPI 100배         | `lib/finance/pnl-derived.ts`·`lib/plan/aggregate.ts` 가 같은 컬럼을 `/100` 한다 |
+| `stellantis-na/aggregate.ts` 가 진행 중 연도를 전년 만년과 비교해 허위 급락 −75%             | **형제 파일 `kg-mobility/aggregate.ts`** 가 `isYtd` 로 전년 동기만 합산한다     |
+
+🔴 **주석으로 경고를 남겨 두는 것으로는 재발을 못 막는다.** `fetchModelRows` 의 주석은
+증상(「특정 연도가 통째로 빠진다」)까지 정확히 적고 있었는데, **바로 위 함수가 그대로
+어기고 있었다.** AGENTS.md 의 「`.range()` 다중 페이지는 `.order()` 필수」도 마찬가지였다 —
+규칙은 있었고 11곳이 어겼다.
+
+**왜 안 걸렸나.** 셋 다 **정적 검사·테스트를 통과한다.** 행 누락은 수집기가 캐시 재생성 중에
+upsert 할 때만 나는 경합이고, 100배는 YoY 비율이 분모·분자가 같이 커져 무사해서 **절대값
+카드로만** 드러나며, 허위 급락은 라벨이 평범한 `2026` 이라 눈에 안 띈다.
+
+**처방.**
+
+- 같은 일을 하는 함수가 여럿이면 **하나를 고칠 때 형제를 전부 grep 한다.** 판정 기준은
+  「이 파일을 고쳤나」가 아니라 **「같은 패턴이 몇 군데인가」**다.
+- `.range()` 를 쓰면 **정렬 키가 유일한지**까지 본다. `lib/pnl/source.ts` 는 `.order()` 가
+  **있었는데도** (basis, 연, 월)만 잡아 5차원으로 갈린 행의 동률이 페이지 경계에서 흔들렸다 —
+  **「정렬이 있다」가 아니라 「정렬이 유일하다」가 조건이다.**
+- 단위가 다른 컬럼을 옮겨 담을 때는 **타입 주석을 믿지 말고** 환산을 순수 함수로 뽑아
+  테스트를 붙인다(`toRevenueRows`). 이번 100배는 `RevenueMonthRow.revenueEok` 의 주석이
+  이미 「억원」이라 적혀 있었는데 값만 백만원이었다.
+
+## 세션을 통과했다고 권한이 있는 것이 아니다 — API 역할 게이트 (2026-09-08)
+
+**증상.** `POST /api/companies`(회사 마스터 INSERT + GHA workflow_dispatch)·`POST /api/posts`
+(maxDuration=300 짜리 LLM 작업)·`POST /api/uploads/report`(100MB 업로드)가 **guest 를 포함한
+전 역할에 열려 있었다.**
+
+**원인.** `lib/auth/permissions.ts` 의 `canAccess` 가 페이지 경로만 판정하고 **`/api/*` 는
+마지막 `return true` 로 흘려보낸다.** `proxy.ts` 는 세션(로그인 여부)만 확인하므로,
+**로그인한 guest 가 그대로 통과**한다. 유일한 예외였던 `/api/management/org-chart` 의 주석이
+이것을 자백하고 있었다 — _"canAccess의 /management 분기는 '/api/...' 접두사를 매칭하지
+못하므로 명시적으로 처리"_. 한 라우트만 손으로 메웠고 나머지는 그대로였다.
+
+**처방(적용 완료).** 게이트를 **route handler 안에서 직접** 부른다:
+
+```typescript
+export async function POST(req: Request) {
+  const user = await getCurrentUser();
+  if (!user || !canPublishReports(user.role)) {
+    return NextResponse.json(fail('FORBIDDEN', '게시 권한이 없습니다.'), { status: 403 });
+  }
+  // ...body 파싱은 그 다음
+```
+
+🔴 **`proxy.ts`/`canAccess` 에 넣지 말 것** — 그쪽 실패 경로는 `NextResponse.redirect` 라
+`fetch` 가 302 를 따라가 **HTML 을 받고** `res.json()` 이 엉뚱한 파싱 오류를 낸다. API 는 403 JSON 이다.
+🔴 **게이트는 핸들러 첫 줄**에 온다 — body 파싱·Zod 검증보다 앞이어야 권한 없는 요청에 비용을 안 쓴다.
+🔴 **화면도 같이 막을 것.** API 만 막으면 비권한자에게 버튼이 보이고 눌러야 403 이 뜬다
+(`/reports/new` 페이지 진입 + `/reports` 의 「+ 글쓰기」 버튼을 함께 게이트했다).
+
+**판정 기준.** 「이 라우트가 세션을 요구하나」가 아니라 **「역할을 구분하나」**다. 세션 검사는
+`proxy.ts` 가 이미 한다 — 그것만으로 끝났다고 보면 이 사고가 반복된다. 게시 권한 판정은
+`canPublishReports`(admin·holdings·mobility), 관리자 전용은 `isAdmin` 이다.
