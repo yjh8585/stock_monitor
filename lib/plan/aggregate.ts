@@ -1,12 +1,8 @@
 /** 손익 계획 차트 시리즈 빌더 (순수 함수). */
-import {
-  aggregateBy,
-  currentFiscalYear,
-  entriesForYear,
-  getDisplayYearLabels,
-} from '@/lib/pnl/aggregate';
+import { aggregateBy, entriesForYear, getDisplayYearLabels } from '@/lib/pnl/aggregate';
 import type { PreparedPnlData } from '@/lib/pnl/aggregate';
 import type { Basis } from '@/lib/pnl/types';
+import { currentYear } from '@/lib/currentYear';
 import type { AchievementPoint, PlanRow } from './types';
 
 /** 단위 환산. 지원: 억원↔백만원(1억원=100백만원). USD/동일단위는 그대로. */
@@ -174,7 +170,7 @@ export function buildCorpAchievement(
     if (agg.length > 0) {
       entriesActualByYear.set(yr, {
         value: agg[0][metric] / 100,
-        ytd: lbl === String(currentFiscalYear()),
+        ytd: lbl === String(currentYear()),
       });
     }
   }

@@ -7,7 +7,7 @@
  * 9~10개 우측 컬럼은 모두 동일하다.
  */
 import { calcCagr, invTurnover } from './format';
-import { currentFiscalYear } from './pnl/aggregate';
+import { currentYear } from './currentYear';
 import type { FinancialYear } from './types';
 import type { StickyColumn } from '@/components/common/StickyTable';
 
@@ -22,7 +22,7 @@ export interface FinancialRowBase {
 }
 
 const SUPPORTED_YEARS: readonly string[] = Array.from({ length: 4 }, (_, i) =>
-  String(currentFiscalYear() - i)
+  String(currentYear() - i)
 );
 const FALLBACK_YEAR = '2025';
 

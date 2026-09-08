@@ -8,20 +8,10 @@
 
 import type { AggregatedRow, Basis, DimensionKey, MetricKey, PnlEntry } from './types';
 import { METRIC_ORDER } from './types';
+import { currentYear } from '../currentYear';
 
 /** 손익 데이터가 존재하는 첫 해 — 데이터 사실이므로 고정값이다. */
 export const PNL_MIN_YEAR = 2023;
-
-/**
- * 표시 기준 연도(서울). 라벨 상한과 「진행 중 연도(YTD)」 판정에 쓴다.
- *
- * UTC 로 읽으면 연말연시 9시간 동안 한 해가 밀린다 — 반드시 Asia/Seoul 로 구한다.
- * 하드코딩(`<= 2026`)이었을 때는 해가 바뀌면 손익 화면이 조용히 2026 에 고정됐다.
- */
-export function currentFiscalYear(): number {
-  const seoulDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-  return parseInt(seoulDate.slice(0, 4), 10);
-}
 
 /** 부동소수 누적 오차를 잘라내는 헬퍼 (백만원 단위, 소수 4자리까지 의미 있음) */
 const ROUND_DECIMALS = 4;
@@ -72,7 +62,7 @@ export function getDisplayYearLabels(entries: readonly PnlEntry[], basis: Basis)
     } else {
       // 별도: period_year 기준 4자리 라벨. 월별/연간 어느 입력이든 동일하게 동작.
       const y = e.period_year;
-      if (y >= PNL_MIN_YEAR && y <= currentFiscalYear()) labels.add(String(y));
+      if (y >= PNL_MIN_YEAR && y <= currentYear()) labels.add(String(y));
     }
   }
   if (basis === 'consolidated') {
@@ -80,7 +70,7 @@ export function getDisplayYearLabels(entries: readonly PnlEntry[], basis: Basis)
     return Array.from(labels)
       .filter((lbl) => {
         const y = parseInt(lbl.slice(0, 4), 10);
-        return y >= PNL_MIN_YEAR && y <= currentFiscalYear();
+        return y >= PNL_MIN_YEAR && y <= currentYear();
       })
       .sort();
   }

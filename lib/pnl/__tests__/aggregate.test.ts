@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  currentFiscalYear,
   getDisplayYearLabels,
   grossProfitOf,
   preparePnlData,
   prepareYoYView,
   ratioOfRevenue,
 } from '@/lib/pnl/aggregate';
+import { currentYear } from '@/lib/currentYear';
 import type { AggregatedRow, PnlEntry } from '@/lib/pnl/types';
 
 describe('vitest sanity — aggregate.ts', () => {
@@ -197,7 +197,7 @@ describe('prepareYoYView — YoY 비교 1~5단계 통합 함수', () => {
 
 describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', () => {
   it('연결 연간 + 진행 중 연도 YTD derive + 별도 연간 derive가 하나로 합쳐진다', () => {
-    const thisYear = currentFiscalYear();
+    const thisYear = currentYear();
     const lastYear = thisYear - 1;
     const twoYearsAgo = thisYear - 2;
     const data: PnlEntry[] = [
@@ -247,7 +247,7 @@ describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', ()
   it('올해가 아닌 연도의 (P) 라벨도 제외된다 — 연도 하드코딩 회귀 방지', () => {
     // 회귀: 예전엔 `year_label !== \`${thisYear}(P)\`` 로 "올해 계획값만" 걸렀다.
     // 그래서 해가 바뀌면 작년의 '(P)' 라벨(예: '2026(P)')이 실적표로 새어 나왔다.
-    const thisYear = currentFiscalYear();
+    const thisYear = currentYear();
     const pastPlanYear = thisYear - 1;
     const data: PnlEntry[] = [
       annualRow(pastPlanYear, `${pastPlanYear}(P)`, 500, 50, { is_plan: true }),
@@ -314,7 +314,7 @@ describe('연도 상한 동적화', () => {
   }
 
   it('현재 연도 실적이 라벨에 포함된다 — 2027 에 화면이 멈추지 않는다', () => {
-    const thisYear = currentFiscalYear();
+    const thisYear = currentYear();
     const entries: PnlEntry[] = [
       mkEntry({ basis: 'standalone', period_year: thisYear, period_month: 1 }),
       mkEntry({ basis: 'standalone', period_year: thisYear - 1, period_month: 1 }),
