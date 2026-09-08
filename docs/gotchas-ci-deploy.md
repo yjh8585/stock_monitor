@@ -169,7 +169,7 @@ rg -c "recall_count" lib/oem-competition/source.ts → 3
 **처방**: 값은 그대로 두고 **표기만 이스케이프로** 바꾼다 — 런타임 문자열은 완전히 동일하다.
 
 ```ts
-const TARGET_BUCKET = '\u0000target';   // 소스에 날 NUL 을 넣지 않는다
+const TARGET_BUCKET = '\u0000target'; // 소스에 날 NUL 을 넣지 않는다
 ```
 
 **전수 점검** (추적 파일만, venv 를 안 훑어 빠르다):
