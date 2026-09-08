@@ -3,18 +3,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, encodeSession } from './session';
+import { sanitizeNext } from './sanitize-next';
 import { findUserByCredentials } from './users';
 
 export type LoginState = {
   error?: string;
 };
-
-function sanitizeNext(next: unknown): string {
-  if (typeof next !== 'string') return '/';
-  if (!next.startsWith('/') || next.startsWith('//')) return '/';
-  if (next.startsWith('/login')) return '/';
-  return next;
-}
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const id = String(formData.get('id') ?? '').trim();
