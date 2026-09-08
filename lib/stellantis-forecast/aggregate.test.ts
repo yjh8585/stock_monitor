@@ -23,6 +23,7 @@ import {
   quarterLabel,
   quarterOfYearMonth,
 } from './aggregate';
+import { toRevenueRows } from './source';
 import type {
   CoxInventoryRow,
   GapPoint,
@@ -855,5 +856,34 @@ describe('buildInventoryKpi — 재고 신호등', () => {
     const k = buildInventoryKpi([]);
     expect(k.status).toBe('yellow');
     expect(k.headline).toContain('데이터 부족');
+  });
+});
+
+describe('toRevenueRows', () => {
+  it('백만원을 억원으로 환산한다 — 100배 표시 회귀', () => {
+    const out = toRevenueRows([{ period_year: 2026, period_month: 1, revenue: 12345 }]);
+    expect(out).toEqual([{ year_month: 202601, revenueEok: 123.45 }]);
+  });
+
+  it('같은 (연,월)이 차원별로 쪼개져 있으면 합산한 뒤 환산한다', () => {
+    const out = toRevenueRows([
+      { period_year: 2026, period_month: 3, revenue: 10000 },
+      { period_year: 2026, period_month: 3, revenue: 5000 },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].revenueEok).toBeCloseTo(150, 4);
+  });
+
+  it('revenue 가 null 인 행은 버린다', () => {
+    const out = toRevenueRows([{ period_year: 2026, period_month: 2, revenue: null }]);
+    expect(out).toEqual([]);
+  });
+
+  it('year_month 오름차순으로 정렬한다', () => {
+    const out = toRevenueRows([
+      { period_year: 2026, period_month: 3, revenue: 100 },
+      { period_year: 2025, period_month: 12, revenue: 100 },
+    ]);
+    expect(out.map((r) => r.year_month)).toEqual([202512, 202603]);
   });
 });

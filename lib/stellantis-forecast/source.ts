@@ -142,6 +142,35 @@ async function fetchNaProduction(): Promise<ProductionMonthRow[]> {
   return out;
 }
 
+/** pnl_entries.revenue 는 백만원 단위 — 화면 표기(억원)로 맞추려면 100 으로 나눈다. */
+const MWON_TO_EOK = 100;
+
+/** `toRevenueRows` 가 받는 최소 형태 — DB 응답의 부분집합. */
+export interface PnlRevenueRow {
+  period_year: number;
+  period_month: number;
+  revenue: number | null;
+}
+
+/**
+ * pnl_entries 행 → 월별 매출(억원). 순수 함수라 단위 테스트로 고정한다.
+ *
+ * 같은 (연,월)이 차원(sil·공장·제품 등)별로 쪼개져 여러 행일 수 있으니 합산한다.
+ * **백만원 → 억원 환산을 빠뜨리면 KPI 카드가 100배가 된다**(2026-09-08 실제 결함).
+ * YoY 는 분모·분자가 같이 커져 무사하므로 절대값 카드로만 드러난다.
+ */
+export function toRevenueRows(rows: readonly PnlRevenueRow[]): RevenueMonthRow[] {
+  const byMonth = new Map<number, number>();
+  for (const row of rows) {
+    if (row.revenue === null) continue;
+    const yearMonth = row.period_year * 100 + row.period_month;
+    byMonth.set(yearMonth, (byMonth.get(yearMonth) ?? 0) + row.revenue);
+  }
+  return [...byMonth.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([year_month, revenueMwon]) => ({ year_month, revenueEok: revenueMwon / MWON_TO_EOK }));
+}
+
 /** 자사 Stellantis NA향 월별 매출 (사외비 → confidentialDb 필수). */
 async function fetchRevenue(): Promise<RevenueMonthRow[]> {
   const { data, error } = await confidentialDb
@@ -157,16 +186,7 @@ async function fetchRevenue(): Promise<RevenueMonthRow[]> {
     logger.error({ err: error }, 'pnl_entries(Stellantis NA) 조회 실패');
     throw new Error(`자사 매출 조회 실패: ${error.message}`);
   }
-  // 같은 (연,월)이 차원별로 쪼개져 여러 행일 수 있으니 합산한다.
-  const byMonth = new Map<number, number>();
-  for (const row of data ?? []) {
-    if (row.revenue === null) continue;
-    const yearMonth = row.period_year * 100 + row.period_month;
-    byMonth.set(yearMonth, (byMonth.get(yearMonth) ?? 0) + row.revenue);
-  }
-  return [...byMonth.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([year_month, revenueEok]) => ({ year_month, revenueEok }));
+  return toRevenueRows(data ?? []);
 }
 
 /**
