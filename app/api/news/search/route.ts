@@ -81,11 +81,17 @@ async function searchGoogleNews(q: string, lang: 'ko' | 'en'): Promise<NewsItem[
     const sourceMatch = block.match(/<source[^>]*>([^<]+)<\/source>/);
     const source = sourceMatch ? sourceMatch[1].trim() : 'Google News';
     if (!title || !link) continue;
+    // 날짜 하나가 깨졌다고 검색 전체를 죽이지 않는다 — 그 항목만 published_at=null.
+    let publishedAt: string | null = null;
+    if (pub) {
+      const d = new Date(pub);
+      if (!Number.isNaN(d.getTime())) publishedAt = d.toISOString();
+    }
     items.push({
       title,
       url: link,
       source,
-      published_at: pub ? new Date(pub).toISOString() : null,
+      published_at: publishedAt,
     });
   }
   return items;

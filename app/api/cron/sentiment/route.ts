@@ -36,23 +36,37 @@ export async function GET(req: NextRequest) {
   const summary: { ticker: string; analyzed: number }[] = [];
   for (const c of companies as { id: string; ticker: string }[]) {
     // 클라이언트에서 LEFT JOIN 시뮬레이션: 최근 글 → 이미 분석된 글 제외 → BATCH_SIZE만큼만 분석
-    const { data: candidates } = await sb
+    const { data: candidates, error: candErr } = await sb
       .from('naver_board_posts')
       .select('post_id,title')
       .eq('company_id', c.id)
       .order('posted_at', { ascending: false })
       .limit(BATCH_SIZE * 2);
+    if (candErr) {
+      logger.error({ err: candErr, ticker: c.ticker }, '감성 분석 후보 조회 실패');
+      return NextResponse.json(
+        { ok: false, error: 'candidates_query_failed', ticker: c.ticker },
+        { status: 500 }
+      );
+    }
     const candidateRows = candidates ?? [];
     if (candidateRows.length === 0) {
       summary.push({ ticker: c.ticker, analyzed: 0 });
       continue;
     }
     const ids = candidateRows.map((p) => p.post_id);
-    const { data: already } = await sb
+    const { data: already, error: alreadyErr } = await sb
       .from('board_sentiment')
       .select('post_id')
       .eq('company_id', c.id)
       .in('post_id', ids);
+    if (alreadyErr) {
+      logger.error({ err: alreadyErr, ticker: c.ticker }, '분석 완료 글 조회 실패');
+      return NextResponse.json(
+        { ok: false, error: 'already_query_failed', ticker: c.ticker },
+        { status: 500 }
+      );
+    }
     const seen = new Set((already ?? []).map((r) => r.post_id));
     const posts = candidateRows.filter((p) => !seen.has(p.post_id)).slice(0, BATCH_SIZE);
 
