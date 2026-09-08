@@ -100,8 +100,16 @@
 
 ### 알아 둘 것 — 운영
 
-- 🔴 **AGENTS.md 자동 로드 분량 37,495B / 상한 37,500B — 여유 5바이트.** 이번 브랜치는 늘리지
-  않았다(검사기 설명을 `docs/gotchas-*.md` 로만 적었다). **다음 추가는 물리적으로 불가능하다.**
+- **AGENTS.md 를 다이어트했다 (2026-09-09)** — 37,495B(여유 5B) → **36,537B / 상한 37,500B, 여유 963B.**
+  상한은 **건드리지 않았다**(`verify_docs.py` 가 「상한을 올려서 통과시키지 말 것」이라 명시한다).
+  가른 기준은 AGENTS.md 자신의 원칙 — **어기면 조용히 깨지는 것만 남기고 카탈로그·함정 서사는 옮긴다**:
+  - `scripts/lib/` **모듈 카탈로그** → [`Architecture.md 부록 C`](./Architecture.md). AGENTS 엔 약속 11개만.
+    🔴 옮기기 전에 확인했더니 **Architecture 쪽이 2026-08-25 이관 이후 갱신이 안 돼**
+    `pdf_figures.py`·`research_priority.py` 두 모듈이 빠져 있었다 — **먼저 동기화하고** 옮겼다.
+  - **새 사외비 테이블 5-step**(절차) → [`Architecture.md §7-G`](./Architecture.md)
+  - **훅 검사기 함정 서사** → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9
+  - `collect_*.py` 줄은 **Architecture 에 99% 동일본이 이미 있었다**(이관이 복사로 끝나 원본이 남은 것).
+    🔴 **다음 추가도 원칙은 같다** — 여유가 963B 로 늘었어도 함정은 `docs/gotchas-*.md` 가 정본이다.
 - **푸시 완료** (`9f79851`, 2026-09-08). 프로덕션(Vercel)에 올라갔다.
   - 🔴 **배포 직후 Cox 재고 캐시가 한 번은 안 풀릴 수 있다** — 태그 이름을
     `cox-brand-inventory` → `cox_brand_inventory` 로 통일했다. `cacheLife('days')` 라 최악 하루.
@@ -192,6 +200,6 @@
 
 ### 알아 둘 것
 
-- 🔴 **AGENTS.md 자동 로드 분량이 37,495B / 상한 37,500B 다.** 여유가 **5바이트**뿐이니 다음 추가는 반드시 `docs/gotchas-*.md` 로 가고 AGENTS.md 에는 트리거 한 줄만 남긴다.
+- ~~AGENTS.md 여유가 5바이트뿐이다~~ — **2026-09-09 다이어트로 해소**(36,537B, 여유 963B). 경위는 맨 위 블록. 다만 「함정은 `docs/gotchas-*.md` 가 정본」이라는 원칙 자체는 그대로다.
 - 이번에 얻은 함정 2건은 `docs/gotchas-data-collection.md` 끝에 적었다 — 「형제 함수가 이미 옳게 고쳐져 있는데 따라가지 않는다」·「세션을 통과했다고 권한이 있는 것이 아니다」.
 - `.superpowers/` 는 git-ignored 작업 폴더다. 이번 작업의 Task별 리뷰 판정·E2E 스크린샷 11장이 거기 있다.
