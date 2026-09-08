@@ -67,6 +67,11 @@ async function fetchAllKiaSales(
     const { data, error } = await supabase
       .from('kia_sales')
       .select('*')
+      .order('period_type')
+      .order('year_period')
+      .order('region')
+      .order('factory')
+      .order('vehicle_model')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'kia_sales 조회 실패');
@@ -87,6 +92,11 @@ async function fetchKiaExportRegions(supabase: AnonClient): Promise<KiaExportReg
     const { data, error } = await supabase
       .from('kia_export_regions')
       .select('period_type,year_period,source,region_name,vehicle_type,sales_units')
+      .order('period_type')
+      .order('year_period')
+      .order('source')
+      .order('region_name')
+      .order('vehicle_type')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'kia_export_regions 조회 실패 — 빈 배열 반환');
@@ -112,6 +122,11 @@ async function fetchKiaRetail(supabase: AnonClient): Promise<KiaRetailSaleRow[]>
     const { data, error } = await client
       .from('kia_retail_sales')
       .select('period_type,year_period,plant,vehicle_model,region,retail_units')
+      .order('period_type')
+      .order('year_period')
+      .order('plant')
+      .order('vehicle_model')
+      .order('region')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'kia_retail_sales 조회 실패 — 빈 배열 반환');

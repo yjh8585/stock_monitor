@@ -50,6 +50,11 @@ async function fetchAllStellantisNaSales(
     const { data, error } = await supabase
       .from('stellantis_na_sales')
       .select('*')
+      .order('period_type')
+      .order('year_period')
+      .order('brand')
+      .order('vehicle_model')
+      .order('region')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'stellantis_na_sales 조회 실패');

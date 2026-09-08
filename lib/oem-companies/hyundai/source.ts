@@ -80,6 +80,11 @@ async function fetchAllHyundaiSales(
     const { data, error } = await supabase
       .from('hyundai_sales')
       .select('*')
+      .order('period_type')
+      .order('year_period')
+      .order('region')
+      .order('factory')
+      .order('vehicle_model')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'hyundai_sales 조회 실패');
@@ -143,6 +148,11 @@ async function fetchRetailSales(supabase: AnonClient): Promise<HyundaiRetailSale
       .select(
         'period_type,year_period,region,vehicle_type,vehicle_model,retail_units,market_share,industry_total'
       )
+      .order('period_type')
+      .order('year_period')
+      .order('region')
+      .order('vehicle_type')
+      .order('vehicle_model')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'hyundai_retail_sales 조회 실패 — 빈 배열 반환');

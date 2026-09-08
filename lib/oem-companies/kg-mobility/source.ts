@@ -50,6 +50,10 @@ async function fetchAllKgSales(
     const { data, error } = await supabase
       .from('kg_mobility_sales')
       .select('*')
+      .order('period_type')
+      .order('year_period')
+      .order('region')
+      .order('vehicle_model')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'kg_mobility_sales 조회 실패');

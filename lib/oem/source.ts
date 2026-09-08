@@ -38,18 +38,19 @@ const FETCH_CONCURRENCY = 8;
 type AnonClient = ReturnType<typeof createSupabaseAnonClient>;
 
 /**
- * Supabase 한 번 select에 max 1000행. 첫 페이지에서 총행수(count)를 얻고
- * 나머지 페이지를 배치 병렬로 fetch → 대용량 테이블의 순차 왕복 지연 제거.
- * 실패 시 throw. (aggregate는 키 그룹화라 페이지 순서 무관)
+ * 테이블 전체 fetch. `.range()` 다중 페이지는 **결정적 전체 정렬**이 필수다 —
+ * ORDER BY 없이는 페이지 경계에서 순서가 흔들려 행이 누락·중복된다.
+ * 여기서는 페이지를 Promise.all 로 동시에 던지므로 특히 그렇다.
+ * `orderColumns` 에는 그 테이블의 PK 컬럼을 순서대로 준다.
  */
 async function fetchAll<TName extends keyof Database['public']['Tables']>(
   supabase: AnonClient,
-  table: TName
+  table: TName,
+  orderColumns: readonly string[]
 ): Promise<TableRow<TName>[]> {
-  const first = await supabase
-    .from(table)
-    .select('*', { count: 'exact' })
-    .range(0, SUPABASE_PAGE_SIZE - 1);
+  let firstQuery = supabase.from(table).select('*', { count: 'exact' });
+  for (const col of orderColumns) firstQuery = firstQuery.order(col);
+  const first = await firstQuery.range(0, SUPABASE_PAGE_SIZE - 1);
   if (first.error) {
     logger.error({ err: first.error, table }, `${table} 조회 실패`);
     throw new Error(`Supabase ${table} 조회 실패: ${first.error.message}`);
@@ -63,12 +64,9 @@ async function fetchAll<TName extends keyof Database['public']['Tables']>(
     const batch = [];
     for (let page = start; page < Math.min(start + FETCH_CONCURRENCY, pageCount); page++) {
       const offset = page * SUPABASE_PAGE_SIZE;
-      batch.push(
-        supabase
-          .from(table)
-          .select('*')
-          .range(offset, offset + SUPABASE_PAGE_SIZE - 1)
-      );
+      let pageQuery = supabase.from(table).select('*');
+      for (const col of orderColumns) pageQuery = pageQuery.order(col);
+      batch.push(pageQuery.range(offset, offset + SUPABASE_PAGE_SIZE - 1));
     }
     const results = await Promise.all(batch);
     for (const { data, error } of results) {
@@ -198,11 +196,11 @@ export async function getOemData() {
     modelRows,
     otherModelRows,
   ] = await Promise.all([
-    fetchAll(supabase, 'oem_sales_group_month'),
-    fetchAll(supabase, 'oem_sales_group_pt_month'),
+    fetchAll(supabase, 'oem_sales_group_month', ['oem_group', 'year_month']),
+    fetchAll(supabase, 'oem_sales_group_pt_month', ['oem_group', 'powertrain', 'year_month']),
     fetchCountryGroupYear(supabase, TARGET_YEAR),
     fetchUsaGroupMonth(supabase),
-    fetchAll(supabase, 'oem_sales_type_seg_month'),
+    fetchAll(supabase, 'oem_sales_type_seg_month', ['vehicle_type', 'segment', 'year_month']),
     fetchModelRows(
       supabase,
       NA_MODEL_TARGETS.flatMap((t) => t.models),

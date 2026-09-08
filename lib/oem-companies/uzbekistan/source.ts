@@ -148,6 +148,13 @@ async function fetchAll(supabase: AnonClient): Promise<UzbekistanRow[]> {
       .select(
         'kind,period_type,year_period,company,brand,vehicle_model,units,source_type,source_url,publish_date,collected_at'
       )
+      .order('kind')
+      .order('period_type')
+      .order('year_period')
+      .order('company')
+      .order('brand')
+      .order('vehicle_model')
+      .order('source_type')
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'uzbekistan_auto_stats 조회 실패');
