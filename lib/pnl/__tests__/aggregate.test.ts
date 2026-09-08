@@ -196,36 +196,41 @@ describe('prepareYoYView — YoY 비교 1~5단계 통합 함수', () => {
 });
 
 describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', () => {
-  it('연결 연간 + 2026 YTD derive + 별도 연간 derive가 하나로 합쳐진다', () => {
+  it('연결 연간 + 진행 중 연도 YTD derive + 별도 연간 derive가 하나로 합쳐진다', () => {
+    const thisYear = currentFiscalYear();
+    const lastYear = thisYear - 1;
+    const twoYearsAgo = thisYear - 2;
     const data: PnlEntry[] = [
-      // 연결 연간: 2024, 2025
-      annualRow(2024, '2024', 200, 20),
-      annualRow(2025, '2025', 300, 30),
-      // 연결 2026 monthly 1~3월 (annual 행 없음 → derive 대상)
-      monthlyRow(2026, 1, 30, 3),
-      monthlyRow(2026, 2, 30, 3),
-      monthlyRow(2026, 3, 30, 3),
+      // 연결 연간: 재작년, 작년
+      annualRow(twoYearsAgo, String(twoYearsAgo), 200, 20),
+      annualRow(lastYear, String(lastYear), 300, 30),
+      // 연결 올해 monthly 1~3월 (annual 행 없음 → derive 대상)
+      monthlyRow(thisYear, 1, 30, 3),
+      monthlyRow(thisYear, 2, 30, 3),
+      monthlyRow(thisYear, 3, 30, 3),
       // 별도 월별 (DB에 별도 연간 행 없음 → derive 대상)
-      monthlyRow(2025, 1, 10, 1, { basis: 'standalone' }),
-      monthlyRow(2025, 2, 10, 1, { basis: 'standalone' }),
+      monthlyRow(lastYear, 1, 10, 1, { basis: 'standalone' }),
+      monthlyRow(lastYear, 2, 10, 1, { basis: 'standalone' }),
     ];
     const prepared = preparePnlData(data);
 
-    // annualEntries에 3종류 모두 포함 — 연결 2024/2025 + 연결 2026 YTD derive + 별도 2025 derive
+    // annualEntries에 3종류 모두 포함 — 연결 재작년/작년 + 연결 올해 YTD derive + 별도 작년 derive
     const consol = prepared.annualEntries.filter((e) => e.basis === 'consolidated');
-    expect(consol.map((e) => e.year_label).sort()).toEqual(['2024', '2025', '2026']);
-    // 2026 YTD derive 결과 매출 = 30 * 3 = 90
-    const ytd2026 = consol.find((e) => e.year_label === '2026');
-    expect(ytd2026?.revenue).toBe(90);
+    expect(consol.map((e) => e.year_label).sort()).toEqual(
+      [twoYearsAgo, lastYear, thisYear].map(String).sort()
+    );
+    // 올해 YTD derive 결과 매출 = 30 * 3 = 90
+    const ytdThisYear = consol.find((e) => e.year_label === String(thisYear));
+    expect(ytdThisYear?.revenue).toBe(90);
 
     const stand = prepared.annualEntries.filter((e) => e.basis === 'standalone');
     expect(stand).toHaveLength(1);
-    expect(stand[0].period_year).toBe(2025);
+    expect(stand[0].period_year).toBe(lastYear);
     // 별도 derive 결과 매출 = 10 + 10 = 20
     expect(stand[0].revenue).toBe(20);
   });
 
-  it("'2026(P)' 계획값 행은 annualEntries에서 제외된다", () => {
+  it("'(P)' 계획값 행은 annualEntries에서 제외된다", () => {
     const data: PnlEntry[] = [
       annualRow(2024, '2024', 200, 20),
       annualRow(2025, '2025', 300, 30),
@@ -237,6 +242,22 @@ describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', ()
       .map((e) => e.year_label);
     expect(labels).not.toContain('2026(P)');
     expect(labels).toEqual(['2024', '2025']);
+  });
+
+  it('올해가 아닌 연도의 (P) 라벨도 제외된다 — 연도 하드코딩 회귀 방지', () => {
+    // 회귀: 예전엔 `year_label !== \`${thisYear}(P)\`` 로 "올해 계획값만" 걸렀다.
+    // 그래서 해가 바뀌면 작년의 '(P)' 라벨(예: '2026(P)')이 실적표로 새어 나왔다.
+    const thisYear = currentFiscalYear();
+    const pastPlanYear = thisYear - 1;
+    const data: PnlEntry[] = [
+      annualRow(pastPlanYear, `${pastPlanYear}(P)`, 500, 50, { is_plan: true }),
+      annualRow(pastPlanYear - 1, String(pastPlanYear - 1), 200, 20),
+    ];
+    const prepared = preparePnlData(data);
+    const labels = prepared.annualEntries
+      .filter((e) => e.basis === 'consolidated')
+      .map((e) => e.year_label);
+    expect(labels).not.toContain(`${pastPlanYear}(P)`);
   });
 
   it('annualByBasis / monthlyByBasis가 basis별로 정확히 분리된다', () => {

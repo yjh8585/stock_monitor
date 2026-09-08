@@ -525,8 +525,9 @@ export function prepareYoYView(
  * 한 함수 호출로 정리된다. 클라이언트 상태(basis 토글 등)에 무관한 순수 변환만 담당.
  *
  * 정책 (기존 PnlDashboard 로직과 동일):
- * - 연결 연간: DB의 period_month=0 행을 그대로 사용. 단 진행 중 연도의 계획값(`{연도}(P)`)은 표시에서 제외 (사용자 요구).
- * - 연결 진행 중 연도 YTD: monthly 1~N월을 합산해 period_month=0 행으로 derive (year_label=현재 연도).
+ * - 연결 연간: DB의 period_month=0 행을 그대로 사용. 단 `(P)` 접미사가 붙은 계획 라벨은 연도 무관 전부 제외 (사용자 요구).
+ * - 연결 YTD: 확정 연간 행(period_month=0)이 아직 없는 연도만 monthly 1~N월을 합산해 derive한다.
+ *   연도를 하드코딩하지 않으므로 연초(올해 monthly 미적재 + 작년 연간 미확정) 공백에도 작년 YTD가 유지된다.
  * - 별도 연간: 전체 연도 월별 → 연간 derive (DB에 별도 연간 행이 없음).
  * - annualByBasis / monthlyByBasis: basis별 분리한 reference (차트가 작은 배열만 처리하도록).
  */
@@ -537,13 +538,18 @@ export interface PreparedPnlData {
 }
 
 export function preparePnlData(data: readonly PnlEntry[]): PreparedPnlData {
-  const thisYear = currentFiscalYear();
-  // 연결 연간: DB의 period_month=0 행을 그대로 사용. 진행 중 연도의 계획값은 표시에서 제외.
+  // 연결 연간: DB의 period_month=0 행을 그대로 사용. `(P)` 접미사가 붙은 계획 라벨은 연도 무관 전부 제외.
   const consolidatedAnnual = data.filter(
-    (e) => e.basis === 'consolidated' && e.period_month === 0 && e.year_label !== `${thisYear}(P)`
+    (e) => e.basis === 'consolidated' && e.period_month === 0 && !e.year_label.endsWith('(P)')
   );
-  // 연결 진행 중 연도 YTD: monthly 1~N월 합산 → period_month=0 derive.
-  const consolidatedYtd = deriveAnnualFromMonthly(data, 'consolidated', (y) => y === thisYear);
+  // 연결 YTD: 확정 연간 행이 이미 있는 연도는 건너뛰고, 없는 연도만 monthly 1~N월 합산 → derive.
+  // (연도를 하드코딩하면 새해 첫날처럼 「올해 monthly 미적재 + 작년 연간 미확정」 공백에서 작년치가 통째로 사라진다.)
+  const consolidatedAnnualYears = new Set(consolidatedAnnual.map((e) => e.period_year));
+  const consolidatedYtd = deriveAnnualFromMonthly(
+    data,
+    'consolidated',
+    (y) => !consolidatedAnnualYears.has(y)
+  );
   // 별도 연간: 월별만 적재되므로 전체 연도 derive.
   const standaloneMonthly = data.filter(
     (e) => e.basis === 'standalone' && e.period_month >= 1 && e.period_month <= 12
