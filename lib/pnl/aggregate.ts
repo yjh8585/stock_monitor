@@ -84,7 +84,7 @@ export function getDisplayYearLabels(entries: readonly PnlEntry[], basis: Basis)
  * period_month=0 행으로 변환한다. (선택) `yearFilter`로 특정 연도만 대상.
  *
  * - 별도(standalone): DB에 연간 행이 없어 전체 연도에 대해 derive
- * - 연결(consolidated): 2026 YTD처럼 연간 행이 없는 특정 연도만 derive (P/E 계획·추정 외 실적 누적)
+ * - 연결(consolidated): 진행 연도 YTD처럼 연간 행이 없는 특정 연도만 derive (P/E 계획·추정 외 실적 누적)
  *
  * year_label은 period_year 4자리 문자열. is_plan/is_estimate는 false.
  */

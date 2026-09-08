@@ -57,7 +57,7 @@ function currentYtd(
   return { currentYear, currentYearLatestMonth };
 }
 
-/** 영업이익(억원) — 연결 연간 라벨별(+2026 YTD). */
+/** 영업이익(억원) — 연결 연간 라벨별(+진행 연도 YTD). */
 function opIncomeByYear(prepared: PreparedPnlData, basis: Basis): YearEok[] {
   const annual = prepared.annualByBasis[basis];
   const out: YearEok[] = [];

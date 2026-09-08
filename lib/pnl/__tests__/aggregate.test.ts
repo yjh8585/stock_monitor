@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getDisplayYearLabels,
   grossProfitOf,
@@ -258,6 +258,55 @@ describe('preparePnlData — PnlDashboard 진입 시 raw → derived 변환', ()
       .filter((e) => e.basis === 'consolidated')
       .map((e) => e.year_label);
     expect(labels).not.toContain(`${pastPlanYear}(P)`);
+  });
+
+  it('확정 연간 행이 있는 연도는 월별에서 다시 derive 하지 않는다', () => {
+    // 회귀: 연간 행 존재 여부와 무관하게 derive하면 같은 연도가 두 번(확정+derive 중복) 잡힌다.
+    const data: PnlEntry[] = [
+      annualRow(2024, '2024', 1000, 100),
+      monthlyRow(2024, 1, 10, 1),
+      monthlyRow(2024, 2, 10, 1),
+    ];
+    const prepared = preparePnlData(data);
+    const consol2024 = prepared.annualEntries.filter(
+      (e) => e.basis === 'consolidated' && e.period_year === 2024
+    );
+    expect(consol2024).toHaveLength(1);
+    expect(consol2024[0].revenue).toBe(1000); // 월별 합(20)이 아니라 확정 연간 값
+  });
+
+  it('연간 행이 없는 연도만 월별 누적으로 만든다', () => {
+    const data: PnlEntry[] = [
+      annualRow(2023, '2023', 900, 90), // 전년: 연간 행 확정
+      monthlyRow(2024, 1, 30, 3), // 올해: 월별만 적재
+      monthlyRow(2024, 2, 30, 3),
+    ];
+    const prepared = preparePnlData(data);
+    const consol = prepared.annualEntries.filter((e) => e.basis === 'consolidated');
+    expect(consol.map((e) => e.period_year).sort()).toEqual([2023, 2024]);
+    const y2023 = consol.find((e) => e.period_year === 2023);
+    const y2024 = consol.find((e) => e.period_year === 2024);
+    expect(y2023?.revenue).toBe(900); // 확정 연간 값 그대로
+    expect(y2024?.revenue).toBe(60); // 30 + 30 derive
+  });
+
+  it('해가 바뀌어도 (P) 계획 라벨은 실적 집계에 안 섞인다', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2027-06-15T00:00:00+09:00'));
+    try {
+      const data: PnlEntry[] = [
+        annualRow(2026, '2026(P)', 500, 50, { is_plan: true }),
+        annualRow(2025, '2025', 300, 30),
+      ];
+      const prepared = preparePnlData(data);
+      const labels = prepared.annualEntries
+        .filter((e) => e.basis === 'consolidated')
+        .map((e) => e.year_label);
+      expect(labels).not.toContain('2026(P)');
+      expect(labels).toEqual(['2025']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('annualByBasis / monthlyByBasis가 basis별로 정확히 분리된다', () => {
