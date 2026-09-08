@@ -5,7 +5,115 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-09-08)
+## 최신 상태 · 재개 지점 (2026-09-08 오후)
+
+### 무엇을 했나
+
+오전에 「상위 3군만」 고치고 남겼던 **코드리뷰 지적을 전량 처리**했다. 브랜치
+`fix/code-review-2026-09-08-part2` 에 16커밋 · 53파일 · +1,900/-370.
+
+| 커밋      | 내용                                                                   |
+| --------- | ---------------------------------------------------------------------- |
+| `f4e0e86` | `lib/currentYear.ts` 신설 — `currentFiscalYear` 개명 + 계층 역전 해소  |
+| `ab134d0` | NHTSA 리콜 실패를 0건으로 숨기던 것 + 캐시 태그 정합성 **검사기 신설** |
+| `5546d48` | 손익 표 3종의 연도 열을 **데이터에서 파생**                            |
+| `0929088` | `Forecast2026.tsx` → `AnnualForecast.tsx` 개명 + 연도 무관화           |
+| `665fed3` | 조회 실패를 200 ok 로 보고하던 것 + 날짜 하나로 검색 전체가 죽던 것    |
+| `552caa2` | `sanitizeNext` 백슬래시 오픈 리다이렉트 (`lib/auth/sanitize-next.ts`)  |
+| `35df255` | 챗봇 한세 게이트 누락 + `or()` 필터 주입 + 오늘 뉴스 KST 자정          |
+| `583bcc9` | `recall_count` null 전파 + `ALL_TAGS` 8개 보강 (검사기 exit 0)         |
+| `264e018` | 소스의 **날 NUL 바이트** 제거 — Grep 도구가 파일을 통째로 건너뛰던 것  |
+| `8ebdade` | 연도 하드코딩·UTC 연도 전량 제거 — 모듈 상수 대신 **함수 호출로**      |
+| `be91eb1` | guest 는 챗봇을 쓸 수 없게 (요금 통로 차단)                            |
+| `daa73f8` | 1차 연도 수정의 회귀 테스트 보강                                       |
+| `c8c7fbb` | `/oem` 화면의 연도 리터럴을 `targetYear()`/`currentYear()` 로          |
+| `fc72df6` | gotchas — 검사기 exit 0 이 정상 상태로 바뀐 것 반영                    |
+
+**검증:** `check-all` EXIT=0 (462 테스트) · `pytest scripts/lib` 417 passed ·
+`verify_revalidate_tags.py` **exit 0** · `verify_docs.py` 오류 0 ·
+`new Date().getFullYear()` 0건 · 추적 파일 NUL 0건 ·
+🔴 **미래 시각 2027-01-05 KST 전체 스위트 통과**(리뷰어 2명이 각각 재현).
+
+**계획서:** `docs/plan-code-review-fixes-2026-09-08.md` 「2차」 섹션 (Task 8~16)
+**작업 기록:** `.superpowers/sdd/plan-code-review-fixes-2026-09-08/progress.md`
+
+### 알아 둘 것 — 코드·git 으로는 안 보이는 것
+
+1. 🔴 **소스에 날 NUL 바이트가 있으면 Grep 도구가 그 파일을 통째로 건너뛴다.**
+   `lib/oem-competition/source.ts` 가 그랬고, 그래서 「`recalls` 소비처 전수 grep」이 0건을 내
+   NHTSA 수정이 화면까지 안 이어진 채 완료로 보고됐다. 증상·처방·전수 점검 명령 =
+   `docs/gotchas-ci-deploy.md` §8. **넓게 훑어 0건이면 파일을 콕 집어 다시 세어라.**
+2. 🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다.** 위반이 나오면 그것이 회귀다.
+   (한때 「exit 1 이 정상」이라 적혀 있었고, 그대로 뒀으면 다음 세션이 진짜 회귀를 넘겼을 것이다.)
+3. 🔴 **연도 규칙이 세 가지이고 자리마다 다르다.** 섞으면 값이 어긋난다.
+   - **데이터 파생**(`buildPeriodColumns`·`AnnualForecast` 지역 `targetYear`) = 적재가 화면보다 늦는 자리
+   - **`currentYear()`** = 라벨 상한·YTD 판정·창
+   - **`currentYear()-1`**(`lib/oem/aggregate.ts` 의 `targetYear()`) = 연 사전집계 뷰
+4. 🔴 **`const X = currentYear()` 를 모듈 최상단에 두지 말 것.** 평가 시점에 값이 굳어
+   장수 프로세스가 해를 넘겨도 안 따라온다. 하드코딩을 지우고 같은 버그를 다시 심는 유일한 길이다.
+5. ⚠️ **`targetYear` 라는 이름이 두 곳에서 반대 의미다** — `lib/oem/aggregate.ts` 의 export 는
+   「직전 완결 연도」, `AnnualForecast.tsx` 의 지역 변수는 「데이터 최대 연도」.
+   지금은 import 경로가 안 겹쳐 안전하나 자동완성으로 잘못 끌어오면 조용히 틀린다.
+6. **사용자 결정(2026-09-08 오후)**: OEM 기준 연도 = 직전 완결 연도 ·
+   `Forecast2026.tsx` 는 개명 · `/api/chat` 은 **guest 만** 차단.
+
+### 재개 지점 — 남은 일
+
+> 최종 전체 브랜치 리뷰가 **Critical 0 · 병합 가능**으로 판정한 뒤 남긴 것들이다.
+> 전부 「지금 깨지지 않는 것」이라 급하지 않다.
+
+**1순위 — 검사기의 역방향 구멍**
+
+`scripts/verify_revalidate_tags.py` 는 (cacheTag ⊆ ALL_TAGS)와 (COLUMN_TO_TAGS ⊆ ALL_TAGS)만 본다.
+**「cacheTag 는 있는데 그 태그를 부르는 원천 테이블 매핑이 없다」는 못 잡는다** —
+이번에 찾은 `hyundai_retail_sales` 가 정확히 그 유형이었으니 같은 구멍이 또 나도 통과시킨다.
+
+**2순위 — 이름·주석 정리 (동작 무관)**
+
+- `targetYear` 이름 충돌(위 「알아 둘 것」 5번). `lib/oem/aggregate.ts` 쪽을 `lastCompleteYear()` 로
+  바꾸는 것이 자연스럽다.
+- JSDoc 연도 잔재 — `components/management/pnl/AnnualForecast.tsx:15,139,141,143,145` ·
+  `FixedVariableStructure.tsx:304`.
+- `lib/oem/aggregate.ts` 의 「직전 완결 연도」 명명이 1~2월엔 사실이 아니다(12월 MarkLines 분이 아직
+  안 들어온다). 형제인 `hyundai`/`kia` 는 같은 개념을 `isComplete ? latest : latest-1` 로
+  **데이터에서** 판정한다 — 같은 개념의 두 처리.
+
+**3순위 — 알려진 한계 (운영 데이터에선 미발생)**
+
+- `lib/pnl/periodColumns.ts` — YTD 열을 항상 맨 뒤에 붙인다. 중간 연도만 monthly-only 면 열 순서가
+  뒤집힌다.
+- `lib/chat/tools.ts:207` — `or()` 살균이 `,().*%_\` 는 막지만 `"` · `:` 는 남긴다.
+  큰따옴표 섞인 검색어는 여전히 400 가능(**권한 우회는 불가** — 콤마가 제거돼 or 분기를 못 늘린다).
+- `lib/oem-competition/source.ts:328` — 대상 차종 `recall_count=null` 이면 safety 항목 자체가
+  안 만들어진다. `KpiStrip` 이 `—` 로 내므로 **「0건」 오독은 아니고** 정보량이 적을 뿐.
+- `lib/oem-companies/stellantis-na/aggregate.ts` 의 `isYtd` 는 과거 연도에 분기 구멍이 나면
+  그 해를 영구히 YTD 로 표시한다(2021 부터 완전 백필이라 현재 무해).
+- `lib/finance/loan-aggregate.ts:62` — 매년 1월, 당해 실적 적재 전까지 YTD 지급율이 `—`.
+  **틀린 값이 아니라 빈 값**이다.
+
+**4순위 — 무관한 기존 항목**
+
+- lint 경고 2건 — `lib/oem-companies/kia/aggregate.ts` 의 `RETAIL_ANNUAL_MIN_YEAR`(커밋 `44e99d8`
+  이전부터 존재) · `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES`(타입 전용 export).
+  **이번 변경과 무관해 손대지 않았다.**
+- `buildCorpAchievement` 무커버리지.
+
+### 알아 둘 것 — 운영
+
+- 🔴 **AGENTS.md 자동 로드 분량 37,495B / 상한 37,500B — 여유 5바이트.** 이번 브랜치는 늘리지
+  않았다(검사기 설명을 `docs/gotchas-*.md` 로만 적었다). **다음 추가는 물리적으로 불가능하다.**
+- 🔴 **미푸시다.** 프로덕션(Vercel)에는 안 올라갔다. `app/`·`components/` UI 변경이 있으므로
+  푸시하면 재배포된다. 배포 직후 **Cox 재고 캐시가 한 번은 안 풀릴 수 있다**(태그 이름을
+  `cox-brand-inventory` → `cox_brand_inventory` 로 통일했다). `cacheLife('days')` 라 최악 하루.
+- dev 서버를 띄웠다 끄면 `.next/dev/types/validator.ts` 가 잘린 채 남아 **`tsc` 가 그 생성 파일에서
+  실패**할 수 있다. 소스 문제가 아니니 `.next/dev/types` 를 지우고 다시 돌리면 된다.
+
+---
+
+## 이전 상태 · 코드리뷰 1차 (2026-09-08 오전)
+
+> 🔴 아래 「재개 지점 — 남은 일」의 **1~4순위는 같은 날 오후에 거의 전량 처리됐다.**
+> 지금 남은 일은 **맨 위 블록**을 볼 것. 이 블록은 그때의 판단 근거로만 남긴다.
 
 ### 무엇을 했나
 
