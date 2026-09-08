@@ -21,6 +21,7 @@ import {
   DATA_LABEL_STYLE,
   GRID_STROKE_OPACITY,
 } from '@/components/oem-companies/common/chartStyle';
+import { currentYear } from '@/lib/currentYear';
 import { findLatestYm, fmtFull, fmtUnits, totalByMonth, ymLabel, ymYear } from './helpers';
 
 interface Props {
@@ -83,8 +84,9 @@ export default function MarketTrendChart({ groupMonth }: Props) {
     });
   }, [groupMonth]);
 
-  // 2026년은 YTD라 비교 어려움 → 캡션 안내
-  const has2026 = yearData.some((d) => d.year === '2026');
+  // 진행 연도는 YTD라 비교 어려움 → 캡션 안내
+  const curYr = currentYear();
+  const hasCurYr = yearData.some((d) => d.year === String(curYr));
 
   return (
     <div>
@@ -119,9 +121,9 @@ export default function MarketTrendChart({ groupMonth }: Props) {
         >
           월간
         </button>
-        {mode === 'year' && has2026 && (
+        {mode === 'year' && hasCurYr && (
           <span className="text-[10px] text-muted-foreground ml-2">
-            2026년은 YTD 누적 (연간 환산 아님)
+            {curYr}년은 YTD 누적 (연간 환산 아님)
           </span>
         )}
       </div>

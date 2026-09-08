@@ -15,6 +15,7 @@ import {
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupPtMonth, PowerTrain } from '@/lib/types';
 import { DATA_LABEL_STYLE } from '@/components/oem-companies/common/chartStyle';
+import { targetYear } from '@/lib/oem/aggregate';
 import { fmtFull, fmtUnits, shortenOemName, OEM_COLORS, PT_COLORS, PT_ORDER } from './helpers';
 
 interface Props {
@@ -23,20 +24,21 @@ interface Props {
 
 const TABS: PowerTrain[] = ['EV', 'PHEV', 'HV', 'ICE'];
 const TOP_N = 10;
-const YEAR_START = 202501;
-const YEAR_END = 202512;
 
-/** PowerTrain별 OEM TOP10 — 탭 전환 + 가로 막대 */
+/** PowerTrain별 OEM TOP10 — 탭 전환 + 가로 막대 · 직전 완결 연도(targetYear()) 기준 */
 export default function PowertrainTopOems({ groupPtMonth }: Props) {
   const [active, setActive] = useState<PowerTrain>('EV');
   const h = useChartHeight(240, 320, 400);
 
   const { data, total } = useMemo(() => {
+    const tgt = targetYear();
+    const yearStart = tgt * 100 + 1;
+    const yearEnd = tgt * 100 + 12;
     const sumByGroup = new Map<string, number>();
     let allSum = 0;
     for (const r of groupPtMonth) {
       if (r.powertrain !== active) continue;
-      if (r.year_month < YEAR_START || r.year_month > YEAR_END) continue;
+      if (r.year_month < yearStart || r.year_month > yearEnd) continue;
       sumByGroup.set(r.oem_group, (sumByGroup.get(r.oem_group) ?? 0) + r.sales);
       allSum += r.sales;
     }

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import { currentYear } from '@/lib/currentYear';
+import { targetYear } from '@/lib/oem/aggregate';
 import type {
   ModelMonthlySeries,
   OemSalesGroupMonth,
@@ -12,6 +13,7 @@ import type {
 import type { UsaOemTimeSeriesData } from './UsaOemTrendChart';
 import KpiCards from './KpiCards';
 import { findLatestYm } from './helpers';
+import { DATA_START_YEAR } from './yearRange';
 import type { CountryTop15Row } from './CountryTop15';
 import type { OemCountryMatrix } from './OemCountryHeatmap';
 
@@ -100,31 +102,34 @@ export default function OemDashboard({
   naModelSeries,
   otherModelSeries,
 }: Props) {
-  const latestMonth2026 = useMemo(() => {
+  const latestMonthCur = useMemo(() => {
     const ym = findLatestYm(groupMonth, currentYear());
     return ym ? ym % 100 : null;
   }, [groupMonth]);
-  const ytdSuffix = latestMonth2026 ? ` (1~${latestMonth2026}월)` : '';
+  const ytdSuffix = latestMonthCur ? ` (1~${latestMonthCur}월)` : '';
+  const curYr = currentYear();
+  const tgtYr = targetYear();
+  const prevYr = tgtYr - 1;
 
   return (
     <div className="px-6 py-4 space-y-6 max-w-[1600px] mx-auto">
-      <Section title="글로벌 시장 한눈에" subtitle={`연간 합계 + YoY · 2026 YTD${ytdSuffix}`}>
+      <Section title="글로벌 시장 한눈에" subtitle={`연간 합계 + YoY · ${curYr} YTD${ytdSuffix}`}>
         <KpiCards groupMonth={groupMonth} />
       </Section>
 
-      <Section title="글로벌 월별 판매량 추이" subtitle="2020.01~ 전체 시장 합계">
+      <Section title="글로벌 월별 판매량 추이" subtitle={`${DATA_START_YEAR}.01~ 전체 시장 합계`}>
         <MarketTrendChart groupMonth={groupMonth} />
       </Section>
 
-      <Section title={`2026 YTD${ytdSuffix} TOP30`} subtitle="누적 판매량 + 전년 동기 대비 YoY">
+      <Section title={`${curYr} YTD${ytdSuffix} TOP30`} subtitle="누적 판매량 + 전년 동기 대비 YoY">
         <Top30YtdChart groupMonth={groupMonth} />
       </Section>
 
-      <Section title="2025 TOP40 — 순위 등락" subtitle="2024 vs 2025 비교">
+      <Section title={`${tgtYr} TOP40 — 순위 등락`} subtitle={`${prevYr} vs ${tgtYr} 비교`}>
         <Top40YearlyTable groupMonth={groupMonth} />
       </Section>
 
-      <Section title="TOP10 OEM 연간 판매량" subtitle="2020~2026 연도별 비교">
+      <Section title="TOP10 OEM 연간 판매량" subtitle={`${DATA_START_YEAR}~${curYr} 연도별 비교`}>
         <Top10AnnualBars groupMonth={groupMonth} />
       </Section>
 
@@ -136,32 +141,32 @@ export default function OemDashboard({
         <PowertrainMix groupPtMonth={groupPtMonth} />
       </Section>
 
-      <Section title="PowerTrain별 OEM TOP10" subtitle="각 PowerTrain에서 강한 OEM (2025년)">
+      <Section title="PowerTrain별 OEM TOP10" subtitle={`각 PowerTrain에서 강한 OEM (${tgtYr}년)`}>
         <PowertrainTopOems groupPtMonth={groupPtMonth} />
       </Section>
 
-      <Section title="국가별 판매량 TOP15" subtitle="2025년 시장 규모">
+      <Section title="국가별 판매량 TOP15" subtitle={`${tgtYr}년 시장 규모`}>
         <CountryTop15 rows={countryTop15} />
       </Section>
 
       <Section
         title="EV 대전 — TOP10 EV 판매량 + EV 비율"
-        subtitle="2025년 EV+PHEV 합계 / 전체 대비 비율"
+        subtitle={`${tgtYr}년 EV+PHEV 합계 / 전체 대비 비율`}
       >
         <EvLeadersChart groupPtMonth={groupPtMonth} />
       </Section>
 
-      <Section title="YoY 승자와 패자" subtitle="2024→2025 성장률 TOP10 / BOTTOM10">
+      <Section title="YoY 승자와 패자" subtitle={`${prevYr}→${tgtYr} 성장률 TOP10 / BOTTOM10`}>
         <YoyWinnersLosers groupMonth={groupMonth} />
       </Section>
 
-      <Section title="시장 차종 구조" subtitle="Type/Segment별 비중 (2025년)">
+      <Section title="시장 차종 구조" subtitle={`Type/Segment별 비중 (${tgtYr}년)`}>
         <TypeSegmentChart typeSegMonth={typeSegMonth} />
       </Section>
 
       <Section
         title="TOP10 OEM × TOP10 국가 매트릭스"
-        subtitle="OEM이 어느 국가에서 강한가 (2025년)"
+        subtitle={`OEM이 어느 국가에서 강한가 (${tgtYr}년)`}
       >
         <OemCountryHeatmap data={oemCountryMatrix} />
       </Section>

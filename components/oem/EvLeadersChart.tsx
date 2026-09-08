@@ -19,6 +19,7 @@ import {
   DATA_LABEL_STYLE,
   GRID_STROKE_OPACITY,
 } from '@/components/oem-companies/common/chartStyle';
+import { targetYear } from '@/lib/oem/aggregate';
 import { fmtFull, fmtUnits, ptSumByGroup, shortenOemName } from './helpers';
 
 interface Props {
@@ -26,14 +27,13 @@ interface Props {
 }
 
 const TOP_N = 10;
-const YEAR_START = 202501;
-const YEAR_END = 202512;
 
-/** EV 대전 — 좌: TOP10 EV 판매량 / 우: 같은 OEM의 EV 비율 (%) */
+/** EV 대전 — 좌: TOP10 EV 판매량 / 우: 같은 OEM의 EV 비율 (%) · 직전 완결 연도(targetYear()) 기준 */
 export default function EvLeadersChart({ groupPtMonth }: Props) {
   const h = useChartHeight(220, 300, 360);
-  const { sales, ratio } = useMemo(() => {
-    const ptByGroup = ptSumByGroup(groupPtMonth, YEAR_START, YEAR_END);
+  const { sales, ratio, tgtYr } = useMemo(() => {
+    const tgt = targetYear();
+    const ptByGroup = ptSumByGroup(groupPtMonth, tgt * 100 + 1, tgt * 100 + 12);
 
     // EV 판매량 = EV + PHEV (전동화 통합)
     const evByGroup = new Map<string, { ev: number; total: number }>();
@@ -66,14 +66,14 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
         color: i === 0 ? '#22c55e' : '#16a34a',
       }));
 
-    return { sales: top10ByEv, ratio: top10ByRatio };
+    return { sales: top10ByEv, ratio: top10ByRatio, tgtYr: tgt };
   }, [groupPtMonth]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div>
         <div className="text-sm font-medium text-muted-foreground mb-2">
-          EV+PHEV 판매량 TOP10 (2025)
+          EV+PHEV 판매량 TOP10 ({tgtYr})
         </div>
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={sales} layout="vertical" margin={{ left: 40, right: 60 }}>
@@ -113,7 +113,7 @@ export default function EvLeadersChart({ groupPtMonth }: Props) {
 
       <div>
         <div className="text-sm font-medium text-muted-foreground mb-2">
-          EV 비율 TOP10 — 전체 50만 대 이상 OEM (2025)
+          EV 비율 TOP10 — 전체 50만 대 이상 OEM ({tgtYr})
         </div>
         <ResponsiveContainer width="100%" height={h}>
           <BarChart data={ratio} layout="vertical" margin={{ left: 40, right: 60 }}>

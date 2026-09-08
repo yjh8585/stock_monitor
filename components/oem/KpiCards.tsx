@@ -3,60 +3,80 @@
 import { useMemo } from 'react';
 import { fmtChange, arrowColor, growthPct } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { currentYear } from '@/lib/currentYear';
+import { targetYear } from '@/lib/oem/aggregate';
 import { findLatestYm, fmtUnits } from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
 }
 
-/** 글로벌 KPI 4장: 2024 / 2025 / 2026 YTD + YoY */
+/** 글로벌 KPI 4장: 직전 완결 연도 -1 / 직전 완결 연도 / 진행 연도 YTD + YoY */
 export default function KpiCards({ groupMonth }: Props) {
   const kpis = useMemo(() => {
-    let sum2023 = 0;
-    let sum2024 = 0;
-    let sum2025 = 0;
-    let sum2026Ytd = 0;
-    let sum2025SamePeriod = 0;
+    const tgt = targetYear();
+    const prevYr = tgt - 1;
+    const prevPrevYr = tgt - 2;
+    const curYr = currentYear();
 
-    const latestYm2026 = findLatestYm(groupMonth, 2026) ?? 0;
-    const latestMonth = latestYm2026 % 100;
-    const samePeriodEnd = 202500 + latestMonth;
+    let sumPrevPrev = 0;
+    let sumPrev = 0;
+    let sumTgt = 0;
+    let sumCurYtd = 0;
+    let sumTgtSamePeriod = 0;
+
+    const latestYmCur = findLatestYm(groupMonth, curYr) ?? 0;
+    const latestMonth = latestYmCur % 100;
+    const samePeriodEnd = tgt * 100 + latestMonth;
 
     for (const r of groupMonth) {
       const yr = Math.floor(r.year_month / 100);
-      if (yr === 2023) sum2023 += r.sales;
-      else if (yr === 2024) sum2024 += r.sales;
-      else if (yr === 2025) sum2025 += r.sales;
-      if (yr === 2026 && r.year_month <= latestYm2026) sum2026Ytd += r.sales;
-      if (yr === 2025 && r.year_month >= 202501 && r.year_month <= samePeriodEnd) {
-        sum2025SamePeriod += r.sales;
+      if (yr === prevPrevYr) sumPrevPrev += r.sales;
+      else if (yr === prevYr) sumPrev += r.sales;
+      else if (yr === tgt) sumTgt += r.sales;
+      if (yr === curYr && r.year_month <= latestYmCur) sumCurYtd += r.sales;
+      if (yr === tgt && r.year_month >= tgt * 100 + 1 && r.year_month <= samePeriodEnd) {
+        sumTgtSamePeriod += r.sales;
       }
     }
 
     return {
-      sum2024,
-      sum2025,
-      sum2026Ytd,
+      prevYr,
+      tgt,
+      curYr,
+      sumPrev,
+      sumTgt,
+      sumCurYtd,
       latestMonth,
-      yoy2024: growthPct(sum2024, sum2023),
-      yoy2025: growthPct(sum2025, sum2024),
-      yoy2026Ytd: growthPct(sum2026Ytd, sum2025SamePeriod),
+      yoyPrev: growthPct(sumPrev, sumPrevPrev),
+      yoyTgt: growthPct(sumTgt, sumPrev),
+      yoyCurYtd: growthPct(sumCurYtd, sumTgtSamePeriod),
     };
   }, [groupMonth]);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <KpiCard label="2024년 글로벌 합계" value={kpis.sum2024} yoy={kpis.yoy2024} sub="vs 2023" />
-      <KpiCard label="2025년 글로벌 합계" value={kpis.sum2025} yoy={kpis.yoy2025} sub="vs 2024" />
       <KpiCard
-        label={`2026 YTD (1~${kpis.latestMonth}월)`}
-        value={kpis.sum2026Ytd}
-        yoy={kpis.yoy2026Ytd}
-        sub="vs 2025 동기"
+        label={`${kpis.prevYr}년 글로벌 합계`}
+        value={kpis.sumPrev}
+        yoy={kpis.yoyPrev}
+        sub={`vs ${kpis.prevYr - 1}`}
       />
       <KpiCard
-        label="2025 일평균 판매"
-        value={Math.round(kpis.sum2025 / 365)}
+        label={`${kpis.tgt}년 글로벌 합계`}
+        value={kpis.sumTgt}
+        yoy={kpis.yoyTgt}
+        sub={`vs ${kpis.prevYr}`}
+      />
+      <KpiCard
+        label={`${kpis.curYr} YTD (1~${kpis.latestMonth}월)`}
+        value={kpis.sumCurYtd}
+        yoy={kpis.yoyCurYtd}
+        sub={`vs ${kpis.tgt} 동기`}
+      />
+      <KpiCard
+        label={`${kpis.tgt} 일평균 판매`}
+        value={Math.round(kpis.sumTgt / 365)}
         yoy={null}
         sub="365일 기준"
       />

@@ -5,6 +5,7 @@ import { useChartHeight } from '@/lib/useChartHeight';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesTypeSegMonth } from '@/lib/types';
+import { targetYear } from '@/lib/oem/aggregate';
 import { fmtFull, fmtUnits } from './helpers';
 
 interface Props {
@@ -39,8 +40,6 @@ const SEGMENT_COLORS = [
   '#facc15',
 ];
 
-const YEAR_START = 202501;
-const YEAR_END = 202512;
 const TYPE_TOP_N = 5; // 범례 노이즈 방지: TOP5 + Others
 const SEGMENT_TOP_N = 13;
 
@@ -55,13 +54,16 @@ function topNWithOthers(rows: SliceRow[], n: number): SliceRow[] {
   return [...top, { name: 'Others', value: others }];
 }
 
-/** Type/Segment 구조 — 2025년 도넛 2개 */
+/** Type/Segment 구조 — 직전 완결 연도(targetYear()) 도넛 2개 */
 export default function TypeSegmentChart({ typeSegMonth }: Props) {
   const { typeData, segmentData } = useMemo(() => {
+    const tgt = targetYear();
+    const yearStart = tgt * 100 + 1;
+    const yearEnd = tgt * 100 + 12;
     const typeMap = new Map<string, number>();
     const segMap = new Map<string, number>();
     for (const r of typeSegMonth) {
-      if (r.year_month < YEAR_START || r.year_month > YEAR_END) continue;
+      if (r.year_month < yearStart || r.year_month > yearEnd) continue;
       typeMap.set(r.vehicle_type, (typeMap.get(r.vehicle_type) ?? 0) + r.sales);
       segMap.set(r.segment, (segMap.get(r.segment) ?? 0) + r.sales);
     }

@@ -16,6 +16,8 @@ import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import type { OemSalesGroupMonth } from '@/lib/types';
 import { GRID_STROKE_OPACITY } from '@/components/oem-companies/common/chartStyle';
 import ClickableLegend from '@/components/charts/ClickableLegend';
+import { currentYear } from '@/lib/currentYear';
+import { targetYear } from '@/lib/oem/aggregate';
 import {
   annualByGroup,
   findLatestYm,
@@ -25,21 +27,22 @@ import {
   sumByGroup,
   OEM_COLORS,
 } from './helpers';
+import { annualBarYears } from './yearRange';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
 }
 
 const TOP_N = 10;
-const YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
 /** TOP10 OEM 연간 판매량 그룹 막대 차트 (X=연도, Series=OEM)
  *  - 범례: 판매량 큰 순 왼쪽부터 (Recharts 기본 자동 정렬 무시 위해 명시적 payload 사용)
  *  - 범례 클릭 시 해당 막대 hide 토글
  */
 export default function Top10AnnualBars({ groupMonth }: Props) {
-  const { chartData, oems, latestMonth2026 } = useMemo(() => {
-    const cur = sumByGroup(groupMonth, 202501, 202512);
+  const { chartData, oems, latestMonthCur, tgtYr, curYr } = useMemo(() => {
+    const tgt = targetYear();
+    const cur = sumByGroup(groupMonth, tgt * 100 + 1, tgt * 100 + 12);
     const top10 = [...cur.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, TOP_N)
@@ -47,18 +50,21 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
 
     const annual = annualByGroup(groupMonth);
     const labels = top10.map((g) => shortenOemName(g));
-    const data = YEARS.map((yr) => {
+    const data = annualBarYears().map((yr) => {
       const row: Record<string, number | string> = { year: String(yr) };
       top10.forEach((g, i) => {
         row[labels[i]] = annual.get(g)?.get(yr) ?? 0;
       });
       return row;
     });
-    const latest2026 = findLatestYm(groupMonth, 2026);
+    const now = currentYear();
+    const latestCur = findLatestYm(groupMonth, now);
     return {
       chartData: data,
       oems: labels,
-      latestMonth2026: latest2026 ? latest2026 % 100 : null,
+      latestMonthCur: latestCur ? latestCur % 100 : null,
+      tgtYr: tgt,
+      curYr: now,
     };
   }, [groupMonth]);
 
@@ -76,10 +82,10 @@ export default function Top10AnnualBars({ groupMonth }: Props) {
   return (
     <div>
       <div className="text-sm text-muted-foreground mb-2">
-        2025년 TOP10 기준 ·{' '}
-        {latestMonth2026
-          ? `2026년은 1~${latestMonth2026}월 누적 (연간 환산 아님)`
-          : '2026년 데이터 없음'}{' '}
+        {tgtYr}년 TOP10 기준 ·{' '}
+        {latestMonthCur
+          ? `${curYr}년은 1~${latestMonthCur}월 누적 (연간 환산 아님)`
+          : `${curYr}년 데이터 없음`}{' '}
         · 범례 클릭으로 항목 제외 가능
       </div>
       <ResponsiveContainer width="100%" height={h}>

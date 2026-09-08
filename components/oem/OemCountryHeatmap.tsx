@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { targetYear } from '@/lib/oem/aggregate';
 import { fmtUnits, shortenOemName } from './helpers';
 
 export interface OemCountryMatrix {
@@ -21,7 +22,9 @@ export default function OemCountryHeatmap({ data }: Props) {
   return (
     <div className="overflow-x-auto">
       <table className="text-sm border-separate border-spacing-0">
-        <caption className="sr-only">TOP10 OEM별 TOP10 국가 판매량 매트릭스 (2025년)</caption>
+        <caption className="sr-only">
+          TOP10 OEM별 TOP10 국가 판매량 매트릭스 ({targetYear()}년)
+        </caption>
         <thead>
           <tr>
             <th className="sticky left-0 bg-card p-2 text-left border-b border-border min-w-[120px] md:min-w-[200px]">

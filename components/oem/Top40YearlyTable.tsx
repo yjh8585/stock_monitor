@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { fmtChange, arrowColor } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { targetYear } from '@/lib/oem/aggregate';
 import { buildRanking, fmtUnits, shortenOemName, sumByGroup } from './helpers';
 
 interface Props {
@@ -11,12 +12,14 @@ interface Props {
 
 const TOP_N = 40;
 
-/** 2025 TOP40 표 — 순위 등락 + YoY */
+/** 직전 완결 연도(targetYear()) TOP40 표 — 순위 등락 + YoY */
 export default function Top40YearlyTable({ groupMonth }: Props) {
-  const rows = useMemo(() => {
-    const cur = sumByGroup(groupMonth, 202501, 202512);
-    const prev = sumByGroup(groupMonth, 202401, 202412);
-    return buildRanking(cur, prev, TOP_N);
+  const { rows, tgtYr, prevYr } = useMemo(() => {
+    const tgt = targetYear();
+    const prev = tgt - 1;
+    const cur = sumByGroup(groupMonth, tgt * 100 + 1, tgt * 100 + 12);
+    const prevSums = sumByGroup(groupMonth, prev * 100 + 1, prev * 100 + 12);
+    return { rows: buildRanking(cur, prevSums, TOP_N), tgtYr: tgt, prevYr: prev };
   }, [groupMonth]);
 
   return (
@@ -24,11 +27,11 @@ export default function Top40YearlyTable({ groupMonth }: Props) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40">
-            <th className="text-left p-2 w-12">2025 #</th>
+            <th className="text-left p-2 w-12">{tgtYr} #</th>
             <th className="text-center p-2 w-16">등락</th>
             <th className="text-left p-2">OEM</th>
-            <th className="text-right p-2 w-28">2024</th>
-            <th className="text-right p-2 w-28">2025</th>
+            <th className="text-right p-2 w-28">{prevYr}</th>
+            <th className="text-right p-2 w-28">{tgtYr}</th>
             <th className="text-right p-2 w-20">YoY</th>
           </tr>
         </thead>

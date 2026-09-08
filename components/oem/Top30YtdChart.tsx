@@ -15,6 +15,7 @@ import {
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
 import { fmtChange, arrowColor } from '@/lib/format';
 import type { OemSalesGroupMonth } from '@/lib/types';
+import { currentYear } from '@/lib/currentYear';
 import {
   DATA_LABEL_STYLE,
   GRID_STROKE_OPACITY,
@@ -35,19 +36,21 @@ interface Props {
 
 const TOP_N = 30;
 
-/** 2026 YTD TOP30 — 가로 막대 + 우측 표 */
+/** 진행 연도(currentYear()) YTD TOP30 — 가로 막대 + 우측 표 */
 export default function Top30YtdChart({ groupMonth }: Props) {
-  const { rows, latestMonth } = useMemo(() => {
-    const latestYm = findLatestYm(groupMonth, 2026);
-    if (!latestYm) return { rows: [], latestMonth: 0 };
+  const { rows, latestMonth, curYr, prevYr } = useMemo(() => {
+    const curYr = currentYear();
+    const prevYr = curYr - 1;
+    const latestYm = findLatestYm(groupMonth, curYr);
+    if (!latestYm) return { rows: [], latestMonth: 0, curYr, prevYr };
     const month = latestYm % 100;
-    const cur = sumByGroup(groupMonth, 202601, latestYm);
-    const prev = sumByGroup(groupMonth, 202501, 202500 + month);
-    return { rows: buildRanking(cur, prev, TOP_N), latestMonth: month };
+    const cur = sumByGroup(groupMonth, curYr * 100 + 1, latestYm);
+    const prev = sumByGroup(groupMonth, prevYr * 100 + 1, prevYr * 100 + month);
+    return { rows: buildRanking(cur, prev, TOP_N), latestMonth: month, curYr, prevYr };
   }, [groupMonth]);
 
   if (!rows.length) {
-    return <div className="text-sm text-muted-foreground">2026년 데이터 없음</div>;
+    return <div className="text-sm text-muted-foreground">{currentYear()}년 데이터 없음</div>;
   }
 
   const chartData = rows.map((r, i) => ({
@@ -61,7 +64,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_500px] gap-4">
       <div>
         <div className="text-sm text-muted-foreground mb-2">
-          2026년 1월~{latestMonth}월 누적, 전년 동기(2025.01~{latestMonth}) 대비 YoY
+          {curYr}년 1월~{latestMonth}월 누적, 전년 동기({prevYr}.01~{latestMonth}) 대비 YoY
         </div>
         <ResponsiveContainer width="100%" height={Math.max(600, TOP_N * 22)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 60, right: 40 }}>
