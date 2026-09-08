@@ -137,6 +137,35 @@ describe('aggregateAnnualSeries', () => {
     expect(out[0]).toMatchObject({ period: '2024', period_label: '2024', sales: 400 });
     expect(out[1]).toMatchObject({ period: '2025', sales: 400, yoy_pct: 0 });
   });
+
+  it('진행 중 연도는 전년 동기 분기와 비교하고 YTD 라벨을 단다', () => {
+    const rows: StellantisNaSaleRow[] = [];
+    for (let q = 1; q <= 4; q++) {
+      rows.push(row({ period: `2025-Q${q}`, brand: 'Jeep', model: 'X', units: 100 }));
+    }
+    rows.push(row({ period: '2026-Q1', brand: 'Jeep', model: 'X', units: 110 }));
+
+    const out = aggregateAnnualSeries(withPt(rows));
+    const y2026 = out.find((p) => p.period === '2026')!;
+
+    expect(y2026.period_label).toBe('2026 YTD');
+    // 110 vs 2025-Q1 의 100 → +10%. 전년 만년(400)과 비교하면 -72.5% 가 나온다(옛 버그).
+    expect(y2026.yoy_pct).toBeCloseTo(10, 1);
+  });
+
+  it('4개 분기가 다 찬 연도는 전년 만년과 비교하고 YTD 를 붙이지 않는다', () => {
+    const rows: StellantisNaSaleRow[] = [];
+    for (let q = 1; q <= 4; q++) {
+      rows.push(row({ period: `2025-Q${q}`, brand: 'Jeep', model: 'X', units: 100 }));
+      rows.push(row({ period: `2026-Q${q}`, brand: 'Jeep', model: 'X', units: 110 }));
+    }
+
+    const out = aggregateAnnualSeries(withPt(rows));
+    const y2026 = out.find((p) => p.period === '2026')!;
+
+    expect(y2026.period_label).toBe('2026');
+    expect(y2026.yoy_pct).toBeCloseTo(10, 1);
+  });
 });
 
 describe('aggregateKpi', () => {

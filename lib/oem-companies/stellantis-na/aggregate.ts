@@ -146,24 +146,43 @@ export function aggregateQuarterlySeries(
   });
 }
 
-/** 연도별 시계열 (모델 행 분기 SUM). YoY = 전년 합계 대비.
+/** 연도별 시계열 (모델 행 분기 SUM). YoY = 전년 합계 대비 — 단, 진행 중 연도(4분기 미만)는
+ *  전년 '동일 분기'만 다시 합산해 비교한다(YTD). 전년 만년과 비교하면 진행 중 연도 하나가
+ *  전년 전체와 맞붙어 허위 급락이 나온다(예: 2026 Q1만 vs 2025 전체 → -75%).
  *  Q4 PR의 'year' 행은 brand_total/company_total 포함 → 모델 행만 사용해도
  *  분기 SUM == year 합계 (cross-check 통과). 일관성 위해 quarter SUM 사용. */
 export function aggregateAnnualSeries(rows: StellantisNaSaleRowWithPt[]): CompanyTimeSeriesPoint[] {
   const quarterRows = rows.filter((r) => r.period_type === 'quarter' && isModelRow(r));
   const yearTotals = new Map<string, number>();
+  const yearQuarters = new Map<string, Set<string>>();
   for (const r of quarterRows) {
     const y = periodYear(r.year_period);
     yearTotals.set(y, (yearTotals.get(y) ?? 0) + r.sales_units);
+    if (!yearQuarters.has(y)) yearQuarters.set(y, new Set());
+    yearQuarters.get(y)!.add(r.year_period.slice(-2));
   }
   const years = [...yearTotals.keys()].sort();
   return years.map((year) => {
     const sales = yearTotals.get(year) ?? 0;
-    const prevSales = yearTotals.get(String(parseInt(year, 10) - 1)) ?? 0;
+    const quarters = yearQuarters.get(year) ?? new Set<string>();
+    // 4분기가 다 차지 않았으면 진행 중 연도 — 전년 '동일 분기'만 다시 합산해 비교한다.
+    // 전년 만년과 비교하면 2026 Q1 하나가 2025 전체와 맞붙어 허위 급락(-75%)이 나온다.
+    const isYtd = quarters.size > 0 && quarters.size < 4;
+    const prevYear = String(parseInt(year, 10) - 1);
+    let prevSales: number;
+    if (isYtd) {
+      prevSales = quarterRows
+        .filter(
+          (r) => periodYear(r.year_period) === prevYear && quarters.has(r.year_period.slice(-2))
+        )
+        .reduce((sum, r) => sum + r.sales_units, 0);
+    } else {
+      prevSales = yearTotals.get(prevYear) ?? 0;
+    }
     const yoy = prevSales < MIN_YOY_PREV_SALES ? null : ((sales - prevSales) / prevSales) * 100;
     return {
       period: year,
-      period_label: year,
+      period_label: isYtd ? `${year} YTD` : year,
       sales,
       yoy_pct: yoy,
     };
