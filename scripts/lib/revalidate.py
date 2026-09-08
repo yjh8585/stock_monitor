@@ -93,7 +93,7 @@ COLUMN_TO_TAGS = {
     'uzbekistan_auto_stats': ['uzbekistan-auto-stats'],
     'vehicle_powertrain_map': ['vehicle-powertrain-map'],
     # Cox Automotive 브랜드별 신차 재고일수 (공개 데이터)
-    'cox_brand_inventory': ['cox-brand-inventory'],
+    'cox_brand_inventory': ['cox_brand_inventory'],
     # 보고서·뉴스
     'posts': ['posts'],
     'news': ['posts'],

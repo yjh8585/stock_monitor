@@ -54,11 +54,11 @@ export interface InventoryPoint {
 /** NHTSA 리콜 부품군 집계 한 줄 — [부품명, 건수]. 수집기 `summarize_recalls` 형식 그대로. */
 export type ComponentCount = [string, number];
 
-/** NHTSA 리콜·불만. complaint_count 는 조회 실패 시 null(=0 이 아니라 '알 수 없음'). */
+/** NHTSA 리콜·불만. recall_count·complaint_count 는 조회 실패 시 null(=0 이 아니라 '알 수 없음'). */
 export interface SafetyPoint {
   model?: string;
   model_year: number;
-  recall_count: number;
+  recall_count: number | null;
   complaint_count: number | null;
   /** 대상 차종만 — 리콜이 몰린 부품군 상위. 경쟁 차종은 건수만 수집한다. */
   recallComponents?: ComponentCount[];

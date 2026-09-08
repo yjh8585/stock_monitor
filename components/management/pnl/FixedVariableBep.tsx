@@ -58,7 +58,10 @@ interface ChartRow {
 
 /** 연도별 손익분기점·매출·공헌이익률·고정비율·영업이익률 집계. 매출/비용이 모두 없는 연도는 제외. */
 function buildData(rows: readonly FixedVariableRow[]): ChartRow[] {
-  const defs = buildPeriodColumns(rows);
+  // '변동비율' 은 기준행(period_year=0)이라 실제 회계연도가 아니다 — 제외하지 않으면
+  // 열이 하나 더 생기고, 지금은 매출/고정비/변동비 어디에도 안 걸려 buildData 의 null
+  // 가드가 우연히 걸러 줄 뿐이다(FixedVariableStructure.tsx 와 같은 필터로 명시한다).
+  const defs = buildPeriodColumns(rows, (r) => r.cost_type !== '변동비율');
 
   const out: ChartRow[] = [];
   for (const d of defs) {

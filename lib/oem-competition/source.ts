@@ -284,7 +284,7 @@ export function mapOutlookRow(
   const rivalSaf = byMarket<{
     model: string;
     model_year: number;
-    recall_count: number;
+    recall_count: number | null;
     complaint_count: number | null;
   }>(metrics.competitor_safety);
   const scores = byMarket<ConsumerScore>(metrics.consumer_scores, 'scores');
@@ -342,7 +342,9 @@ export function mapOutlookRow(
         ...(rivalSaf.get(b.market) ?? []).map((s) => ({
           model: s.model,
           model_year: s.model_year,
-          recall_count: s.recall_count,
+          // NHTSA 리콜 조회가 전부 실패하면 수집기가 null(=알 수 없음)을 준다.
+          // 숫자가 아니면 null 로 정규화한다 — 0 으로 두면 "리콜 없는 안전한 차"로 오독된다.
+          recall_count: typeof s.recall_count === 'number' ? s.recall_count : null,
           complaint_count: s.complaint_count,
         }))
       );
@@ -749,9 +751,9 @@ async function fetchMonthly(): Promise<MonthlyRow[]> {
 async function fetchCoxInventory(): Promise<CoxRow[]> {
   'use cache';
   cacheLife('days');
-  // 🔴 태그는 `scripts/lib/revalidate.py` 의 표기(하이픈)를 그대로 써야 한다 — 테이블명
-  // (`cox_brand_inventory`)을 쓰면 수집 후에도 무효화가 조용히 안 걸린다.
-  cacheTag('cox-brand-inventory');
+  // 테이블 이름을 그대로 쓰는 태그(stock_prices·research_reports 와 같은 규칙) — 하이픈
+  // 표기(cox-brand-inventory)와 갈려 있던 것을 2026-09-08 밑줄로 통일했다.
+  cacheTag('cox_brand_inventory');
 
   const supabase = createSupabaseAnonClient();
   const { data, error } = await supabase

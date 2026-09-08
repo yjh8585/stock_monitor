@@ -82,7 +82,8 @@ function buildTiles(market: CompetitionMarket): Tile[] {
     {
       key: 'safety',
       label: 'NHTSA 리콜(미국)',
-      value: saf ? `${saf.recall_count}건` : '—',
+      // recall_count 는 조회 전부 실패 시 null(=알 수 없음). '0건'으로 쓰면 무결점으로 오독된다.
+      value: !saf ? '—' : saf.recall_count === null ? '조회 실패' : `${saf.recall_count}건`,
       note: saf
         ? `${saf.model_year}년형 · 불만 ${
             saf.complaint_count === null ? '조회 실패' : `${saf.complaint_count}건`

@@ -107,6 +107,39 @@ describe('mapOutlookRow', () => {
     expect(m.safety.map((s) => s.model)).toEqual([undefined, 'Explorer']);
   });
 
+  it('경쟁 차종의 recall_count 가 null 이면 0 으로 둔갑하지 않고 null 로 남는다', () => {
+    // NHTSA 리콜 조회가 전부 실패하면 수집기가 recall_count=null(=알 수 없음)을 준다.
+    // byMarket() 캐스팅이 무검증이라 0 으로 새면 화면이 "리콜 없는 안전한 차"로 오독한다.
+    const out = mapOutlookRow({
+      ...BASE_ROW,
+      market_breakdown: [
+        {
+          market: 'USA',
+          label: '미국',
+          sales: 1,
+          yoy_pct: 0,
+          share_pct: null,
+          prev_share_pct: null,
+          comment: '',
+        },
+      ],
+      metrics: {
+        markets: [{ market: 'USA', competitors: [] }],
+        competitor_safety: [
+          {
+            market: 'USA',
+            models: [
+              { model: 'Explorer', model_year: 2026, recall_count: null, complaint_count: 24 },
+            ],
+          },
+        ],
+      },
+    });
+
+    const rival = out.markets[0].safety.find((s) => s.model === 'Explorer');
+    expect(rival?.recall_count).toBeNull();
+  });
+
   it('미국 기준 지표(재고·리콜)는 비미국 시장 탭에 붙이지 않는다 — 대상도 경쟁도', () => {
     // 실측 회귀(2026-08-13): 셀토스 한국 경쟁군의 Kona·Trailblazer 는 미국에서도 팔려
     // oem_model_brand 에 매핑이 있다 → 수집기가 한국 시장 블록에 미국 재고를 담는다.

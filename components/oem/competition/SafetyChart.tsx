@@ -80,7 +80,8 @@ const COUNT_DOMAIN: [number, (dataMax: number) => number] = [
 interface SafetyRow {
   /** x축 카테고리. 모델연도가 차종마다 달라 이름만 쓰면 같은 조건 비교인지 알 수 없다. */
   label: string;
-  recalls: number;
+  /** null = 조회 실패. 막대를 그리지 않아 "0건"과 구분된다(complaints 와 같은 방식). */
+  recalls: number | null;
   /** null = 조회 실패. 막대를 그리지 않아 "0건"과 구분된다. */
   complaints: number | null;
   color: string;
