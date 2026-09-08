@@ -102,6 +102,12 @@ async function fetchExportRegions(supabase: AnonClient): Promise<HyundaiExportRe
   const { data, error } = await supabase
     .from('hyundai_export_regions')
     .select('period_type,year_period,source,region_name,sales_units')
+    // PK(period_type, year_period, source, region_name) 순서로 정렬해 .range() 상한 절단 시
+    // 잘리는 행이 비결정적이지 않게 고정한다(`20260526000004_create_hyundai_export_regions.sql`).
+    .order('period_type', { ascending: true })
+    .order('year_period', { ascending: true })
+    .order('source', { ascending: true })
+    .order('region_name', { ascending: true })
     .range(0, 9999);
   if (error) {
     logger.error({ err: error }, 'hyundai_export_regions 조회 실패 — 빈 배열 반환');

@@ -38,6 +38,14 @@ async function fetchPnlEntries(): Promise<PnlEntry[]> {
       .order('basis', { ascending: true })
       .order('period_year', { ascending: true })
       .order('period_month', { ascending: true })
+      // 같은 (basis, 연, 월) 안에서도 sil·division·factory·product·customer 5차원으로
+      // 행이 갈린다 — 여기까지 정렬하지 않으면 동률이 페이지 경계에서 흔들려 행이
+      // 누락·중복된다(PK 5컬럼, `20260515000001_create_pnl_entries.sql` 순서와 동일).
+      .order('sil', { ascending: true })
+      .order('division', { ascending: true })
+      .order('factory', { ascending: true })
+      .order('product', { ascending: true })
+      .order('customer', { ascending: true })
       .range(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) {
       logger.error({ err: error }, 'pnl_entries 조회 실패');
