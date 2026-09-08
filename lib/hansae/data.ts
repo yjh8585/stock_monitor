@@ -86,8 +86,9 @@ export interface NewsItem {
 /** 종목별 오늘(KST 00:00 이후) 발행 뉴스 — 코멘트 컨텍스트용 */
 export async function getTodayNews(companyId: string, limit = 10): Promise<NewsItem[]> {
   const sb = createSupabaseAnonClient();
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
+  // KST 자정 — UTC 자정(setUTCHours)은 서울 09시라 새벽 뉴스가 통째로 빠진다.
+  const seoulToday = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+  const start = new Date(`${seoulToday}T00:00:00+09:00`);
   const { data, error } = await sb
     .from('news')
     .select('id,title,url,source,summary,published_at')

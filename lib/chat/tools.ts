@@ -191,7 +191,7 @@ const QueryMacroSeriesInput = z.object({
 
 // ── 실행기 ────────────────────────────────────────────────────────────────
 
-async function runQueryCompanies(input: unknown): Promise<unknown> {
+async function runQueryCompanies(input: unknown, role: UserRole): Promise<unknown> {
   const args = QueryCompaniesInput.parse(input);
   const sb = createSupabaseAnonClient();
   let q = sb
@@ -202,14 +202,25 @@ async function runQueryCompanies(input: unknown): Promise<unknown> {
     .eq('status', 'active')
     .limit(args.limit);
   if (args.query) {
-    const term = `%${args.query}%`;
-    q = q.or(`name.ilike.${term},name_kr.ilike.${term},ticker.ilike.${term}`);
+    // PostgREST 의 or() 는 콤마·괄호를 구분자로 읽는다 — 검색어에 섞이면 필터가 깨진다.
+    // ilike 패턴 메타문자(% _)도 함께 무력화한다.
+    const safe = args.query.replace(/[,().*%_\\]/g, ' ').trim();
+    if (safe) {
+      const term = `%${safe}%`;
+      q = q.or(`name.ilike.${term},name_kr.ilike.${term},ticker.ilike.${term}`);
+    }
   }
   if (args.group) q = q.eq('group_name', args.group);
   if (args.country) q = q.eq('country', args.country.toUpperCase());
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return { rows: data ?? [], count: data?.length ?? 0 };
+  const rows = data ?? [];
+  // 제한 역할에는 한세 종목을 목록에서 뺀다. 목록 조회라 에러 대신 필터가 맞다
+  // (runQueryFinancials 는 티커를 콕 집어 묻는 조회라 에러를 돌려준다).
+  const visible = HANSAE_RESTRICTED_ROLES.has(role)
+    ? rows.filter((r) => !HANSAE_TICKERS.includes(r.ticker ?? ''))
+    : rows;
+  return { rows: visible, count: visible.length };
 }
 
 async function runQueryFinancials(input: unknown, role: UserRole): Promise<unknown> {
@@ -349,7 +360,7 @@ async function runQueryMacroSeries(input: unknown): Promise<unknown> {
 export async function runTool(name: string, input: unknown, role: UserRole): Promise<unknown> {
   switch (name) {
     case 'query_companies':
-      return runQueryCompanies(input);
+      return runQueryCompanies(input, role);
     case 'query_financials':
       return runQueryFinancials(input, role);
     case 'query_stock_prices':
