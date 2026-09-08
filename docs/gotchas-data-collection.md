@@ -778,8 +778,8 @@ export async function POST(req: Request) {
 **처방.** `scripts/verify_revalidate_tags.py` 신설 — (1)⊄(2) 면 「tag=all 로 안 풀리는 태그」,
 (3)⊄(2) 면 「존재하지 않는 태그를 수집기가 부른다」로 실패(exit 1). 🔴 **실측으로 route.ts
 `ALL_TAGS` 에 이미 다른 태그 다수(`stellantis-shipments`·`uzbekistan-auto-stats`·
-`cox-brand-inventory`·`org_charts`·`oem_production_model_country_month`·`oem-kia-retail` 등)가
-누락돼 있었다** — 이번 커밋은 `oem-hyundai-retail` 을 포함해 이 검사기가 잡아내는 기존
-누락을 **당장 다 고치지 않고 알려진 미결로 남긴다**(TS 파일은 다른 작업과 충돌 방지를 위해
-후속 Task 로 미룸). 검사기가 exit 1 을 내는 것이 정상 상태다 — 「위반 0건」이 아니라
-「알려진 위반 목록이 안 늘었나」로 판정할 것.
+`cox_brand_inventory`·`org_charts`·`oem_production_model_country_month`·`oem-kia-retail` 등)가
+누락돼 있었다** — 발견 당시엔 `oem-hyundai-retail` 을 포함해 이 검사기가 잡아내는 기존
+누락을 후속 Task 로 미뤄 **당장 다 고치지 않고 알려진 미결로 남겼었다**. 이후 수정 라운드에서
+누락이 전부 메워져 **지금은 exit 0(통과)이 정상 상태다** — 「위반 0건」이 정상이고, 위반이
+나오면 그것이 회귀다.
