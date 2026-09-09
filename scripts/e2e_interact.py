@@ -23,6 +23,7 @@ smoke 는 전부 초록이다(실제로 그 구멍이 있었다).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import sys
@@ -60,6 +61,42 @@ SCREENS: list[dict] = [
     #    선택된 탭이다. 그래서 이 화면만 다른 방식(`tabs`)으로 잰다.
     {'route': '/oem', 'filters': [], 'sort': None, 'popup': False,
      'typeCol': None, 'typeOff': None, 'tabs': ['월간', '연간']},
+
+    # ── 표가 «없는» 화면들 (2026-09-09 2차 확장) ──────────────────────────────
+    # 🔴 여기부터는 행 수로 못 잰다. 화면마다 «무엇이 달라지는지» 가 다르다:
+    #    표가 바뀌는 곳 · 그림이 바뀌는 곳 · 버튼 선택 표시만 옮겨 가는 곳.
+    #
+    # `/management/pnl` — 버튼이 표를 바꾼다(상세 78→98행 · 별도 78→71행).
+    #    ⚠️ 그림(svg) 지문으로 재면 «안 바뀐다» 고 나온다. 표로 재야 한다.
+    {'route': '/management/pnl', 'filters': [], 'sort': None, 'popup': False,
+     'typeCol': None, 'typeOff': None,
+     'tablePairs': [('상세', '기본'), ('별도', '연결')]},
+
+    # `/management/inventory` · `/management/personnel` — 버튼이 그림을 바꾼다.
+    # 🔴 **이 화면의 버튼은 「하나만 고르기」가 아니라 «켜고 끄기» 다**(2026-09-09 실측).
+    #    미국 → 우즈벡 → 미국 → 우즈벡 → 미국 을 눌러 봤더니 **다섯 번 다 새 상태**였다.
+    #    라디오라면 두 상태를 오갔어야 한다. 그래서 서로 «다른» 두 버튼으로 짝을 지으면
+    #    영영 처음으로 안 돌아온다 — 되돌리려면 **같은 버튼을 한 번 더** 눌러야 한다.
+    {'route': '/management/inventory', 'filters': [], 'sort': None, 'popup': False,
+     'typeCol': None, 'typeOff': None, 'chartPairs': [('미국', '미국')]},
+    {'route': '/management/personnel', 'filters': [], 'sort': None, 'popup': False,
+     'typeCol': None, 'typeOff': None, 'chartPairs': [('사무', '전체')]},
+
+    # `/compare` — ⚠️ 회사 이름이 «단추처럼 보이지만» 토글이 아니라 **선택상자**다
+    #    (`CompareCompanySelector` 의 `Select`). 토글로 알고 두 번 누르면 두 번째 클릭이
+    #    **열려 있는 목록에 가로막혀** 30초 타임아웃이 난다(2026-09-09 실측).
+    #    열고 → 다른 항목을 고르고 → 되돌리는 방식으로 잰다.
+    {'route': '/compare', 'filters': [], 'sort': None, 'popup': False,
+     'typeCol': None, 'typeOff': None, 'selects': [0]},
+
+    # `/hansae` — 기간 버튼. 🔴 **그림 지문으로 재면 안 된다** — 1Y 와 5Y 는 자료가
+    #    그만큼 없어 «같은 그림» 이 나온다(고장이 아니다). 선택 표시가 옮겨 가는지로 잰다.
+    {'route': '/hansae', 'filters': [], 'sort': None, 'popup': False,
+     'typeCol': None, 'typeOff': None, 'ranges': ['1D', '3M', '1Y']},
+
+    # ⚠️ `/management/production` 은 **조작 요소가 하나도 없다**(버튼=로그아웃뿐).
+    #    그래서 «일부러» 넣지 않았다 — 넣으면 「행이 있다」 한 줄만 재고 초록이 된다.
+    #    `/management/org-chart` 도 조작이 선택상자 하나뿐이라 뺐다(다음 회차 후보).
 ]
 
 
@@ -69,8 +106,9 @@ def _assertScreensMeasureSomething() -> None:
     🔴 필터·탭·정렬·팝업이 전부 비어 있으면 그 화면은 「표에 행이 있다」 한 줄만 재고
     초록으로 끝난다. 화면을 추가하다 사양을 덜 적으면 **검사한 척** 이 되는 자리다.
     """
+    keys = ('filters', 'tabs', 'sort', 'popup', 'ranges', 'tablePairs', 'chartPairs', 'selects')
     for spec in SCREENS:
-        if not (spec['filters'] or spec.get('tabs') or spec['sort'] or spec['popup']):
+        if not any(spec.get(k) for k in keys):
             raise SystemExit(f"{spec['route']}: 잴 조작이 하나도 없다 — 사양을 채울 것")
 
 
@@ -176,6 +214,205 @@ def checkFilters(page, spec: dict, nAll: int) -> list[tuple[str, bool, str]]:
     return cases
 
 
+def svgSignature(page) -> str:
+    """그려진 그림 전체의 지문 — 자료가 달라지면 이 값이 달라진다.
+
+    ⚠️ 쓰기 전에 «가만히 둬도 그대로인지» 를 확인했다(2026-09-09 다섯 화면 실측 — 안정).
+    애니메이션 때문에 저절로 바뀌면 이 지문으로는 아무것도 판정할 수 없다.
+    🔴 **`outerHTML` 을 그대로 해시하면 안 된다**(2026-09-09 실측). recharts 는 다시 그릴
+    때마다 `clipPath` 등에 **무작위 id** 를 새로 붙여서, 자료가 똑같아도 겉모양 문자열이
+    매번 달라진다 — 「되돌렸는데 안 돌아왔다」의 진짜 원인이 이것이었다.
+    그래서 **자료가 결정하는 것**(도형 좌표 · 글자)만 모아 잰다.
+    """
+    html = page.evaluate("""() => {
+      const grab = (root) => {
+        const shapes = Array.from(root.querySelectorAll('path, rect, circle'))
+          .map(e => [e.getAttribute('d'), e.getAttribute('x'), e.getAttribute('y'),
+                     e.getAttribute('width'), e.getAttribute('height'),
+                     e.getAttribute('cx'), e.getAttribute('cy')].join(','));
+        const texts = Array.from(root.querySelectorAll('text')).map(e => e.textContent);
+        return shapes.concat(texts).join('|');
+      };
+      return Array.from(document.querySelectorAll('svg')).map(grab).join('#');
+    }""")
+    return hashlib.sha1((html or '').encode('utf-8', 'replace')).hexdigest()[:12]
+
+
+def tableSignature(page) -> str:
+    """표 내용 전체의 지문."""
+    txt = page.evaluate("""() => Array.from(document.querySelectorAll('tbody tr'))
+        .map(r => r.innerText).join('|')""")
+    return hashlib.sha1((txt or '').encode('utf-8', 'replace')).hexdigest()[:12]
+
+
+def stableSig(page, sigFn, tries: int = 8) -> str:
+    """지문이 «멈출 때까지» 기다렸다가 읽는다.
+
+    🔴 누른 «직후» 에 읽으면 안 된다(2026-09-09 실측 · 오탐 2건). recharts 는 다시 그릴 때
+    막대를 애니메이션으로 늘리므로, 1.8초 뒤에 읽으면 **누를 때마다 다른 지문**이 나온다.
+    「같은 버튼을 두 번 눌렀는데 지문이 매번 달랐다」가 그 증상이었다 — 화면 고장이 아니라
+    **재는 시점이 틀린 것**이다. 연속 두 번이 같아질 때까지 기다린다.
+    """
+    prev = sigFn(page)
+    for _ in range(tries):
+        page.wait_for_timeout(700)
+        now = sigFn(page)
+        if now == prev:
+            return now
+        prev = now
+    return prev
+
+
+def sectionSigFor(label: str):
+    """그 «버튼이 속한 차트» 만의 지문을 뜨는 함수를 만든다.
+
+    🔴 화면 전체(svg 전부)를 재면 안 된다(2026-09-09 실측 · 오탐 3건).
+    `/management/inventory` 는 차트 묶음이 넷이라, 한 묶음을 눌러도 «다른 묶음» 의
+    그림까지 함께 지문에 들어가 **누를 때마다 새 지문**이 나온다. 되돌려도 안 돌아온 것은
+    화면 고장이 아니라 **재는 범위가 넓었던 것**이다. 버튼에서 위로 올라가 그 버튼과
+    같은 구역에 있는 svg 만 잰다.
+    """
+    js = """(label) => {
+      const btn = Array.from(document.querySelectorAll('button'))
+        .find(b => b.innerText.trim() === label);
+      if (!btn) return '';
+      const grab = (root) => {
+        const shapes = Array.from(root.querySelectorAll('path, rect, circle'))
+          .map(e => [e.getAttribute('d'), e.getAttribute('x'), e.getAttribute('y'),
+                     e.getAttribute('width'), e.getAttribute('height'),
+                     e.getAttribute('cx'), e.getAttribute('cy')].join(','));
+        const texts = Array.from(root.querySelectorAll('text')).map(e => e.textContent);
+        return shapes.concat(texts).join('|');
+      };
+      let el = btn;
+      for (let i = 0; i < 8 && el; i++) {
+        el = el.parentElement;
+        if (el && el.querySelector('svg')) {
+          return Array.from(el.querySelectorAll('svg')).map(grab).join('#');
+        }
+      }
+      return '';
+    }"""
+
+    def sig(page) -> str:
+        html = page.evaluate(js, label)
+        return hashlib.sha1((html or '').encode('utf-8', 'replace')).hexdigest()[:12]
+
+    return sig
+
+
+def activeRange(page) -> str:
+    """기간 버튼 중 «선택된» 것의 이름.
+
+    선택은 `bg-foreground` 클래스로 표시된다(`components/charts/RangeToggle.tsx`).
+    """
+    return page.evaluate("""() => {
+      const b = Array.from(document.querySelectorAll('button'))
+        .find(x => x.className.includes('bg-foreground'));
+      return b ? b.innerText.trim() : '';
+    }""")
+
+
+def checkRanges(page, spec: dict) -> list[tuple[str, bool, str]]:
+    """기간 버튼 — «선택 표시가 옮겨 가는가» 로 잰다.
+
+    🔴 그림 지문으로 재면 안 된다. `/hansae` 는 1Y 와 5Y 의 자료 범위가 같아
+    **정상인데도** 그림이 똑같이 나온다 — 그것을 고장으로 읽으면 오진이다.
+    """
+    cases: list[tuple[str, bool, str]] = []
+    for label in spec['ranges']:
+        clickButton(page, label)
+        page.wait_for_timeout(1500)
+        now = activeRange(page)
+        cases.append((f'「{label}」 을 누르면 그 기간이 선택된다',
+                      now == label, f'선택={now or "없음"}'))
+    return cases
+
+
+def checkPairs(page, spec: dict, key: str, sigFn, what: str) -> list[tuple[str, bool, str]]:
+    """두 단추를 번갈아 눌러 «바뀌고 되돌아오는지» 를 함께 잰다.
+
+    🔴 「누르면 바뀐다」만 재면 아무 때나 아무거나 그리는 고장도 통과한다.
+    짝의 두 번째를 눌렀을 때 **처음 지문으로 정확히 복귀** 해야 한다.
+
+    ⚠️ **기준점을 「화면을 연 직후」로 잡으면 안 된다**(2026-09-09 실측 · 오탐 2건).
+    `/management/inventory` 의 기본 선택은 「국내」가 아니어서, 미국 → 국내 로 눌러도
+    처음 지문으로 안 돌아온다 — 고장이 아니라 **기준점이 틀린 것**이다.
+    그래서 짝의 «두 번째를 먼저 눌러» 상태를 정해 두고, 그 자리를 기준으로 왕복을 잰다.
+    """
+    cases: list[tuple[str, bool, str]] = []
+    for first, second in spec[key]:
+        clickButton(page, second)          # 기준 상태를 «만들어» 둔다
+        base = stableSig(page, sigFn)      # 🔴 멈춘 뒤에 읽는다(위 stableSig 참조)
+        clickButton(page, first)
+        mid = stableSig(page, sigFn)
+        cases.append((f'「{first}」 을 누르면 {what}이 달라진다',
+                      mid != base, f'{base} → {mid}'))
+        clickButton(page, second)
+        back = stableSig(page, sigFn)
+        cases.append((f'「{second}」 을 누르면 처음 {what}으로 돌아온다',
+                      back == base, f'{mid} → {back} (처음 {base})'))
+    return cases
+
+
+def _openSelect(page, idx: int):
+    """idx 번째 선택상자를 열고 (현재값, 항목 목록) 을 돌려준다."""
+    triggers = page.query_selector_all('[data-slot="select-trigger"]')
+    if idx >= len(triggers):
+        raise RuntimeError(f'{idx}번째 선택상자가 없다 — {len(triggers)}개뿐')
+    trigger = triggers[idx]
+    current = (trigger.inner_text() or '').strip()
+    trigger.click()
+    page.wait_for_timeout(900)
+    opts = [(o, (o.inner_text() or '').strip())
+            for o in page.query_selector_all('[role="option"]')]
+    return current, opts
+
+
+def checkSelects(page, spec: dict) -> list[tuple[str, bool, str]]:
+    """선택상자 — 열고 · 다른 항목을 고르고 · 되돌린다.
+
+    🔴 이 화면의 회사 이름은 **단추처럼 보이지만 선택상자**다. 토글로 알고 두 번 누르면
+    두 번째 클릭이 «열려 있는 목록» 에 가로막혀 타임아웃이 난다(실측).
+    ⚠️ 고르고 나면 방아쇠의 «글자가 바뀌므로» 이름으로 다시 찾을 수 없다 — 번호로 잡는다.
+    """
+    cases: list[tuple[str, bool, str]] = []
+    for idx in spec['selects']:
+        base = svgSignature(page)
+        current, opts = _openSelect(page, idx)
+        cases.append((f'{idx}번째 선택상자를 열면 항목이 나온다',
+                      len(opts) >= 2, f'현재={current} · 항목 {len(opts)}개'))
+        other = next((o for o, t in opts if t and t != current), None)
+        if other is None:
+            page.keyboard.press('Escape')
+            cases.append(('고를 다른 항목이 있다', False, '없다'))
+            continue
+
+        other.click()
+        mid = stableSig(page, svgSignature)
+        cases.append(('다른 항목을 고르면 그림이 달라진다', mid != base, f'{base} → {mid}'))
+
+        # 🔴 되돌리기 — 「바뀐다」만 재면 아무거나 그리는 고장도 통과한다.
+        # ⚠️ 다만 **그림이 처음으로 돌아오기를 요구하면 안 된다**(2026-09-09 실측).
+        #    두 칸에 같은 회사를 못 담는 설계라, 첫 칸을 B 로 바꾸면 B 가 들어 있던
+        #    둘째 칸이 「(선택 안 함)」으로 비워지고 되돌려도 그 칸은 안 채워진다.
+        #    그래서 «선택값이 원래대로 돌아오는지» 로 잰다.
+        _, opts2 = _openSelect(page, idx)
+        back = next((o for o, t in opts2 if t == current), None)
+        if back is None:
+            page.keyboard.press('Escape')
+            cases.append(('원래 항목으로 되돌릴 수 있다', False, f'{current} 없음'))
+            continue
+        back.click()
+        page.wait_for_timeout(1500)
+        now = page.evaluate('''() => Array.from(
+            document.querySelectorAll('[data-slot="select-trigger"]'))
+            .map(x => x.innerText.trim())''')
+        cases.append(('원래 항목으로 되돌리면 선택값이 원래대로 돌아온다',
+                      bool(now) and now[idx] == current, f'{now} · 기대 {current}'))
+    return cases
+
+
 def checkTabs(page, spec: dict) -> list[tuple[str, bool, str]]:
     """차트의 기간 전환 탭 — 표가 아니라 «그림» 이 달라지는 자리다.
 
@@ -269,11 +506,25 @@ def runScreen(page, spec: dict) -> list[tuple[str, bool, str]]:
     page.wait_for_timeout(2500)
 
     nAll = rowCount(page)
-    cases.append(('표에 행이 있다(없으면 아래 시험이 전부 무의미하다)',
-                  nAll > 0, f'{nAll}행'))
-    if nAll == 0:
-        return cases
+    # 표가 «있어야 하는» 화면에서만 행을 따진다. 차트 화면은 행이 0이 정상이다.
+    needsRows = bool(spec['filters'] or spec['sort'] or spec.get('tablePairs'))
+    if needsRows:
+        cases.append(('표에 행이 있다(없으면 아래 시험이 전부 무의미하다)',
+                      nAll > 0, f'{nAll}행'))
+        if nAll == 0:
+            return cases
 
+    if spec.get('ranges'):
+        cases += checkRanges(page, spec)
+    if spec.get('tablePairs'):
+        cases += checkPairs(page, spec, 'tablePairs', tableSignature, '표')
+    if spec.get('selects'):
+        cases += checkSelects(page, spec)
+    if spec.get('chartPairs'):
+        # 🔴 지문 범위를 «그 버튼의 구역» 으로 좁힌다(위 sectionSigFor 참조).
+        for pair in spec['chartPairs']:
+            cases += checkPairs(page, {**spec, 'chartPairs': [pair]},
+                                'chartPairs', sectionSigFor(pair[0]), '그림')
     if spec['filters']:
         cases += checkFilters(page, spec, nAll)
     if spec.get('tabs'):

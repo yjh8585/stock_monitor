@@ -254,6 +254,7 @@ alter function public.<이름>() set search_path = public, pg_temp;
 「배경을 정확히 적자」는 선의였고, 그래서 더 안 보인다.
 
 **처방**(2026-09-09에 셋 다 했다):
+
 1. 문서에서 값을 걷어냈다.
 2. `scripts/verify_no_secrets.py` 를 심어 **앞으로** 를 막는다(아래 §검사기 함정).
 3. `git filter-repo --replace-text` 로 649 커밋의 과거 기록을 다시 쓰고

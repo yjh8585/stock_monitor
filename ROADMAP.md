@@ -249,7 +249,16 @@
     **기간 전환 탭**이라 행 수가 안 변한다(막대 951↔944로 잰다). `/parts-top100` 의
     구분 필터는 「국가」, `/domestic` 은 「그룹」이다. 복사했으면 조용히 0건이 됐다.
     `_assertScreensMeasureSomething` 이 「잴 조작이 하나도 없는 사양」을 실행 전에 막는다.
-  - 남은 것: `/hansae`·`/compare`·`/management/*` 의 조작 검증(같은 방식으로 실물부터 잰다).
+  - ✅ **2026-09-09 3차 — 여덟 화면 56건 EXIT=0.** `/hansae`·`/compare`·`/management/pnl`·
+    `/management/inventory`·`/management/personnel` 추가. 🔴 **또 전부 딴판이었다**:
+    pnl 은 버튼이 «표» 를 바꾸고(78↔98행) inventory·personnel 은 «그림» 을 바꾼다 ·
+    `/compare` 의 회사 이름은 단추가 아니라 **선택상자**이고 · `/hansae` 의 기간 버튼은
+    자료가 짧아 1Y·5Y 그림이 **같게 나오므로**(고장 아님) 선택 표시로 재야 한다 ·
+    inventory 버튼은 라디오가 아니라 **켜고 끄기**라 같은 버튼을 두 번 눌러야 되돌아온다.
+    ⚠️ 그림 지문은 `outerHTML` 이 아니라 **도형 좌표·글자**로 뜬다(recharts 가 그릴 때마다
+    무작위 id 를 붙여 겉모양이 매번 달라진다).
+  - 남은 것: `/management/org-chart`(조작이 선택상자 하나) · `/management/production`
+    (🔴 **조작 요소가 없어 검사 대상이 아니다** — 버튼이 로그아웃뿐이다).
 - [ ] 성능 최적화 (Lighthouse 90+ 목표)
 - [ ] Vercel 프로덕션 배포 — 2026-09-08 코드리뷰분은 푸시 완료(`9f79851`). Lighthouse·E2E 가 남아 체크는 보류
 
