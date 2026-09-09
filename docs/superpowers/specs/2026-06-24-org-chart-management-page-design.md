@@ -14,7 +14,8 @@
 - **한국어(Kor.) 시트만** 수집 (영문 Eng. 시트 제외), 시트명의 날짜별로 수집.
 - 조직도를 **그림 파일로 렌더링**해 게시. **최대한 크게, 잘 보이게.**
 - **날짜별 드롭다운**으로 시점 선택. 기본값 = 최신 날짜.
-- 열람 가능 역할: ***REMOVED-CREDENTIAL***(=`admin`), ***REMOVED-CREDENTIAL***(=`holdings`), ***REMOVED-CREDENTIAL***(=`mobility`). hmobility·guest 차단.
+- 열람 가능 역할: `admin` · `holdings` · `mobility`. `hmobility` · `guest` 차단.
+  (⚠️ 로그인 아이디를 여기 적지 않는다 — 역할 이름으로만 쓴다. 2026-09-09 감사에서 걷어냈다.)
 
 ### 확정된 의사결정
 

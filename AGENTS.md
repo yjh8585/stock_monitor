@@ -63,6 +63,7 @@ Python 쪽 상시 검사(토큰 0, 문서·수집 계약 회귀 감시):
 
 ```powershell
 scripts/venv/Scripts/python.exe scripts/verify_docs.py            # 표 구조·상대 링크·자동 로드 분량
+scripts/venv/Scripts/python.exe scripts/verify_no_secrets.py     # .env.local 값이 추적 파일에 평문으로 샜는가
 scripts/venv/Scripts/python.exe scripts/verify_fnguide.py        # fnguide 수집 계약 (주 1회 GHA도 실행)
 scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py # cacheTag ↔ ALL_TAGS ↔ COLUMN_TO_TAGS 정합성
 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q         # 순수 함수 회귀

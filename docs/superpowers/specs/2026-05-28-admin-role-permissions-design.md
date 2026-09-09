@@ -8,7 +8,7 @@
 
 ## 1. 배경
 
-현재 사용자 Role은 `'mobility' | 'holdings'` 두 가지. 사용자가 `.env.local`에 `ADMIN_ID=***REMOVED-CREDENTIAL***`, `ADMIN_PW=***REMOVED-CREDENTIAL***` 관리자 자격증명 추가. 다음 기능은 관리자만 가능해야:
+현재 사용자 Role은 `'mobility' | 'holdings'` 두 가지. 사용자가 `.env.local`에 관리자 자격증명(`ADMIN_ID` · `ADMIN_PW`)을 추가. 🔴 **값은 여기 적지 않는다** — 2026-09-09 감사에서 이 줄에 아이디·비밀번호가 평문으로 있었고, 이 저장소는 공개라 인터넷에 노출된 상태였다. 다음 기능은 관리자만 가능해야:
 
 1. `/management/companies` 페이지 접근 (신규 회사 등록 + 향후 사외비 엑셀 업로드).
 2. 보고서 게시물 삭제 (`DELETE /api/posts/:id`).
