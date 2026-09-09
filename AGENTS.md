@@ -21,7 +21,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. **차트 신규·수정 전 정독**(콤보 이중축 영역 분리 §4-F · 스타일 토큰·글자 크기 §5). `fontSize`·축 domain·범례 순서 임의 변경 금지.
 - **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** — _수집·적재·파싱 함정 정본_. **수집기 수정 전 정독.**
 - **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)** — _Playwright·UI 검증 함정_. **UI를 브라우저로 검증하기 전 정독.**
-- **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md)** — _CI·배포·플랫폼 운영 함정_(GHA 실패 판별·Vercel 배포 확인·Supabase MCP 우회·PowerShell·훅 검사기). **워크플로를 돌리거나 배포를 확인하기 전 정독.** 🔴 **넓게 훑은 검색이 0건일 때도**(§8 — 소스의 날 NUL 바이트가 Grep 도구에서 파일을 통째로 지운다).
+- **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md)** — _CI·배포·플랫폼 운영 함정_(GHA 실패 판별·Vercel 배포 확인·Supabase MCP 우회·PowerShell·훅 검사기). **워크플로를 돌리거나 배포를 확인하기 전 정독.** 🔴 **넓게 훑은 검색이 0건일 때도**(§8 — 소스의 날 NUL 바이트가 Grep 도구에서 파일을 통째로 지운다). 🔴 **Supabase 보안 경고 메일을 받았을 때도**(§10 — 기준일이 발송일보다 앞서 이미 고친 것이 다시 오고, 남은 두 경고는 의도된 설계다).
 - **[`docs/oem-collection.md`](./docs/oem-collection.md)** — OEM 회사별 탭(`/oem/*`) 수집 로직·MarkLines 함정. **OEM 탭 작업 전.**
 - **[`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)** — _Vercel ISR Write 한도 대응_. **주식 뷰 3종(`related`/`domestic`/`parts-top100`)의 payload·cacheTag를 건드리기 전 정독** — `cacheTag('exchange_rates_live')`를 되돌리거나 `financials_by_year` 트리밍을 풀면 한도가 다시 터진다.
 - **[`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md)** — fnguide 신버전(wcomp) JSON 계약표·계정 코드. **`scripts/verify_fnguide.py`가 실패했을 때.**

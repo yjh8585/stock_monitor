@@ -5,7 +5,50 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-09-08 오후)
+## 최신 상태 · 재개 지점 (2026-09-09)
+
+### 무엇을 했나
+
+Supabase 보안 경고 메일(9월 8일 발송)을 확인하고, 실제로 남아 있던 것만 고쳤다.
+커밋 `a57be20` 1건 — 마이그레이션 `20260909000001_function_search_path.sql` + 문서 2곳.
+
+트리거 함수 3개(`trg_auto_page_mapping` · `management_uploads_set_updated_at` ·
+`skip_identical_update`)에 `set search_path = public, pg_temp` 를 붙였다. 본문은 안 건드렸다.
+
+### 결정과 근거 — 「경고 4종 중 고칠 것은 1종뿐」
+
+**메일이 지목한 Critical 은 이미 고쳐진 것이었다.** 메일의 데이터 기준일(09-06)이 발송일보다
+앞서서, 하루 전 `20260907000002_rls_backup_tables.sql` 로 막은 백업 테이블 2개가 다시 온 것이다.
+🔴 **메일보다 `get_advisors` 실시간 조회를 먼저 볼 것.**
+
+남은 둘은 **의도된 설계라 고치지 않기로 했다**(전수 확인 후 판정):
+
+- `rls_enabled_no_policy` 15건 — 사외비 격리 방식(RLS enable + 정책 없음 = default deny) 그 자체다.
+  **정책을 만들면 오히려 구멍이 난다.**
+- `materialized_view_in_api` 3건 — 구체화 뷰엔 RLS 를 못 걸지만, 원본 `oem_sales_*` 테이블이
+  이미 `anon` 읽기를 전면 허용(`qual = true`)한다. 뷰를 막아도 원본에서 같은 값을 읽으므로
+  **추가 유출이 아니다.** 🔴 여기서 `revoke` 하면 `/oem` 과 `/oem/competition` 이 조용히 빈 화면이 된다.
+
+### 막힌 곳 / 안 되더라
+
+- **검증용 임시 테이블을 `public` 에 만들면 그 자체가 다음 주 메일의 Critical 이 된다.**
+  트리거 동작을 `_sp_probe` 로 확인한 뒤 반드시 지웠고, RLS 미적용 테이블 0개를 재확인했다.
+- **PowerShell here-string(`@'...'@`)을 Bash 도구에 쓰면 제목에 `@` 가 박힌다.** 첫 커밋이 그랬고
+  `--amend` 로 정정했다. 여러 줄 커밋 메시지는 파일에 써서 `git commit -F` 로 넘기는 것이 맞다.
+- `.githooks/pre-commit` 이 마이그레이션 새 파일에 AGENTS.md 동반 수정을 요구했는데, 이번은
+  스키마·뷰·제약·라우트 변경이 없어 `SKIP_AGENTS_CHECK=1` 로 우회했다(사유는 커밋 메시지에 기록).
+
+### 재개 지점
+
+이 건은 **완결됐다.** 다음 주 같은 메일이 오면 `docs/gotchas-ci-deploy.md` §10 을 먼저 열면 된다
+(어느 테이블인지 가리는 SQL 과 두 경고의 판정이 거기 있다).
+
+이번 작업과 무관한 **원래 남아 있던 것**은 ROADMAP Phase 5 의 미완 3건이다 — E2E 테스트 확대 ·
+Lighthouse 90+ · 그에 딸린 프로덕션 배포 체크(`ROADMAP.md:227~229`). 이번 세션에서 건드리지 않았다.
+
+---
+
+## 이전 상태 · 재개 지점 (2026-09-08 오후)
 
 ### 무엇을 했나
 
