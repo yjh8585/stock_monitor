@@ -73,6 +73,7 @@ python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 
 
 테스트는 `lib/` 하위 순수 함수 대상(Vitest, node 환경). `vitest.config.ts`의 `@/*` alias는 tsconfig와 동일.
 
+- **권한·화면 E2E**(dev 기동 후): `scripts/venv/Scripts/python.exe scripts/e2e_smoke.py` — 역할 5종 × 라우트 13개 = **65칸**(열려야 48 · 막혀야 17). exit 0 이 정상 · `--self-test`·`--role`·`--matrix-only`. 🔴 **admin 으로만 돌리지 말 것**(막히는가를 한 칸도 못 잰다) → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md).
 - UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케이스 확인(콘솔/네트워크 에러 모니터링). **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
 - Python 스크립트는 `scripts/venv` 활성화 후 실행. 환경변수는 `scripts/.env`.
 - `npm run check-all`은 **TS/JS 전용**(Python 미포함). Python 변경은 `scripts/venv/Scripts/python.exe -m py_compile <files>` + 순수 로직은 venv로 직접 단위 실행해 검증.
