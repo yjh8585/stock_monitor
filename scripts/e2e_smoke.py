@@ -201,8 +201,16 @@ def slugify(role: str, path: str) -> str:
     return f"{role}__{path.strip('/').replace('/', '_') or 'root'}"
 
 
-def checkRoute(page, role: str, route: str, expected: str, shoot: bool) -> dict:
-    """한 역할이 한 라우트에 갔을 때 기대대로인지 본다."""
+def checkRoute(page, role: str, route: str, expected: str, shoot: bool, _retry: bool = True) -> dict:
+    """한 역할이 한 라우트에 갔을 때 기대대로인지 본다.
+
+    ⚠️ **시간 초과는 한 번 다시 해 본다**(2026-09-09 실측). dev 서버는 그 화면을 «처음»
+    열 때 Turbopack 이 컴파일을 하느라 30초를 넘길 수 있다. 실제로 65칸 중
+    `admin//management/org-chart` 한 칸만 시간 초과로 빨개졌고, 곧바로 다시 돌리니
+    13/13 통과였다 — 화면 문제가 아니라 **환경 문제**다.
+    🔴 시간 초과«만» 다시 한다. 다른 실패(차단 오판·본문 없음)를 재시도하면
+    간헐적으로 통과해 진짜 결함을 숨긴다.
+    """
     consoleErrors: list[str] = []
     failedRequests: list[str] = []
 
@@ -245,6 +253,11 @@ def checkRoute(page, role: str, route: str, expected: str, shoot: bool) -> dict:
 
     page.remove_listener('console', onConsole)
     page.remove_listener('requestfailed', onRequestFailed)
+
+    if _retry and actual == 'error' and 'Timeout' in (err or ''):
+        # 첫 컴파일이 느렸을 뿐일 수 있다 — 딱 한 번만 다시 본다(위 docstring 참조).
+        print(f'  [재시도] {route} — 시간 초과, 한 번 다시 본다')
+        return checkRoute(page, role, route, expected, shoot, _retry=False)
 
     ok = actual == expected and err is None
     return {
