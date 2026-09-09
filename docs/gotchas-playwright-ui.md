@@ -47,6 +47,12 @@
 
 - ⚠️ **dev 서버의 첫 컴파일이 30초를 넘겨 E2E 한 칸이 간헐 실패한다**(2026-09-09 실측). 65칸 중 `admin//management/org-chart` 하나만 시간 초과로 빨개졌고 곧바로 그 역할만 다시 돌리니 13/13 통과였다 — **화면 문제가 아니라 환경 문제다.** `checkRoute` 가 **시간 초과일 때만** 한 번 다시 본다. 🔴 다른 실패(차단 오판·본문 없음)까지 재시도하면 간헐 통과로 **진짜 결함을 숨긴다.**
 
+- 🔴 **조작 E2E 는 화면마다 사양을 «따로» 둔다 — 한 화면 것을 복사하면 조용히 0건이 된다**(2026-09-09 네 화면 실측 · `scripts/e2e_interact.py`). 같은 「표 화면」인데 딴판이었다: `/oem` 은 **누를 수 있는 머리글이 0개**이고 뉴스 팝업도 없다 · `/parts-top100` 의 구분 필터는 「국가」인데 `/domestic` 은 「그룹」이다 · 행 수도 27/126/133/80 으로 제각각이다. ⚠️ **`/oem` 의 「연간·월간」은 필터가 아니라 차트의 기간 전환 탭**(`role="tab"`)이라 눌러도 **행 수가 안 변한다**(80 → 80). 필터로 알고 걸었다가 2건이 빨개졌고, 실제로 바뀌는 것은 **선택된 탭**과 **막대 개수**(951 ↔ 944)였다 — 표가 아니라 그림을 봐야 하는 자리다. 🔴 사양을 덜 적으면 그 화면은 「행이 있다」 한 줄만 재고 초록으로 끝나므로, `_assertScreensMeasureSomething` 이 **잴 조작이 하나도 없는 사양**을 실행 전에 막는다.
+
+- ⚠️ **Git Bash 에서 `--route /oem` 처럼 슬래시로 시작하는 인자는 윈도우 경로로 바뀐다.** `C:/Program Files/Git/oem` 이 되어 사양을 못 찾는다 → `MSYS_NO_PATHCONV=1` 을 앞에 붙인다. 🔴 이때 스크립트가 **조용히 0건으로 끝나지 않고 「그 사양이 없다」로 실패**하게 해 둔 것이 이 오류를 즉시 드러냈다 — 없는 대상을 지정하면 통과가 아니라 실패여야 한다.
+
+- ✅ **`NEXT_REVALIDATE_PROD_URL` 이 GitHub Secrets 에 없는 것은 «문제가 아니다»**(2026-09-09 판정 — 재조사 금지). 워크플로 중 이 값을 넘기는 것은 `collect-yt-report.yml` 하나뿐이고, 그 스크립트는 `PROD_URL or NEXT_REVALIDATE_URL` 로 **대체 경로**를 탄다(`collect_yt_report.py:316`). `--revalidate-prod` 를 쓰는 나머지 셋(`sync_finance`·`sync_inventory`·`collect_stellantis_shipments_ir`)은 **로컬 수동 실행 전용**이라 `.env.local` 을 읽고, 거기엔 값이 있다. 실행 기록으로도 확인했다 — 최근 수집 런 로그에 `✓ cache revalidated [default]` 가 찍혀 있고, 이 줄은 **HTTP 200 일 때만** 나온다(`lib/revalidate.py:_post_revalidate`). ⚠️ 다만 `collect-yt-report.yml` 의 `NEXT_REVALIDATE_PROD_URL:` 줄은 **없는 시크릿을 가리키는 죽은 설정**이라 다음 사람이 또 조사하게 된다 — 지우지 않고 여기 남긴다.
+
 ---
 
 ## 컴포넌트 함정 (AGENTS.md에서 이관, 2026-08-12)
