@@ -25,7 +25,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`docs/oem-collection.md`](./docs/oem-collection.md)** — OEM 회사별 탭(`/oem/*`) 수집 로직·MarkLines 함정. **OEM 탭 작업 전.**
 - **[`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)** — _Vercel ISR Write 한도 대응_. **주식 뷰 3종(`related`/`domestic`/`parts-top100`)의 payload·cacheTag를 건드리기 전 정독** — `cacheTag('exchange_rates_live')`를 되돌리거나 `financials_by_year` 트리밍을 풀면 한도가 다시 터진다.
 - **[`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md)** — fnguide 신버전(wcomp) JSON 계약표·계정 코드. **`scripts/verify_fnguide.py`가 실패했을 때.**
-- **[`docs/data-audit-2026-07-18.md`](./docs/data-audit-2026-07-18.md)** — 2026-07-18 데이터 감사 원본 기록.
+- **[`docs/commands.md`](./docs/commands.md)** — _명령·검사 스크립트 목록_. **"무슨 명령이었지" 싶을 때.**
 
 > AGENTS.md는 "이 약속을 지켜라"만 다룬다. 구조 설명이 길어지면 Architecture.md로 옮기고 여기선 참조한다.
 >
@@ -48,40 +48,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 검증 명령 (작업 완료 후 반드시 실행)
 
-```powershell
-npm run check-all       # lint + format:check + typecheck + test 일괄
-# 개별
-npm run lint            # eslint .
-npm run format:check    # prettier --check .
-npm run typecheck       # tsc --noEmit
-npm test                # vitest run (lib/**/*.test.ts)
-npm run lint:fix        # 자동 수정
-npm run format          # 자동 포맷
-```
+🔴 **명령 목록·실행 절차 정본 = [`docs/commands.md`](./docs/commands.md)**(2026-09-10 이관 — 자동 로드엔 약속만 남겼다).
+"무슨 명령이었지" 싶으면 **거기부터**: npm 검사 · Python 상시 검사 6종 · E2E · 워크플로·배포 확인.
 
-Python 쪽 상시 검사(토큰 0, 문서·수집 계약 회귀 감시):
+어기면 조용히 깨지는 것만 여기 남긴다.
 
-```powershell
-scripts/venv/Scripts/python.exe scripts/verify_docs.py            # 표 구조·상대 링크·자동 로드 분량
-scripts/venv/Scripts/python.exe scripts/verify_no_secrets.py     # .env.local 값이 추적 파일에 평문으로 샜는가
-scripts/venv/Scripts/python.exe scripts/verify_fnguide.py        # fnguide 수집 계약 (주 1회 GHA도 실행)
-scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py # cacheTag ↔ ALL_TAGS ↔ COLUMN_TO_TAGS 정합성
-scripts/venv/Scripts/python.exe -m pytest scripts/lib -q         # 순수 함수 회귀
-python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 규칙 (venv 아닌 시스템 python)
-```
-
-🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다. **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(마지막을 빠뜨리면 수집이 성공해도 그 화면은 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)). 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
-
-테스트는 `lib/` 하위 순수 함수 대상(Vitest, node 환경). `vitest.config.ts`의 `@/*` alias는 tsconfig와 동일.
-
-- **E2E**(dev 기동 후 · exit 0 정상 · `--self-test`): `e2e_smoke.py`=역할 5종 × 라우트 13개 **65칸**(열려야 48 · 막혀야 17) · `e2e_interact.py`=화면 9개를 **눌러서** 64건. 🔴 admin 만으론 「막히는가」를, smoke 만으론 「눌러서 되는가」를 못 잰다 · 🔴 화면마다 조작이 달라 **사양 복사 금지** → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md).
-- UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케이스 확인(콘솔/네트워크 에러 모니터링). **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
-- Python 스크립트는 `scripts/venv` 활성화 후 실행. 환경변수는 `scripts/.env`.
-- `npm run check-all`은 **TS/JS 전용**(Python 미포함). Python 변경은 `scripts/venv/Scripts/python.exe -m py_compile <files>` + 순수 로직은 venv로 직접 단위 실행해 검증.
-- 수집 스크립트/워크플로 실환경 검증: `gh workflow run <name>.yml --ref master` → `gh run watch <id> --exit-status` → `gh run view <id> --log`. 🔴 **실패가 인프라 탓인지 먼저 가르고**(동시다발 실패는 거의 항상 GitHub 장애), **수집 로그는 tail로 읽지 말 것**(pykrx stdout이 뒤섞여 무해한 메시지가 끝에 몰린다) → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §1.**
-- 프로덕션 = `stock-monitor-orcin.vercel.app`. **scripts/워크플로 변경은 재배포 불필요**(GHA가 master 체크아웃)지만 **`app/`·`components/` UI 변경은 Vercel 재배포(push→빌드 READY) 후** E2E 검증. 🔴 **`list_deployments` 시간필터는 오도하고 빈 커밋 재트리거는 무의미** → 확인법은 **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §2.**
-- **Supabase 접근은 플러그인 MCP**(`mcp__plugin_supabase_supabase__*`) — `.mcp.json` 등록은 제거(2026-08-24 · 🔴"매번 죽는다"의 원인은 토큰이 아니라 **cwd**였다). 플러그인도 죽으면 `scripts/.env`의 **`SUPABASE_Pesonal_Access_Token`(오타가 실제 키 이름)** + Management API 우회 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §3.**
-- 🔴 **`lib/database.types.ts` 재생성 전에** — 이 파일은 순수 생성물이 아니다. 끝에 손으로 붙인 `TableRow`·`ViewRow` 가 있어 통째로 덮으면 3개 파일이 `TS2305` 로 죽고, 생성물은 Prettier 미적용이라 `format:check` 도 깨진다 → **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §7.**
+- 🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다. **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(마지막을 빠뜨리면 수집이 성공해도 그 화면은 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
+- 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
+- 🔴 **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
 
 ## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
 
