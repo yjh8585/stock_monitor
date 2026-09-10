@@ -1,0 +1,23 @@
+[
+  {
+    "id": "chart",
+    "match": "/components/charts/|[^/]*Chart\\.tsx$|/chartTheme\\.ts$|/chart-utils\\.ts$",
+    "exempt": "\\.(test|spec)\\.(ts|tsx)$|/__tests__/",
+    "read": ["chart-guide.md"],
+    "why": "docs/chart-guide.md(44.9KB)는 「차트 신규·수정 전 정독」이라고 적혀 있는데 포인터 감사에서 한 세션도 열리지 않았습니다. fontSize·축 domain·범례 순서를 임의로 바꾸면 화면은 그려지고 검사도 통과하지만 다른 차트와 갈립니다."
+  },
+  {
+    "id": "oem",
+    "match": "/(app|lib)/oem/|markline",
+    "exempt": "\\.json$|\\.(test|spec)\\.(ts|tsx)$",
+    "read": ["oem-collection.md"],
+    "why": "MarkLines 판매량·생산량 sync 는 페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하면 조용히 어긋납니다. 경쟁 지표는 기준월을 공통 앵커로 맞추지 않으면 점유율이 왜곡됩니다."
+  },
+  {
+    "id": "isr-views",
+    "match": "/(app|lib)/(domestic|parts-top100|related-stocks)/",
+    "exempt": "\\.(test|spec)\\.(ts|tsx)$",
+    "read": ["isr-write-optimization.md"],
+    "why": "이 세 뷰의 payload·cacheTag 는 Vercel ISR Write 한도(200K/월) 대응으로 조여 둔 것입니다. cacheTag('exchange_rates_live')를 되돌리거나 financials_by_year 트리밍을 풀면 한도가 다시 터집니다."
+  }
+]
