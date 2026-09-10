@@ -94,9 +94,19 @@ SCREENS: list[dict] = [
     {'route': '/hansae', 'filters': [], 'sort': None, 'popup': False,
      'typeCol': None, 'typeOff': None, 'ranges': ['1D', '3M', '1Y']},
 
+    # `/management/org-chart` — 🔴 **조직도는 그림 «파일» 이다**(2026-09-10 실측).
+    #    ⚠️ 여기 선택상자는 `/compare` 와 «다른 물건» 이다 — 저쪽은 만든 부품
+    #    (`[data-slot="select-trigger"]`)이지만 여기는 **브라우저 기본 `<select>`** 라
+    #    `_openSelect` 가 0개를 만나 멈춘다. 그래서 `nativeSelect` 로 따로 잰다.
+    #    🔴 **svg 지문으로 재면 안 된다** — 이 화면의 svg 14개는 조직도가 아니라 **메뉴
+    #    아이콘**이라, 날짜를 바꿔도 지문이 «세 번 다 똑같았다»(실측 `2067657579`).
+    #    바뀌는 것은 **그림 주소**뿐이다(`org-chart/image/4` → `image/3`).
+    {'route': '/management/org-chart', 'filters': [], 'sort': None, 'popup': False,
+     'typeCol': None, 'typeOff': None,
+     'nativeSelect': 'org-chart/image/', 'dialogButton': '전체화면으로 보기'},
+
     # ⚠️ `/management/production` 은 **조작 요소가 하나도 없다**(버튼=로그아웃뿐).
     #    그래서 «일부러» 넣지 않았다 — 넣으면 「행이 있다」 한 줄만 재고 초록이 된다.
-    #    `/management/org-chart` 도 조작이 선택상자 하나뿐이라 뺐다(다음 회차 후보).
 ]
 
 
@@ -106,7 +116,8 @@ def _assertScreensMeasureSomething() -> None:
     🔴 필터·탭·정렬·팝업이 전부 비어 있으면 그 화면은 「표에 행이 있다」 한 줄만 재고
     초록으로 끝난다. 화면을 추가하다 사양을 덜 적으면 **검사한 척** 이 되는 자리다.
     """
-    keys = ('filters', 'tabs', 'sort', 'popup', 'ranges', 'tablePairs', 'chartPairs', 'selects')
+    keys = ('filters', 'tabs', 'sort', 'popup', 'ranges', 'tablePairs', 'chartPairs',
+            'selects', 'nativeSelect', 'dialogButton')
     for spec in SCREENS:
         if not any(spec.get(k) for k in keys):
             raise SystemExit(f"{spec['route']}: 잴 조작이 하나도 없다 — 사양을 채울 것")
@@ -413,6 +424,87 @@ def checkSelects(page, spec: dict) -> list[tuple[str, bool, str]]:
     return cases
 
 
+def imgSrcFor(page, marker: str) -> str | None:
+    """`marker` 가 든 `<img>` 의 주소. 없으면 None — «없다» 를 통과로 만들지 않는다."""
+    return page.evaluate(
+        '''(m) => { const i = Array.from(document.querySelectorAll('img'))
+                        .find(x => (x.src || '').includes(m));
+                    return i ? i.src : null; }''', marker)
+
+
+def checkNativeSelect(page, spec: dict) -> list[tuple[str, bool, str]]:
+    """브라우저 «기본» 선택상자 — 고르면 그림이 바뀌고 되돌리면 돌아오는가.
+
+    🔴 `checkSelects` 를 쓰면 안 된다. 저쪽은 만든 부품(`[data-slot="select-trigger"]`)을
+    찾는데 이 화면은 기본 `<select>` 라 **0개를 만나 멈춘다**(2026-09-10 실측).
+    🔴 판정을 **svg 지문으로 하면 안 된다** — 이 화면의 svg 는 조직도가 아니라 메뉴
+    아이콘이라 날짜를 바꿔도 «똑같다». 자료가 결정하는 것은 **그림 주소**뿐이다.
+    """
+    marker = spec['nativeSelect']
+    cases: list[tuple[str, bool, str]] = []
+
+    sel = page.query_selector('select')
+    if sel is None:
+        return [('기본 선택상자가 있다', False, '못 찾았다')]
+
+    vals = page.evaluate(
+        "() => Array.from(document.querySelector('select').options).map(o => o.value)")
+    cases.append(('선택상자에 고를 것이 둘 이상 있다', len(vals) >= 2, f'{len(vals)}개'))
+    if len(vals) < 2:
+        return cases
+
+    first = page.evaluate("() => document.querySelector('select').value")
+    base = imgSrcFor(page, marker)
+    cases.append((f'그림({marker})이 있다', base is not None, base or '없다'))
+    if base is None:
+        return cases
+
+    other = next(v for v in vals if v != first)
+    page.select_option('select', other)
+    page.wait_for_timeout(3000)
+    mid = imgSrcFor(page, marker)
+    cases.append(('다른 시점을 고르면 그림이 바뀐다',
+                  mid is not None and mid != base, f'{base} → {mid}'))
+
+    # 🔴 되돌리기 — 「바뀐다」만 재면 «아무 그림이나 내는 고장» 도 통과한다.
+    page.select_option('select', first)
+    page.wait_for_timeout(3000)
+    back = imgSrcFor(page, marker)
+    cases.append(('원래 시점으로 되돌리면 그림도 돌아온다', back == base, f'{back}'))
+    return cases
+
+
+def checkDialogButton(page, spec: dict) -> list[tuple[str, bool, str]]:
+    """이름으로 지정한 단추 — 창이 뜨고 «Esc 로 닫히는지» 까지.
+
+    ⚠️ `checkPopup` 은 뉴스 단추(`[title="뉴스 보기"]`)에 박혀 있어 재사용할 수 없다.
+    🔴 닫히는 것도 함께 재야 한다 — 안 닫히면 다음 조작이 전부 가로막힌다.
+    """
+    label = spec['dialogButton']
+    cases: list[tuple[str, bool, str]] = []
+    cases.append(('열기 전에는 창이 없다',
+                  page.query_selector('[role="dialog"]') is None, ''))
+
+    btn = page.query_selector(f'button:has-text("{label}")')
+    if btn is None:
+        return cases + [(f'「{label}」 단추가 있다', False, '못 찾았다')]
+
+    btn.click()
+    page.wait_for_timeout(2500)
+    dlg = page.query_selector('[role="dialog"]')
+    cases.append((f'「{label}」 를 누르면 창이 뜬다', dlg is not None, ''))
+    if dlg is None:
+        return cases
+
+    cases.append(('창에 내용이 있다(빈 껍데기가 아니다)',
+                  len((dlg.inner_text() or '').strip()) > 5, ''))
+    page.keyboard.press('Escape')
+    page.wait_for_timeout(1500)
+    cases.append(('Esc 를 누르면 창이 닫힌다',
+                  page.query_selector('[role="dialog"]') is None, ''))
+    return cases
+
+
 def checkTabs(page, spec: dict) -> list[tuple[str, bool, str]]:
     """차트의 기간 전환 탭 — 표가 아니라 «그림» 이 달라지는 자리다.
 
@@ -520,6 +612,10 @@ def runScreen(page, spec: dict) -> list[tuple[str, bool, str]]:
         cases += checkPairs(page, spec, 'tablePairs', tableSignature, '표')
     if spec.get('selects'):
         cases += checkSelects(page, spec)
+    if spec.get('nativeSelect'):
+        cases += checkNativeSelect(page, spec)
+    if spec.get('dialogButton'):
+        cases += checkDialogButton(page, spec)
     if spec.get('chartPairs'):
         # 🔴 지문 범위를 «그 버튼의 구역» 으로 좁힌다(위 sectionSigFor 참조).
         for pair in spec['chartPairs']:

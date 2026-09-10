@@ -74,7 +74,7 @@ python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 
 
 테스트는 `lib/` 하위 순수 함수 대상(Vitest, node 환경). `vitest.config.ts`의 `@/*` alias는 tsconfig와 동일.
 
-- **E2E**(dev 기동 후 · exit 0 정상 · `--self-test`): `e2e_smoke.py`=역할 5종 × 라우트 13개 **65칸**(열려야 48 · 막혀야 17) · `e2e_interact.py`=화면 8개를 **눌러서** 56건. 🔴 admin 만으론 「막히는가」를, smoke 만으론 「눌러서 되는가」를 못 잰다 · 🔴 화면마다 조작이 달라 **사양 복사 금지** → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md).
+- **E2E**(dev 기동 후 · exit 0 정상 · `--self-test`): `e2e_smoke.py`=역할 5종 × 라우트 13개 **65칸**(열려야 48 · 막혀야 17) · `e2e_interact.py`=화면 9개를 **눌러서** 64건. 🔴 admin 만으론 「막히는가」를, smoke 만으론 「눌러서 되는가」를 못 잰다 · 🔴 화면마다 조작이 달라 **사양 복사 금지** → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md).
 - UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케이스 확인(콘솔/네트워크 에러 모니터링). **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
 - Python 스크립트는 `scripts/venv` 활성화 후 실행. 환경변수는 `scripts/.env`.
 - `npm run check-all`은 **TS/JS 전용**(Python 미포함). Python 변경은 `scripts/venv/Scripts/python.exe -m py_compile <files>` + 순수 로직은 venv로 직접 단위 실행해 검증.
