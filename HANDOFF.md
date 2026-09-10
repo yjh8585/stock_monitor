@@ -5,7 +5,43 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-09-10 낮) — Lighthouse 첫 실측 · 로드맵 미완 세 칸 정리
+## 최신 상태 · 재개 지점 (2026-09-10 저녁) — 자동 로드 다이어트 · 읽기 게이트 배선
+
+**무엇을 했나**
+- `AGENTS.md` 의 「검증 명령」에서 명령 블록·실행 절차를 **`docs/commands.md`(신규)** 로 갈랐다.
+  약속 3건만 남겼다(캐시 태그 세 곳 · 훅 검사기는 실패 건수 · `pnpm run dev` 금지).
+  **37,465 → 34,082B**, 상한도 37,500 → **36,600**(실측 + 여유 2,500)으로 조였다.
+- `docs/data-audit-2026-07-18.md` 를 **역사 기록으로 확정**하고 `AGENTS.md` 포인터를 `commands.md` 로 교체했다.
+- **`.claude/read-before-edit.json` 신설** — 차트·OEM·ISR 뷰를 고칠 때 해당 문서를 안 읽었으면
+  전역 훅의 게이트 ⑩이 **한 번** 막는다(테스트 파일·데이터 json 은 면제).
+
+**결정과 근거**
+- 🔴 **data-audit 문서는 실증으로 「완료」를 확인했다** — P1~P5 정정은 그 문서의 「✅ 정정 실행 결과」 절에
+  기록돼 있고, 인프라 수정은 `7d897f9` 로 커밋됐다(`_pick_statement_node`·`income_done` 이
+  `scripts/collect_dart_audit.py` 에 현존 · `_fix0718_*.py` 0개 · 마이그레이션 존재).
+  ⚠️ 다만 fnguide 는 그 뒤 **wcomp 이전으로 한 번 더 갈렸다** — `SVD_*` 문자열은 지금
+  `scripts/verify_fnguide.py` 에만 남아 있다.
+- 🔴 **미착수 3건은 ROADMAP Phase 3.5 로 옮겼다**(세진 `_get_audit_rcpt` 연도매핑 · 제품군 name-level
+  역오류 · 기존 products raw 소실). 문서를 보관으로 두면 그 안의 남은 일이 함께 잊힌다.
+- 게이트를 레포에 **하드코딩하지 않고 설정으로** 뺀 이유: 포인터 감사에서
+  `chart-guide.md`(44.9KB · 「차트 수정 전 정독」)가 **한 세션도 안 열린 것**으로 나왔는데,
+  같은 실패가 레포마다 다른 문서에서 난다. 경위 = `~/.claude/docs/gotchas.md` §14.
+
+**막힌 곳 / 안 되더라**
+- `AGENTS.md` 의 「폴더별 약속」(12,410B)은 **줄일 수 없다.** 절 크기만 보고 「절반은 옮길 수 있다」고
+  판단했다가 실물을 열어 보니 2026-08-25 에 구조 설명을 이미 부록 C 로 뺀 뒤 남은 **순수 약속**이었다.
+  더 깎으려면 규칙의 「왜」를 지워야 하는데 그러면 규칙이 안 지켜진다.
+- `USER_ACTIONS.md`·`fnguide-wcomp-migration.md` 는 **안 열리는 게 정상**이다(전자는 사용자용,
+  후자는 「`verify_fnguide.py` 가 실패했을 때」라는 조건부 트리거).
+
+**재개 지점**
+- 새 게이트 ⑩은 **다음 차트·OEM·ISR 작업이 첫 실전**이다. 오탐이 나오면 훅이 아니라
+  `.claude/read-before-edit.json` 의 `exempt` 를 넓힌다.
+- ROADMAP Phase 3.5 의 잔여 3건은 아직 아무도 착수하지 않았다.
+
+---
+
+## 이전 상태 · 재개 지점 (2026-09-10 낮) — Lighthouse 첫 실측 · 로드맵 미완 세 칸 정리
 
 **무엇을 했나**: 로드맵의 미완 세 칸을 실물로 확인했다. **코드 변경 없음**(측정·문서만).
 커밋 `f3612de`.
@@ -444,85 +480,3 @@ Lighthouse 90+ · 그에 딸린 프로덕션 배포 체크(`ROADMAP.md:227~229`)
 - dev 서버를 띄웠다 끄면 `.next/dev/types/validator.ts` 가 잘린 채 남아 **`tsc` 가 그 생성 파일에서
   실패**할 수 있다. 소스 문제가 아니니 `.next/dev/types` 를 지우고 다시 돌리면 된다.
 
----
-
-## 이전 상태 · 코드리뷰 1차 (2026-09-08 오전)
-
-> 🔴 아래 「재개 지점 — 남은 일」의 **1~4순위는 같은 날 오후에 거의 전량 처리됐다.**
-> 지금 남은 일은 **맨 위 블록**을 볼 것. 이 블록은 그때의 판단 근거로만 남긴다.
-
-### 무엇을 했나
-
-`lib/` · `scripts/lib/` · `app/api/` 전수 코드리뷰(196파일 / 37,562줄)를 돌리고, 나온 지적
-중 **상위 3군**을 고쳤다. 브랜치 `fix/code-review-2026-09-08` 에 10커밋.
-
-| 커밋      | 내용                                                                               |
-| --------- | ---------------------------------------------------------------------------------- |
-| `bfb7012` | `check-all` 이 format:check 에서 죽던 것 복구 — dart_eval 진단 JSON 추적 해제      |
-| `d15c226` | `canPublishReports` 신설 (admin·holdings·mobility)                                 |
-| `4361be2` | API 3종에 역할 게이트 (403 JSON)                                                   |
-| `577e1bb` | 게시 화면 게이트 (`/reports/new` 진입 + 「+ 글쓰기」 버튼)                         |
-| `3bf9a6b` | 스텔란티스 매출 KPI 100배 — 백만원→억원 환산 누락, `toRevenueRows` 순수함수로 분리 |
-| `edf43ff` | `.range()` 페이징 11곳에 결정적 정렬                                               |
-| `c2f97e0` | 스텔란티스 북미 진행 중 연도 YoY 허위 급락 −75%                                    |
-| `7856c27` | 연도 2026 하드코딩 제거 (`currentFiscalYear`)                                      |
-| `e03b01f` | 위 fix — `(P)` 계획값 누출·연초 YTD 공백 회귀                                      |
-| `99eb0c0` | 최종 리뷰 fix — `pnl/source.ts` 정렬 비유일 + `hyundai fetchExportRegions`         |
-
-**검증:** `check-all` 4단계 통과 (vitest 440) · `verify_docs.py` 오류 0 · 브라우저 E2E 3항목 PASS
-(권한 4칸 · OEM 6페이지 200/콘솔0/4xx-5xx 0 · 스텔란티스 KPI 렌더).
-
-**계획서:** `docs/plan-code-review-fixes-2026-09-08.md` (grill-me 심문 반영본)
-**작업 기록:** `.superpowers/sdd/plan-code-review-fixes-2026-09-08/progress.md` (Task별 판정·이월 항목)
-
-### 재개 지점 — 남은 일
-
-> 이번 범위는 「상위 3군」이었다. 아래는 **의도적으로 남긴 것**이며, 최종 whole-branch
-> 리뷰가 「병합 전 필수 없음」으로 판정했다.
-
-**1순위 — 2027-01-01 에 손익 화면이 여전히 멈춘다 (Task 7 의 후속)**
-
-`lib/` 는 고쳤지만 **같은 화면을 그리는 컴포넌트 4개가 2026 에 못 박혀 있다.** 라벨만
-2027 로 넘어가고 카드는 2025/2026 에 남아 **오히려 더 헷갈리는 상태**가 된다.
-
-- `components/management/pnl/Forecast2026.tsx:159,165,174,180` (파일명부터 연도다)
-- `components/management/pnl/CostStructure.tsx:64,65,70,72`
-- `components/management/pnl/FixedVariableBep.tsx:61,73,75,77`
-- `components/management/pnl/FixedVariableStructure.tsx:242,260,261,264,266`
-
-**2순위 — 리뷰 지적 중 미처리 8건**
-
-| 위치                                 | 증상                                                                                       |
-| ------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `scripts/lib/nhtsa_client.py:201`    | 수집 실패가 「리콜 0건」으로 둔갑 (리콜 경로만 `any_ok` 가드 누락)                         |
-| `scripts/lib/revalidate.py:32`       | `humanoid_stocks_view`·`hyundai_retail_sales` 태그 매핑 누락 → 수집 성공해도 페이지가 낡음 |
-| `app/api/cron/sentiment/route.ts:39` | 조회 `error` 를 안 받아 DB 실패에도 200 `ok`                                               |
-| `lib/hansae/data.ts:89`              | `setUTCHours(0,0,0,0)` 이 KST 자정이 아니라 09시                                           |
-| `lib/chat/tools.ts:194`              | `runQueryCompanies` 만 한세 차단 게이트를 안 거침                                          |
-| `lib/chat/tools.ts:206`              | 사용자 입력이 PostgREST `or()` 에 그대로 (콤마 하나로 400)                                 |
-| `lib/auth/actions.ts:14`             | `sanitizeNext` 가 `/\` 를 놓쳐 오픈 리다이렉트                                             |
-| `app/api/news/search/route.ts:88`    | `<pubDate>` 하나가 깨지면 전체 502                                                         |
-
-**3순위 — 연도·시각 하드코딩 잔재** (전부 2027 시한폭탄)
-
-- `lib/finance/loan-aggregate.ts:12` — `YTD_YEAR = 2026`
-- `components/oem/OemDashboard.tsx:17` — `YTD_YEAR = 2026`
-- `lib/oem/aggregate.ts:22` — `TARGET_YEAR = 2025` (**지금 이미 작년치를 보여 준다** — 「직전 완결 연도」 의도인지 판단 필요)
-- `new Date().getFullYear()` 서버 로컬시간 → Vercel(UTC)에서 연초 9시간 밀림:
-  `kia/aggregate.ts:128,202,636,783,854,1091` · `hyundai/aggregate.ts:212` · `uzbekistan/source.ts:249`
-  (`kia/aggregate.ts:202` 의 `isCurrentYear` 는 lint 가 잡은 죽은 변수 — 같이 정리)
-- `lib/stockSort.ts` 의 `FALLBACK_YEAR = '2025'` (2029 부터 `SUPPORTED_YEARS` 창 밖)
-
-**4순위 — 구조·위생**
-
-- `currentFiscalYear` 는 **달력 연도**인데 이름이 회계연도를 시사한다(`companies.fiscal_year_end_month` 규칙과 혼동). `lib/fiscalYear.ts` 로 빼면서 개명하면 **`lib/stockSort.ts`(공개 유틸) → `lib/pnl/aggregate.ts`(손익 도메인) 계층 역전도 함께 풀린다** — 두 개는 같은 작업이니 묶는 게 이득이다.
-- Task 7 fix 의 「확정 연간 행이 없는 연도만 derive」에 **회귀 테스트가 없다**(되돌려도 기존 테스트가 통과한다). 순수 입력으로 시험 가능하다.
-- `buildCorpAchievement` 무커버리지 · JSDoc 3곳에 2026 잔존(`pnl/aggregate.ts:57-58`, `finance/pnl-derived.ts:60`)
-- `/api/chat` 에 역할 게이트 없음 — 데이터 유출은 아니지만(도구 화이트리스트가 사외비 제외) guest 도 Anthropic API 를 태울 수 있다. **정책 결정 사항**
-- Task 6 의 `isYtd` 는 과거 연도에 분기 구멍이 나면 그 해를 영구히 YTD 로 표시한다(2021 부터 완전 백필이라 현재는 무해)
-
-### 알아 둘 것
-
-- ~~AGENTS.md 여유가 5바이트뿐이다~~ — **2026-09-09 다이어트로 해소**(36,537B, 여유 963B). 경위는 맨 위 블록. 다만 「함정은 `docs/gotchas-*.md` 가 정본」이라는 원칙 자체는 그대로다.
-- 이번에 얻은 함정 2건은 `docs/gotchas-data-collection.md` 끝에 적었다 — 「형제 함수가 이미 옳게 고쳐져 있는데 따라가지 않는다」·「세션을 통과했다고 권한이 있는 것이 아니다」.
-- `.superpowers/` 는 git-ignored 작업 폴더다. 이번 작업의 Task별 리뷰 판정·E2E 스크린샷 11장이 거기 있다.
