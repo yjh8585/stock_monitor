@@ -284,6 +284,11 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 | `source`                                                                                   | text    | 수집기 필수 기록 — 값은 `scripts/lib/financial_sources.py` 상수 |
 | `consolidation`                                                                            | text    | `consolidated` 우선, 종속회사 없을 때만 `separate`              |
 
+⚠️ **`consolidation` 을 근거로 쓰지 말 것**(2026-09-11 실측). 위 서술은 «적재 정책» 이고,
+값 자체는 믿을 수 없다 — 연결 판정을 보고서명이 아니라 실제로 고른 본문 노드로 바꾼 것이
+2026-09-11 이라, 그 이전 행(`separate` 887행)은 낡았다. **읽는 코드도 없다**(챗봇 도구는
+select 조차 안 한다). 되받으려면 DART 호출이 몇 시간인데 화면에는 변화가 없어 안 고쳤다.
+
 **UNIQUE**: (company_id, period_type, fiscal_year, fiscal_quarter) NULLS NOT DISTINCT  
 **인덱스**: (company_id, period_type, fiscal_year DESC, fiscal_quarter DESC), source
 
