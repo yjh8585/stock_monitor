@@ -142,7 +142,9 @@ export function ResearchList({ rows, brokers, targets, total, summarized }: Prop
   return (
     <div className="flex h-full flex-col">
       {/* 필터 바 */}
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-2 border-b px-6 py-3">
+      {/* 좌우 여백은 게시판(`app/reports/layout.tsx`)과 «같은 값» 을 쓴다 —
+          같은 성격의 목록이 탭마다 다른 폭으로 보이면 안 된다(2026-09-11 사용자 지적). */}
+      <div className="border-border mx-auto flex w-full max-w-7xl shrink-0 flex-wrap items-center gap-2 border-b px-12 py-3 sm:px-20 lg:px-24">
         <div className="relative">
           <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
           <input
@@ -202,7 +204,7 @@ export function ResearchList({ rows, brokers, targets, total, summarized }: Prop
       </div>
 
       {/* 목록 */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="mx-auto w-full max-w-7xl flex-1 overflow-auto px-12 py-6 sm:px-20 lg:px-24">
         {filtered.length === 0 ? (
           <div className="text-muted-foreground rounded-md border border-dashed py-16 text-center">
             조건에 맞는 리포트가 없습니다.

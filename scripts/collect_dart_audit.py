@@ -1207,10 +1207,17 @@ def collectDartAudit() -> None:
   raw = os.environ.get('TARGET_TICKERS', '').strip()
   target_filter: set[str] = {t.strip() for t in raw.split(',') if t.strip()}
 
+  # 🔴 `status='active'` 가 아닌 회사는 수집하지 않는다(2026-09-11 신설).
+  #    이 필터가 없어서 **hidden 회사가 계속 수집됐다** — 「일진복합소재」(= 일진하이솔루스의
+  #    옛 사명, hidden)가 「일진」의 `dart_corp_code` 를 물려받은 채로 남아 있어, 5년치
+  #    재무가 «일진의 값 그대로» 복제돼 쌓였다(소수점까지 동일). 화면은 hidden 을 걸러 주니
+  #    아무도 못 봤고, 「연도만 다르고 값이 같은 행」 검사에서야 드러났다.
   companies = [
     r for r in client.table('companies')
-    .select('id,ticker,name_kr,data_source,market,homepage_url,dart_corp_code').execute().data
+    .select('id,ticker,name_kr,data_source,market,homepage_url,dart_corp_code,status')
+    .execute().data
     if r.get('data_source') == 'dart'
+    and r.get('status') == 'active'
     and (not target_filter or r.get('ticker') in target_filter)
   ]
   if target_filter:
