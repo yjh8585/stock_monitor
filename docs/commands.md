@@ -30,6 +30,7 @@ scripts/venv/Scripts/python.exe scripts/verify_docs.py            # 표 구조·
 scripts/venv/Scripts/python.exe scripts/verify_no_secrets.py     # .env.local 값이 추적 파일에 평문으로 샜는가
 scripts/venv/Scripts/python.exe scripts/verify_fnguide.py        # fnguide 수집 계약 (주 1회 GHA도 실행)
 scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py # cacheTag ↔ ALL_TAGS ↔ COLUMN_TO_TAGS 정합성
+scripts/venv/Scripts/python.exe scripts/verify_report_sort_wiring.py # PostList 화면이 정렬 searchParams 를 배선했는가
 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q         # 순수 함수 회귀
 python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 규칙 (venv 아닌 시스템 python)
 ```

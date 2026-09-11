@@ -25,7 +25,8 @@ async function Body({ params }: PageProps) {
 export default function HumanoidReportDetailPage({ params }: PageProps) {
   return (
     <Suspense fallback={<div className="text-muted-foreground p-6 text-sm">보고서 로딩 중…</div>}>
-      <div className="p-6">
+      {/* 좌우 여백은 이 탭의 layout.tsx 가 준다 — 여기선 위아래만 띄운다 */}
+      <div className="py-2">
         <Body params={params} />
       </div>
     </Suspense>

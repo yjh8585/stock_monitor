@@ -12,10 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import type { SortKey, SortOrder } from '@/lib/reports/sort';
 import type { PostListRow } from '@/lib/reports/types';
-
-type SortKey = 'created_at' | 'source_published_at';
-type SortOrder = 'asc' | 'desc';
 
 interface FilterParams {
   sourceType?: string;

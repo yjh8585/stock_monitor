@@ -10,12 +10,12 @@ import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccessConfidentialReports, canPublishReports } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import { ROBOT_CATEGORY } from '@/lib/reports/robot';
+import { normalizeOrder, normalizeSort, type SortKey, type SortOrder } from '@/lib/reports/sort';
 import type { PostSourceType } from '@/lib/reports/types';
 
 const PAGE_SIZE = 20;
 
-type SortKey = 'created_at' | 'source_published_at';
-type SortOrder = 'asc' | 'desc';
+// 정렬 타입·정규화 정본 = `lib/reports/sort.ts` (여기 다시 정의하지 말 것).
 
 interface ReportsPageProps {
   searchParams: Promise<{
@@ -27,14 +27,6 @@ interface ReportsPageProps {
     sourceName?: string;
     search?: string;
   }>;
-}
-
-function normalizeSort(value: string | undefined): SortKey {
-  return value === 'created_at' ? 'created_at' : 'source_published_at';
-}
-
-function normalizeOrder(value: string | undefined): SortOrder {
-  return value === 'asc' ? 'asc' : 'desc';
 }
 
 function normalizePage(value: string | undefined): number {
