@@ -378,17 +378,66 @@ def merge_rows(old: list, new: list) -> list:
     return sorted(by_rcp.values(), key=lambda r: (r.get("dt") or "", r.get("rcp") or ""))
 
 
+def _amount_of(row: dict) -> str | None:
+    """공시 원문의 거래금액 문자열. 딜을 가르는 보조 신호로만 쓴다."""
+    m = re.search(r"([\d,]{4,})", str(row.get("deal_amount_raw") or ""))
+    return m.group(1).replace(",", "") if m else None
+
+
+def assign_deals(rows: list) -> None:
+    """🔴 딜 단위를 «원공시»로 가른다 (사용자 결정 2026-09-11).
+
+    `dedup_key` 만으로는 **같은 회사의 서로 다른 딜이 한 무리로 뭉친다** — 그 키에
+    날짜도 딜 식별자도 없기 때문이다. 실측(2026-09-11): 네이버제트 한 무리에 원공시가
+    **26건**(각기 다른 금액의 별개 투자 건)이었고, 원공시 기준으로 세면 딜이
+    **880 → 1,164건**이며 계약서 수집 후보에서 **619건**이 통째로 빠져 있었다.
+
+    규칙 — 같은 `dedup_key` 안에서 접수일 순으로 훑으며
+      · **정정 표식이 없는 공시(원공시)를 만나면 거기서 새 딜이 시작**한다
+      · 정정본은 **바로 앞 원공시**에 붙는다
+      · 🔴 원공시가 **수집 창 밖**이라 안 잡힌 무리(실측 58개)는 **첫 정정본을 대표**로 삼되,
+        그 뒤 정정본에서 **거래금액이 바뀌면 새 딜로 본다**(그 규칙이 없으면 6건이 뭉친다)
+    """
+    from collections import defaultdict
+    by_key: dict = defaultdict(list)
+    for r in rows:
+        by_key[r["dedup_key"]].append(r)
+
+    for key, members in by_key.items():
+        members.sort(key=lambda r: (r.get("dt") or "", r.get("rcp") or ""))
+        cur, cur_amt = None, None
+        for r in members:
+            is_orig = not CORRECTION_RE.search(r.get("report_nm") or "")
+            amt = _amount_of(r)
+            if is_orig:
+                cur, cur_amt = r["rcp"], amt
+            elif cur is None:
+                cur, cur_amt = r["rcp"], amt      # 원공시가 창 밖이다 — 이 정정본이 대표다
+            elif amt and cur_amt and amt != cur_amt and not _has_original(members, cur):
+                cur, cur_amt = r["rcp"], amt      # 정정본만 있는 무리에서 금액이 바뀌었다
+            r["deal_key"] = f"{key}|{cur}"
+
+
+def _has_original(members: list, rcp: str) -> bool:
+    """그 딜의 대표가 «원공시»인가(= 금액 변화로 가르면 안 되는 무리인가)."""
+    for r in members:
+        if r.get("rcp") == rcp:
+            return not CORRECTION_RE.search(r.get("report_nm") or "")
+    return False
+
+
 def mark_latest(rows: list) -> None:
-    """dedup 키별로 접수일이 가장 늦은 것에 is_latest 를 세운다.
+    """**딜별로** 접수일이 가장 늦은 것에 is_latest 를 세운다.
     🔴 「정정본을 버린다」가 아니라 「정정본을 최신본으로 남긴다」 — 재확보 실측에서
-       정정본이 원본보다 두꺼웠다(중앙 20,386자 · 최대 65,559자)."""
+       정정본이 원본보다 두꺼웠다(중앙 20,386자 · 최대 65,559자).
+    🔴 묶는 단위는 `dedup_key` 가 «아니라» `deal_key` 다 — 위 `assign_deals` 주석 참조."""
     best: dict = {}
     for r in rows:
-        k = r["dedup_key"]
+        k = r.get("deal_key") or r["dedup_key"]
         if k not in best or r["dt"] > best[k]["dt"]:
             best[k] = r
     for r in rows:
-        r["is_latest"] = best[r["dedup_key"]] is r
+        r["is_latest"] = best[r.get("deal_key") or r["dedup_key"]] is r
 
 
 # ─────────────────────────────── 실행 ───────────────────────────────
@@ -498,6 +547,9 @@ def main() -> None:
     scanned = len(rows)
     kept = len(prev.get("rows") or [])
     rows = merge_rows(prev.get("rows") or [], rows)
+    # 🔴 딜 가르기는 **병합한 뒤에** 한다 — 병합 전에 하면 창(窓) 밖 행이 빠져
+    #    같은 딜의 원공시와 정정본이 서로 다른 딜로 갈린다.
+    assign_deals(rows)
     mark_latest(rows)
     # 대장이 담은 기간은 「지금까지 훑은 최대 범위」다. 이번 창이 좁다고 되돌리지 않는다.
     years = max(int(prev.get("years") or 0), args.years)
