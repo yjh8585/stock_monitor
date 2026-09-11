@@ -29,7 +29,10 @@ def make(slug: str, ff: str) -> None:
     if not inputs:
         print(f"{slug}\tNO_FRAMES")
         return
-    cmd = [ff, "-hide_banner", "-loglevel", "error"]
+    # 🔴 `-y` 가 없으면 **재몽타주가 조용히 옛 이미지를 남긴다**(2026-09-11 실측).
+    #    ffmpeg 이 덮어쓰기를 물어보는데 stdin 이 없어 그냥 끝나고, 이 함수는 그래도
+    #    `OK 6frames` 를 찍는다 — 2차 패스에서 «옛 타임코드의 화면»을 보고 판정하게 된다.
+    cmd = [ff, "-hide_banner", "-loglevel", "error", "-y"]
     for p in inputs:
         cmd += ["-i", p]
     filters = [f"[{i}:v]scale=420:-2[v{i}]" for i in range(len(inputs))]

@@ -26,6 +26,12 @@ interface FilterParams {
 
 interface Props {
   rows: PostListRow[];
+  /**
+   * 정렬 링크·상세 링크가 향할 라우트. 기본은 게시판(`/reports`).
+   * 🔴 하드코딩하지 말 것 — 휴머노이드 탭(`/humanoid/reports`)이 같은 표를 쓰는데
+   *    `/reports` 가 박혀 있으면 정렬 헤더를 누르는 순간 게시판으로 튕겨 나간다.
+   */
+  basePath?: string;
   /** 전체 게시글 수. 표시 번호 계산에 사용. */
   total: number;
   /** 현재 페이지의 시작 인덱스(0-based). */
@@ -45,7 +51,8 @@ function buildSortHref(
   currentSort: SortKey,
   currentOrder: SortOrder,
   targetSort: SortKey,
-  filters: FilterParams
+  filters: FilterParams,
+  basePath: string
 ): string {
   const nextOrder: SortOrder =
     currentSort === targetSort ? (currentOrder === 'desc' ? 'asc' : 'desc') : 'desc';
@@ -57,7 +64,7 @@ function buildSortHref(
   if (filters.category) params.set('category', filters.category);
   if (filters.sourceName) params.set('sourceName', filters.sourceName);
   if (filters.search) params.set('search', filters.search);
-  return `/reports?${params.toString()}`;
+  return `${basePath}?${params.toString()}`;
 }
 
 /**
@@ -81,7 +88,15 @@ function SortIcon({ active, order }: { active: boolean; order: SortOrder }) {
   );
 }
 
-export function PostList({ rows, total, startIndex = 0, sort, order, filters }: Props) {
+export function PostList({
+  rows,
+  total,
+  startIndex = 0,
+  sort,
+  order,
+  filters,
+  basePath = '/reports',
+}: Props) {
   if (rows.length === 0) {
     return (
       <div className="text-muted-foreground rounded-md border border-dashed py-16 text-center">
@@ -103,7 +118,7 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               aria-sort={isCreatedActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
             >
               <Link
-                href={buildSortHref(sort, order, 'created_at', filters)}
+                href={buildSortHref(sort, order, 'created_at', filters, basePath)}
                 className="hover:text-primary inline-flex items-center justify-center"
                 scroll={false}
               >
@@ -120,7 +135,7 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               aria-sort={isSourceActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
             >
               <Link
-                href={buildSortHref(sort, order, 'source_published_at', filters)}
+                href={buildSortHref(sort, order, 'source_published_at', filters, basePath)}
                 className="hover:text-primary inline-flex items-center justify-center"
                 scroll={false}
               >
@@ -133,7 +148,7 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
               aria-sort={isCreatedActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
             >
               <Link
-                href={buildSortHref(sort, order, 'created_at', filters)}
+                href={buildSortHref(sort, order, 'created_at', filters, basePath)}
                 className="hover:text-primary inline-flex items-center justify-center"
                 scroll={false}
               >
@@ -167,7 +182,7 @@ export function PostList({ rows, total, startIndex = 0, sort, order, filters }: 
                   </div>
                 ) : null}
                 <Link
-                  href={`/reports/${row.id}`}
+                  href={`${basePath}/${row.id}`}
                   className="hover:text-primary line-clamp-2 font-medium break-words"
                   title={row.title}
                 >

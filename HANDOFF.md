@@ -3,11 +3,63 @@
 다음 세션이 그대로 이어받기 위한 인수인계 기록. **맨 위가 최신**이고, 새 블록을 쓸 때
 직전 블록은 `## 이전 상태 …` 로 강등한다.
 
+**여기엔 최근 10블록만 둔다.** 그보다 오래된 블록은 지우지 않고
+[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **2블록**)로 옮긴다.
+
 ---
 
-## 최신 상태 · 재개 지점 (2026-09-10 저녁) — 자동 로드 다이어트 · 읽기 게이트 배선
+## 최신 상태 · 재개 지점 (2026-09-11) — 로봇 글 휴머노이드 일원화 · 유튜브 5편 · 캡처 품질 규칙 신설
 
 **무엇을 했나**
+
+- **로봇 글을 `/humanoid` 전용으로** — 카테고리 SSOT `lib/reports/robot.ts` 신설, `PostRepository.list({excludeCategory})`,
+  `/humanoid/reports/[id]` 신설(본문은 `components/reports/post-detail.tsx` 공용 — 복제 안 함).
+  `PostList`·`PostPagination` 에 `basePath` 를 달아 정렬·페이지 링크가 게시판으로 튀던 버그도 같이 고쳤다.
+- **증권사 리포트를 보고서 표 UI로 평면화** — `research-list.tsx` 재작성(리포트 1건 = 1행).
+  `groupReports` 는 쓰는 데가 없어져 지우고, 그 자리 테스트를 `listTargets`·`mapFigures` 로 채웠다.
+- **유튜브 5편 게시(131~135)** — 자동차 2 · 로봇 3. 본문 76,517자 · 프레임 51장.
+- **캡처 품질 규칙·검사기 신설** — `docs/report-from-youtube.md` · `docs/report-from-pdf.md` ·
+  `scripts/yt_report/settle.py` · `scripts/verify_yt_report.py` · 훅 `block-yt-publish-without-checks`.
+- **리포트 115·117·122 수리** — 각각 `<br>` 평문 노출 · 체리/BYD/지리 미완성 막대 · 폭스바겐/도요타 판매량 빈칸.
+
+**결정과 근거** (계획서 = `docs/plans/2026-09-11-robot-consolidation-and-yt-reports.md`)
+
+| #   | 결정                                             | 근거                                                                                                                                            |
+| --- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 증권사 리포트 = **완전 평면화**                  | 사용자 선택. 묶음·펼치기 폐기                                                                                                                   |
+| 2   | 오퍼스는 **수동 작성 경로에만**                  | 사용자 원문 _"자동으로 할 때는 지금의 방식 그대로 하고, 내가 클로드코드에서 작성할 때 오퍼스를 쓰라는 이야기야"_ — 자동 경로 모델 상수는 그대로 |
+| 4   | 로봇 분류 안전망 = **제목 키워드 강제**          | 분류기가 목록 밖 값(`글로벌 자동차`·`해외사업`)을 실제로 만들어 왔다                                                                            |
+| 5   | 필터·페이지 넘김은 **클라이언트 유지**           | URL 방식은 증권사 17 × 종목 50 × 기간 × 페이지 조합마다 캐시가 쌓여 ISR Write 재발                                                              |
+| 6   | 로봇 글 상세 = **`/humanoid/reports/[id]` 신설** | 사용자 선택                                                                                                                                     |
+
+**막힌 곳 / 안 되더라**
+
+- 🔴 **도해가 «차오르는 도중» 캡처되는 것이 이 워크플로의 최빈 결함**이다. 사람 눈으로 「표가 보인다」로
+  통과시키기 때문에 vision 에이전트도 놓친다. `settle.py` 가 51장 중 6장을 잡았고 그중 하나는
+  영업이익률이 `6.0o` 로 **타이핑 중**이었다. 자막 띠(하단 24%)를 빼지 않으면 오탐이 절반이다.
+- 🔴 **캡션은 자막에서 들은 수치를 적고 그림에는 없는 경우가 45%(23/51)** 였다. 「대충 맞나」로 보면 안 잡힌다 —
+  캡션의 고유명사·수치를 **낱낱이 뽑아 하나씩 O/X** 해야 잡힌다.
+- 🔴 **v3(딥엑스)는 72분 내내 자료 화면이 0장**이었다(217프레임 전수 확인). 토킹헤드 70% · 협찬 광고 10%.
+  억지로 채우지 않고 썸네일만 썼다. **협찬 ETF 배너를 자료로 쓰면 안 된다.**
+- `montage.py` 에 `-y` 가 없어 **재몽타주가 옛 이미지를 남기면서 `OK` 를 찍고 있었다**(수리).
+- `settle.py --only` 가 기록을 덮어써 51건이 8건으로 줄었다 — 내가 만든 `verify_yt_report.py` 가 잡았다(수리).
+- 전수 스캔 시트의 **칸 → 시각 환산은 `(N-1)×20 + 10`초**다. `(N-1)×20` 으로 안내해 조사자 둘이 10초 이른 화면을 짚었다.
+
+**재개 지점**
+
+1. `/humanoid/research` 는 **정리본 76건만** 화면에 오른다(수집 155건). 나머지 79건 요약은 agents 오케스트레이터 몫.
+2. 유튜브 회차를 새로 돌리면 **`settle.py --check` → `verify_yt_report.py` → 캡션 대조** 순서를 지킬 것.
+   훅이 `publish.ts` 를 막으므로 검사를 건너뛸 수 없다.
+3. 남은 캡션 손질 후보(합격이되 개선 여지): `v2_honda_loss` 「23조」→「23조 5,000억」 · `v2_jaecoo_uk_rank` 「재쿠/제쿠」 표기.
+4. `v1_business_segments`·`v1_related_party_96`·`v2_suzuki_japan_rank` 3장은 **영상에 해당 화면이 없어 드롭**했다.
+   재시도하려면 타임코드를 처음부터 다시 찾아야 한다(±25초 구간은 전부 다른 내용).
+
+---
+
+## 이전 상태 · 재개 지점 (2026-09-10 저녁) — 자동 로드 다이어트 · 읽기 게이트 배선
+
+**무엇을 했나**
+
 - `AGENTS.md` 의 「검증 명령」에서 명령 블록·실행 절차를 **`docs/commands.md`(신규)** 로 갈랐다.
   약속 3건만 남겼다(캐시 태그 세 곳 · 훅 검사기는 실패 건수 · `pnpm run dev` 금지).
   **37,465 → 34,082B**, 상한도 37,500 → **36,600**(실측 + 여유 2,500)으로 조였다.
@@ -16,6 +68,7 @@
   전역 훅의 게이트 ⑩이 **한 번** 막는다(테스트 파일·데이터 json 은 면제).
 
 **결정과 근거**
+
 - 🔴 **data-audit 문서는 실증으로 「완료」를 확인했다** — P1~P5 정정은 그 문서의 「✅ 정정 실행 결과」 절에
   기록돼 있고, 인프라 수정은 `7d897f9` 로 커밋됐다(`_pick_statement_node`·`income_done` 이
   `scripts/collect_dart_audit.py` 에 현존 · `_fix0718_*.py` 0개 · 마이그레이션 존재).
@@ -28,6 +81,7 @@
   같은 실패가 레포마다 다른 문서에서 난다. 경위 = `~/.claude/docs/gotchas.md` §14.
 
 **막힌 곳 / 안 되더라**
+
 - `AGENTS.md` 의 「폴더별 약속」(12,410B)은 **줄일 수 없다.** 절 크기만 보고 「절반은 옮길 수 있다」고
   판단했다가 실물을 열어 보니 2026-08-25 에 구조 설명을 이미 부록 C 로 뺀 뒤 남은 **순수 약속**이었다.
   더 깎으려면 규칙의 「왜」를 지워야 하는데 그러면 규칙이 안 지켜진다.
@@ -35,6 +89,7 @@
   후자는 「`verify_fnguide.py` 가 실패했을 때」라는 조건부 트리거).
 
 **재개 지점**
+
 - 새 게이트 ⑩은 **다음 차트·OEM·ISR 작업이 첫 실전**이다. 오탐이 나오면 훅이 아니라
   `.claude/read-before-edit.json` 의 `exempt` 를 넓힌다.
 - ROADMAP Phase 3.5 의 잔여 3건은 아직 아무도 착수하지 않았다.
@@ -363,120 +418,3 @@ Supabase 보안 경고 메일(9월 8일 발송)을 확인하고, 실제로 남�
 Lighthouse 90+ · 그에 딸린 프로덕션 배포 체크(`ROADMAP.md:227~229`). 이번 세션에서 건드리지 않았다.
 
 ---
-
-## 이전 상태 · 재개 지점 (2026-09-08 오후)
-
-### 무엇을 했나
-
-오전에 「상위 3군만」 고치고 남겼던 **코드리뷰 지적을 전량 처리**했다. 브랜치
-`fix/code-review-2026-09-08-part2` 에 16커밋 · 53파일 · +1,900/-370.
-
-| 커밋      | 내용                                                                   |
-| --------- | ---------------------------------------------------------------------- |
-| `f4e0e86` | `lib/currentYear.ts` 신설 — `currentFiscalYear` 개명 + 계층 역전 해소  |
-| `ab134d0` | NHTSA 리콜 실패를 0건으로 숨기던 것 + 캐시 태그 정합성 **검사기 신설** |
-| `5546d48` | 손익 표 3종의 연도 열을 **데이터에서 파생**                            |
-| `0929088` | `Forecast2026.tsx` → `AnnualForecast.tsx` 개명 + 연도 무관화           |
-| `665fed3` | 조회 실패를 200 ok 로 보고하던 것 + 날짜 하나로 검색 전체가 죽던 것    |
-| `552caa2` | `sanitizeNext` 백슬래시 오픈 리다이렉트 (`lib/auth/sanitize-next.ts`)  |
-| `35df255` | 챗봇 한세 게이트 누락 + `or()` 필터 주입 + 오늘 뉴스 KST 자정          |
-| `583bcc9` | `recall_count` null 전파 + `ALL_TAGS` 8개 보강 (검사기 exit 0)         |
-| `264e018` | 소스의 **날 NUL 바이트** 제거 — Grep 도구가 파일을 통째로 건너뛰던 것  |
-| `8ebdade` | 연도 하드코딩·UTC 연도 전량 제거 — 모듈 상수 대신 **함수 호출로**      |
-| `be91eb1` | guest 는 챗봇을 쓸 수 없게 (요금 통로 차단)                            |
-| `daa73f8` | 1차 연도 수정의 회귀 테스트 보강                                       |
-| `c8c7fbb` | `/oem` 화면의 연도 리터럴을 `targetYear()`/`currentYear()` 로          |
-| `fc72df6` | gotchas — 검사기 exit 0 이 정상 상태로 바뀐 것 반영                    |
-
-**검증:** `check-all` EXIT=0 (462 테스트) · `pytest scripts/lib` 417 passed ·
-`verify_revalidate_tags.py` **exit 0** · `verify_docs.py` 오류 0 ·
-`new Date().getFullYear()` 0건 · 추적 파일 NUL 0건 ·
-🔴 **미래 시각 2027-01-05 KST 전체 스위트 통과**(리뷰어 2명이 각각 재현).
-
-**계획서:** `docs/plan-code-review-fixes-2026-09-08.md` 「2차」 섹션 (Task 8~16)
-**작업 기록:** `.superpowers/sdd/plan-code-review-fixes-2026-09-08/progress.md`
-
-### 알아 둘 것 — 코드·git 으로는 안 보이는 것
-
-1. 🔴 **소스에 날 NUL 바이트가 있으면 Grep 도구가 그 파일을 통째로 건너뛴다.**
-   `lib/oem-competition/source.ts` 가 그랬고, 그래서 「`recalls` 소비처 전수 grep」이 0건을 내
-   NHTSA 수정이 화면까지 안 이어진 채 완료로 보고됐다. 증상·처방·전수 점검 명령 =
-   `docs/gotchas-ci-deploy.md` §8. **넓게 훑어 0건이면 파일을 콕 집어 다시 세어라.**
-2. 🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다.** 위반이 나오면 그것이 회귀다.
-   (한때 「exit 1 이 정상」이라 적혀 있었고, 그대로 뒀으면 다음 세션이 진짜 회귀를 넘겼을 것이다.)
-   **2026-09-09 에 역방향 검사를 붙였다** — 「태그는 있는데 그걸 부르는 원천 테이블 매핑이 없다」까지
-   본다(초판이 통과시키던 `hyundai_retail_sales` 유형). 판정은 순수 함수 `evaluate()` 이고
-   `scripts/lib/test_verify_revalidate_tags.py` 가 **검사기 자신을 시험한다.**
-   🔴 **매핑 면제는 `TAGS_WITHOUT_COLLECTOR` 뿐이다**(`oem_model_brand` — 마이그레이션 전용).
-   여기에 태그를 더하는 것은 「수집기가 안 건드린다」는 **주장**이니 함부로 늘리지 말 것 —
-   늘리면 검사기가 조용히 무력해진다(테스트가 목록을 못 박아 둬서 같이 고쳐야 한다).
-3. 🔴 **연도 규칙이 세 가지이고 자리마다 다르다.** 섞으면 값이 어긋난다.
-   - **데이터 파생**(`buildPeriodColumns`·`AnnualForecast` 지역 `targetYear`) = 적재가 화면보다 늦는 자리
-   - **`currentYear()`** = 라벨 상한·YTD 판정·창
-   - **`currentYear()-1`**(`lib/oem/aggregate.ts` 의 `targetYear()`) = 연 사전집계 뷰
-4. 🔴 **`const X = currentYear()` 를 모듈 최상단에 두지 말 것.** 평가 시점에 값이 굳어
-   장수 프로세스가 해를 넘겨도 안 따라온다. 하드코딩을 지우고 같은 버그를 다시 심는 유일한 길이다.
-5. ⚠️ **`targetYear` 라는 이름이 두 곳에서 반대 의미다** — `lib/oem/aggregate.ts` 의 export 는
-   「직전 완결 연도」, `AnnualForecast.tsx` 의 지역 변수는 「데이터 최대 연도」.
-   지금은 import 경로가 안 겹쳐 안전하나 자동완성으로 잘못 끌어오면 조용히 틀린다.
-6. **사용자 결정(2026-09-08 오후)**: OEM 기준 연도 = 직전 완결 연도 ·
-   `Forecast2026.tsx` 는 개명 · `/api/chat` 은 **guest 만** 차단.
-
-### 재개 지점 — 남은 일
-
-> 최종 전체 브랜치 리뷰가 **Critical 0 · 병합 가능**으로 판정한 뒤 남긴 것들이다.
-> 전부 「지금 깨지지 않는 것」이라 급하지 않다.
-
-**1순위 — 이름·주석 정리 (동작 무관)**
-
-- `targetYear` 이름 충돌(위 「알아 둘 것」 5번). `lib/oem/aggregate.ts` 쪽을 `lastCompleteYear()` 로
-  바꾸는 것이 자연스럽다.
-- JSDoc 연도 잔재 — `components/management/pnl/AnnualForecast.tsx:15,139,141,143,145` ·
-  `FixedVariableStructure.tsx:304`.
-- `lib/oem/aggregate.ts` 의 「직전 완결 연도」 명명이 1~2월엔 사실이 아니다(12월 MarkLines 분이 아직
-  안 들어온다). 형제인 `hyundai`/`kia` 는 같은 개념을 `isComplete ? latest : latest-1` 로
-  **데이터에서** 판정한다 — 같은 개념의 두 처리.
-
-**2순위 — 알려진 한계 (운영 데이터에선 미발생)**
-
-- `lib/pnl/periodColumns.ts` — YTD 열을 항상 맨 뒤에 붙인다. 중간 연도만 monthly-only 면 열 순서가
-  뒤집힌다.
-- `lib/chat/tools.ts:207` — `or()` 살균이 `,().*%_\` 는 막지만 `"` · `:` 는 남긴다.
-  큰따옴표 섞인 검색어는 여전히 400 가능(**권한 우회는 불가** — 콤마가 제거돼 or 분기를 못 늘린다).
-- `lib/oem-competition/source.ts:328` — 대상 차종 `recall_count=null` 이면 safety 항목 자체가
-  안 만들어진다. `KpiStrip` 이 `—` 로 내므로 **「0건」 오독은 아니고** 정보량이 적을 뿐.
-- `lib/oem-companies/stellantis-na/aggregate.ts` 의 `isYtd` 는 과거 연도에 분기 구멍이 나면
-  그 해를 영구히 YTD 로 표시한다(2021 부터 완전 백필이라 현재 무해).
-- `lib/finance/loan-aggregate.ts:62` — 매년 1월, 당해 실적 적재 전까지 YTD 지급율이 `—`.
-  **틀린 값이 아니라 빈 값**이다.
-
-**3순위 — 무관한 기존 항목**
-
-- lint 경고 2건 — `lib/oem-companies/kia/aggregate.ts` 의 `RETAIL_ANNUAL_MIN_YEAR`(커밋 `44e99d8`
-  이전부터 존재) · `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES`(타입 전용 export).
-  **이번 변경과 무관해 손대지 않았다.**
-- `buildCorpAchievement` 무커버리지.
-
-### 알아 둘 것 — 운영
-
-- **AGENTS.md 를 다이어트했다 (2026-09-09)** — 37,495B(여유 5B) → **36,537B / 상한 37,500B, 여유 963B.**
-  상한은 **건드리지 않았다**(`verify_docs.py` 가 「상한을 올려서 통과시키지 말 것」이라 명시한다).
-  가른 기준은 AGENTS.md 자신의 원칙 — **어기면 조용히 깨지는 것만 남기고 카탈로그·함정 서사는 옮긴다**:
-  - `scripts/lib/` **모듈 카탈로그** → [`Architecture.md 부록 C`](./Architecture.md). AGENTS 엔 약속 11개만.
-    🔴 옮기기 전에 확인했더니 **Architecture 쪽이 2026-08-25 이관 이후 갱신이 안 돼**
-    `pdf_figures.py`·`research_priority.py` 두 모듈이 빠져 있었다 — **먼저 동기화하고** 옮겼다.
-  - **새 사외비 테이블 5-step**(절차) → [`Architecture.md §7-G`](./Architecture.md)
-  - **훅 검사기 함정 서사** → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9
-  - `collect_*.py` 줄은 **Architecture 에 99% 동일본이 이미 있었다**(이관이 복사로 끝나 원본이 남은 것).
-    🔴 **다음 추가도 원칙은 같다** — 여유가 963B 로 늘었어도 함정은 `docs/gotchas-*.md` 가 정본이다.
-- **푸시 완료** (`9f79851`, 2026-09-08). 프로덕션(Vercel)에 올라갔다.
-  - 🔴 **배포 직후 Cox 재고 캐시가 한 번은 안 풀릴 수 있다** — 태그 이름을
-    `cox-brand-inventory` → `cox_brand_inventory` 로 통일했다. `cacheLife('days')` 라 최악 하루.
-    이상해 보이면 `/api/revalidate` 로 `cox_brand_inventory` 를 한 번 쳐 주면 된다.
-  - 푸시가 **한 번 거부됐다** — 원격에 백업 봇의 일일 스냅샷(`20755e7`, `data/backups/` 만)이
-    먼저 올라와 있었다. 🔴 **rebase 하지 말 것**(HANDOFF·메모리에 적은 커밋 해시 14개가 전부 무효가
-    된다). `git merge origin/master` 로 받으면 해시가 보존된다. 백업 봇 커밋은 `data/backups/` 만
-    건드리므로 소스 충돌이 없다.
-- dev 서버를 띄웠다 끄면 `.next/dev/types/validator.ts` 가 잘린 채 남아 **`tsc` 가 그 생성 파일에서
-  실패**할 수 있다. 소스 문제가 아니니 `.next/dev/types` 를 지우고 다시 돌리면 된다.
-

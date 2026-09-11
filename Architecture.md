@@ -1000,7 +1000,8 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 | `/oem/<slug>`             | OEM 회사별 차종 판매 — **↓ 상세**                                  |
 | `/parts-top100`           | 부품사 TOP100 (Marklines 매핑)                                     |
 | `/humanoid`               | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
-| `/humanoid/reports`       | 로봇 보고서 (`posts` category='로봇' 고정)                         |
+| `/humanoid/reports`       | 로봇 보고서 (`posts` category='로봇' 고정) — **↓ 상세**            |
+| `/humanoid/reports/[id]`  | 로봇 보고서 상세 (`PostDetail` 공용)                               |
 | `/humanoid/research`      | 증권사 리포트 (`research_reports`) — **↓ 상세**                    |
 | `/humanoid/research/[id]` | 리포트 상세 (요약 마크다운)                                        |
 | `/hansae`                 | 한세그룹 대시보드 + intraday                                       |
@@ -1030,9 +1031,21 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - 🔴 **제품군 11종의 정본은 `product_category_map`**(`lib/types.ts` 의 `ROBOT_PRODUCT_CATEGORIES` 는 UI 사본). **카테고리를 늘릴 때 정규화 결과값을 raw 키로도 넣을 것** — 함정 4종(왕복 뭉갬·자동 페이지 매핑·`data_source` NOT NULL·트랜잭션 롤백) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「휴머노이드 기업 데이터 함정」.
 - 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
 
+#### `/humanoid/reports` 상세
+
+`posts` 중 `category='로봇'` 만 본다. 목록·상세 모두 `/reports` 와 **같은 컴포넌트**를 쓴다
+(`components/reports/post-list.tsx` · `components/reports/post-detail.tsx`). 약속만:
+
+- 🔴 **로봇 글은 `/reports` 목록에서 감춘다**(사용자 지시 2026-09-11 "로봇 관련된 것은 다 휴머노이드로"). 카테고리 문자열·제목 판정의 SSOT 는 **`lib/reports/robot.ts`** — 페이지마다 다시 박으면 한쪽만 고쳐져 글이 두 곳에서 동시에 사라지거나 동시에 나타난다.
+- 🔴 제외는 `PostRepository.list({ excludeCategory })` 가 `category is null OR category <> '로봇'` 으로 편다. **`.neq()` 단독으로 바꾸지 말 것** — `NULL <> '로봇'` 은 참이 아니라 카테고리가 빈 글(실측 5건)까지 조용히 사라진다.
+- 🔴 새 글의 카테고리는 LLM 이 제목 한 줄로 고르는데(`classifyCategory`), **제목에 로봇어가 있으면 `isRobotTitle()` 이 LLM 을 건너뛰고 로봇으로 고정한다.** 분류가 새면 그 글은 휴머노이드에 영영 안 나오는데 오류도 로그도 없다.
+- 목록·상세 컴포넌트는 `basePath` 를 인자로 받는다. **하드코딩하지 말 것** — 정렬 헤더가 `/reports` 로 튄다.
+
 #### `/humanoid/research` 상세
 
-목록(`components/humanoid/research-list.tsx`) + 상세(`app/humanoid/research/[id]`, `MarkdownView` 재사용). 약속만:
+목록(`components/humanoid/research-list.tsx` — **보고서 게시판과 같은 표 UI**, 리포트 1건 = 1행) + 상세(`app/humanoid/research/[id]`, `MarkdownView` 재사용). 약속만:
+
+- 🔴 **필터·페이지 넘김은 클라이언트에서 건다**(사용자 결정 2026-09-11). URL 파라미터로 옮기면 증권사×종목×기간×페이지 조합마다 `'use cache'` 엔트리가 쌓여 ISR Write 한도가 다시 문제가 된다 → [`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md).
 
 - 🔴 **선별은 수집 단계에서 끝난다** — `scripts/lib/naver_research.py` 의 `is_relevant()` 에 걸리지 않는 리포트는 **저장 자체를 안 한다**(화면에서만 걸러 두면 지운 행이 다음 수집에 되살아난다). **두 번 뒤집힌 판정이니 함수 docstring 을 읽고 고칠 것.**
 - 🔴 목표주가는 `parse_target_price()` 경유 · 요약 저장 전 `clean_summary()` 통과 → 경위·수치 = [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「증권사 리포트 수집 함정」.
@@ -1079,7 +1092,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
   - `lib/pnl/` · `lib/plan/` · `lib/inventory/` · `lib/personnel/` · `lib/finance/` · `lib/org-chart/` — **전부 사외비**라 `confidentialDb` 경유 필수.
   - `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
-  - `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 (증권사, 대상) 묶음으로 접는다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
+  - `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 발행일 내림차순 평면 목록으로 내려준다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
 
     **`research_reports` 컬럼 주의(2026-08-25 개편)** — 요약 규격이 「세 꼭지·900~1,500자」에서 `report.md` §3 과 같은 「6~10섹션·3,000~6,000자」로 바뀌었다(실측 산출물 8,000자대). 그에 따라 컬럼 둘이 붙었다.
 

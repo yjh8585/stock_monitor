@@ -46,6 +46,8 @@
     "react-hook-form": "^7.74.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
     "remark-cjk-friendly": "^2.1.0",
     "remark-gfm": "^4.0.1",
     "shadcn": "^4.5.0",

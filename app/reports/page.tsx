@@ -9,6 +9,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccessConfidentialReports, canPublishReports } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
+import { ROBOT_CATEGORY } from '@/lib/reports/robot';
 import type { PostSourceType } from '@/lib/reports/types';
 
 const PAGE_SIZE = 20;
@@ -76,11 +77,13 @@ async function getPostsListData(args: ListArgs) {
       order: args.order,
       sourceType: args.sourceType,
       category: args.category,
+      // 로봇 글은 휴머노이드 전용이라 게시판 목록에서 뺀다(사용자 지시 2026-09-11).
+      excludeCategory: ROBOT_CATEGORY,
       sourceName: args.sourceName,
       search: args.search,
       includeConfidential: args.includeConfidential,
     }),
-    repo.getDistinctCategories(args.includeConfidential),
+    repo.getDistinctCategories(args.includeConfidential, ROBOT_CATEGORY),
     repo.getDistinctSourceNames(args.includeConfidential),
   ]);
   return { rows, total, categories, sourceNames };

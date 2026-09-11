@@ -4,8 +4,9 @@
  * 원천은 `research_reports`(네이버 증권 리서치). 수집은 scripts/collect_naver_research.py,
  * 요약은 scripts/summarize_naver_research.py 가 채운다.
  *
- * 묶음(그룹) 단위는 **(증권사, 대상)** 이다 — 같은 증권사가 같은 종목을 이어 다룬 흐름이라야
- * "직전 대비 무엇이 바뀌었나"(delta 요약)가 성립하기 때문이다. 화면도 그 단위로 접는다.
+ * 목록은 **리포트 1건 = 1행** 인 평면 표다(사용자 결정 2026-09-11 — 보고서 페이지 UI 로 통일).
+ * 같은 증권사가 같은 종목을 이어 다룬 흐름은 상세 페이지의 「이전 리포트」(`getResearchDetail`
+ * 의 `siblings`)가 그대로 보여 준다 — 목록에서 접는 일만 없앴다.
  */
 import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
@@ -53,22 +54,9 @@ export interface ResearchReportFull extends ResearchReportRow {
   images: ResearchFigure[];
 }
 
-export interface ResearchGroup {
-  /** `${broker}|${targetName}` — 리스트 key 로 쓴다 */
-  key: string;
-  broker: string;
-  targetName: string;
-  ticker: string | null;
-  /** 우리가 추적하는 휴머노이드 종목인가 */
-  tracked: boolean;
-  /** 가장 최근 리포트 */
-  latest: ResearchReportRow;
-  /** 그 아래 이력 (최신순, latest 제외) */
-  history: ResearchReportRow[];
-}
-
 export interface ResearchData {
-  groups: ResearchGroup[];
+  /** 화면에 오르는 리포트 — 발행일 내림차순 평면 목록 */
+  rows: ResearchReportRow[];
   /** 필터 드롭다운용 증권사 목록 */
   brokers: string[];
   /** 필터 드롭다운용 대상(종목·업종) 목록 — 리포트가 많은 순 (사용자 지시 2026-08-25) */
@@ -174,40 +162,6 @@ function mapRowFull(r: RawRowFull): ResearchReportFull {
   return { ...mapRow(r), summary: r.summary, images: mapFigures(r.images) };
 }
 
-/** 행 목록을 (증권사, 대상) 묶음으로 접는다. 각 묶음 안은 최신순. */
-export function groupReports(rows: ResearchReportRow[]): ResearchGroup[] {
-  const byKey = new Map<string, ResearchReportRow[]>();
-
-  for (const row of rows) {
-    const broker = row.broker ?? '(미상)';
-    const key = `${broker}|${row.targetName}`;
-    const bucket = byKey.get(key);
-    if (bucket) bucket.push(row);
-    else byKey.set(key, [row]);
-  }
-
-  const groups: ResearchGroup[] = [];
-  for (const [key, bucket] of byKey) {
-    // 발행일 내림차순. 날짜가 없는 것은 뒤로 민다.
-    bucket.sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
-    const [latest, ...history] = bucket;
-    if (!latest) continue;
-    groups.push({
-      key,
-      broker: latest.broker ?? '(미상)',
-      targetName: latest.targetName,
-      ticker: latest.ticker,
-      tracked: bucket.some((r) => r.companyId !== null),
-      latest,
-      history,
-    });
-  }
-
-  // 묶음끼리도 최신순 — 방금 나온 리포트가 위로 온다.
-  groups.sort((a, b) => (b.latest.publishedAt ?? '').localeCompare(a.latest.publishedAt ?? ''));
-  return groups;
-}
-
 /** `research_reports` 전량 fetch — Cache Components 적용 (cacheLife='hours'). */
 export async function getResearchData(): Promise<ResearchData> {
   'use cache';
@@ -231,14 +185,14 @@ export async function getResearchData(): Promise<ResearchData> {
 
   if (error) {
     // 화면을 통째로 죽이지 않는다 — 빈 목록으로 떨어뜨리고 로그만 남긴다.
-    return { groups: [], brokers: [], targets: [], total: 0, summarized: 0 };
+    return { rows: [], brokers: [], targets: [], total: 0, summarized: 0 };
   }
 
   const rows = ((data ?? []) as unknown as RawRow[]).map(mapRow);
   const brokers = [...new Set(rows.map((r) => r.broker).filter((b): b is string => !!b))].sort();
 
   return {
-    groups: groupReports(rows),
+    rows,
     brokers,
     targets: listTargets(rows),
     // total 은 수집된 전량, summarized 는 그중 화면에 오른 것 — 「144건 중 60건 정리」로 읽힌다.

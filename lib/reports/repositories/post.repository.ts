@@ -61,6 +61,12 @@ export class PostRepository {
       order?: 'asc' | 'desc';
       sourceType?: PostSourceType;
       category?: string;
+      /**
+       * 이 카테고리는 목록에서 뺀다. `/reports` 가 로봇 글을 감출 때 쓴다
+       * (로봇은 `/humanoid` 전용 — 사용자 지시 2026-09-11).
+       * `category` 와 함께 넘어와도 제외가 이긴다 → `?category=로봇` 으로 직접 들어와도 안 보인다.
+       */
+      excludeCategory?: string;
       sourceName?: string;
       search?: string;
       includeConfidential?: boolean;
@@ -78,6 +84,12 @@ export class PostRepository {
 
     if (options?.sourceType) query = query.eq('source_type', options.sourceType);
     if (options?.category) query = query.eq('category', options.category);
+    // 🔴 제외가 지정(`category`)보다 뒤에 온다 — 순서를 바꾸면 `?category=로봇` 이 살아난다.
+    // 🔴 `.neq()` 단독으로 쓰지 말 것 — SQL 에서 `NULL <> '로봇'` 은 참이 아니라 UNKNOWN 이라
+    //    카테고리가 비어 있는 글(실측 5건)까지 조용히 사라진다. `is null` 을 OR 로 함께 편다.
+    if (options?.excludeCategory) {
+      query = query.or(`category.is.null,category.neq.${options.excludeCategory}`);
+    }
     if (options?.sourceName) query = query.eq('source_name', options.sourceName);
     // 제목 부분 일치 검색(대소문자 무시). supabase-js 가 값을 URL 인코딩하므로 특수문자 안전.
     if (options?.search) query = query.ilike('title', `%${options.search}%`);
@@ -96,8 +108,16 @@ export class PostRepository {
     return { rows: (data ?? []) as PostListRow[], total: count ?? 0 };
   }
 
-  /** 필터 드롭다운용 카테고리 목록 (NULL 제외, 가나다 정렬) */
-  async getDistinctCategories(includeConfidential = false): Promise<string[]> {
+  /**
+   * 필터 드롭다운용 카테고리 목록 (NULL 제외, 가나다 정렬).
+   *
+   * `excludeCategory` 를 넘기면 그 카테고리는 드롭다운에도 안 뜬다 — 목록에서만 감추고
+   * 드롭다운에 남겨 두면 「고를 수는 있는데 0건」이 되어 고장으로 보인다.
+   */
+  async getDistinctCategories(
+    includeConfidential = false,
+    excludeCategory?: string
+  ): Promise<string[]> {
     const { data, error } = await this.reader(includeConfidential)
       .from(POSTS_TABLE)
       .select('category')
@@ -105,6 +125,7 @@ export class PostRepository {
       .order('category', { ascending: true });
     if (error) throw error;
     const set = new Set((data ?? []).map((r: { category: string | null }) => r.category as string));
+    if (excludeCategory) set.delete(excludeCategory);
     return [...set];
   }
 

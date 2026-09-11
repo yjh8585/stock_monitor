@@ -2,6 +2,7 @@ import logger from '@/lib/logger';
 import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
 import type { CreatePostInput } from '@/lib/reports/dto/post.dto';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
+import { ROBOT_CATEGORY, isRobotTitle } from '@/lib/reports/robot';
 import type { PostInsert, PostRow } from '@/lib/reports/types';
 
 import { analyzeReportPdf } from './report-pdf.service';
@@ -56,8 +57,16 @@ async function triggerYoutubeReportWorkflow(
   }
 }
 
-/** 제목 기반으로 카테고리를 Claude로 분류. 실패 시 null 반환. */
+/**
+ * 제목 기반으로 카테고리를 Claude로 분류. 실패 시 null 반환.
+ *
+ * 🔴 로봇만은 LLM 판정에 맡기지 않는다(사용자 결정 2026-09-11). 로봇 글은 `/humanoid` 에서만
+ *    보이는데, 분류기가 「기술」·「시장」으로 골라 버리면 그 글은 **엉뚱한 쪽에만** 남는다 —
+ *    오류도 로그도 없는 조용한 실패다. 그래서 제목에 로봇어가 있으면 API 를 부르기 전에
+ *    고정한다(요금도 아낀다).
+ */
 async function classifyCategory(title: string): Promise<string | null> {
+  if (isRobotTitle(title)) return ROBOT_CATEGORY;
   try {
     const client = getAnthropicClient();
     const r = await client.messages.create({
