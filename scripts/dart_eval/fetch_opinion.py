@@ -44,11 +44,30 @@ from bs4 import BeautifulSoup  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 SM = os.path.dirname(os.path.dirname(HERE))
 AGENTS = os.path.join(os.path.dirname(SM), "agents")
-LEDGER = os.path.join(AGENTS, "docs", "data", "ma-valuation-params.json")
 VAULT = os.environ.get(
     "MANAGEMENT_VAULT_DIR",
     r"C:\Users\junghwan.yoon\workspace\3.옵시디언\20_경영")
-OUT_DIR = os.path.join(VAULT, "지식", "_추출", "dart-eval")
+
+# ── 갈래 ────────────────────────────────────────────────────────────────
+# 🔴 **산출 폴더를 반드시 가른다.** agents `scripts/ma-deal-note-todo.py` 가
+#    `_추출/dart-eval/` 을 통째로 훑어 「아직 안 쓴 딜」을 세는데, 합병 본문을 같은 곳에 두면
+#    타법인증권 후보로 섞여 든다(같은 레포의 알려진 실패 모드 — 「원재료 폴더를 합치면
+#    한쪽 정리본이 다른 쪽 기사를 먹는다」).
+# 🔴 결과 파일도 가른다 — 합치면 「이미 받은 건」 집계와 점수 통계가 두 갈래에 걸쳐 뭉개진다.
+LANES = {
+    "eval": {
+        "ledger": "ma-valuation-params.json",
+        "out": "dart-eval",
+        "result": "fetch_opinion_result.json",
+        "title": "외부평가의견서",
+    },
+    "merger": {
+        "ledger": "ma-merger-dart.json",
+        "out": "dart-merger",
+        "result": "fetch_merger_result.json",
+        "title": "합병 외부평가의견서",
+    },
+}
 # 누적 버킷 카운터는 agents 레포의 문서 데이터로 둔다(결정 11 — 산출은 agents).
 AGENTS_DATA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -229,14 +248,22 @@ def main() -> None:
     ap.add_argument("--rcps", default="",
                     help="🔴 접수번호를 쉼표로 직접 지정한다(버킷 선정을 건너뛴다). "
                          "같은 거래의 매도·매수 양면처럼 **특정 사례를 겨냥해** 받을 때 쓴다")
+    ap.add_argument("--lane", choices=sorted(LANES), default="eval",
+                    help="🔴 갈래. `merger` 는 대장·산출폴더·결과파일이 «전부» 다르다 — "
+                         "섞으면 합병 본문이 타법인증권 딜 후보로 잡힌다")
     args = ap.parse_args()
 
-    led = json.load(io.open(LEDGER, encoding="utf-8"))
+    lane = LANES[args.lane]
+    ledger_path = os.path.join(AGENTS, "docs", "data", lane["ledger"])
+    out_dir = os.path.join(VAULT, "지식", "_추출", lane["out"])
+    print(f"갈래 {args.lane} · 대장 {lane['ledger']} · 산출 _추출/{lane['out']}/")
+
+    led = json.load(io.open(ledger_path, encoding="utf-8"))
 
     # 🔴 이미 받은 건을 **후보 선정 전에** 걷어낸다.
     #    고른 뒤에 거르면 주간 cron 이 매주 같은 상위 후보를 골라 전부 건너뛰고
     #    영원히 0건이 된다 — 새로 들어온 딜이 후보에 오르지 못한다.
-    res_path = os.path.join(HERE, "fetch_opinion_result.json")
+    res_path = os.path.join(HERE, lane["result"])
     done = {}
     if os.path.exists(res_path):
         done = {r["rcp"]: r for r in json.load(io.open(res_path, encoding="utf-8"))}
@@ -269,7 +296,7 @@ def main() -> None:
                   f"{'의견○' if c.get('opinion') else '의견-'}  {c.get('deal_amount_raw', '')[:28]}")
         return
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
     results = list(done.values())
     for i, c in enumerate(cands, 1):
         rcp = c["rcp"]
@@ -299,7 +326,10 @@ def main() -> None:
         #    게이트(G3 2만자 등)는 「산업 지식을 뽑을 만큼 두꺼운가」를 보는 장치인데,
         #    양면 비교·소형 딜·소수지분처럼 **특정 사례를 겨냥해 받는 건**은 목적이 다르다.
         #    실제로 메타랩스(초록뱀미디어 거래의 상대편)가 17,592자로 탈락해 버려질 뻔했다.
-        gate = not args.rcps
+        # 🔴 합병 갈래도 게이트를 끈다 — G4 가 「DCF 가 본문에 있나」를 보는데, 합병 평가는
+        #    자본시장법상 **기준시가·본질가치**로 하고 DCF 를 안 쓰는 것이 정상이다.
+        #    켜 두면 멀쩡한 합병 의견서를 통째로 「G4탈락」으로 버린다.
+        gate = not args.rcps and args.lane == "eval"
         if kind != "HTML" or n == 0:
             rec["verdict"] = f"G2탈락-{kind}"
         elif gate and n < MIN_CHARS:
@@ -310,9 +340,9 @@ def main() -> None:
             rec.update(score(txt, ntab, c.get("deal_mn")))
             rec["verdict"] = "채택후보"
             safe = re.sub(r'[<>:"/\\|?*]', "-", c["corp"])[:20]
-            with io.open(os.path.join(OUT_DIR, f"{rcp}_{safe}.md"), "w",
+            with io.open(os.path.join(out_dir, f"{rcp}_{safe}.md"), "w",
                          encoding="utf-8", newline="\n") as f:
-                f.write(f"# {c['corp']} — 외부평가의견서\n\n"
+                f.write(f"# {c['corp']} — {lane['title']}\n\n"
                         f"- 접수번호: {rcp} (첨부 rcpNo {rcp_att})\n"
                         f"- 공시일: {c['dt']} · 보고서: {c['report_nm']}\n"
                         f"- 업종(KSIC): {c.get('induty', '')} · 버킷 {c['bucket']}\n"
@@ -337,7 +367,7 @@ def main() -> None:
             print(f"  {r['total']:3d}  {r['bucket']}  {r['corp'][:14]:<14} "
                   f"{r['chars']:>7,}자  민감도{'O' if r.get('has_sensitivity') else 'X'} "
                   f"WACC항목{r.get('wacc_terms', 0)}")
-    print(f"\n본문 저장: {OUT_DIR}")
+    print(f"\n본문 저장: {out_dir}")
 
     # ── 주간 cron 이 읽을 실행별 요약 ──────────────────────────────
     # 🔴 누적 파일(fetch_opinion_result.json)에서 세면 매주 같은 숫자가 나온다.
