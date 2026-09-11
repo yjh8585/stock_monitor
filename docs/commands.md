@@ -33,6 +33,7 @@ scripts/venv/Scripts/python.exe scripts/verify_revalidate_tags.py # cacheTag ↔
 scripts/venv/Scripts/python.exe scripts/verify_report_sort_wiring.py # PostList 화면이 정렬 searchParams 를 배선했는가
 scripts/venv/Scripts/python.exe scripts/verify_financials_sanity.py # 재무 이상치(영업이익>매출·단위 오인·미확인 급변·source 누락)
 scripts/venv/Scripts/python.exe scripts/verify_call_contracts.py # 수집기 호출 계약(시그니처 불일치·튜플 반환을 스칼라로 받음)
+scripts/venv/Scripts/python.exe scripts/verify_news_relevance.py # 뉴스가 «그 회사 기사» 인가(보통명사 사명 오염)
 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q         # 순수 함수 회귀
 python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 규칙 (venv 아닌 시스템 python)
 ```

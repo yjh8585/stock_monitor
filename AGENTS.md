@@ -53,13 +53,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 "무슨 명령이었지" 싶으면 **거기부터**: npm 검사 · Python 상시 검사 6종 · E2E · 워크플로·배포 확인.
 
 어기면 조용히 깨지는 것만 여기 남긴다.
+🔴 **아래 `verify_*` 는 전부 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다.
 
-- 🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다. **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(마지막을 빠뜨리면 수집이 성공해도 그 화면은 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
-- 🔴 **`verify_report_sort_wiring.py` 는 exit 0 이 정상** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**. 값을 박으면 링크만 생기고 목록은 안 바뀌는 「죽은 버튼」이 된다(2026-09-11 `/humanoid/reports` 실사고).
-- 🔴 **`verify_financials_sanity.py` 는 exit 0 이 정상** — 재무 수집기를 고쳤으면 돌린다. 「미확인 급변」은 DART 원문과 대조한 뒤 **근거와 함께** `VERIFIED_JUMPS` 에 넣는다.
-- 🔴 **`verify_call_contracts.py` 는 exit 0 이 정상** — 공용 헬퍼의 **반환형·시그니처를 바꿨으면** 돌린다. `except` 안의 회귀는 실패가 아니라 **침묵**이다(2026-09-11: 튜플로 바꿔 수집기 3곳이 조용히 죽었다).
+- **`verify_revalidate_tags.py`** — **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(빠뜨리면 수집이 성공해도 그 화면이 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
+- **`verify_report_sort_wiring.py`** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**. 값을 박으면 링크만 생기고 목록은 안 바뀐다(2026-09-11 `/humanoid/reports` 실사고).
+- **`verify_financials_sanity.py`** — 재무 수집기를 고쳤으면 돌린다. 「미확인 급변」은 DART 원문과 대조한 뒤 **근거와 함께** `VERIFIED_JUMPS` 로.
+- **`verify_call_contracts.py`** — 공용 헬퍼의 **반환형·시그니처를 바꿨으면** 돌린다. `except` 안의 회귀는 실패가 아니라 **침묵**이다(튜플로 바꿔 수집기 3곳이 조용히 죽었다).
+- **`verify_news_relevance.py`** — 뉴스 수집 질의를 고쳤으면 돌린다. 보통명사 사명은 남의 기사를 통째로 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 실측 70% → [`gotchas-data-collection.md`](./docs/gotchas-data-collection.md)).
 - 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
-- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착 · **exit 0 이 정상**) + `scripts/verify_yt_report.py --run <산출물>`(**exit 0 이 정상**). 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다 → [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)
+- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착) + `scripts/verify_yt_report.py --run <산출물>`. 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다 → [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)
 - 🔴 **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
 
 ## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
