@@ -32,6 +32,7 @@ Step 1 실측 (2026-08-28 · 산돌→윤디자인 20240531002991 dcmNo=9974759)
 """
 
 import argparse
+import datetime as _dt
 import json
 import os
 import re
@@ -62,6 +63,10 @@ VAULT = os.environ.get(
     "MANAGEMENT_VAULT_DIR",
     r"C:\Users\junghwan.yoon\workspace\3.옵시디언\20_경영")
 OUT_DIR = Path(VAULT) / "지식" / "_추출" / "dart-contract"
+# 🔴 「계약서 첨부가 없는 공시」를 적어 둔다 — 안 적으면 매 회차 다시 물어본다.
+#    실측 2026-09-11: 후보 880건 중 첨부 보유는 302건(34.4%)뿐이고, 나머지 577건에
+#    매주 네트워크 요청을 되풀이해 약 19분을 쓰고 산출은 0건이었다.
+NO_ATT = OUT_DIR / "_no-attachment.json"
 
 S = requests.Session()
 S.headers.update({
@@ -255,6 +260,25 @@ def n_missing(folder: Path) -> int:
     return len(meta["missing"])
 
 
+def load_no_attachment() -> dict:
+    """계약서 첨부가 없다고 이미 확인된 공시들. 실패해도 비어 있는 것으로 본다."""
+    if not NO_ATT.exists():
+        return {}
+    try:
+        return json.loads(NO_ATT.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        print(f"  ⚠️ {NO_ATT.name} 를 못 읽었다 — 없는 것으로 보고 진행한다")
+        return {}
+
+
+def remember_no_attachment(rcp: str, corp: str, why: str) -> None:
+    """🔴 「없다」를 기록한다. 안 적으면 다음 회차가 같은 요청을 다시 보낸다."""
+    d = load_no_attachment()
+    d[rcp] = {"corp": corp, "why": why, "checked": _dt.date.today().isoformat()}
+    NO_ATT.parent.mkdir(parents=True, exist_ok=True)
+    NO_ATT.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def fetch_one(row: dict) -> dict | None:
     """공시 1건의 계약서 첨부를 폴더 하나로 내려받는다. 대상 없거나 건너뛰면 None."""
     rcp, corp = row["rcp"], row.get("corp")
@@ -275,9 +299,11 @@ def fetch_one(row: dict) -> dict | None:
 
     pairs = att_pairs(rcp)
     if not pairs:
+        remember_no_attachment(rcp, corp, "첨부 목록이 비었다")
         return None
     targets = [p for p in pairs if CONTRACT_RE.search(p[0])]
     if not targets:
+        remember_no_attachment(rcp, corp, "첨부는 있으나 「계약서(계획서)」가 없다")
         return None
     att_name, att_rcp, dcm = targets[0]
 
@@ -411,6 +437,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=5, help="내려받을 공시 수(기본 5 — 시험용)")
     ap.add_argument("--offset", type=int, default=0, help="대장 최신본 목록에서 건너뛸 수")
+    ap.add_argument("--recheck", action="store_true",
+                    help="🔴 「첨부 없음」 기록을 무시하고 다시 물어본다"
+                         "(역추적으로 채운 기록에는 뷰어 실패가 섞여 있을 수 있다)")
     ap.add_argument("--rcp", default=None, help="쉼표로 구분한 rcpNo — 지정하면 그것만")
     ap.add_argument("--renumber", action="store_true",
                     help="이미 받은 폴더의 페이지 순서만 다시 매긴다(네트워크 0회)")
@@ -434,6 +463,13 @@ def main() -> int:
     else:
         pool = pool[args.offset:]
 
+    skip = {} if args.recheck else load_no_attachment()
+    if skip and not args.rcp:
+        before = len(pool)
+        pool = [r for r in pool if r["rcp"] not in skip]
+        if before != len(pool):
+            print(f"「계약서 첨부 없음」으로 이미 확인된 {before - len(pool)}건은 건너뛴다 "
+                  f"(기록 = {NO_ATT.name})")
     print(f"대장 {len(rows)}행 · 최신본 후보 {len(pool)}건 · 간격 {GAP}초")
     print(f"출력: {OUT_DIR}\n")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
