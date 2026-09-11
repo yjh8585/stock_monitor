@@ -181,22 +181,37 @@ def main() -> int:
     ap.add_argument("--report-kw", default=None, help="report_nm 에 이 말이 든 공시만")
     ap.add_argument("--seed", type=int, default=20260828)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--rcps-file", default=None,
+                    help="이 JSON 의 rcp 목록만 «전량» 훑는다(표본 추출을 건너뛴다)")
     args = ap.parse_args()
 
-    rows = json.loads(LEDGER.read_text(encoding="utf-8"))
-    if isinstance(rows, dict):
-        rows = rows.get("rows") or next(iter(rows.values()))
-    pool = [r for r in rows if r.get("is_latest")]
+    # 🔴 `--rcps-file` 은 **다른 대장**의 건을 훑기 위한 길이다(2026-09-11 신설).
+    #    이 스크립트의 LEDGER 는 지분 인수 대장(`ma-valuation-params.json`) 으로 박혔 있는데,
+    #    합병 대장(`ma-merger-dart.json`) 의 「거래소 서식」 행에는 **외부평가 칸이 아예 없어**
+    #    첨부 목록을 봐야만 평가의견서 유무를 안다. 대장을 바꾸는 대신 목록을 밖에서 받는다.
+    #    ⚠️ 표본이 아니라 **전량**이다 — `--n` 은 무시된다.
+    if args.rcps_file:
+        rows = json.loads(Path(args.rcps_file).read_text(encoding="utf-8"))
+        pool = rows
+    else:
+        rows = json.loads(LEDGER.read_text(encoding="utf-8"))
+        if isinstance(rows, dict):
+            rows = rows.get("rows") or next(iter(rows.values()))
+        pool = [r for r in rows if r.get("is_latest")]
     if args.report_kw:
         pool = [r for r in pool if args.report_kw in (r.get("report_nm") or "")]
     tag = args.report_kw or "all"
-    print(f"대장 {len(rows)}행 · 최신본 {len(pool)}건" + (f" · '{args.report_kw}' 필터" if args.report_kw else ""))
+    src = args.rcps_file or "대장"
+    print(f"{src} {len(rows)}행 · 대상 {len(pool)}건" + (f" · '{args.report_kw}' 필터" if args.report_kw else ""))
     if not pool:
         print("대상 0건 — report_nm 값을 확인할 것")
         return 1
 
-    random.seed(args.seed)
-    sample = random.sample(pool, min(args.n, len(pool)))
+    if args.rcps_file:
+        sample = pool          # 🔴 표본이 아니라 전량이다
+    else:
+        random.seed(args.seed)
+        sample = random.sample(pool, min(args.n, len(pool)))
 
     if args.body_kw:
         return probe_bodies(sample, args.body_kw, args.body_limit)
