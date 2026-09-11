@@ -166,7 +166,7 @@ export default function OemDashboard({
 
       <Section
         title="TOP10 OEM × TOP10 국가 매트릭스"
-        subtitle={`OEM이 어느 국가에서 강한가 (${tgtYr}년)`}
+        subtitle={`OEM이 어느 국가에서 강한가 (${tgtYr}년) · 중국 열은 내수+수출 합계`}
       >
         <OemCountryHeatmap data={oemCountryMatrix} />
       </Section>
