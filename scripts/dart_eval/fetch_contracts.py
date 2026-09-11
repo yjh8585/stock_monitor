@@ -34,6 +34,7 @@ Step 1 실측 (2026-08-28 · 산돌→윤디자인 20240531002991 dcmNo=9974759)
 import argparse
 import datetime as _dt
 import json
+from datetime import datetime
 import os
 import re
 import sys
@@ -216,6 +217,11 @@ def viewer_html(att_rcp: str, dcm: str) -> str | None:
 SAFE_RE = re.compile(r'[\\/:*?"<>|]+')
 
 
+def _now_iso() -> str:
+    """수집 시각(로컬 시간). 함수로 둔 것은 시험에서 바꿔 끼우기 쉽게 하려고다."""
+    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def safe(name: str) -> str:
     return SAFE_RE.sub("_", (name or "unknown")).strip() or "unknown"
 
@@ -347,6 +353,12 @@ def fetch_one(row: dict) -> dict | None:
         "att_name": att_name,
         "att_rcp": att_rcp,
         "dcm_no": dcm,
+        # 🔴 **수집 시각**을 값으로 남긴다(2026-09-11 신설).
+        #    종전에는 «파일 mtime» 말고는 언제 받았는지 알 길이 없었다.
+        #    그러면 「신규 수집분만 판독」 같은 분기가 백로그까지 집어삼킨다 —
+        #    한꺼번에 받은 묶음은 mtime 이 전부 같은 날이기 때문이다.
+        #    ⚠️ 이미 받아 둔 폴더에는 이 칸이 없다 — 없으면 mtime 으로 대신할 것.
+        "fetched_at": _now_iso(),
         "n_expected": len(urls),
         # 🔴 빠진 장을 여기 남긴다. 비어 있지 않으면 다음 실행이 **건너뛰지 않고 다시 시도**한다.
         #    계약서는 한 장이 빠지면 그 조항이 통째로 사라진다 — 「받음」으로 굳히면 안 된다.
