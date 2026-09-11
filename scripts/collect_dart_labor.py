@@ -79,10 +79,13 @@ def _all_sub_doc_urls(dart, rcpt_no: str) -> list[str]:
     docs = _with_retry(dart.sub_docs, rcpt_no, _deadline=60, _silence_stdout=True)
   except Exception as e:
     logger.warning(f'sub_docs 실패 (rcpNo={rcpt_no}): {e} — main.do fallback 사용')
-    fb = _fallback_viewer_url(rcpt_no)
+    # 🔴 `_fallback_viewer_url` 은 **(url, 연결여부) 튜플**이다(2026-09-11 변경).
+    #    튜플을 그대로 담으면 `if fb` 는 «비어 있지 않아» 통과하고, URL 자리에 튜플이
+    #    들어가 뒤에서야 터진다 — 조용히 0건이 되는 경로다.
+    fb, _cons = _fallback_viewer_url(rcpt_no)
     return [fb] if fb else []
   if docs is None or docs.empty:
-    fb = _fallback_viewer_url(rcpt_no)
+    fb, _cons = _fallback_viewer_url(rcpt_no)
     return [fb] if fb else []
 
   def length(u: str) -> int:
