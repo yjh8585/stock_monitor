@@ -755,7 +755,18 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
     return out
 
   # 1순위: 감사보고서
-  candidates = _scan(lambda rpt: '감사보고서' in rpt)
+  # 🔴 **「감사보고서제출」은 감사보고서가 아니다**(2026-09-11 실측). 상장사가 내는
+  #    «제출했다는 알림» 공시로, 연도 표기가 없어 제출일 추정에 의존하게 되고 첨부가
+  #    별도재무제표뿐인 경우가 있다. 이것을 1순위로 집으면 사업보고서(연결 포함)로
+  #    폴백하지 못한다 — 상장사 FY2021~22 보강이 전부 별도로 들어간 원인이었다.
+  #    ⚠️ 「기타경영사항(자율공시)(감사보고서 제출 지연)」처럼 **제목 안에 '감사보고서'가
+  #    스쳐 지나가는** 공시도 걸린다(화승코퍼레이션 FY2021 실측) — 재무제표가 없어 결국
+  #    빈손이 되므로 종류를 밝히는 앞머리로 배제한다.
+  candidates = _scan(
+    lambda rpt: '감사보고서' in rpt
+    and '감사보고서제출' not in rpt
+    and '기타경영사항' not in rpt
+  )
 
   # 2순위 fallback: 연간 사업보고서 (분기·반기 제외)
   if not candidates:
@@ -791,6 +802,11 @@ _VIEWDOC_RE = re.compile(
 )
 
 
+# 재무제표 «본문» 으로 인정할 최소 길이. 「해당사항 없음」 한 줄짜리 껍데기가 128~132B
+# 였고 실제 본문은 수만 B 다(2026-09-11 실측). 표 하나도 이 값보다 크다.
+_MIN_STATEMENT_LENGTH = 2_000
+
+
 def _pick_statement_node(nodes: list) -> tuple | None:
   """main.do 좌측 트리 노드 중 재무제표 '본문' 노드를 선택한다.
 
@@ -815,11 +831,26 @@ def _pick_statement_node(nodes: list) -> tuple | None:
     if any(k in _norm(n[0]) for k in stmt_kw)
     and not any(x in _norm(n[0]) for x in exclude)
   ]
-  return max(stmt or nodes, key=_length)
+  # 🔴 **연결이 있으면 연결을 고른다**(2026-09-11 신설). 정책이 「연결 우선, 종속회사가
+  #    없을 때만 별도」인데(AGENTS.md), 상장사 사업보고서에는 연결과 별도가 «둘 다» 들어
+  #    있고 별도 쪽이 더 길 때가 있다. 길이만 보면 별도를 집어, 종속회사가 많은 회사에서
+  #    매출이 통째로 작아진다(화승코퍼레이션 FY2021 실측: 별도 777억 vs 연결 약 1.5조).
+  #
+  # 🔴 단 **빈 껍데기 연결 노드를 조심할 것.** 종속회사가 없는 회사는 「2.연결재무제표」를
+  #    «해당사항 없음» 한 줄로 남긴다 — 일진하이솔루스 FY2021 실측에서 그 노드가 len=128
+  #    이었고, 그걸 집는 바람에 「테이블 없음」으로 수집이 통째로 실패했다(실제 내용은
+  #    `4.재무제표` len=55,404). 그래서 **내용이 있는 연결만** 후보로 본다.
+  consolidated = [
+    n for n in stmt if '연결' in _norm(n[0]) and _length(n) >= _MIN_STATEMENT_LENGTH
+  ]
+  return max(consolidated or stmt or nodes, key=_length)
 
 
-def _fallback_viewer_url(rcpt_no: str) -> str | None:
-  """main.do 좌측 트리를 직접 파싱해 재무제표 본문 viewer URL을 만든다.
+def _fallback_viewer_url(rcpt_no: str) -> tuple[str | None, bool]:
+  """`(본문 viewer URL, 고른 노드가 «연결» 인가)`.
+
+  🔴 연결 여부를 **실제로 고른 노드 제목**으로 판정한다(2026-09-11). 보고서명만 보면
+  상장사 사업보고서에는 '연결' 이라는 말이 없어 **연결 본문을 읽고도 별도로 기록**된다.
 
   OpenDartReader.sub_docs는 DART main.do 형식 변경으로 정규식 미스매치 시 라이브러리
   내부에서 NameError(dart_utils.py 'url' 미정의)를 던지므로 의존하지 않고 직접 파싱한다."""
@@ -828,30 +859,31 @@ def _fallback_viewer_url(rcpt_no: str) -> str | None:
     r = _with_retry(_session.get, url, timeout=(10, 30), _deadline=60)
   except Exception as e:
     logger.warning(f'fallback main.do 요청 실패 (rcpNo={rcpt_no}): {e}')
-    return None
+    return None, False
 
   nodes = _TREE_NODE_RE.findall(r.text)
   if nodes:
     picked = _pick_statement_node(nodes)
     text, rcp, dcm, ele, off, lng, dtd = picked
     logger.info(f'트리 본문 선택 (rcpNo={rcpt_no}): eleId={ele} length={lng} text={text}')
+    picked_consolidated = '연결' in re.sub(r'\s+', '', text or '')
     return (
       f'http://dart.fss.or.kr/report/viewer.do?'
       f'rcpNo={rcp}&dcmNo={dcm}&eleId={ele}&offset={off}&length={lng}&dtd={dtd}'
-    )
+    ), picked_consolidated
 
   m = _VIEWDOC_RE.search(r.text)
   if not m:
     logger.warning(f'fallback: 트리/viewDoc 모두 못 찾음 (rcpNo={rcpt_no})')
-    return None
+    return None, False
   rcp, dcm, ele, off, lng, dtd = m.groups()
   return (
     f'http://dart.fss.or.kr/report/viewer.do?'
     f'rcpNo={rcp}&dcmNo={dcm}&eleId={ele}&offset={off}&length={lng}&dtd={dtd}'
-  )
+  ), False
 
 
-def _get_main_doc_url(dart, rcpt_no: str) -> str | None:
+def _get_main_doc_url(dart, rcpt_no: str) -> tuple[str | None, bool]:
   """재무제표 본문 viewer URL을 반환한다 (main.do 트리 직접 파싱, 주석 배제·본문 우선).
 
   OpenDartReader.sub_docs는 DART main.do 형식 변경으로 정규식 미스매치 시 라이브러리
@@ -906,7 +938,7 @@ def _collect_company(
       continue
 
     logger.info(f'{corp_code} {year}년: rcpNo={rcept_no} | {report_nm}')
-    doc_url = _get_main_doc_url(dart, rcept_no)
+    doc_url, node_is_cons = _get_main_doc_url(dart, rcept_no)
     if not doc_url:
       logger.warning(f'{corp_code} {year}년: 문서 URL 없음')
       continue
@@ -924,7 +956,8 @@ def _collect_company(
       logger.warning(f'{corp_code} {year}년: 재무 데이터 파싱 실패')
       continue
 
-    consolidation = 'consolidated' if is_cons else 'separate'
+    # 보고서명에 '연결' 이 있거나(비상장 연결감사보고서) 실제로 연결 본문을 읽었으면 연결이다.
+    consolidation = 'consolidated' if (is_cons or node_is_cons) else 'separate'
 
     # 당기(year) 행
     row: dict = {
