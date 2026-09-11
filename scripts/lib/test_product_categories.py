@@ -19,6 +19,7 @@ from lib.product_categories import (  # noqa: E402
     ROBOT_ONLY_CATEGORIES,
     category_guide,
     split_domains,
+    violates_boundary,
 )
 
 # 2026-09-11 DB 실측값(`select distinct normalized from product_category_map`) — 22종.
@@ -75,6 +76,39 @@ class CategoryGuideTest(unittest.TestCase):
         for text in (category_guide(ALL), category_guide(ALL, {'엔진': ['배기']})):
             self.assertIn('기타', text)
             self.assertIn('가전', text)
+
+
+class BoundaryGuardTest(unittest.TestCase):
+    """사용자가 정한 경계 규칙(2026-09-11)을 LLM 이 어겼을 때 기계가 잡는가."""
+
+    def test_조명과_와이퍼는_전장이_아니면_막는다(self):
+        self.assertIsNotNone(violates_boundary('헤드램프', '안전'))
+        self.assertIsNotNone(violates_boundary('와이퍼 블레이드', '기타'))
+        self.assertIsNotNone(violates_boundary('실내외 조명', '내장'))
+
+    def test_조명과_와이퍼가_전장이면_통과(self):
+        self.assertIsNone(violates_boundary('헤드램프', '전장'))
+        self.assertIsNone(violates_boundary('와이퍼 모터', '전장'))
+
+    def test_클램프는_램프가_아니다(self):
+        """🔴 실측 오탐 — 정규식 `램프` 가 「호스 «클»램프」에 부분일치했다.
+        한국어에는 단어 경계가 없어 `\\b` 로는 못 막는다."""
+        self.assertIsNone(violates_boundary('호스 클램프', '기타'))
+        self.assertIsNone(violates_boundary('클램프', '차체'))
+
+    def test_차량용_반도체를_기타로_내리면_막는다(self):
+        self.assertIsNotNone(violates_boundary('전력 반도체', '기타'))
+        self.assertIsNotNone(violates_boundary('애플리케이션 프로세서', '기타'))
+
+    def test_반도체가_용도별_칸으로_가는_것은_통과(self):
+        """기본은 전장이되 용도가 분명하면 그 칸으로 — 사용자 결정."""
+        self.assertIsNone(violates_boundary('각도 자기 인코더 IC', '위치센서'))
+        self.assertIsNone(violates_boundary('RA Arm Cortex-M MCU', '제어AI칩'))
+        self.assertIsNone(violates_boundary('전력 반도체', '전장'))
+
+    def test_규칙과_무관한_제품은_건드리지_않는다(self):
+        self.assertIsNone(violates_boundary('브레이크 디스크', '제동'))
+        self.assertIsNone(violates_boundary('냉장고', '기타'))
 
 
 if __name__ == '__main__':

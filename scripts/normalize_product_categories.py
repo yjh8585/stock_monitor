@@ -30,6 +30,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -47,6 +48,7 @@ from lib.product_categories import (  # noqa: E402
   fetch_category_examples,
   fetch_product_categories,
   split_domains,
+  violates_boundary,
 )
 
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -123,7 +125,71 @@ def _classify(llm, tool: dict, company: dict, names: list[str]) -> dict[int, str
   return {}
 
 
+def _apply_saved_diff(w) -> None:
+  """dry-run 이 남긴 diff 를 «그대로» DB 에 반영한다 (LLM 재호출 없음).
+
+  🔴 **적용 시점에 LLM 을 다시 부르면 안 된다.** 모델은 비결정적이라 사용자가 검토한
+  것과 다른 결과가 들어간다 — 「본 것과 적용된 것이 다른」 가장 나쁜 실패다.
+  그래서 apply 는 저장된 diff 만 읽는다.
+  """
+  if not DIFF_PATH.exists():
+    sys.exit(f'{DIFF_PATH.name} 이 없다 — 먼저 dry-run 을 돌려 검토할 것.')
+  saved = json.loads(DIFF_PATH.read_text(encoding='utf-8'))
+  if saved.get('applied'):
+    logger.warning('이 diff 는 이미 반영된 기록이다 — 다시 돌리면 같은 값을 덮어쓴다(무해).')
+
+  by_company = {c['company']: c['items'] for c in saved.get('changes', [])}
+  rows = (
+    w.table('companies').select('id,name,name_kr,products')
+    .eq('status', 'active').execute().data or []
+  )
+  index = {(r.get('name_kr') or r.get('name')): r for r in rows}
+
+  applied = skipped_guard = missing = 0
+  guard_log: list[str] = []
+  for label, items in by_company.items():
+    row = index.get(label)
+    if not row or not isinstance(row.get('products'), list):
+      missing += 1
+      continue
+    wanted = {}
+    for it in items:
+      reason = violates_boundary(it['product'] or '', it['to'])
+      if reason:
+        skipped_guard += 1
+        guard_log.append(f"  {label} · {it['product']}: {reason} → 기존 값 유지")
+        continue
+      wanted[it['product']] = it['to']
+    if not wanted:
+      continue
+
+    new_products, changed = [], 0
+    for p in row['products']:
+      item = dict(p or {})
+      target = wanted.get(item.get('name'))
+      # 🔴 dry-run 이후 값이 이미 바뀌었으면 건드리지 않는다(남의 수집이 지나갔을 수 있다).
+      if target and item.get('category') != target:
+        item['category'] = target
+        changed += 1
+      new_products.append(item)
+    if changed:
+      w.table('companies').update({'products': new_products}).eq('id', row['id']).execute()
+      applied += changed
+
+  if guard_log:
+    logger.info(f'경계 규칙 위반 {skipped_guard}건을 걸렀다:')
+    for line in guard_log[:20]:
+      logger.info(line)
+  logger.info(f'반영 {applied}건 · 경계 가드로 제외 {skipped_guard}건 · 회사 못 찾음 {missing}개사')
+  saved['applied'] = True
+  DIFF_PATH.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
 def _main_in_session(w, args) -> None:
+  if args.apply:
+    _apply_saved_diff(w)
+    return
+
   categories = fetch_product_categories(w)
   examples = fetch_category_examples(w)
   auto_cats, robot_cats = split_domains(categories)
@@ -206,9 +272,6 @@ def _main_in_session(w, args) -> None:
     for ch in company_changes[:4]:
       logger.info(f"    {ch['product']}: {ch['from']} → {ch['to']}")
 
-    if args.apply:
-      w.table('companies').update({'products': new_products}).eq('id', c['id']).execute()
-
   DIFF_PATH.write_text(
     json.dumps(
       {'applied': bool(args.apply), 'companies': changed_companies, 'changes': changes},
@@ -224,7 +287,10 @@ def _main_in_session(w, args) -> None:
 
 def main() -> None:
   ap = argparse.ArgumentParser()
-  ap.add_argument('--apply', action='store_true', help='실제 DB 반영 (기본은 dry-run)')
+  ap.add_argument(
+    '--apply', action='store_true',
+    help='저장된 _product_category_diff.json 을 그대로 DB 에 반영 (LLM 재호출 없음)',
+  )
   ap.add_argument('--limit', type=int, default=0, help='앞 N개사만')
   args = ap.parse_args()
 

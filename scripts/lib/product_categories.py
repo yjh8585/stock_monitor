@@ -20,6 +20,8 @@ category 를 아예 안 넣었고, 넣는 하나(`enrich_products_customers_sonn
 
 from __future__ import annotations
 
+import re
+
 # 목록 밖 값은 트리거가 '기타' 로 떨어뜨리므로, LLM 에게 이 사실을 그대로 알려 준다.
 _GUIDE_TAIL = (
   "자동차 부품도 로봇 부품도 아닌 제품(가전·휴대폰·화학·금융·의류·식품 등)은 "
@@ -40,6 +42,27 @@ _BOUNDARY_RULES = (
   "단 EGR·터보차저처럼 «연소에 직접 관여» 하는 것은 '엔진' 입니다.\n"
   "- 배터리 하우징·케이스·팩·BMS 는 '배터리' 입니다. 차량용이 아닌 배터리(IT기기용 등)는 '기타'."
 )
+
+
+# 🔴 `램프` 를 그냥 쓰면 「호스 **클램프**」가 걸린다(2026-09-11 실측 오탐). 한국어에는
+#    단어 경계가 없으므로 앞 글자를 직접 배제한다 — 정규식 `\b` 는 한글에 무동작이다.
+_LIGHTING_RE = re.compile(r'(?<![클])램프|조명|라이팅|라이트|와이퍼|워셔', re.I)
+_SEMICON_RE = re.compile(r'반도체|칩\b|프로세서|MCU|SoC|GaN|SiC|IC\b', re.I)
+
+
+def violates_boundary(product: str, to: str) -> str | None:
+  """`_BOUNDARY_RULES` 를 어긴 분류인가. 어겼으면 이유, 아니면 None.
+
+  🔴 **LLM 은 규칙의 9할만 지킨다.** 규칙을 프롬프트에 넣어도 3차 실측에서 「와이퍼 블레이드
+  → 기타」·「전력 반도체 → 기타」처럼 어긴 것이 19건 남았다. 기계로 한 번 더 거른다.
+
+  🔴 어긴 **변경만 버린다**(기존 값을 그대로 둔다) — 억지로 다른 값을 씌우지 않는다.
+  """
+  if _LIGHTING_RE.search(product or '') and to != '전장':
+    return f"조명·와이퍼는 '전장' 인데 '{to}' 로 보냈다"
+  if _SEMICON_RE.search(product or '') and to == '기타':
+    return "차량용 반도체를 '기타' 로 내렸다"
+  return None
 
 
 def fetch_product_categories(client) -> list[str]:
