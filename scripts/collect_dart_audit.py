@@ -666,8 +666,33 @@ def _score_report(report_nm: str, rcept_dt: str) -> tuple[int, str]:
   return (score, rcept_dt)
 
 
+# 보고서명에 박힌 회계연도 — '감사보고서 (2022.12)' · '[기재정정]연결감사보고서 (2021.12)'.
+_STATED_FY_RE = re.compile(r'\((\d{4})\.(\d{2})\)')
+
+
+def _stated_fiscal_year(report_nm: str) -> int | None:
+  """보고서명이 «스스로 밝힌» 회계연도. 없으면 None.
+
+  🔴 이것이 있으면 제출일 추정보다 **항상 우선**한다. 제출일 추정은 정정 공시 앞에서
+  무력하기 때문이다 — 2025년 11월에 낸 `[기재정정]감사보고서 (2022.12)` 를 제출일로
+  재면 FY2025 가 되어, 진짜 FY2025 보고서를 제치고 3년 전 실적이 적재된다
+  (2026-09-11 실측: 세진 FY2025 → 2022 정정본 · 동희하이테크 FY2025 → 2023 정정본).
+  """
+  m = _STATED_FY_RE.search(report_nm or '')
+  if not m:
+    return None
+  year, month = int(m.group(1)), int(m.group(2))
+  if not 1 <= month <= 12:
+    return None
+  return year
+
+
 def _infer_fiscal_year_from_rcept(rcept_dt: str) -> int | None:
-  """rcept_dt(YYYYMMDD)에서 회계연도 추정. 1~6월 제출이면 N-1, 7~12월이면 N."""
+  """rcept_dt(YYYYMMDD)에서 회계연도 추정. 1~6월 제출이면 N-1, 7~12월이면 N.
+
+  ⚠️ **보고서명에 연도가 있으면 쓰지 말 것** — `_stated_fiscal_year` 가 우선이다.
+  이 함수는 연도를 안 밝힌 보고서에만 쓰는 마지막 수단이다.
+  """
   if not rcept_dt or len(rcept_dt) != 8:
     return None
   try:
@@ -715,9 +740,15 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
       rcept_dt = str(row.get('rcept_dt', ''))
       if not predicate(rpt):
         continue
-      year_match = str(fiscal_year) in rpt
-      inferred = _infer_fiscal_year_from_rcept(rcept_dt)
-      if not year_match and inferred != fiscal_year:
+      # 🔴 보고서가 연도를 밝혔으면 그것만 믿는다. 다르면 «무조건» 버린다 —
+      #    옛 코드는 `str(fiscal_year) in rpt` 가 거짓이어도 제출일 추정이 우연히
+      #    맞으면 후보로 넣었고, `[기재정정]` 가산점(+4)이 정답을 이겨 3년 전 실적이
+      #    최신 연도로 적재됐다(2026-09-11 실측 · 경위 = docs/gotchas-data-collection.md).
+      stated = _stated_fiscal_year(rpt)
+      if stated is not None:
+        if stated != fiscal_year:
+          continue
+      elif _infer_fiscal_year_from_rcept(rcept_dt) != fiscal_year:
         continue
       score = _score_report(rpt, rcept_dt)
       out.append((score, rcept_no, rpt, '연결' in rpt))

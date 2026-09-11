@@ -9,6 +9,7 @@
 사용:
   TARGET_NAMES="한세모빌리티" python scripts/enrich_products_customers_sonnet.py
 """
+import copy
 import json
 import os
 import re
@@ -26,6 +27,7 @@ import anthropic  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 from lib.db import WriteSession  # noqa: E402
+from lib.product_categories import category_guide, fetch_product_categories  # noqa: E402
 
 # 사용자 정책 (2026-05-12): Sonnet 비용 우려로 Haiku 4.5 사용.
 DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
@@ -45,7 +47,10 @@ TOOL_EXTRACT = {
                     'type': 'object',
                     'properties': {
                         'name': {'type': 'string', 'description': '제품/사업 명 (한국어)'},
-                        'category': {'type': 'string', 'description': '대분류 (예: 구동계, 조향, 제동, 전장)'},
+                        # 🔴 enum·description 은 DB 정본으로 «실행 시» 채운다 → `_with_categories`.
+                        #    목록을 안 주면 LLM 이 자유 문자열을 만들고 트리거가 전부 '기타' 로
+                        #    떨어뜨린다(2026-09-11 실측 — '기타' 1,860건의 주 원인).
+                        'category': {'type': 'string', 'description': '대분류'},
                     },
                     'required': ['name'],
                 },
@@ -136,7 +141,21 @@ def fetch_text(page, c, llm=None):
     return combined
 
 
-def extract(llm, text: str, name_kr: str, description: str | None = None) -> dict | None:
+def _with_categories(categories: list[str]) -> dict:
+    """도구 스키마에 카테고리 enum 을 «실행 시» 주입한다(정본 = DB).
+
+    🔴 목록을 이 파일에 박지 않는다 — `lib/product_categories.py` 의 설명 참조.
+    """
+    tool = copy.deepcopy(TOOL_EXTRACT)
+    prop = tool['input_schema']['properties']['products']['items']['properties']['category']
+    prop['enum'] = categories
+    prop['description'] = category_guide(categories)
+    return tool
+
+
+def extract(
+    llm, text: str, name_kr: str, description: str | None = None, tool: dict | None = None
+) -> dict | None:
     """검색 텍스트 + (선택) description을 LLM 입력으로 사용.
     description은 1차 출처(fnguide/yfinance/홈페이지) 기반이라 거래처 명시가 많음.
     """
@@ -155,7 +174,7 @@ def extract(llm, text: str, name_kr: str, description: str | None = None) -> dic
     resp = llm.messages.create(
         model=DEFAULT_MODEL,
         max_tokens=2048,
-        tools=[TOOL_EXTRACT],
+        tools=[tool or TOOL_EXTRACT],
         tool_choice={'type': 'tool', 'name': 'submit_products_customers'},
         messages=[{'role': 'user', 'content': prompt}],
     )
@@ -181,6 +200,8 @@ def main():
 
 
 def _main_in_session(w, target: set[str], api_key: str) -> None:
+    # 카테고리 정본은 DB 다 — 목록을 못 읽으면 여기서 멈춘다(조용히 옛 동작으로 돌아가지 않게).
+    tool = _with_categories(fetch_product_categories(w))
     rows = w.table('companies').select('id,name_kr,name,country,homepage_url,customers,products,business_summary,company_type').eq('status', 'active').execute().data
     only_empty_customers = os.environ.get('ONLY_EMPTY_CUSTOMERS', '').strip() == '1'
     only_empty_products = os.environ.get('ONLY_EMPTY_PRODUCTS', '').strip() == '1'
@@ -231,7 +252,7 @@ def _main_in_session(w, target: set[str], api_key: str) -> None:
                         logger.warning(f'  텍스트 부족 + description 부족 — 스킵')
                         continue
                 # description을 LLM 입력에 포함 — 거래처/제품 추출 누락 방지
-                result = extract(llm, text, name, description=desc)
+                result = extract(llm, text, name, description=desc, tool=tool)
                 if not result:
                     logger.warning('  Sonnet 응답 없음')
                     continue

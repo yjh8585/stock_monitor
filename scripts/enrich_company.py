@@ -28,6 +28,7 @@
   MODEL           Anthropic 모델 (default claude-haiku-4-5-20251001)
 """
 import argparse
+import copy
 import os
 import re
 import sys
@@ -44,6 +45,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 from collect_financials import _fetch_company_financials, _process_yf_frames  # noqa: E402
 from lib.db import WriteSession, upsert_rows  # noqa: E402
 from lib.financial_sources import SOURCE_WEB_SEARCH  # noqa: E402
+from lib.product_categories import category_guide, fetch_product_categories  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
 DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
@@ -80,7 +82,14 @@ META_TOOL = {
       'business_summary': {'type': 'string', 'description': '한국어 100~250자 1-2문장'},
       'products': {
         'type': 'array',
-        'items': {'type': 'object', 'properties': {'name': {'type': 'string'}}, 'required': ['name']},
+        # 🔴 category 의 enum·description 은 DB 정본으로 «실행 시» 채운다 → `_meta_tool_with_categories`.
+        #    옛 스키마는 name 만 받았고, 그러면 트리거가 **무조건 '기타'** 로 박는다
+        #    (2026-09-11 실측 — '기타' 1,860건의 주 원인이 바로 이 자리였다).
+        'items': {
+          'type': 'object',
+          'properties': {'name': {'type': 'string'}, 'category': {'type': 'string'}},
+          'required': ['name'],
+        },
       },
       'customers': {
         'type': 'array',
@@ -390,7 +399,19 @@ def _valuation_payload(c: dict, res: dict) -> dict:
 
 
 # ── 메타 보강 ─────────────────────────────────────────────────────────────
-def _enrich_meta(llm, c: dict) -> dict | None:
+def _meta_tool_with_categories(categories: list[str]) -> dict:
+  """META_TOOL 에 카테고리 enum 을 «실행 시» 주입(정본 = DB `product_category_map`).
+
+  🔴 목록을 이 파일에 박지 않는다 — `lib/product_categories.py` 의 설명 참조.
+  """
+  tool = copy.deepcopy(META_TOOL)
+  prop = tool['input_schema']['properties']['products']['items']['properties']['category']
+  prop['enum'] = categories
+  prop['description'] = category_guide(categories)
+  return tool
+
+
+def _enrich_meta(llm, c: dict, tool: dict | None = None) -> dict | None:
   # 비상장사에만 기업가치를 묻는다. 상장사는 market_cap 이 정본이라 물어봐야 잡음만 는다.
   is_unlisted = not c.get('market')
   valuation_ask = (
@@ -404,7 +425,8 @@ def _enrich_meta(llm, c: dict) -> dict | None:
     f"For '{c['name']}' (Korean: {c['name_kr']}, country: {c.get('country','')}):\n"
     f"1) business_summary: 100-250자 **한국어** 1-2문장 (사업 영역/주력 시장/특징). "
     f"🔴 영어로 쓰지 말 것 — 영문 사명·제품명은 그대로 두되 문장은 한국어여야 한다.\n"
-    f"2) products: 4-6개 주력 제품 (한국어 명사구 우선)\n"
+    f"2) products: 4-6개 주력 제품 (한국어 명사구 우선). 🔴 각 제품에 category 를 반드시 붙일 것 "
+    f"— 허용값은 submit_company_meta 스키마의 enum 뿐이고, 그 밖의 값은 저장할 때 '기타' 로 버려진다.\n"
     f"3) customers: 3-5개 주요 고객사\n"
     f"4) homepage_url: 회사 공식 홈페이지 URL (https:// 포함, 추정 금지 — 웹검색에서 확인된 URL만; 모르면 null)\n"
     f"{valuation_ask}"
@@ -415,7 +437,7 @@ def _enrich_meta(llm, c: dict) -> dict | None:
       model=DEFAULT_MODEL, max_tokens=4096,
       tools=[
         {'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 3},
-        META_TOOL,
+        tool or META_TOOL,
       ],
       messages=[{'role': 'user', 'content': prompt}],
     )
@@ -428,7 +450,7 @@ def _enrich_meta(llm, c: dict) -> dict | None:
     if '429' in msg or 'rate_limit' in msg:
       logger.warning(f'  rate limit — 60s 대기')
       time.sleep(60)
-      return _enrich_meta(llm, c)
+      return _enrich_meta(llm, c, tool)
     logger.error(f'  메타 실패: {e}')
     return None
 
@@ -450,6 +472,8 @@ def main() -> None:
 
 
 def _main_in_session(w, args, target_tickers: set[str]) -> None:
+  # 카테고리 정본은 DB 다 — 못 읽으면 여기서 멈춘다(조용히 옛 동작으로 돌아가지 않게).
+  meta_tool = _meta_tool_with_categories(fetch_product_categories(w))
   targets = _load_targets(w, args.page, target_tickers)
   if not targets:
     logger.warning('대상 회사 없음')
@@ -525,7 +549,7 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
       meta_updated = 0
       for i, c in enumerate(missing_meta, 1):
         logger.info(f'[meta {i}/{len(missing_meta)}] {c["name_kr"]}')
-        res = _enrich_meta(llm, c)
+        res = _enrich_meta(llm, c, meta_tool)
         if not res or res.get('confidence') == 'low':
           continue
         payload = {}
