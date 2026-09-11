@@ -1,12 +1,17 @@
 """lib.naver_research 단위 테스트.
 
 실행:
-  scripts/venv/Scripts/python.exe scripts/lib/test_naver_research.py
+  scripts/venv/Scripts/python.exe -m pytest scripts/lib/test_naver_research.py
 
-픽스처는 2026-08-24 에 실제로 받은 페이지에서 그대로 잘라 왔다.
-🔴 특히 `<td>` 6칸 구조를 고정해 둔다 — 계획서는 5칸이라 적었고, 5칸으로 짜면
-   에러 없이 조용히 0건이 되기 때문에 테스트가 없으면 아무도 못 잡는다.
+🔴 **2026-09-12 전면 교체.** 네이버 금융이 Next.js 로 개편돼 HTML 목록이 사라졌고
+   모바일 JSON API 로 갈아탔다. 옛 픽스처(`<td>` 6칸 표)는 더 이상 실물이 아니라 지웠다.
+   아래 픽스처는 **2026-09-12 에 실제로 받은 응답**을 그대로 잘라 온 것이다.
+
+🔴 양방향으로 시험한다 — ①정상 응답을 제대로 읽는지 ②모양이 어긋난 응답에
+   **예외를 던지지 않고 빈 목록**을 주는지. 후자가 「파싱 0건 = 구조 변경」 신호로
+   이어져 수집기가 exit 3 을 내기 때문이다. 예외로 죽으면 그 신호가 안 나온다.
 """
+import json
 import sys
 import unittest
 from datetime import date
@@ -15,237 +20,197 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.naver_research import (  # noqa: E402
+    API_BASE,
     DELTA_MAX_GAP_DAYS,
     KIND_COMPANY,
-    MIN_BODY_TEXT,
     KIND_INDUSTRY,
-    body_text_length,
+    MIN_BODY_TEXT,
     delta_group_key,
-    encode_keyword,
+    detail_body_text,
     has_robot_keyword,
     is_periodic_title,
     is_summary_target,
     list_url,
     normalize_opinion,
-    parse_detail_page,
-    parse_list_page,
+    parse_detail_payload,
+    parse_list_payload,
     parse_target_price,
-    parse_total_pages,
     pick_delta_base,
     read_url,
 )
 
-# 실물에서 잘라 온 종목분석 행 2개 + 인기검색어 표(섞이면 안 되는 것)
-COMPANY_LIST_HTML = """
-<table summary="종목분석 리포트 게시판 글목록" class="type_1">
-  <tr><th>종목명</th><th>제목</th><th>증권사</th><th>첨부</th><th>작성일</th><th>조회수</th></tr>
-  <tr>
-    <td><a href="/item/main.naver?code=108490">로보티즈</a></td>
-    <td><a href="company_read.naver?nid=95812&amp;page=1">액추에이터 시장 확대 최대 수혜주 기대</a></td>
-    <td>미래에셋증권</td>
-    <td><a href="https://stock.pstatic.net/stock-research/company/56/20260824_company_210393000.pdf"></a></td>
-    <td>26.08.24</td>
-    <td>2,364</td>
-  </tr>
-  <tr>
-    <td><a href="/item/main.naver?code=277810">레인보우로보틱스</a></td>
-    <td><a href="company_read.naver?nid=95790&amp;page=1">휴머노이드 위클리 코멘트</a></td>
-    <td>한화투자증권</td>
-    <td></td>
-    <td>26.07.01</td>
-    <td>512</td>
-  </tr>
-</table>
-<table summary="인기검색어 리스트" class="type_r1">
-  <tr><td></td><td><a href="/item/main.naver?code=005930">삼성전자</a></td><td>257,000</td><td></td></tr>
-</table>
-"""
+# 실물 응답(2026-09-12) — 산업분석 2건. 산업분석엔 itemCode 가 없다.
+INDUSTRY_LIST = [
+    {
+        "researchCategory": "산업분석",
+        "category": "철강금속",
+        "researchId": 46043,
+        "title": "신한 자동차/철강금속 Weekly (2026.09.11)",
+        "brokerName": "신한투자증권",
+        "writeDate": "2026-09-11",
+        "readCount": "372",
+        "endUrl": "https://m.stock.naver.com/research/industry/46043",
+    },
+    {
+        "researchCategory": "산업분석",
+        "category": "기타",
+        "researchId": 46041,
+        "title": "안녕하세요 데일리에요(로봇/방산/조선)",
+        "brokerName": "유진투자증권",
+        "writeDate": "2026-09-11",
+        "readCount": "471",
+        "endUrl": "https://m.stock.naver.com/research/industry/46041",
+    },
+]
 
-INDUSTRY_LIST_HTML = """
-<table summary="산업분석 리포트 게시판 글목록" class="type_1">
-  <tr>
-    <td>기타</td>
-    <td><a href="industry_read.naver?nid=45773&amp;page=1">안녕하세요 위클리에요(로봇/방산/조선)</a></td>
-    <td>유진투자증권</td>
-    <td><a href="https://stock.pstatic.net/stock-research/industry/63/20260824_industry_857797000.pdf"></a></td>
-    <td>26.08.24</td>
-    <td>859</td>
-  </tr>
-  <tr>
-    <td>기계</td>
-    <td><a href="industry_read.naver?nid=45700&amp;page=1">휴머노이드 감속기 국산화 점검</a></td>
-    <td>NH투자증권</td>
-    <td><a href="https://stock.pstatic.net/x.pdf"></a></td>
-    <td>26.08.20</td>
-    <td>1,020</td>
-  </tr>
-</table>
-"""
+# 실물 응답(2026-09-12) — 종목분석 1건. 종목분석만 itemCode·itemName 이 온다.
+COMPANY_LIST = [
+    {
+        "researchCategory": "종목분석",
+        "category": "종목분석",
+        "itemCode": "112610",
+        "itemName": "씨에스윈드",
+        "researchId": 96103,
+        "title": "무관심에서 관심의 영역으로",
+        "brokerName": "DS투자증권",
+        "writeDate": "2026-09-11",
+        "readCount": "1956",
+        "endUrl": "https://m.stock.naver.com/research/company/96103",
+    },
+]
 
-# 🔴 계획서가 적었던 5칸 구조(첨부 칸이 없다). 실물이 이렇게 바뀌면 0건이 나와야 한다.
-FIVE_COLUMN_HTML = """
-<table class="type_1">
-  <tr>
-    <td><a href="/item/main.naver?code=108490">로보티즈</a></td>
-    <td><a href="company_read.naver?nid=95812">액추에이터 시장 확대</a></td>
-    <td>미래에셋증권</td>
-    <td>26.08.24</td>
-    <td>2,364</td>
-  </tr>
-</table>
-"""
-
-NNAVI_HTML = """
-<table class="Nnavi" summary="페이지 네비게이션 리스트"><tr>
-  <td><a href="/research/industry_list.naver?page=1">1</a></td>
-  <td><a href="/research/industry_list.naver?page=2">2</a></td>
-  <td><a href="/research/industry_list.naver?page=11">다음</a></td>
-  <td><a href="/research/industry_list.naver?page=21">맨뒤</a></td>
-</tr></table>
-"""
-
-# 🔴 실물 구조 그대로 — 분류/종목명(<em>) + 제목 + 증권사 | 날짜 | 조회수 가 한 덩어리다.
-#    이 구조를 잘못 읽어 제목이 "기타"·"조선" 으로 덮인 사고가 있었다(2026-08-24, 407건 오염).
-DETAIL_HTML = """
-<th class="view_sbj"><em>로보티즈</em> 액추에이터 시장 확대 최대 수혜주 기대 미래에셋증권 | 2026.08.24 | 조회 2,391</th>
-<div class="view_cnt">투자의견: 매수 / 목표주가: 45,000원 으로 상향</div>
-<a href="https://stock.pstatic.net/stock-research/company/56/20260824_company_210393000.pdf">첨부</a>
-"""
-
-DETAIL_INDUSTRY_HTML = """
-<th class="view_sbj"><em>기타</em> 안녕하세요 위클리에요(로봇/방산/조선/항공/해운) - 2026/08/17~2026/08/23 유진투자증권 | 2026.08.24 | 조회 871</th>
-"""
+# 실물 상세 응답의 모양. `researchSummaries` 는 「같은 종목의 다른 리포트」라 안 쓴다.
+DETAIL_COMPANY = {
+    "researchContent": {
+        "itemCode": "112610",
+        "itemName": "씨에스윈드",
+        "researchId": 96103,
+        "title": "무관심에서 관심의 영역으로",
+        "brokerName": "DS투자증권",
+        "writeDate": "2026-09-11",
+        "readCount": "1956",
+        "attachUrl": "https://stock.pstatic.net/stock-research/company/66/20260911_company_146719000.pdf",
+        "content": "<p><strong>투자의견 매수, 목표주가 9.5만원 유지</strong></p><p>미국 타워 물량 회복.</p>",
+    },
+    "researchSummaries": [
+        {"researchId": 95393, "title": "2Q26 Review", "brokerName": "교보증권"},
+    ],
+}
 
 
 class TestUrl(unittest.TestCase):
-    def test_encode_keyword_is_euckr(self):
-        # 🔴 '로봇' 의 EUC-KR 바이트는 B7 CE BA CB 다. UTF-8 이면 %EB%A1%9C... 가 된다.
-        self.assertEqual(encode_keyword("로봇"), "%B7%CE%BA%BF")
-
-    def test_encode_keyword_is_not_utf8(self):
-        self.assertNotIn("%EB", encode_keyword("로봇"))
-
-    def test_list_url_shape(self):
-        u = list_url(KIND_COMPANY, "로봇", 3)
-        self.assertIn("company_list.naver", u)
-        self.assertIn("keyword=%B7%CE%BA%BF", u)
-        self.assertIn("page=3", u)
-        self.assertIn("searchType=keyword", u)
+    def test_list_url_has_no_keyword(self):
+        """🔴 새 API 는 검색을 안 받는다 — keyword 를 붙이면 안 된다(무시되고 전체가 온다)."""
+        url = list_url(KIND_INDUSTRY, page=2, page_size=50)
+        self.assertEqual(url, f"{API_BASE}/industry?page=2&pageSize=50")
+        self.assertNotIn("keyword", url)
 
     def test_read_url_shape(self):
-        self.assertIn("industry_read.naver?nid=45773", read_url(KIND_INDUSTRY, 45773))
+        self.assertEqual(read_url(KIND_COMPANY, 96103), f"{API_BASE}/company/96103")
 
     def test_bad_kind_raises(self):
         with self.assertRaises(ValueError):
-            list_url("bogus", "로봇")
+            list_url("bogus")
         with self.assertRaises(ValueError):
             read_url("bogus", 1)
 
 
 class TestParseList(unittest.TestCase):
-    def test_company_rows_count(self):
-        rows = parse_list_page(COMPANY_LIST_HTML, KIND_COMPANY)
-        # 인기검색어 표의 행이 섞이면 3이 된다.
+    def test_industry_rows(self):
+        rows = parse_list_payload(INDUSTRY_LIST, KIND_INDUSTRY)
         self.assertEqual(len(rows), 2)
+        r = rows[0]
+        self.assertEqual(r["naver_nid"], 46043)
+        self.assertEqual(r["kind"], KIND_INDUSTRY)
+        self.assertEqual(r["broker"], "신한투자증권")
+        self.assertEqual(r["published_at"], date(2026, 9, 11))
+        self.assertEqual(r["view_count"], 372)
+        self.assertIsNone(r["ticker"], "산업분석엔 종목코드가 없다")
+        self.assertEqual(r["target_name"], "철강금속", "산업분석은 분류명이 대상 이름이다")
 
-    def test_company_first_row_fields(self):
-        r = parse_list_page(COMPANY_LIST_HTML, KIND_COMPANY)[0]
-        self.assertEqual(r["naver_nid"], 95812)
-        self.assertEqual(r["target_name"], "로보티즈")
-        self.assertEqual(r["ticker"], "108490")
-        self.assertEqual(r["broker"], "미래에셋증권")
-        self.assertEqual(r["published_at"], date(2026, 8, 24))
-        self.assertEqual(r["view_count"], 2364)
-        self.assertTrue(r["pdf_url"].endswith(".pdf"))
-        self.assertFalse(r["is_periodic"])
+    def test_periodic_flag_is_set_from_title(self):
+        rows = parse_list_payload(INDUSTRY_LIST, KIND_INDUSTRY)
+        self.assertTrue(rows[0]["is_periodic"], "Weekly 는 정기물")
+        self.assertTrue(rows[1]["is_periodic"], "데일리 는 정기물")
 
-    def test_missing_pdf_is_none_not_error(self):
-        r = parse_list_page(COMPANY_LIST_HTML, KIND_COMPANY)[1]
-        self.assertIsNone(r["pdf_url"])
-        self.assertTrue(r["is_periodic"])  # '위클리'
+    def test_company_row_has_ticker(self):
+        r = parse_list_payload(COMPANY_LIST, KIND_COMPANY)[0]
+        self.assertEqual(r["ticker"], "112610")
+        self.assertEqual(r["target_name"], "씨에스윈드")
 
-    def test_industry_has_no_ticker(self):
-        rows = parse_list_page(INDUSTRY_LIST_HTML, KIND_INDUSTRY)
-        self.assertEqual(len(rows), 2)
-        self.assertIsNone(rows[0]["ticker"])
-        self.assertEqual(rows[0]["target_name"], "기타")
+    def test_pdf_url_is_none_in_list(self):
+        """🔴 목록엔 PDF 주소가 없다 — 상세의 attachUrl 에서 채운다."""
+        for rows in (parse_list_payload(INDUSTRY_LIST, KIND_INDUSTRY),
+                     parse_list_payload(COMPANY_LIST, KIND_COMPANY)):
+            self.assertIsNone(rows[0]["pdf_url"])
 
-    def test_five_column_table_yields_nothing(self):
-        # 🔴 계획서가 적었던 5칸 구조. 실물이 그렇게 바뀌면 0건이 나와야 하고,
-        #    수집기는 그 0건을 '구조 변경'으로 보고 종료 코드 3을 낸다.
-        self.assertEqual(parse_list_page(FIVE_COLUMN_HTML, KIND_COMPANY), [])
+    def test_accepts_json_string(self):
+        rows = parse_list_payload(json.dumps(COMPANY_LIST, ensure_ascii=False), KIND_COMPANY)
+        self.assertEqual(len(rows), 1)
 
-    def test_seven_column_table_also_yields_nothing(self):
-        # 칸이 늘어나는 쪽으로 바뀌어도 마찬가지로 0건이어야 한다(조용한 오파싱 방지).
-        seven = FIVE_COLUMN_HTML.replace(
-            "<td>2,364</td>", "<td>2,364</td><td>x</td><td>y</td>"
-        )
-        self.assertEqual(parse_list_page(seven, KIND_COMPANY), [])
+    def test_broken_shapes_yield_empty_not_raise(self):
+        """🔴 예외로 죽으면 «구조 변경» 신호가 안 나온다 — 빈 목록을 줘야 한다."""
+        for bad in ("<html>개편된 페이지</html>", "", None, {}, {"foo": 1}, 42, [None, 3]):
+            self.assertEqual(parse_list_payload(bad, KIND_COMPANY), [], repr(bad))
 
-    def test_no_table_returns_empty(self):
-        self.assertEqual(parse_list_page("<html>없음</html>", KIND_COMPANY), [])
+    def test_rows_without_id_or_title_are_skipped(self):
+        payload = [
+            {"researchId": None, "title": "아이디 없음", "writeDate": "2026-09-11"},
+            {"researchId": 1, "title": "", "writeDate": "2026-09-11"},
+            {"researchId": 2, "title": "정상", "writeDate": "2026-09-11"},
+        ]
+        rows = parse_list_payload(payload, KIND_INDUSTRY)
+        self.assertEqual([r["naver_nid"] for r in rows], [2])
 
     def test_bad_date_becomes_none(self):
-        html = COMPANY_LIST_HTML.replace("26.08.24", "2026-08-24")
-        self.assertIsNone(parse_list_page(html, KIND_COMPANY)[0]["published_at"])
+        rows = parse_list_payload([{"researchId": 9, "title": "t", "writeDate": "몰라"}], KIND_INDUSTRY)
+        self.assertIsNone(rows[0]["published_at"])
 
-
-class TestPagination(unittest.TestCase):
-    def test_last_page_from_nnavi(self):
-        self.assertEqual(parse_total_pages(NNAVI_HTML), 21)
-
-    def test_missing_nnavi_is_one(self):
-        self.assertEqual(parse_total_pages("<html></html>"), 1)
-
-    def test_without_last_link_uses_max_number(self):
-        html = NNAVI_HTML.replace('<td><a href="/research/industry_list.naver?page=21">맨뒤</a></td>', "")
-        self.assertEqual(parse_total_pages(html), 11)
+    def test_old_two_digit_date_still_parses(self):
+        """판본이 섞여 와도 조용히 None 이 되지 않게."""
+        rows = parse_list_payload([{"researchId": 9, "title": "t", "writeDate": "26.08.24"}], KIND_INDUSTRY)
+        self.assertEqual(rows[0]["published_at"], date(2026, 8, 24))
 
 
 class TestDetail(unittest.TestCase):
     def test_detail_fields(self):
-        d = parse_detail_page(DETAIL_HTML, broker="미래에셋증권", target_name="로보티즈")
+        d = parse_detail_payload(DETAIL_COMPANY)
+        self.assertEqual(d["title"], "무관심에서 관심의 영역으로")
         self.assertTrue(d["pdf_url"].endswith(".pdf"))
-        self.assertEqual(d["target_price"], 45000)
         self.assertEqual(d["opinion"], "매수")
-        self.assertEqual(d["title"], "액추에이터 시장 확대 최대 수혜주 기대")
+        self.assertEqual(d["target_price"], 95_000)
+        self.assertGreater(d["body_len"], 0)
 
-    def test_title_is_never_the_category(self):
-        # 🔴 실제로 터진 사고 — 제목이 분류명으로 덮여 407건이 "기타"·"조선" 이 됐다.
-        d = parse_detail_page(DETAIL_INDUSTRY_HTML, broker="유진투자증권", target_name="기타")
-        self.assertNotEqual(d["title"], "기타")
-        self.assertEqual(
-            d["title"], "안녕하세요 위클리에요(로봇/방산/조선/항공/해운) - 2026/08/17~2026/08/23"
-        )
+    def test_body_len_counts_text_not_markup(self):
+        """본문 길이는 태그를 뺀 «읽을 글자» 수여야 한다(MIN_BODY_TEXT 판정에 쓴다)."""
+        d = parse_detail_payload(DETAIL_COMPANY)
+        self.assertLess(d["body_len"], len(DETAIL_COMPANY["researchContent"]["content"]))
+        self.assertIsInstance(MIN_BODY_TEXT, int)
 
-    def test_title_without_broker_hint_still_strips_tail(self):
-        # broker 를 안 넘겨도 '…증권' 꼬리는 잘라야 한다(폴백 경로).
-        d = parse_detail_page(DETAIL_HTML)
-        self.assertEqual(d["title"], "액추에이터 시장 확대 최대 수혜주 기대")
+    def test_detail_body_text_returns_readable_text(self):
+        text = detail_body_text(DETAIL_COMPANY)
+        self.assertIn("미국 타워 물량 회복", text)
+        self.assertNotIn("<p>", text)
 
-    def test_title_keeps_robot_keyword(self):
-        # 제목이 오염되면 핵심어 판정도 함께 무너진다 — 그 연결을 시험으로 묶어 둔다.
-        d = parse_detail_page(DETAIL_INDUSTRY_HTML, broker="유진투자증권", target_name="기타")
-        self.assertTrue(has_robot_keyword(d["title"]))
+    def test_broken_detail_is_empty_not_raise(self):
+        for bad in ("<html>개편</html>", "", None, [], {"researchSummaries": []}):
+            d = parse_detail_payload(bad)
+            self.assertIsNone(d["title"], repr(bad))
+            self.assertIsNone(d["pdf_url"], repr(bad))
+            self.assertEqual(d["body_len"], 0, repr(bad))
+            self.assertEqual(detail_body_text(bad), "", repr(bad))
 
-    def test_target_price_accepts_목표가_form(self):
-        # 🔴 실물 상세 페이지는 「목표주가」가 아니라 **「목표가」**로 적는다.
-        #    이걸 놓쳐 종목분석 194건 중 65건(33.5%)만 채워져 있었다.
-        html = '<div class="view_cnt">목표가 790,000 | 투자의견 매수</div>'
-        d = parse_detail_page(html)
-        self.assertEqual(d["target_price"], 790000)
-        self.assertEqual(d["opinion"], "매수")
-
-    def test_target_price_still_accepts_목표주가_form(self):
-        d = parse_detail_page('<div class="view_cnt">목표주가: 45,000원</div>')
-        self.assertEqual(d["target_price"], 45000)
+    def test_unwrapped_detail_also_works(self):
+        """감싸개 없이 바로 오는 판본 대비."""
+        d = parse_detail_payload(DETAIL_COMPANY["researchContent"])
+        self.assertEqual(d["title"], "무관심에서 관심의 영역으로")
 
     def test_missing_optional_fields_are_none(self):
-        d = parse_detail_page("<html><body>본문만 있다</body></html>")
+        d = parse_detail_payload({"researchContent": {"title": "제목만", "content": "<p>본문</p>"}})
+        self.assertEqual(d["title"], "제목만")
         self.assertIsNone(d["pdf_url"])
         self.assertIsNone(d["target_price"])
         self.assertIsNone(d["opinion"])
-        self.assertIsNone(d["title"])
 
 
 class TestPeriodic(unittest.TestCase):
@@ -300,28 +265,30 @@ class TestSummaryTarget(unittest.TestCase):
         self.assertFalse(is_summary_target(KIND_INDUSTRY, False, "반도체 업황", False))
 
 
-class TestBodyTextLength(unittest.TestCase):
-    """요약 재료가 있나 (2026-08-25 — 신한투자증권 12건이 정리 불가로 남았던 건)."""
+class TestBodyLen(unittest.TestCase):
+    """요약 재료가 있나 (2026-08-25 — 신한투자증권 12건이 정리 불가로 남았던 건).
 
-    def test_counts_only_report_body(self):
-        # 🔴 네비게이션·목록 텍스트는 세면 안 된다. 세면 재료가 없는 글도 통과한다.
-        html = (
-            '<div class="view_cnt">' + ("가" * 400) + "</div>"
-            '<div class="lst">' + ("메뉴 " * 200) + "</div>"
-        )
-        self.assertEqual(body_text_length(html), 400)
+    🔴 옛 판은 상세 HTML 에서 `.view_cnt` 만 골라 셌다. 새 API 는 본문만 따로 주므로
+       그 선별이 필요 없어졌고, 길이는 `parse_detail_payload()['body_len']` 이 준다.
+    """
+
+    def _detail(self, body: str) -> dict:
+        return parse_detail_payload({"researchContent": {"title": "t", "content": body}})
+
+    def test_counts_text_not_markup(self):
+        # 🔴 태그를 세면 재료가 없는 글도 문턱을 넘어 통과한다.
+        body = "<p>" + ("가" * 400) + "</p>"
+        self.assertEqual(self._detail(body)["body_len"], 400)
 
     def test_short_body_is_below_threshold(self):
-        # 신한 실물: `.view_cnt` 에 131자 요지 한 줄뿐 → 요약 불가.
-        html = '<div class="view_cnt">' + ("가" * 131) + "</div>"
-        self.assertLess(body_text_length(html), MIN_BODY_TEXT)
+        # 신한 실물: 요지 한 줄(131자)뿐 → 요약 불가.
+        self.assertLess(self._detail("<p>" + ("가" * 131) + "</p>")["body_len"], MIN_BODY_TEXT)
 
-    def test_missing_node_is_zero(self):
-        self.assertEqual(body_text_length("<html><body>없음</body></html>"), 0)
+    def test_long_body_clears_threshold(self):
+        self.assertGreaterEqual(self._detail("<p>" + ("가" * 350) + "</p>")["body_len"], MIN_BODY_TEXT)
 
-    def test_detail_page_reports_body_len(self):
-        html = '<div class="view_cnt">' + ("가" * 350) + "</div>"
-        self.assertEqual(parse_detail_page(html)["body_len"], 350)
+    def test_missing_content_is_zero(self):
+        self.assertEqual(parse_detail_payload({"researchContent": {"title": "t"}})["body_len"], 0)
 
 
 class TestTargetPrice(unittest.TestCase):

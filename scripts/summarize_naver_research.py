@@ -59,8 +59,10 @@ from lib.db import WriteSession, get_client  # noqa: E402
 from lib.pdf_figures import extract_figures, is_image_body, render_pages  # noqa: E402
 from lib.research_priority import score_report, select_ongoing, select_priority  # noqa: E402
 from lib.naver_research import (  # noqa: E402
+    API_HEADERS,
     DELTA_MAX_GAP_DAYS,
     MIN_BODY_TEXT,
+    detail_body_text,
     is_relevant,
     read_url,
 )
@@ -208,26 +210,24 @@ def collect_figures(row: dict, blob: bytes) -> list[dict]:
 
 
 def fetch_page_text(kind: str, nid: int) -> str:
-    """상세 페이지 본문 텍스트(PDF 폴백)."""
-    from bs4 import BeautifulSoup
+    """상세 API 본문 텍스트(PDF 폴백).
 
-    def _once() -> str:
-        r = requests.get(read_url(kind, nid), headers={"User-Agent": USER_AGENT}, timeout=30)
+    🔴 2026-09-12 — 네이버 개편으로 HTML 상세가 사라져 JSON API 로 갈아탔다.
+       `r.encoding = "euc-kr"` 를 되살리지 말 것(새 API 는 UTF-8 JSON 이다).
+    """
+
+    def _once():
+        r = requests.get(read_url(kind, nid), headers=API_HEADERS, timeout=30)
         r.raise_for_status()
-        r.encoding = "euc-kr"
-        return r.text
+        return r.json()
 
     try:
-        html = with_retry(_once, _label=f"detail {nid}")
+        payload = with_retry(_once, _label=f"detail {nid}")
     except Exception as e:
-        logger.warning(f"상세 페이지 실패 nid={nid}: {e}")
+        logger.warning(f"상세 API 실패 nid={nid}: {e}")
         return ""
 
-    soup = BeautifulSoup(html, "html.parser")
-    node = soup.find("td", class_="view_cnt") or soup.find(class_="view_cnt")
-    if node is not None:
-        return node.get_text("\n", strip=True)
-    return soup.get_text("\n", strip=True)
+    return detail_body_text(payload)
 
 
 def find_delta_base(client, row: dict) -> dict | None:

@@ -563,6 +563,58 @@ UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매�
 
 `collect_naver_research.py` · `summarize_naver_research.py` · `lib/naver_research.py` 를 만들며 실제로 겪은 것들.
 
+### 0. 🔴 2026-09-12 — 네이버 금융이 Next.js 로 개편돼 HTML 수집이 통째로 죽었다
+
+**증상이 착했다.** 수집기가 「목록 파싱 0건 = 구조 변경」을 감지해 **exit 3** 을 내고
+오케스트레이터가 텔레그램 경고까지 보냈다(로그 09-11 15:00:49). 그런데 그 경고를 아무도
+안 봐서 **09-08부터 나흘간 조용히 멈춰 있었다.** 화면에서는 「새 리포트가 없네」로만 보인다.
+
+⚠️ **먼저 「안 돌았다」로 단정하지 말 것.** 스케줄(`NAVER_RESEARCH_CRON` 평일 15:00)은
+멀쩡히 돌고 있었다. 로그는 **agents 레포**(`logs/bot-*.log`)에 있고 UTF-16LE 이라
+그냥 grep 하면 0건이 나온다(전역 규칙 `warn-log-utf16-bash`).
+게다가 메시지가 한국어(「네이버 리포트 수집 종료코드=3」)라 `naver` 로 찾으면 안 걸린다.
+
+**무엇이 바뀌었나**: 같은 URL 이 HTTP 200 에 118KB 를 주는데 `<table class="type_1">` 도
+`nid=` 도 **0회**이고 `_next/static/` 이 박혀 있다. 목록이 HTML 에 없고 클라이언트가
+따로 받아 간다. 차단이 아니라 **진짜 구조 변경**이다.
+
+**개편 범위는 페이지마다 다르다**(2026-09-12 실측):
+
+| 엔드포인트                          | 쓰는 곳                     | 상태                         |
+| ----------------------------------- | --------------------------- | ---------------------------- |
+| `m.stock.naver.com/api/news/stock/` | `collect_news.py`(상장사)   | ✅ 그대로                    |
+| `finance.naver.com/item/sise_day`   | `collect_naver_intraday.py` | ✅ 그대로(euc-kr 옛 페이지)  |
+| `finance.naver.com/research/*_list` | 리서치 3종                  | 🔴 개편 — JSON API 로 이전함 |
+| `finance.naver.com/item/board`      | `collect_naver_board.py`    | 🔴 개편 — **아직 안 고침**   |
+
+🔴 **`collect_naver_board.py`(종목토론)도 같이 죽어 있다**(`naver_board_posts` 최신
+2026-09-10 14:54). 그쪽엔 exit 3 같은 «구조 변경» 신호가 없어서 **조용히** 멈췄다.
+
+**처방 — 모바일 JSON API 로 갈아탔다**:
+
+```
+목록  GET m.stock.naver.com/api/research/{industry|company}?page=1&pageSize=100
+상세  GET m.stock.naver.com/api/research/{industry|company}/{researchId}
+```
+
+- 목록 필드 = `researchId`·`title`·`brokerName`·`writeDate`·`category`(+종목분석만 `itemCode`·`itemName`).
+  **PDF 주소는 목록에 없고** 상세의 `researchContent.attachUrl` 에 있다.
+- 상세 = `{"researchContent": {...}, "researchSummaries": [...]}`.
+  `researchSummaries` 는 「같은 종목의 다른 리포트」라 **이 리포트의 내용이 아니다**.
+- 🔴 **`r.encoding = "euc-kr"` 를 되살리지 말 것** — 옛 HTML 때의 잔재다. 세 스크립트가
+  전부 그 줄을 갖고 있었고, 그대로 두면 JSON 한글이 통째로 깨진다.
+- `m.stock.naver.com` 계열은 **개편에도 멀쩡했다**(뉴스 API 가 그 증거다). 그래서 골랐다.
+
+🔴 **키워드 검색이 사라졌다.** 새 API 는 `keyword`·`query`·`q`·`searchKeyword` 어느
+이름을 줘도 **무시하고 전체 최신 목록**을 준다(넷 다 실측). 그래서 전체를 받아
+`is_relevant()` 로 거른다. ⚠️ **손해는 없다** — 정리본 76건으로 견줘 보니 제목 핵심어로
+72건(94%)이 걸리고 나머지 4건은 전부 종목분석이라 `itemCode` 가 추적 종목이라 잡힌다(**100%**).
+
+⚠️ **대신 상세 요청이 폭증한다.** 전체가 들어오니 처음엔 관련 없는 301건의 상세를 받느라
+**한 회차에 5분 49초**를 썼다. 목록 단계에서 `is_relevant()` 로 먼저 거르자 **2건·6초**가
+됐다(결과는 동일). 이 1차 거름이 안전한 이유는 **새 API 의 목록 제목이 안 잘리기 때문**이다
+— 옛 HTML 목록은 길면 `...` 로 잘려서 목록 제목으로 판정하면 안 됐다(↓ 2번 절).
+
 ### 1. 🔴 상세 페이지 제목이 분류명으로 덮여 407건이 통째로 오염됐다
 
 리포트 상세(`*_read.naver`)의 `.view_sbj` 한 덩어리에 **분류/종목명 + 제목 + 증권사 | 날짜 | 조회수**가
@@ -591,6 +643,10 @@ UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매�
 고친 뒤 **85건**이 됐다(산업분석 37건이 핵심어 판정에서 통째로 빠져 있었다).
 
 ### 2. 🔴 「제목 핵심어」로 거르면 산업분석이 0건이 된다 — 네이버 검색은 본문 기준이다
+
+> ⚠️ **이 절은 2026-09-12 개편으로 전제가 사라졌다**(↑ 0번 절). 이제 검색 자체가 없어서
+> 전체를 받아 제목·`itemCode` 로 거르고, 그 방식으로 정리본 76건을 **100% 재현**한다.
+> 아래는 옛 HTML 시절의 기록이다 — 되돌리려 할 때 왜 그랬는지 알기 위해 남긴다.
 
 계획서는 "산업분석 213건 중 제목 핵심어 30건"이라 적었지만, 실물에서 제목에 로봇·휴머노이드가
 든 산업분석은 **0건**이다. 검색은 제목이 아니라 **본문**을 본다.

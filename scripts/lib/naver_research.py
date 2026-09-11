@@ -1,33 +1,57 @@
 """네이버 증권 리서치(산업분석·종목분석) 파싱 — 순수 함수만.
 
-네트워크를 타지 않는다. HTTP 는 collect_naver_research.py 가 담당하고 여기는
-"받은 HTML 을 어떻게 읽나"만 갖는다. 그래야 테스트가 실물 없이 돈다.
+네트워크를 타지 않는다. HTTP 는 부르는 쪽이 담당하고 여기는 "받은 JSON 을 어떻게
+읽나"만 갖는다. 그래야 테스트가 실물 없이 돈다.
 
-🔴 실물에서 확인한 것 (2026-08-24, 계획서 스케치와 다른 부분):
-  - 목록 행의 `<td>` 는 **6칸**이다: [분류/종목, 제목, 증권사, PDF첨부, 날짜, 조회수].
-    계획서는 5칸이라 적었는데, 5칸으로 짜면 에러 없이 **조용히 0건**이 된다.
-  - `keyword` 는 **EUC-KR 퍼센트 인코딩**이어야 한다. UTF-8 로 보내면 역시 0건.
-  - 종목분석은 첫 칸 링크에 종목코드가 있다(`/item/main.naver?code=108490`).
-    산업분석은 분류명뿐이라 링크가 없다.
-  - 총 페이지 수는 `table.Nnavi` 의 「맨뒤」 링크 `page=N` 에 있다.
+🔴 **2026-09-12 전면 교체 — 네이버 금융이 Next.js 로 개편됐다.**
+   옛 `finance.naver.com/research/*_list.naver` 는 HTTP 200 에 118KB 를 돌려주지만
+   `<table class="type_1">` 도 `nid=` 도 **0회**다. 목록이 HTML 에 없고 클라이언트가
+   따로 받아 간다. 그래서 HTML 파싱을 **모바일 JSON API 로 갈아탔다**:
+
+     목록  GET m.stock.naver.com/api/research/{industry|company}?page=1&pageSize=100
+     상세  GET m.stock.naver.com/api/research/{industry|company}/{researchId}
+
+   이 개편은 **리서치·종목토론만** 덮쳤다. 종목 뉴스(`m.stock.naver.com/api/news/...`)와
+   일별 시세(`item/sise_day.naver`)는 옛 모습 그대로다.
+
+🔴 **키워드 검색이 사라졌다.** 옛 목록은 `keyword=로봇` 으로 좁혀 받았는데, 새 API 는
+   어떤 파라미터 이름을 줘도(`keyword`·`query`·`q`·`searchKeyword`) **무시하고 전체
+   최신 목록**을 준다. 그래서 전체를 받아 `is_relevant()` 로 거른다.
+   ⚠️ 손해가 없음을 실측으로 확인했다 — 정리본 76건 기준 제목 핵심어로 72건(94%)이
+   걸리고, 나머지 4건은 전부 종목분석이라 **`itemCode` 가 추적 종목**이라 잡힌다(100%).
+
+실물에서 확인한 응답 모양:
+  - 목록 = JSON 배열. 필드 `researchId`·`title`·`brokerName`·`writeDate`·`category`
+    (+ 종목분석만 `itemCode`·`itemName`). **PDF 주소는 목록에 없다** — 상세에 있다.
+  - 상세 = `{"researchContent": {...}, "researchSummaries": [...]}`.
+    `researchContent.attachUrl` 이 PDF, `researchContent.content` 가 본문 HTML.
+    `researchSummaries` 는 「같은 종목의 다른 리포트」 목록이라 우리는 안 쓴다.
+  - 제목은 목록에서도 **안 잘린다**(옛 HTML 목록은 길면 `...` 로 잘렸다).
 """
 from __future__ import annotations
 
+import json
 import re
-import urllib.parse
 from datetime import date, timedelta
 from typing import Any
 
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://finance.naver.com/research"
+API_BASE = "https://m.stock.naver.com/api/research"
+
+# 네이버가 봇 취급하지 않도록. Referer 가 없으면 빈 배열을 주는 판본이 있다.
+API_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (stock_monitor research collector)",
+    "Referer": "https://m.stock.naver.com/",
+}
 
 KIND_INDUSTRY = "industry"
 KIND_COMPANY = "company"
 KINDS = (KIND_INDUSTRY, KIND_COMPANY)
 
-# 목록 표 한 페이지에 담기는 행 수(실측 30). 페이지 수 추정에만 쓴다.
-ROWS_PER_PAGE = 30
+# 한 번에 받아 올 행 수. 실측에서 200 까지 그대로 돌려준다.
+# 🔴 키워드로 못 좁히니 전체를 훑어야 한다 — 작게 잡으면 요청 수만 늘어난다.
+PAGE_SIZE = 100
 
 # 델타 요약을 묶을 때 "직전 리포트"로 인정하는 최대 간격.
 # 반년 전 리포트를 기준으로 "변화만" 쓰면 맥락이 끊기므로 자른다.
@@ -54,45 +78,44 @@ ROBOT_KEYWORD_RE = re.compile(
     re.IGNORECASE,
 )
 
-_NID_RE = re.compile(r"nid=(\d+)")
-_CODE_RE = re.compile(r"code=([0-9A-Za-z]+)")
-_PAGE_RE = re.compile(r"page=(\d+)")
 
+def list_url(kind: str, page: int = 1, page_size: int = PAGE_SIZE) -> str:
+    """목록 API 주소.
 
-def encode_keyword(keyword: str) -> str:
-    """검색어를 네이버가 받는 형태로 바꾼다.
-
-    🔴 EUC-KR 로 인코딩해야 한다. 이 사이트는 UTF-8 키워드를 받으면 에러를 내지 않고
-       **빈 결과**를 돌려주므로, 틀렸을 때 "검색 결과가 없나 보다"로 오해하게 된다.
+    🔴 키워드 인자가 없다 — 새 API 는 검색을 받지 않는다(위 모듈 설명 참조).
+       옛 시그니처는 `list_url(kind, keyword, page)` 였다. 부르는 쪽을 함께 고칠 것.
     """
-    return urllib.parse.quote(keyword.encode("euc-kr"))
-
-
-def list_url(kind: str, keyword: str, page: int = 1) -> str:
-    """목록 페이지 주소."""
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}: {kind!r}")
-    return (
-        f"{BASE_URL}/{kind}_list.naver"
-        f"?keyword={encode_keyword(keyword)}&searchType=keyword&page={page}"
-    )
+    return f"{API_BASE}/{kind}?page={page}&pageSize={page_size}"
 
 
 def read_url(kind: str, nid: int) -> str:
-    """리포트 본문 페이지 주소."""
+    """리포트 상세 API 주소."""
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}: {kind!r}")
-    return f"{BASE_URL}/{kind}_read.naver?nid={nid}"
+    return f"{API_BASE}/{kind}/{nid}"
 
 
 def _parse_ymd(text: str) -> date | None:
-    """'26.08.24' → date(2026, 8, 24). 형식이 다르면 None."""
-    m = re.match(r"^\s*(\d{2})\.(\d{2})\.(\d{2})\s*$", text)
-    if not m:
-        return None
-    yy, mm, dd = (int(g) for g in m.groups())
+    """'2026-09-11' → date(2026, 9, 11). 형식이 다르면 None.
+
+    🔴 옛 HTML 목록은 `26.08.24`(두 자리 연도) 였고 새 API 는 `2026-09-11` 이다.
+       둘 다 받는다 — 되돌아갈 일은 없지만, 판본이 섞여 오면 조용히 None 이 되어
+       「전부 옛 글」로 보이고 만회가 통째로 헛돈다.
+    """
+    text = (text or "").strip()
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", text)
+    if m:
+        y, mm, dd = (int(g) for g in m.groups())
+    else:
+        m = re.match(r"^(\d{2})\.(\d{2})\.(\d{2})$", text)
+        if not m:
+            return None
+        yy, mm, dd = (int(g) for g in m.groups())
+        y = 2000 + yy
     try:
-        return date(2000 + yy, mm, dd)
+        return date(y, mm, dd)
     except ValueError:
         return None
 
@@ -103,141 +126,83 @@ def _parse_int(text: str) -> int | None:
     return int(cleaned) if cleaned else None
 
 
-def parse_list_page(html: str, kind: str) -> list[dict[str, Any]]:
-    """목록 페이지 HTML → 행 목록.
+def parse_list_payload(payload: Any, kind: str) -> list[dict[str, Any]]:
+    """목록 API 응답(JSON 배열 또는 그 문자열) → 행 목록.
 
-    🔴 `table.type_1` 안만 본다. 페이지에는 「인기검색어」 표(`type_r1`)도 있어서
-       문서 전체에서 `<tr>` 을 훑으면 그 행이 섞인다(td 4칸이라 지금은 걸러지지만,
-       네이버가 칸 수를 바꾸면 조용히 섞여 들어온다).
+    돌려주는 모양은 옛 HTML 파서와 **같다** — 부르는 쪽을 다시 안 고치려고 맞췄다.
+    단 `pdf_url` 은 여기서 항상 None 이다. 새 목록 API 에 PDF 주소가 없고
+    상세(`attachUrl`)에만 있다.
+
+    🔴 응답이 배열이 아니면 **빈 목록**을 준다(에러를 던지지 않는다). 부르는 쪽이
+       「파싱 0건 = 구조 변경」으로 판정해 exit 3 을 내는 구조라 그쪽에 맡긴다.
     """
-    soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table", class_="type_1")
-    if table is None:
-        return []
-
+    items = _as_items(payload)
     rows: list[dict[str, Any]] = []
-    for tr in table.find_all("tr"):
-        tds = tr.find_all("td")
-        if len(tds) != 6:
+    for it in items:
+        if not isinstance(it, dict):
             continue
-
-        title_a = tds[1].find("a")
-        if title_a is None:
+        nid = it.get("researchId")
+        title = (it.get("title") or "").strip()
+        if nid is None or not title:
             continue
-        href = title_a.get("href") or ""
-        m = _NID_RE.search(href)
-        if not m:
-            continue
-        nid = int(m.group(1))
-
-        # 종목분석은 첫 칸에 종목 링크가 있다(산업분석은 분류명뿐).
-        ticker = None
-        target_a = tds[0].find("a")
-        if target_a is not None:
-            code_m = _CODE_RE.search(target_a.get("href") or "")
-            if code_m:
-                ticker = code_m.group(1)
-
-        pdf_a = tds[3].find("a")
-        pdf_url = pdf_a.get("href") if pdf_a is not None else None
-
-        title = title_a.get_text(strip=True)
+        # 종목분석은 종목코드·종목명이, 산업분석은 분류명(`category`)이 온다.
+        ticker = (it.get("itemCode") or "").strip() or None
+        target_name = (it.get("itemName") or it.get("category") or "").strip()
         rows.append(
             {
                 "kind": kind,
-                "naver_nid": nid,
-                "target_name": tds[0].get_text(strip=True),
+                "naver_nid": int(nid),
+                "target_name": target_name,
                 "ticker": ticker,
                 "title": title,
-                "broker": tds[2].get_text(strip=True) or None,
-                "pdf_url": pdf_url,
-                "published_at": _parse_ymd(tds[4].get_text(strip=True)),
-                "view_count": _parse_int(tds[5].get_text(strip=True)),
+                "broker": (it.get("brokerName") or "").strip() or None,
+                "pdf_url": None,  # 상세의 attachUrl 에서 채운다
+                "published_at": _parse_ymd(it.get("writeDate") or ""),
+                "view_count": _parse_int(it.get("readCount") or ""),
                 "is_periodic": is_periodic_title(title),
             }
         )
     return rows
 
 
-def parse_total_pages(html: str) -> int:
-    """총 페이지 수. 못 찾으면 1.
-
-    「맨뒤」 링크의 `page=N` 이 정답이다. 마지막 묶음에서는 「맨뒤」가 사라지므로
-    그때는 보이는 숫자 링크 중 최대값을 쓴다.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    nav = soup.find("table", class_="Nnavi")
-    if nav is None:
-        return 1
-
-    best = 1
-    for a in nav.find_all("a"):
-        m = _PAGE_RE.search(a.get("href") or "")
-        if m:
-            best = max(best, int(m.group(1)))
-    return best
+def _as_items(payload: Any) -> list[Any]:
+    """문자열이면 JSON 으로 풀고, 배열이 아니면 빈 목록."""
+    if isinstance(payload, (str, bytes)):
+        try:
+            payload = json.loads(payload)
+        except (ValueError, TypeError):
+            return []
+    if isinstance(payload, dict):
+        # 판본에 따라 배열을 한 겹 감싸는 경우를 대비한다.
+        for key in ("researchList", "list", "items", "result"):
+            if isinstance(payload.get(key), list):
+                return payload[key]
+        return []
+    return payload if isinstance(payload, list) else []
 
 
-def parse_detail_page(
-    html: str,
+def parse_detail_payload(
+    payload: Any,
     broker: str | None = None,
     target_name: str | None = None,
 ) -> dict[str, Any]:
-    """리포트 본문 페이지에서 온전한 제목·PDF 주소와 (있으면) 목표주가·투자의견을 뽑는다.
+    """상세 API 응답 → 온전한 제목·PDF 주소·(있으면) 목표주가·투자의견.
+
+    응답 모양은 `{"researchContent": {...}, "researchSummaries": [...]}` 이고,
+    우리가 쓰는 것은 `researchContent` 뿐이다(`researchSummaries` 는 「같은 종목의
+    다른 리포트」 목록이라 이 리포트의 내용이 아니다).
+
+    🔴 옛 HTML 판의 제목 추출 함정은 **사라졌다.** 그때는 `.view_sbj` 한 덩어리에
+       분류명 + 제목 + 증권사 + 날짜 + 조회수가 섞여 있어서 걷어내지 않으면 제목이
+       분류명("기타"·"조선")으로 덮였고, 그렇게 407건이 통째로 오염된 적이 있다.
+       새 API 는 `title` 을 따로 주므로 그 위험이 없다. 인자 `broker`·`target_name`
+       은 옛 호출부와의 호환을 위해 남겨 두었고 지금은 쓰지 않는다.
 
     목표주가·투자의견은 증권사마다 표기가 제각각이라 **있을 때만** 채운다.
-    없다고 실패로 보지 않는다.
-
-    🔴 제목 추출이 이 함수의 핵심이자 함정이다(2026-08-24 실측으로 한 번 사고).
-       `.view_sbj` 한 덩어리에 **분류/종목명 + 제목 + 증권사 | 날짜 | 조회수**가 모두 들어 있다:
-
-         `<em>기타</em> 안녕하세요 위클리에요(로봇/방산) 유진투자증권 | 2026.08.24 | 조회 871`
-
-       여기서 앞뒤 장식을 걷어내지 않으면 제목이 **분류명("기타"·"조선")으로 덮인다.**
-       그렇게 되면 목록의 진짜 제목까지 지워지는데, 잘림(`...`) 검사에는 걸리지 않아
-       **아무도 눈치채지 못한다.** 실제로 407건이 통째로 그렇게 오염됐었다.
     """
-    soup = BeautifulSoup(html, "html.parser")
-
-    pdf_url = None
-    for a in soup.find_all("a"):
-        href = a.get("href") or ""
-        if href.lower().endswith(".pdf"):
-            pdf_url = href
-            break
-
-    # 목록 제목은 길면 잘려 오므로(`…`) 본문 제목을 함께 돌려준다.
-    title = None
-    node = soup.find(class_="view_sbj")
-    if node is not None:
-        # ① 분류/종목명은 <em> 안에 있다 — 제목이 아니므로 통째로 들어낸다.
-        for em in node.find_all("em"):
-            em.decompose()
-        text = node.get_text(" ", strip=True)
-
-        # ② 꼬리의 `| 2026.08.24 | 조회 871` 를 자른다.
-        text = re.sub(r"\s*\|\s*\d{4}\.\d{2}\.\d{2}\s*\|\s*조회\s*[\d,]+\s*$", "", text)
-
-        # ③ 그러고 남은 꼬리의 증권사명을 자른다. 목록에서 받아 둔 이름이 가장 정확하고,
-        #    없으면 '…증권/…운용' 형태를 자른다(폴백).
-        if broker and text.endswith(broker):
-            text = text[: -len(broker)]
-        else:
-            text = re.sub(r"\s+\S*(증권|자산운용|투자자문|리서치)\s*$", "", text)
-
-        # ④ <em> 이 없는 판본 대비 — 머리에 분류/종목명이 그대로 붙어 있으면 떼어낸다.
-        text = text.strip()
-        if target_name and text.startswith(target_name):
-            text = text[len(target_name) :].strip()
-
-        title = text or None
-
-    text = soup.get_text(" ", strip=True)
-
-    # 🔴 「목표주가」만 찾으면 놓친다 — 네이버 상세 페이지의 요약 줄은 **「목표가」**로 적는다
-    #    (예: `목표가 790,000 | 투자의견 매수`). 2026-08-24 실측에서 종목분석 194건 중
-    #    목표주가가 채워진 것이 65건(33.5%)뿐이었던 원인이 이것이다.
-    target_price = parse_target_price(text)
+    content = _detail_content(payload)
+    body_html = content.get("content") or ""
+    text = BeautifulSoup(body_html, "html.parser").get_text(" ", strip=True)
 
     opinion = None
     m = re.search(
@@ -248,38 +213,51 @@ def parse_detail_page(
         opinion = normalize_opinion(m.group(1))
 
     return {
-        "pdf_url": pdf_url,
-        "title": title,
-        "target_price": target_price,
+        "pdf_url": (content.get("attachUrl") or "").strip() or None,
+        "title": (content.get("title") or "").strip() or None,
+        "target_price": parse_target_price(text),
         "opinion": opinion,
-        "body_len": body_text_length(html),
+        "body_len": len(text),
     }
 
 
-# 요약 재료로 인정하는 상세 페이지 본문 최소 길이.
+def detail_body_text(payload: Any) -> str:
+    """상세 응답의 **리포트 본문** 텍스트. 요약이 PDF 대신 쓸 폴백 재료다."""
+    body_html = _detail_content(payload).get("content") or ""
+    return BeautifulSoup(body_html, "html.parser").get_text("\n", strip=True)
+
+
+def _detail_content(payload: Any) -> dict[str, Any]:
+    """상세 응답에서 `researchContent` 를 꺼낸다. 모양이 다르면 빈 dict."""
+    if isinstance(payload, (str, bytes)):
+        try:
+            payload = json.loads(payload)
+        except (ValueError, TypeError):
+            return {}
+    if not isinstance(payload, dict):
+        return {}
+    content = payload.get("researchContent")
+    if isinstance(content, dict):
+        return content
+    # 감싸개 없이 바로 오는 판본 대비 — 우리가 쓰는 키가 있으면 그대로 본다.
+    if any(k in payload for k in ("attachUrl", "content", "title")):
+        return payload
+    return {}
+
+
+# 요약 재료로 인정하는 리포트 본문 최소 길이.
 # 🔴 `summarize_naver_research.MIN_PDF_TEXT` 와 **같은 값이어야 한다** — 수집이 저장한 것을
-#    요약이 못 다루면 화면에 "정리 안 된 카드"가 남는다. 그 어긋남이 실제로 났다(아래).
+#    요약이 못 다루면 화면에 "정리 안 된 카드"가 남는다. 그 어긋남이 실제로 났다.
+#
+# 🔴 왜 이런 문턱이 필요한가 (2026-08-25 실측):
+#    신한투자증권은 네이버에 PDF 를 올리지 않고 **자사 사이트 팝업**으로 보낸다
+#    (`shinhansec.com/.../view-popup.do` — 리포트 식별자가 없어 원문을 특정할 수 없다).
+#    네이버가 주는 것은 **131자 요지 한 줄**이 전부라 요약이 성립하지 않는다.
+#    16건 중 12건이 이 상태로 "정리 안 된 카드"로 남아 있었다.
+#    ⚠️ 그렇다고 「PDF 없으면 버린다」로 자르면 안 된다 — 같은 증권사의 **산업분석 3건**은
+#       본문이 충실해 864~1,177자로 제대로 정리됐다. 기준은 PDF 유무가 아니라
+#       **요약할 재료가 있느냐**다. 본문 길이는 `parse_detail_payload()` 가 `body_len` 으로 준다.
 MIN_BODY_TEXT = 300
-
-
-def body_text_length(html: str) -> int:
-    """상세 페이지의 **리포트 본문** 길이. 네비게이션·목록은 세지 않는다.
-
-    🔴 왜 필요한가 (2026-08-25 실측):
-       신한투자증권은 네이버에 PDF 를 올리지 않고 **자사 사이트 팝업**으로 보낸다
-       (`shinhansec.com/.../view-popup.do` — 리포트 식별자가 없어 원문을 특정할 수 없다).
-       네이버가 주는 것은 `.view_cnt` 안의 **131자 요지 한 줄**이 전부라 요약이 성립하지
-       않는다. 16건 중 12건이 이 상태로 "정리 안 된 카드"로 남아 있었다.
-
-       ⚠️ 그렇다고 「PDF 없으면 버린다」로 자르면 안 된다 — 같은 증권사의 **산업분석 3건**은
-          상세 본문이 충실해 864~1,177자로 제대로 정리됐다. 기준은 PDF 유무가 아니라
-          **요약할 재료가 있느냐**다.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    node = soup.find(class_="view_cnt")
-    if node is None:
-        return 0
-    return len(node.get_text(" ", strip=True))
 
 
 # 목표주가 문구. 「목표주가」/「목표가」 뒤에 소수점과 만/억 단위가 붙을 수 있다.

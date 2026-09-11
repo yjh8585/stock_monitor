@@ -40,26 +40,25 @@ from lib.bootstrap import init_script
 init_script(__file__)
 
 from lib.db import WriteSession, get_client  # noqa: E402
-from lib.naver_research import parse_detail_page, read_url  # noqa: E402
+from lib.naver_research import API_HEADERS, parse_detail_payload, read_url  # noqa: E402
 from lib.retry import with_retry  # noqa: E402
 
 # 이 값 미만이면 단위 버그로 본다. 국내 상장사 목표주가가 세 자리일 수는 없다.
 SUSPICIOUS_BELOW = 1_000
 
-USER_AGENT = "Mozilla/5.0 (stock_monitor research target-price recheck)"
+# 요청 헤더는 `lib/naver_research.API_HEADERS` 를 쓴다(Referer 가 없으면 빈 응답인 판본이 있다).
 
 
 def fetch_detail(kind: str, nid: int, broker: str | None, target_name: str | None) -> dict:
     """상세 페이지를 받아 고친 파서로 다시 읽는다."""
 
-    def _once() -> str:
-        r = requests.get(read_url(kind, nid), headers={"User-Agent": USER_AGENT}, timeout=30)
+    def _once():
+        r = requests.get(read_url(kind, nid), headers=API_HEADERS, timeout=30)
         r.raise_for_status()
-        r.encoding = "euc-kr"
-        return r.text
+        return r.json()
 
-    html = with_retry(_once, _label=f"detail {kind}/{nid}")
-    return parse_detail_page(html, broker=broker, target_name=target_name)
+    payload = with_retry(_once, _label=f"detail {kind}/{nid}")
+    return parse_detail_payload(payload, broker=broker, target_name=target_name)
 
 
 def main() -> int:
