@@ -443,6 +443,8 @@ def main() -> int:
     ap.add_argument("--rcp", default=None, help="쉼표로 구분한 rcpNo — 지정하면 그것만")
     ap.add_argument("--renumber", action="store_true",
                     help="이미 받은 폴더의 페이지 순서만 다시 매긴다(네트워크 0회)")
+    ap.add_argument("--ledger", default=None,
+                    help="다른 대장을 쓴다(기본은 지분 인수 대장). 합병 = ma-merger-dart.json")
     args = ap.parse_args()
 
     if args.renumber:
@@ -454,9 +456,18 @@ def main() -> int:
         print(f"\n대상 {n}폴더")
         return 0
 
-    d = json.loads(LEDGER.read_text(encoding="utf-8"))
+    # 🔴 `--ledger` 로 다른 대장을 열 수 있다(2026-09-11 신설).
+    #    기본 LEDGER 는 지분 인수 대장이라 합병 건은 `--rcp` 를 줘도 **0건**이 된다
+    #    (`--rcp` 는 대장 안에서 걷러내는 장치지 대장 밖을 보는 장치가 아니다).
+    # ⚠️ 대장마다 «최신본 표식»이 다르다 — 지분 인수는 `is_latest`, 합병은 `is_correction` 이다.
+    #    한쪽만 보면 다른 대장에서 후보가 통째로 0건이 된다.
+    ledger_path = Path(args.ledger) if args.ledger else LEDGER
+    d = json.loads(ledger_path.read_text(encoding="utf-8"))
     rows = d["rows"] if isinstance(d, dict) else d
-    pool = [r for r in rows if r.get("is_latest")]
+    if any("is_latest" in r for r in rows[:50]):
+        pool = [r for r in rows if r.get("is_latest")]
+    else:
+        pool = [r for r in rows if not r.get("is_correction")]
     if args.rcp:
         want = {x.strip() for x in args.rcp.split(",") if x.strip()}
         pool = [r for r in pool if r["rcp"] in want]
@@ -470,7 +481,7 @@ def main() -> int:
         if before != len(pool):
             print(f"「계약서 첨부 없음」으로 이미 확인된 {before - len(pool)}건은 건너뛴다 "
                   f"(기록 = {NO_ATT.name})")
-    print(f"대장 {len(rows)}행 · 최신본 후보 {len(pool)}건 · 간격 {GAP}초")
+    print(f"대장 {ledger_path.name} {len(rows)}행 · 최신본 후보 {len(pool)}건 · 간격 {GAP}초")
     print(f"출력: {OUT_DIR}\n")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
