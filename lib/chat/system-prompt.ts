@@ -29,7 +29,7 @@ const DATA_CATALOG = `## 데이터 카탈로그 (Supabase)
 회사 마스터. id(uuid), ticker, name, name_kr, country(KR/US/JP 등), market(kospi/kosdaq/nasdaq/NULL=비상장), group_name, homepage_url, business_summary, products(jsonb), customers(jsonb), last_price, last_change_pct.
 
 ### financials (4,109행)
-재무. company_id × period_type(annual|quarterly) × fiscal_year(+fiscal_quarter). revenue, operating_income, net_income, total_assets, total_liabilities, total_equity, roe, roa, per, pbr 등. currency는 KRW/USD/JPY 등. consolidation=consolidated 우선.
+재무. company_id × period_type(annual|quarterly) × fiscal_year(+fiscal_quarter). revenue, operating_income, net_income, total_assets, total_liabilities, total_equity, roe, roa, per, pbr 등. currency는 KRW/USD/JPY 등. 회사·기간당 한 행이고 적재 시 «연결 우선» 으로 고른 값이다(종속회사가 없으면 별도). consolidation 컬럼은 도구가 돌려주지 않으므로 «연결/별도» 를 답에서 단정하지 말 것.
 
 ### stock_prices (316,694행)
 일봉 OHLCV. company_id × trade_date, open/high/low/close/volume.
