@@ -521,8 +521,26 @@ def _match_acct(raw: str) -> str | None:
   return None
 
 
+_UNIT_TO_DIVIDER = {'백만원': 1, '천원': 1000, '원': MILLION}
+
+# 「(단위:원)」·「(단위 : 백만원)」처럼 **표가 스스로 밝힌** 단위 선언.
+# 🔴 «백만원» 을 «원» 보다 먼저 재야 한다 — '백만원' 안에 '원' 이 들어 있다.
+_UNIT_DECL_RE = re.compile(r'단위\s*[:：]?\s*\(?\s*(백만원|천원|원)')
+
+
 def _detect_unit_divider(tbl_text: str) -> int:
-  """표 본문 텍스트에서 단위(백만원/천원/원) 인식 → 백만원 환산 divider 반환."""
+  """텍스트에서 단위(백만원/천원/원) 인식 → 백만원 환산 divider 반환.
+
+  🔴 **선언(`(단위:원)`)이 있으면 그것만 믿는다**(2026-09-11 실측). 종전엔 선언과
+  무관하게 '천원'·'백만원' 이 **아무 데나** 들어 있으면 잡았다. 진영산업 FY2023
+  연결손익계산서는 선언이 `(단위:원)` 인데 본문 어딘가에 '천원' 이 있어 divider 가
+  1,000 으로 잡혔고, 매출이 **1,000배**(1,488억 → 148.8조)로 적재됐다.
+  ⚠️ 급변 검사(3배)로는 못 잡는다 — 잡히긴 하지만 «어느 쪽이 틀렸는지» 를 못 가른다.
+  """
+  m = _UNIT_DECL_RE.search(tbl_text)
+  if m:
+    return _UNIT_TO_DIVIDER[m.group(1)]
+  # 선언이 없으면 옛 방식(맨 키워드)으로 폴백한다 — 선언을 생략한 보고서가 있다.
   if '백만원' in tbl_text:
     return 1
   if '천원' in tbl_text:
@@ -532,15 +550,34 @@ def _detect_unit_divider(tbl_text: str) -> int:
 
 def _table_unit_divider(table) -> int:
   """표 본문 + 직전 5개 sibling 텍스트에서 단위 인식.
-  단위 표기가 표 위 sibling 요소(예: '(단위:백만원)')에 있는 보고서 대응."""
-  text = _normalize(table.get_text())
+  단위 표기가 표 위 sibling 요소(예: '(단위:백만원)')에 있는 보고서 대응.
+
+  🔴 **sibling 의 선언이 표 본문의 맨 키워드를 이긴다** — 실제 보고서에서 단위 선언은
+  표 «바로 위» 에 있고(`(단위:원)`), 표 본문에 스쳐 든 '천원' 은 계정명·주석 문구다.
+  그래서 sibling 부터 차례로 «선언» 을 찾고, 아무 데도 선언이 없을 때만 본문 키워드로
+  폴백한다(진영산업 FY2023 실측 · 위 `_detect_unit_divider` 참조).
+  """
+  own = _normalize(table.get_text())
+  # 🔴 **표 «머리» → 표 «위» → 표 «본문» 순서다**(2026-09-11 실측 2건).
+  #    표 본문 아래쪽에는 **다른 행을 위한 단위 선언**이 또 있다 — 현대위아 FY2021
+  #    연결손익계산서 맨 끝 주당이익 줄의 `(단위:원)` 을 표 단위로 읽어 매출이
+  #    7.53조 → **7.5백만원**(100만분의 1)이 됐다. 표 단위 선언은 표 바로 위에 있고
+  #    (`(단위:백만원)`), 표 안에 있다면 첫 두 행이다.
+  head = ' '.join(_normalize(tr.get_text()) for tr in table.find_all('tr')[:2])
+  texts = [head]
   prev = table
   for _ in range(5):
     prev = prev.find_previous(['p', 'div', 'td', 'b', 'strong', 'span', 'th'])
     if prev is None:
       break
-    text += ' ' + _normalize(prev.get_text())
-  return _detect_unit_divider(text)
+    texts.append(_normalize(prev.get_text()))
+  texts.append(own)
+
+  for t in texts:
+    m = _UNIT_DECL_RE.search(t)
+    if m:
+      return _UNIT_TO_DIVIDER[m.group(1)]
+  return _detect_unit_divider(' '.join(texts))
 
 
 def _filter_annotation_nums(nums: list[float]) -> list[float]:
@@ -554,6 +591,28 @@ def _filter_annotation_nums(nums: list[float]) -> list[float]:
   mx = max(nonzero)
   threshold = mx / 10000
   return [v for v in nums if v == 0 or abs(v) >= threshold]
+
+
+def _strip_leading_note_no(nums: list[float]) -> list[float]:
+  """계정명 바로 뒤에 붙은 «주석 번호» 를 떼어낸다.
+
+  🔴 2026-09-11 실측: 현대트랜시스 FY2022 연결손익계산서의 영업이익 행이
+  `['영업이익', '34', '151,726', '95,016']` 이라 **주석 번호 34 가 당기 영업이익**으로
+  적재됐다(실제 1,517억). `_filter_annotation_nums` 의 «최댓값의 1/10,000» 문턱은
+  34 vs 151,726(4,462배)을 못 넘어 그대로 통과시킨다.
+
+  판정은 **주석 번호의 생김새 셋을 모두** 만족할 때만 한다(정상 값을 지우지 않기 위해):
+    ① 개수가 홀수다 — 떼면 «당기·전기» 짝이 맞는다
+    ② 맨 앞이 1,000 미만의 **정수**다 (주석 번호는 한두 자리)
+    ③ 나머지 값이 그보다 **1,000배 이상** 크다
+  """
+  if len(nums) < 3 or len(nums) % 2 == 0:
+    return nums
+  head, rest = nums[0], nums[1:]
+  if not head or abs(head) >= 1000 or not float(head).is_integer():
+    return nums
+  mx = max((abs(v) for v in rest), default=0)
+  return rest if abs(head) * 1000 <= mx else nums
 
 
 # 손익계산서/재무상태표 '본표' 계정 스코프 — 주석(note) 표에서 계정이 새어드는 것 차단.
@@ -619,6 +678,7 @@ def _parse_financial_tables(tables: list) -> dict[str, dict[str, float | None]]:
         continue
       # 자릿수가 본 데이터보다 4자리 이상 작은 값(주석번호 등)을 제거
       nums = _filter_annotation_nums(nums)
+      nums = _strip_leading_note_no(nums)
 
       n = len(nums)
       if n == 1:
@@ -703,13 +763,22 @@ def _infer_fiscal_year_from_rcept(rcept_dt: str) -> int | None:
   return y - 1 if m <= 6 else y
 
 
-def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None, str | None, bool]:
-  """회계연도 fiscal_year의 가장 적합한 보고서를 선택.
+def _get_audit_candidates(
+  dart, corp_code: str, fiscal_year: int
+) -> list[tuple[str, str, bool]]:
+  """회계연도 fiscal_year의 보고서 후보를 **점수 내림차순**으로 돌려준다.
 
   1순위: 감사보고서. 없으면 연간 사업보고서 fallback (분기·반기 제외).
 
+  🔴 **1등 하나만 쓰면 안 되는 이유**(2026-09-11 실측 · 화승코퍼레이션 FY2021):
+  `[첨부정정]사업보고서 (2021.12)` 는 점수가 원본과 같고 접수일만 늦어 1등이 되는데,
+  그 문서 트리에는 **정정한 첨부 하나**(`(첨부)재무제표` = 별도)밖에 없다. 원본
+  사업보고서에는 `2.연결재무제표` 가 멀쩡히 있다. 1등만 보면 「연결 우선」 정책이
+  조용히 뒤집혀 매출이 1/20(별도 777억 vs 연결 1.5조)으로 적재된다.
+  → 호출부(`_collect_company`)가 연결을 못 찾으면 다음 후보로 내려간다.
+
   Returns:
-    (rcept_no, report_nm, is_consolidated) — 못 찾으면 (None, None, False).
+    `[(rcept_no, report_nm, is_consolidated_by_name), ...]` — 없으면 빈 리스트.
   """
   today = datetime.now()
   end_year = min(today.year, fiscal_year + AUDIT_LOOKBACK_YEARS)
@@ -727,10 +796,10 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
     )
   except Exception as e:
     logger.warning(f'{corp_code} {fiscal_year}년: dart.list 실패 — {e}')
-    return None, None, False
+    return []
 
   if filings is None or filings.empty:
-    return None, None, False
+    return []
 
   def _scan(predicate) -> list[tuple[tuple[int, str], str, str, bool]]:
     out: list[tuple[tuple[int, str], str, str, bool]] = []
@@ -777,11 +846,16 @@ def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None,
       logger.info(f'{corp_code} {fiscal_year}년: 감사보고서 부재 → 사업보고서 fallback')
 
   if not candidates:
-    return None, None, False
+    return []
 
   candidates.sort(reverse=True)
-  _, best_no, best_nm, is_cons = candidates[0]
-  return best_no, best_nm, is_cons
+  return [(no, nm, is_cons) for _, no, nm, is_cons in candidates]
+
+
+def _get_audit_rcpt(dart, corp_code: str, fiscal_year: int) -> tuple[str | None, str | None, bool]:
+  """`_get_audit_candidates` 의 1등만 돌려주는 얇은 wrapper (하위 호환)."""
+  cands = _get_audit_candidates(dart, corp_code, fiscal_year)
+  return cands[0] if cands else (None, None, False)
 
 
 # main.do 좌측 트리 노드 블록 (OpenDartReader 0.1.6의 pattern을 줄바꿈 관대화).
@@ -883,13 +957,13 @@ def _fallback_viewer_url(rcpt_no: str) -> tuple[str | None, bool]:
   ), False
 
 
-def _get_main_doc_url(dart, rcpt_no: str) -> tuple[str | None, bool]:
+def _get_main_doc_url(rcpt_no: str) -> tuple[str | None, bool]:
   """재무제표 본문 viewer URL을 반환한다 (main.do 트리 직접 파싱, 주석 배제·본문 우선).
 
   OpenDartReader.sub_docs는 DART main.do 형식 변경으로 정규식 미스매치 시 라이브러리
   내부에서 NameError(dart_utils.py:141 'url' 미정의)를 던져 매 감사보고서마다 예외+경고를
   냈다. 어차피 예외 후 main.do 직접 파싱으로 폴백했으므로, 처음부터 직접 파싱한다.
-  `dart` 인자는 호출부 시그니처 호환을 위해 유지(미사용)."""
+  (2026-09-11: 쓰이지 않던 `dart` 인자를 제거했다.)"""
   return _fallback_viewer_url(rcpt_no)
 
 
@@ -921,24 +995,27 @@ def _fetch_tables(url: str) -> list:
     return []
 
 
-def _collect_company(
-  dart, company_id: str, corp_code: str, years: list[int]
-) -> list[dict]:
-  """비상장사의 연도별 감사보고서를 파싱해 financials 행 목록을 반환한다.
+# 연결을 찾아 후보를 몇 개까지 내려가 볼 것인가. 정정 공시가 여러 번 나온 해가 있어 3.
+_MAX_REPORT_CANDIDATES = 3
 
-  각 행에 메타필드 _report_fiscal_year(보고서 회계연도) + consolidation을 포함.
-  upsert 전에 _report_fiscal_year는 제거된다.
+
+def _read_year(
+  corp_code: str, year: int, candidates: list[tuple[str, str, bool]]
+) -> tuple[dict, str]:
+  """후보 보고서를 순서대로 열어 «연결» 본문을 찾는다. `(parsed, consolidation)`.
+
+  🔴 **정정 공시가 별도만 담고 있을 때 원본으로 내려가기 위한 고리다**(2026-09-11 실측).
+  화승코퍼레이션 FY2021 의 1등은 `[첨부정정]사업보고서` 였고 그 트리에는 정정한 첨부
+  하나(별도)뿐이었다 — 원본 `사업보고서 (2021.12)` 에는 `2.연결재무제표` 가 있다.
+
+  ⚠️ **정정 공시가 아닌데 연결이 없으면 거기서 멈춘다.** 종속회사가 없어 정말 별도만
+  내는 회사(비상장 다수)까지 후보를 훑으면 HTTP 호출만 3배로 늘고 결과는 같다.
   """
-  rows: list[dict] = []
+  first: tuple[dict, str] | None = None
 
-  for year in years:
-    rcept_no, report_nm, is_cons = _get_audit_rcpt(dart, corp_code, year)
-    if not rcept_no:
-      logger.warning(f'{corp_code} {year}년: 감사보고서·사업보고서 모두 없음')
-      continue
-
+  for rcept_no, report_nm, is_cons in candidates[:_MAX_REPORT_CANDIDATES]:
     logger.info(f'{corp_code} {year}년: rcpNo={rcept_no} | {report_nm}')
-    doc_url, node_is_cons = _get_main_doc_url(dart, rcept_no)
+    doc_url, node_is_cons = _get_main_doc_url(rcept_no)
     if not doc_url:
       logger.warning(f'{corp_code} {year}년: 문서 URL 없음')
       continue
@@ -957,7 +1034,39 @@ def _collect_company(
       continue
 
     # 보고서명에 '연결' 이 있거나(비상장 연결감사보고서) 실제로 연결 본문을 읽었으면 연결이다.
-    consolidation = 'consolidated' if (is_cons or node_is_cons) else 'separate'
+    if is_cons or node_is_cons:
+      return parsed, 'consolidated'
+
+    if first is None:
+      first = (parsed, 'separate')
+    if '정정' not in report_nm:
+      break  # 정정본이 아닌데 연결이 없다 = 이 회사는 정말 별도뿐이다
+    logger.info(f'{corp_code} {year}년: 정정 공시에 연결 본문 없음 → 다음 후보 확인')
+
+  if first is None:
+    return {}, 'separate'
+  return first
+
+
+def _collect_company(
+  dart, company_id: str, corp_code: str, years: list[int]
+) -> list[dict]:
+  """비상장사의 연도별 감사보고서를 파싱해 financials 행 목록을 반환한다.
+
+  각 행에 메타필드 _report_fiscal_year(보고서 회계연도) + consolidation을 포함.
+  upsert 전에 _report_fiscal_year는 제거된다.
+  """
+  rows: list[dict] = []
+
+  for year in years:
+    candidates = _get_audit_candidates(dart, corp_code, year)
+    if not candidates:
+      logger.warning(f'{corp_code} {year}년: 감사보고서·사업보고서 모두 없음')
+      continue
+
+    parsed, consolidation = _read_year(corp_code, year, candidates)
+    if not parsed:
+      continue
 
     # 당기(year) 행
     row: dict = {

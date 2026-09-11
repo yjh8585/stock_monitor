@@ -94,7 +94,9 @@ def _list_recent_report(odr, corp_code: str, kind: str) -> str | None:
 
 def _fetch_main_html(odr, rcpt_no: str) -> BeautifulSoup | None:
   """sub_docs 메인 문서 HTML soup 반환."""
-  url = _get_main_doc_url(odr, rcpt_no)
+  # 🔴 반환은 **(url, 연결여부) 튜플**이다 — 튜플을 requests.get 에 넘기면 예외가 나고
+  #    아래 except 가 삼켜 조용히 None 이 된다(2026-09-11).
+  url, _node_is_cons = _get_main_doc_url(rcpt_no)
   if not url:
     return None
   try:

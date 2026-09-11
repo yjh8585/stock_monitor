@@ -29,6 +29,7 @@
 """
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from loguru import logger
@@ -44,45 +45,85 @@ from lib.db import WriteSession, upsert_rows  # noqa: E402
 # 다음 해 매출이 이 배수를 넘게 뛰면 그 해 값을 «깨진 것» 으로 본다.
 # 실측 분포가 8~9배에 몰려 있고 FY2023 이후는 3배 초과가 0건이라 3을 문턱으로 둔다.
 JUMP_RATIO = 3.0
-TARGET_YEARS = (2021, 2022)
+DEFAULT_YEARS = (2021, 2022)
 
 
-def _find_broken(w, redo_dart: bool = False) -> dict[str, dict]:
-  """`{company_id: {name, ticker, corp_code, years}}` — 깨진 회사와 연도."""
-  # 🔴 `redo_dart` 는 **이미 이 스크립트로 채운 행을 다시 받기 위한** 것이다.
-  #    연결 우선 수리(2026-09-11) 전에 별도재무제표가 들어갔고, 그 값은 「그럴듯해서」
-  #    급변 검사에 안 걸린다 — 검사만 믿으면 영영 안 고쳐진다.
-  src_filter = ['fnguide', 'dart'] if redo_dart else ['fnguide']
-  rows = (
-    w.table('financials').select('company_id,fiscal_year,revenue,source,period_type')
-    .eq('period_type', 'annual').in_('source', src_filter).execute().data or []
-  )
-  by_company: dict[str, dict[int, float]] = {}
-  dart_years: dict[str, set] = {}
+def _load_state(w) -> tuple[dict, dict]:
+  """`(meta, by_company)` — active 회사 메타와 `{cid: {fy: row}}` 연간 재무.
+
+  🔴 **출처로 거르지 않는다**(2026-09-11 수리). 종전엔 `source in ('fnguide','dart')`
+  만 봤는데, 현대위아 FY2021 은 옛 수집기가 남긴 `pykrx+dart` 라 **탐지에서 통째로
+  빠졌다**(1.49조 → 실제 연결 7.7조). 탐지는 «라벨» 이 아니라 «값» 을 봐야 한다.
+  """
+  rows: list[dict] = []
+  start = 0
+  while True:
+    # 🔴 `.range()` 다중 페이지는 `.order()` 필수 — 빠뜨리면 행이 조용히 누락된다.
+    batch = (
+      w.table('financials')
+      .select('company_id,fiscal_year,revenue,source,consolidation,period_type')
+      .eq('period_type', 'annual')
+      .order('company_id').order('fiscal_year')
+      .range(start, start + 999).execute().data or []
+    )
+    rows.extend(batch)
+    if len(batch) < 1000:
+      break
+    start += 1000
+
+  by_company: dict[str, dict[int, dict]] = {}
   for r in rows:
-    rev = r.get('revenue')
-    if rev is None or float(rev) <= 0:
-      continue
-    by_company.setdefault(r['company_id'], {})[r['fiscal_year']] = float(rev)
-    if r.get('source') == 'dart' and r['fiscal_year'] in TARGET_YEARS:
-      dart_years.setdefault(r['company_id'], set()).add(r['fiscal_year'])
+    by_company.setdefault(r['company_id'], {})[r['fiscal_year']] = r
 
   companies = (
     w.table('companies').select('id,name_kr,ticker,dart_corp_code,status')
     .eq('status', 'active').execute().data or []
   )
-  meta = {c['id']: c for c in companies}
+  return {c['id']: c for c in companies}, by_company
 
+
+def _parse_only(spec: str, meta: dict) -> dict[str, list[int]]:
+  """`--only "진영산업:2023,현대트랜시스:2022"` → `{company_id: [years]}`.
+
+  🔴 급변 검사만으로는 **어느 쪽 해가 틀렸는지 못 가른다** — 진영산업은 FY2022 가 맞고
+  FY2023 이 1,000배 틀렸는데, 비율만 보면 앞 해가 범인처럼 보인다. 실측으로 범인을
+  특정했을 때 **그 해만 정확히** 다시 받으려고 둔 문이다.
+  """
+  by_name = {(c.get('name_kr') or '').strip(): cid for cid, c in meta.items()}
+  out: dict[str, list[int]] = {}
+  for token in spec.split(','):
+    token = token.strip()
+    if not token:
+      continue
+    name, _, year = token.partition(':')
+    cid = by_name.get(name.strip())
+    if not cid:
+      sys.exit(f'--only: 회사를 못 찾았다 — {name}')
+    if not year.strip().isdigit():
+      sys.exit(f'--only: 연도를 밝혀라 — {token} (예: {name}:2023)')
+    out.setdefault(cid, []).append(int(year))
+  return out
+
+
+def _find_broken(
+  meta: dict, by_company: dict, target_years: tuple[int, ...], redo_dart: bool = False
+) -> dict[str, dict]:
+  """`{company_id: {name, ticker, corp_code, years}}` — 깨진 회사와 연도."""
+  # 🔴 `redo_dart` 는 **이미 이 스크립트로 채운 행을 다시 받기 위한** 것이다.
+  #    연결 우선 수리(2026-09-11) 전에 별도재무제표가 들어갔고, 그 값은 「그럴듯해서」
+  #    급변 검사에 안 걸린다 — 검사만 믿으면 영영 안 고쳐진다.
   broken: dict[str, dict] = {}
   for cid, years in by_company.items():
     if cid not in meta:
       continue
-    bad_years = []
-    for fy in TARGET_YEARS:
+    bad_years: list[int] = []
+    for fy in target_years:
       cur, nxt = years.get(fy), years.get(fy + 1)
-      if cur and nxt and nxt / cur > JUMP_RATIO:
+      cur_rev = float(cur['revenue']) if cur and cur.get('revenue') else 0.0
+      nxt_rev = float(nxt['revenue']) if nxt and nxt.get('revenue') else 0.0
+      if cur_rev > 0 and nxt_rev > 0 and nxt_rev / cur_rev > JUMP_RATIO:
         bad_years.append(fy)
-      elif redo_dart and cur and dart_years.get(cid, set()) & {fy}:
+      elif redo_dart and cur is not None and cur.get('source') == 'dart':
         bad_years.append(fy)
     if bad_years:
       c = meta[cid]
@@ -90,7 +131,7 @@ def _find_broken(w, redo_dart: bool = False) -> dict[str, dict]:
         'name': c.get('name_kr'),
         'ticker': (c.get('ticker') or '').strip(),
         'corp_code': c.get('dart_corp_code'),
-        'years': bad_years,
+        'years': sorted(set(bad_years)),
       }
   return broken
 
@@ -105,10 +146,53 @@ def _resolve_by_stock_code(dart, ticker: str) -> str | None:
 
 
 def _main_in_session(w, args) -> None:
-  broken = _find_broken(w, redo_dart=args.redo_dart)
+  target_years = tuple(int(y) for y in args.years.split(',')) if args.years else DEFAULT_YEARS
+  meta, by_company = _load_state(w)
+
+  if args.only:
+    picked = _parse_only(args.only, meta)
+    broken = {
+      cid: {
+        'name': meta[cid].get('name_kr'),
+        'ticker': (meta[cid].get('ticker') or '').strip(),
+        'corp_code': meta[cid].get('dart_corp_code'),
+        'years': sorted(set(years)),
+      }
+      for cid, years in picked.items()
+    }
+  else:
+    broken = _find_broken(meta, by_company, target_years, redo_dart=args.redo_dart)
+
   logger.info(f'깨진 회사 {len(broken)}개사 · 연도 {sum(len(v["years"]) for v in broken.values())}건')
   if not broken:
     return
+
+  # 🔴 **이웃 연도를 덮어쓰지 않는다**(2026-09-11 수리). `_collect_company` 는 요청 연도의
+  #    «당기 + 전기» 를 함께 주는데, 종전엔 그 전기 행까지 전부 upsert 해서 **멀쩡한
+  #    fnguide 행이 DART 별도 값으로 갈렸다**(화승코퍼레이션 FY2020: 연결 약 1.2조 →
+  #    별도 427억). 쓸 연도는 「요청한 해」 + 「이미 이 스크립트가 쓴 dart 행(= 되돌려야
+  #    할 피해)」 로 한정한다.
+  writable: set[tuple[str, int]] = set()
+  for cid, info in broken.items():
+    for fy in info['years']:
+      writable.add((cid, fy))
+      prev = by_company.get(cid, {}).get(fy - 1)
+      if prev is not None and prev.get('source') == 'dart':
+        writable.add((cid, fy - 1))
+
+  # 🔴 **고칠 해 N 을 받을 때 N+1 보고서도 함께 받는다**(2026-09-11 실사고로 신설).
+  #    `_dedup_rows` 가 더 최신 보고서를 우선하므로, N+1 보고서의 «전기» 가 N 의 값이 된다.
+  #    왜 그래야 하나 — **원보고서와 후속보고서가 둘 다 맞을 수 있기 때문**이다.
+  #    중단사업·매각으로 지배력을 잃으면 다음 해 보고서가 **전기를 계속영업 기준으로
+  #    재작성**한다. 디에이치오토넥스 FY2022 는 원보고서 5,367억 · FY2023 보고서의 전기
+  #    502억이고 **둘 다 원문 그대로**다. 원보고서만 보고 「DB 가 틀렸다」며 덮었더니
+  #    FY2022→23 에 10배 낙차가 새로 생겼다(디와이에이도 같은 일).
+  #    ⚠️ 「DART 와 DB 가 다르다」는 「DB 가 틀렸다」가 아니다 — **어느 보고서를 보느냐**다.
+  this_year = datetime.now().year
+  for info in broken.values():
+    info['request_years'] = sorted(
+      {y for fy in info['years'] for y in (fy, fy + 1) if y <= this_year}
+    )
 
   dart = AUDIT._get_dart()
   if not dart:
@@ -121,9 +205,12 @@ def _main_in_session(w, args) -> None:
     if not corp:
       unresolved.append(f"{info['name']} (ticker={info['ticker'] or '-'})")
       continue
-    rows = AUDIT._collect_company(dart, cid, corp, info['years'])
+    rows = AUDIT._collect_company(dart, cid, corp, info['request_years'])
     got = {r['fiscal_year']: r.get('revenue') for r in rows}
-    logger.info(f"[{i}/{len(broken)}] {info['name']} corp={corp} 요청 {info['years']} → 수집 {got}")
+    logger.info(
+      f"[{i}/{len(broken)}] {info['name']} corp={corp} 고칠해 {info['years']} "
+      f"(요청 {info['request_years']}) → 수집 {got}"
+    )
     collected.extend(rows)
 
   if unresolved:
@@ -139,8 +226,10 @@ def _main_in_session(w, args) -> None:
   #    `ON CONFLICT DO UPDATE command cannot affect row a second time` 로 죽는다.
   #    ⚠️ `_report_fiscal_year` 를 미리 지우면 안 된다 — dedup 이 그 값으로 최신 보고서를 고른다.
   collected = AUDIT._dedup_rows(collected)
-  for r in collected:
-    r.pop('_report_fiscal_year', None)
+  skipped = [r for r in collected if (r['company_id'], r['fiscal_year']) not in writable]
+  collected = [r for r in collected if (r['company_id'], r['fiscal_year']) in writable]
+  if skipped:
+    logger.info(f'이웃 연도 {len(skipped)}행은 쓰지 않는다(멀쩡한 행 보호)')
 
   if args.apply:
     upsert_rows(
@@ -156,7 +245,12 @@ def main() -> None:
   ap.add_argument('--apply', action='store_true', help='실제 DB 반영 (기본은 dry-run)')
   ap.add_argument(
     '--redo-dart', action='store_true',
-    help='이 스크립트로 이미 채운 FY2021~22 행도 다시 받는다(연결 우선 수리 후 재실행용)',
+    help='이 스크립트로 이미 채운 dart 행도 다시 받는다(수집기 수리 후 재실행용)',
+  )
+  ap.add_argument('--years', help=f'검사할 연도 (기본 {",".join(map(str, DEFAULT_YEARS))})')
+  ap.add_argument(
+    '--only',
+    help='급변 검사 대신 «지정한 회사·연도» 만 다시 받는다 — 예: "진영산업:2023,현대트랜시스:2022"',
   )
   args = ap.parse_args()
   # 🔴 신규 mutating 스크립트는 WriteSession 필수 — 종료 시 캐시 태그가 자동 무효화된다.

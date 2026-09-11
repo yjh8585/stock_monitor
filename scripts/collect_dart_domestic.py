@@ -184,7 +184,11 @@ def _collect_year(odr, corp_code: str, year: int) -> tuple[dict[str, dict[str, f
     # 항상 실패했다(비상장 재수집 불가 원인). rcept_no만 넘긴다.
     rcpt_no, _report_nm, _is_consolidated = _get_audit_rcpt(odr, corp_code, year)
     if rcpt_no:
-      url = _get_main_doc_url(odr, rcpt_no)
+      # 🔴 `_get_main_doc_url` 은 **(url, 연결여부) 튜플**이다(2026-09-11 변경).
+      #    튜플을 통째로 넘기면 `_fetch_tables` 가 예외를 내고, 그 예외가 아래
+      #    `except` 에 먹혀 **결산감사 HTML 경로가 조용히 통째로 죽는다**
+      #    (같은 함수가 과거에도 같은 이유로 죽어 있었다 — 위 주석 참조).
+      url, _node_is_cons = _get_main_doc_url(rcpt_no)
       if url:
         tables = _fetch_tables(url)
         parsed = _parse_financial_tables(tables) if tables else {}

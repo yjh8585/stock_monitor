@@ -56,6 +56,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - 🔴 **`verify_revalidate_tags.py` 는 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다. **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(마지막을 빠뜨리면 수집이 성공해도 그 화면은 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
 - 🔴 **`verify_report_sort_wiring.py` 는 exit 0 이 정상** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**. 값을 박으면 링크는 만들어지는데 목록이 안 바뀌는 「죽은 버튼」이 되고, lint·타입·테스트 어디에도 안 걸린다(2026-09-11 `/humanoid/reports` 실사고).
+- 🔴 **`verify_financials_sanity.py` 는 exit 0 이 정상** — 재무 수집기를 고쳤으면 돌린다. 「미확인 급변」은 DART 원문과 대조한 뒤 근거와 함께 `VERIFIED_JUMPS` 에 넣는다(근거 없이 넣지 말 것) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
 - 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
 - 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착 · **exit 0 이 정상**) + `scripts/verify_yt_report.py --run <산출물>`(**exit 0 이 정상**). 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다 → [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)
 - 🔴 **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
