@@ -13,11 +13,12 @@
  *  1. **목록의 `viewCount`·`recommendCount`·`notRecommendCount` 는 전부 0 이다.**
  *     진짜 값은 `reactions` 에만 있어서, 안 부르면 조회수·공감이 통째로 0 으로 적재된다.
  *  2. **네이버가 만든 자동 글(`itemNews*`)이 섞여 온다**("5% 이상 하락했어요 😞").
- *     ⚠️ 옛 HTML 게시판도 이 글을 함께 실었고 DB 에 이미 109건 쌓여 있어(2026-03~09),
- *     여기서 거르면 수집 정책이 조용히 바뀐다. 그래서 **종전대로 함께 담는다.**
- *     🔴 `excludesItemNews=true` 파라미터는 무시되므로(실측 차이 0건) 나중에 거르기로
- *     정하면 `postType !== 'normal'` 로 직접 걸러야 한다. 최근 100건 기준 비중이
- *     15~30% 까지 올라와 있어 감성 분석 입력으로 적절한지는 따로 판단할 문제다.
+ *     최근 100건 기준 15~30% 다. 투자자 심리가 아니라 주가를 기계적으로 따라가는 글이라
+ *     감성 분석 입력으로 부적절하다 → **수집 단계에서 거른다**(사용자 결정 2026-09-14).
+ *     🔴 `excludesItemNews=true` 파라미터는 **무시되므로**(실측 차이 0건) `postType` 으로
+ *     직접 걸러야 한다.
+ *     ⚠️ 옛 HTML 게시판은 이 글을 함께 실었고 **DB 에 109건이 남아 있다**(2026-03~09).
+ *     그 구간만 범위가 다르다는 뜻이다 — 시계열을 견줄 때 감안할 것.
  *
  * 정책: 페이지 요청 사이 1.5초 sleep. 종목당 cutoff(기본 7일) 또는 maxPages 중
  * 먼저 도달하는 쪽까지 수집.
@@ -69,6 +70,14 @@ interface RawReaction {
   notRecommendCount?: unknown;
 }
 
+/**
+ * 사람이 쓴 글인가. 네이버 자동 글은 `itemNewsPrice`·`itemNewsDisclosure`·`itemNewsResearch`
+ * 처럼 `itemNews` 로 시작한다 — 종류가 더 늘 수 있어 `normal` 만 통과시킨다.
+ */
+function isUserPost(postType: unknown): boolean {
+  return postType === 'normal';
+}
+
 function toNumber(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -102,6 +111,7 @@ export function parseListPayload(payload: unknown): {
   const raw = obj.posts as RawPost[];
   const items: ListItem[] = [];
   for (const p of raw) {
+    if (!isUserPost(p.postType)) continue;
     const postId = typeof p.id === 'string' ? p.id : String(p.id ?? '');
     const postedAt = parseWrittenAt(p.writtenAt);
     if (!postId || !postedAt) continue;
@@ -199,8 +209,8 @@ async function fillReactions(items: ListItem[]): Promise<void> {
  * @param maxPages 목록 요청 횟수 cap (기본 10 · 한 번에 100건)
  * @param fetchBody true면 본문도 담는다. 개편 뒤엔 본문이 목록 응답에 함께 오므로
  *   **추가 요청이 없다**(옛 구조에선 글당 1회 더 받아야 해서 기본으로 껐었다).
- * @returns `posts` 는 cutoff 안쪽 글(네이버 자동 글 포함 — 옛 게시판과 같은 범위).
- *   `rawCount` 는 **cutoff 로 자르기 전** 네이버가 내려준 글 수다 — 호출부가 「글이 없다」와
+ * @returns `posts` 는 사람이 쓴 cutoff 안쪽 글만(네이버 자동 글 `itemNews*` 제외).
+ *   `rawCount` 는 **거르기 전** 네이버가 내려준 글 수다 — 호출부가 「글이 없다」와
  *   「API 가 빈 배열을 준다(=또 개편)」를 가르는 데 쓴다. 🔴 이 구분이 없어서
  *   2026-09-12 개편 때 종목토론 수집이 나흘 동안 조용히 멈춰 있었다.
  */

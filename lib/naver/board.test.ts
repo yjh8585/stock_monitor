@@ -96,18 +96,29 @@ describe('parseWrittenAt', () => {
 });
 
 describe('parseListPayload', () => {
-  it('네이버 자동 글도 함께 담는다 — 옛 게시판과 같은 범위', () => {
+  it('사람이 쓴 글만 남기고 네이버 자동 글은 거른다', () => {
     const { items, rawCount } = parseListPayload(LIST_PAYLOAD);
     expect(rawCount).toBe(3);
-    expect(items.map((p) => p.postId)).toEqual(['429293678', '429084008', '429108744']);
-    // ⚠️ 자동 글을 거르면 수집 정책이 바뀐다(DB 에 이미 109건 쌓여 있다).
-    expect(items.some((p) => p.title.includes('5% 이상'))).toBe(true);
+    expect(items.map((p) => p.postId)).toEqual(['429293678', '429108744']);
+    // 🔴 itemNews* 는 `excludesItemNews=true` 로도 안 걸러진다(실측) — 여기서 막는다.
+    expect(items.some((p) => p.title.includes('5% 이상'))).toBe(false);
   });
 
-  it('rawCount 로 「글이 없다」와 「API 가 비었다」를 가른다', () => {
-    const { items, rawCount } = parseListPayload({ ...LIST_PAYLOAD, posts: [] });
+  it('itemNews 종류가 늘어도 막는다 — normal 만 통과', () => {
+    const { items } = parseListPayload({
+      posts: [{ ...LIST_PAYLOAD.posts[0], postType: 'itemNewsSomethingNew' }],
+    });
     expect(items).toHaveLength(0);
-    expect(rawCount).toBe(0); // 구조 변경 의심 — 호출부가 exit 3 을 낸다
+  });
+
+  it('rawCount 는 거르기 전 건수라 「자동 글뿐」과 「API 가 비었다」를 가른다', () => {
+    const onlyBots = { ...LIST_PAYLOAD, posts: [LIST_PAYLOAD.posts[1]] };
+    const bots = parseListPayload(onlyBots);
+    expect(bots.items).toHaveLength(0);
+    expect(bots.rawCount).toBe(1); // 구조는 멀쩡하다 — exit 3 대상이 아니다
+
+    const empty = parseListPayload({ ...LIST_PAYLOAD, posts: [] });
+    expect(empty.rawCount).toBe(0); // 이쪽이 구조 변경 의심 — 호출부가 exit 3 을 낸다
   });
 
   it('목록의 조회수·공감은 0 으로 둔다(reactions 가 채운다)', () => {
