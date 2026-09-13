@@ -580,15 +580,24 @@ UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매�
 
 **개편 범위는 페이지마다 다르다**(2026-09-12 실측):
 
-| 엔드포인트                          | 쓰는 곳                     | 상태                         |
-| ----------------------------------- | --------------------------- | ---------------------------- |
-| `m.stock.naver.com/api/news/stock/` | `collect_news.py`(상장사)   | ✅ 그대로                    |
-| `finance.naver.com/item/sise_day`   | `collect_naver_intraday.py` | ✅ 그대로(euc-kr 옛 페이지)  |
-| `finance.naver.com/research/*_list` | 리서치 3종                  | 🔴 개편 — JSON API 로 이전함 |
-| `finance.naver.com/item/board`      | `collect_naver_board.py`    | 🔴 개편 — **아직 안 고침**   |
+| 엔드포인트                           | 쓰는 곳                        | 상태                         |
+| ------------------------------------ | ------------------------------ | ---------------------------- |
+| `m.stock.naver.com/api/news/stock/`  | `collect_news.py`(상장사)      | ✅ 그대로                    |
+| `api.finance.naver.com/siseJson`     | `collect_naver_intraday.py`    | ✅ 그대로(JS 배열 리터럴)    |
+| `search.naver.com` `#main_pack`      | 설명·제품·고객사 보강 4종      | ✅ 그대로                    |
+| `finance.naver.com/research/*_list`  | 리서치 3종                     | 🔴 개편 — JSON API 로 이전함 |
+| `finance.naver.com/item/board.naver` | `lib/naver/board.ts`(종목토론) | 🔴 개편 — JSON API 로 이전함 |
 
-🔴 **`collect_naver_board.py`(종목토론)도 같이 죽어 있다**(`naver_board_posts` 최신
-2026-09-10 14:54). 그쪽엔 exit 3 같은 «구조 변경» 신호가 없어서 **조용히** 멈췄다.
+**전수 확인 날짜 = 2026-09-14.** 네이버를 쓰는 경로는 위가 전부다(다섯 갈래).
+
+🔴 **종목토론은 exit 3 같은 신호가 없어 «조용히» 멈췄다** — 리서치가 나흘 만에 들킨 것도
+느렸지만, 종목토론은 그조차 없어 `naver_board_posts` 최신이 2026-09-10 에 멈춘 것을
+리서치를 고치다가 곁가지로 발견했다.
+
+⚠️ **고칠 대상을 잘못 짚기 쉽다.** `scripts/collect_naver_board.py` 가 있지만 **아무것도
+그것을 부르지 않는다** — 실제로 도는 것은 GHA(`collect-naver-board.yml`)가 `npx tsx` 로
+돌리는 **`scripts/collect_naver_board.ts` → `lib/naver/board.ts`** 다. 파이썬 쪽은 같은
+일을 하는 죽은 중복본이다.
 
 **처방 — 모바일 JSON API 로 갈아탔다**:
 
@@ -614,6 +623,42 @@ UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매�
 **한 회차에 5분 49초**를 썼다. 목록 단계에서 `is_relevant()` 로 먼저 거르자 **2건·6초**가
 됐다(결과는 동일). 이 1차 거름이 안전한 이유는 **새 API 의 목록 제목이 안 잘리기 때문**이다
 — 옛 HTML 목록은 길면 `...` 로 잘려서 목록 제목으로 판정하면 안 됐다(↓ 2번 절).
+
+#### 0-A. 종목토론 — 도메인까지 옮겨졌다 (`stock.naver.com`, 2026-09-14 수리)
+
+리서치와 달리 **호스트 자체가 바뀌었다.** 옛 URL 로 가면 브라우저가
+`stock.naver.com/domestic/stock/<코드>/discussion` 으로 리다이렉트된다.
+JS 청크를 훑어도 안 나와서 **실브라우저 네트워크 로그로 잡았다**(그 방법이 제일 빨랐다).
+
+```
+목록  GET stock.naver.com/api/community/discussion/posts/by-item
+        ?discussionType=domesticStock&itemCode=<코드>&pageSize=100[&offset=<커서>]
+반응  GET stock.naver.com/api/community/discussion/posts/reactions?postIds=<쉼표 구분>
+```
+
+🔴 **목록의 `viewCount`·`recommendCount`·`notRecommendCount` 는 전부 0 이다.** 진짜 값은
+`reactions` 에만 있다. 목록 필드를 그대로 믿고 적재하면 **조회수·공감이 통째로 0** 이 되는데,
+행 수는 정상이라 건수 점검으로는 안 걸린다. 화면 자신도 30개씩 묶어 따로 부른다.
+
+⚠️ **네이버 자동 글(`postType`이 `itemNews*`)이 섞여 온다** — 「5% 이상 하락했어요 😞」.
+최근 100건에 15~30% 다. **`excludesItemNews=true` 를 줘도 안 걸러진다**(실측 차이 0건).
+🔴 다만 **옛 HTML 게시판도 이 글을 함께 실었고 DB 에 이미 109건 있다**(2026-03~09).
+그래서 종전대로 **함께 담는다** — 여기서 거르면 수집 범위가 조용히 바뀐다. 감성 분석
+입력으로 적절한지는 별개 판단이다.
+
+- `writtenAt` 은 `2026-09-11T15:18:37` 처럼 **표준시가 안 붙어** 온다. KST 다 —
+  `+09:00` 을 붙여 읽지 않으면 GHA(UTC)에서 9시간 밀린다.
+- 페이지네이션은 쪽 번호가 아니라 **커서**다(`offset` = 직전 응답의 `lastOffset`).
+  `pageSize` 상한은 **100**(200 은 400 Bad Request).
+- 본문이 `contentSwReplacedButImg` 로 **목록에 함께 온다**(옛 구조는 글당 1회 더 받아야 해서
+  기본으로 껐었다). 지금은 공짜지만 감성 분석이 제목만 써서 적재는 계속 끄고 있다.
+- 로그인·쿠키 불필요. `User-Agent` 와 `Referer: https://stock.naver.com/` 만 있으면 된다.
+
+🔴 **같은 침묵이 반복되지 않게 `collect_naver_board.ts` 에 exit 3 을 심었다** — 종목이 하나라도
+실패하거나 **네 종목 모두 `rawCount === 0`** 이면 실패로 끝낸다. `rawCount`(cutoff 로 자르기
+전 건수)가 있어야 「글이 없다」와 「API 가 빈 배열을 준다」를 가를 수 있다. 회귀는
+`lib/naver/board.test.ts`(16건) — 구조가 또 바뀌면 `parseListPayload` 가 **0건이 아니라 예외**를
+낸다는 것까지 못 박아 뒀다.
 
 ### 1. 🔴 상세 페이지 제목이 분류명으로 덮여 407건이 통째로 오염됐다
 

@@ -1,26 +1,40 @@
 /**
- * 네이버 금융 종목토론실 스크래퍼.
+ * 네이버 종목토론 수집기.
  *
- * URL 패턴:
- *  - 목록: https://finance.naver.com/item/board.naver?code=069640&page=1
- *  - 본문: https://finance.naver.com/item/board_read.naver?code=069640&nid=<id>
+ * 2026-09-12 네이버 금융이 Next.js 로 개편되면서 옛 HTML 목록
+ * (`finance.naver.com/item/board.naver`)이 사라졌다 — 같은 URL 이 HTTP 200 에
+ * `_next/static` 만 든 껍데기를 돌려주므로 cheerio 파서가 **조용히 0건**을 냈다.
+ * 개편 뒤의 실제 데이터 경로는 `stock.naver.com` 의 JSON API 다.
  *
- * 정책:
- *  - User-Agent + Referer 필수, 페이지 요청 사이 1.5초 sleep.
- *  - 종목당 cutoff(기본 7일) 또는 maxPages(기본 10) 중 먼저 도달하는 쪽까지 수집.
- *  - 글이 cutoff 안쪽이면 본문도 fetch (본문 fetch 사이도 sleep).
+ *  - 목록: /api/community/discussion/posts/by-item?discussionType=domesticStock&itemCode=<코드>
+ *  - 반응: /api/community/discussion/posts/reactions?postIds=<쉼표 구분>
+ *
+ * 실측으로 확인한 주의점 두 가지:
+ *  1. **목록의 `viewCount`·`recommendCount`·`notRecommendCount` 는 전부 0 이다.**
+ *     진짜 값은 `reactions` 에만 있어서, 안 부르면 조회수·공감이 통째로 0 으로 적재된다.
+ *  2. **네이버가 만든 자동 글(`itemNews*`)이 섞여 온다**("5% 이상 하락했어요 😞").
+ *     ⚠️ 옛 HTML 게시판도 이 글을 함께 실었고 DB 에 이미 109건 쌓여 있어(2026-03~09),
+ *     여기서 거르면 수집 정책이 조용히 바뀐다. 그래서 **종전대로 함께 담는다.**
+ *     🔴 `excludesItemNews=true` 파라미터는 무시되므로(실측 차이 0건) 나중에 거르기로
+ *     정하면 `postType !== 'normal'` 로 직접 걸러야 한다. 최근 100건 기준 비중이
+ *     15~30% 까지 올라와 있어 감성 분석 입력으로 적절한지는 따로 판단할 문제다.
+ *
+ * 정책: 페이지 요청 사이 1.5초 sleep. 종목당 cutoff(기본 7일) 또는 maxPages 중
+ * 먼저 도달하는 쪽까지 수집.
  */
-import * as cheerio from 'cheerio';
-import * as iconv from 'iconv-lite';
-
-const BASE = 'https://finance.naver.com';
+const API_BASE = 'https://stock.naver.com/api/community/discussion';
 const HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
   'Accept-Language': 'ko-KR,ko;q=0.9',
-  Referer: 'https://finance.naver.com/',
+  Accept: 'application/json',
+  Referer: 'https://stock.naver.com/',
 } as const;
 
+/** 목록 한 번에 받을 글 수. 200 은 400 Bad Request 라 100 이 상한이다. */
+const PAGE_SIZE = 100;
+/** 반응 조회 한 번에 넣을 postId 개수(네이버 화면 자신이 30개씩 묶어 부른다). */
+const REACTION_CHUNK = 30;
 const SLEEP_MS = 1_500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -34,130 +48,198 @@ export interface NaverBoardPost {
   dislikes: number;
 }
 
-interface ListItem {
-  postId: string;
-  postedAt: Date;
-  title: string;
-  views: number;
-  likes: number;
-  dislikes: number;
+interface ListItem extends NaverBoardPost {
+  /** 다음 쪽 요청에 쓰는 커서. 네이버가 내려준 문자열을 그대로 쓴다. */
+  orderNo: string;
 }
 
-function parseKoreanDateTime(s: string): Date | null {
-  // 네이버 표시: '2026.05.15 10:23' (KST)
-  const m = s.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
-  if (!m) return null;
-  const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00+09:00`;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
+interface RawPost {
+  id?: unknown;
+  orderNo?: unknown;
+  postType?: unknown;
+  title?: unknown;
+  writtenAt?: unknown;
+  contentSwReplacedButImg?: unknown;
 }
 
-function parseInt0(s: string | undefined): number {
-  if (!s) return 0;
-  const n = Number(s.replace(/[^0-9-]/g, ''));
+interface RawReaction {
+  postId?: unknown;
+  viewCount?: unknown;
+  recommendCount?: unknown;
+  notRecommendCount?: unknown;
+}
+
+function toNumber(v: unknown): number {
+  const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-async function fetchText(url: string): Promise<string> {
-  const r = await fetch(url, { headers: HEADERS, cache: 'no-store' });
-  if (!r.ok) throw new Error(`네이버 ${r.status} ${url}`);
-  const buf = await r.arrayBuffer();
-  // Content-Type charset 기반 동적 디코딩. 네이버 금융은 과거 EUC-KR이었지만 현재는
-  // UTF-8(2026-05 확인). 향후 다시 바뀔 수 있으니 응답 헤더를 우선 신뢰.
-  const ct = r.headers.get('content-type') ?? '';
-  const m = ct.match(/charset=([^;\s]+)/i);
-  const charset = (m ? m[1] : 'utf-8').toLowerCase();
-  if (charset === 'utf-8' || charset === 'utf8') {
-    return Buffer.from(buf).toString('utf-8');
-  }
-  // euc-kr/cp949 등 비-UTF-8은 iconv-lite로 디코딩 (Node small ICU 의존성 회피).
-  return iconv.decode(Buffer.from(buf), charset);
-}
-
-function parseListPage(html: string): ListItem[] {
-  // fetchText가 이미 cp949 → UTF-8 디코딩한 string이라 cheerio가 정상 처리.
-  const $ = cheerio.load(html, { xml: false });
-  const items: ListItem[] = [];
-  $('table.type2 tr').each((_, tr) => {
-    const tds = $(tr).find('td');
-    if (tds.length < 6) return;
-    const titleA = $(tds[1]).find('a');
-    const href = titleA.attr('href') ?? '';
-    const m = href.match(/nid=(\d+)/);
-    if (!m) return;
-    const postId = m[1];
-    const dateRaw = $(tds[0]).text();
-    const titleRaw = titleA.text();
-    const postedAt = parseKoreanDateTime(dateRaw);
-    if (!postedAt) return;
-    items.push({
-      postId,
-      postedAt,
-      title: titleRaw.trim(),
-      views: parseInt0($(tds[3]).text()),
-      likes: parseInt0($(tds[4]).text()),
-      dislikes: parseInt0($(tds[5]).text()),
-    });
-  });
-  return items;
-}
-
-function parseBodyPage(html: string): string | null {
-  const $ = cheerio.load(html);
-  const body = $('#body, .view_se, table.view_box td.view_se').first();
-  if (body.length === 0) {
-    return $('body').text().trim().slice(0, 2000) || null;
-  }
-  return body.text().trim().slice(0, 2000) || null;
+/**
+ * `2026-09-11T15:18:37` 처럼 표준시가 안 붙어 오는 작성시각을 KST 로 읽는다.
+ * 🔴 `+09:00` 을 안 붙이면 Node 가 서버 지역시로 해석해 9시간이 밀린다(GHA 는 UTC).
+ */
+export function parseWrittenAt(s: unknown): Date | null {
+  if (typeof s !== 'string') return null;
+  const m = s.trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] ?? '00'}+09:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /**
- * 종목 코드의 종목토론 글을 수집.
+ * 목록 응답을 글 배열 + 다음 쪽 커서로 바꾼다.
+ * @throws 응답에 `posts` 배열이 없으면 — 구조가 또 바뀐 것이라 조용히 넘기지 않는다.
+ */
+export function parseListPayload(payload: unknown): {
+  items: ListItem[];
+  rawCount: number;
+  nextOffset: string | null;
+} {
+  const obj = payload as { posts?: unknown; lastOffset?: unknown } | null;
+  if (!obj || !Array.isArray(obj.posts)) {
+    throw new Error('네이버 종목토론 목록 응답에 posts 배열이 없다 — 구조 변경 의심');
+  }
+  const raw = obj.posts as RawPost[];
+  const items: ListItem[] = [];
+  for (const p of raw) {
+    const postId = typeof p.id === 'string' ? p.id : String(p.id ?? '');
+    const postedAt = parseWrittenAt(p.writtenAt);
+    if (!postId || !postedAt) continue;
+    const content = typeof p.contentSwReplacedButImg === 'string' ? p.contentSwReplacedButImg : '';
+    items.push({
+      postId,
+      orderNo: String(p.orderNo ?? ''),
+      postedAt,
+      title: typeof p.title === 'string' ? p.title.trim() : '',
+      body: content.trim().slice(0, 2000) || null,
+      // 목록은 이 셋이 늘 0 이다 — reactions 로 덮어쓴다.
+      views: 0,
+      likes: 0,
+      dislikes: 0,
+    });
+  }
+  const last = raw.length > 0 ? raw[raw.length - 1] : null;
+  const nextOffset =
+    typeof obj.lastOffset === 'string' && obj.lastOffset
+      ? obj.lastOffset
+      : last && last.orderNo != null
+        ? String(last.orderNo)
+        : null;
+  return { items, rawCount: raw.length, nextOffset };
+}
+
+/** 반응 응답을 postId → {views, likes, dislikes} 로 편다. */
+export function parseReactionsPayload(
+  payload: unknown
+): Map<string, { views: number; likes: number; dislikes: number }> {
+  const arr = Array.isArray(payload)
+    ? (payload as RawReaction[])
+    : Array.isArray((payload as { reactions?: unknown })?.reactions)
+      ? ((payload as { reactions: unknown[] }).reactions as RawReaction[])
+      : [];
+  const out = new Map<string, { views: number; likes: number; dislikes: number }>();
+  for (const r of arr) {
+    const id = typeof r.postId === 'string' ? r.postId : String(r.postId ?? '');
+    if (!id) continue;
+    out.set(id, {
+      views: toNumber(r.viewCount),
+      likes: toNumber(r.recommendCount),
+      dislikes: toNumber(r.notRecommendCount),
+    });
+  }
+  return out;
+}
+
+function listUrl(code: string, offset: string | null): string {
+  const q = new URLSearchParams({
+    discussionType: 'domesticStock',
+    itemCode: code,
+    isHolderOnly: 'false',
+    excludesItemNews: 'false',
+    isItemNewsOnly: 'false',
+    isCleanbotPassedOnly: 'false',
+    pageSize: String(PAGE_SIZE),
+  });
+  if (offset) q.set('offset', offset);
+  return `${API_BASE}/posts/by-item?${q.toString()}`;
+}
+
+async function fetchJson(url: string): Promise<unknown> {
+  const r = await fetch(url, { headers: HEADERS, cache: 'no-store' });
+  if (!r.ok) throw new Error(`네이버 ${r.status} ${url}`);
+  return r.json();
+}
+
+/** 조회수·공감·비공감을 채운다(목록엔 0 으로 오므로 이 단계가 없으면 통째로 0 이다). */
+async function fillReactions(items: ListItem[]): Promise<void> {
+  for (let i = 0; i < items.length; i += REACTION_CHUNK) {
+    const chunk = items.slice(i, i + REACTION_CHUNK);
+    const url = `${API_BASE}/posts/reactions?postIds=${chunk.map((p) => p.postId).join('%2C')}`;
+    let map: Map<string, { views: number; likes: number; dislikes: number }>;
+    try {
+      map = parseReactionsPayload(await fetchJson(url));
+    } catch {
+      // 반응 조회는 부가 정보다 — 실패해도 글 자체는 살린다(값은 0 으로 남는다).
+      continue;
+    }
+    for (const p of chunk) {
+      const hit = map.get(p.postId);
+      if (!hit) continue;
+      p.views = hit.views;
+      p.likes = hit.likes;
+      p.dislikes = hit.dislikes;
+    }
+  }
+}
+
+/**
+ * 종목 코드의 종목토론 글을 수집한다.
  * @param code 6자리 종목코드
  * @param sinceDays 최근 N일치만 수집 (기본 7)
- * @param maxPages 페이지 cap (기본 10)
- * @param fetchBody true면 본문도 가져옴 (false면 제목·메타만). 기본 false:
- *   현 네이버 board_read 구조에서 parseBodyPage 선택자가 본문을 못 잡고 페이지
- *   인라인 JS를 긁어와, 감성 분석은 제목만 사용한다(본문 불필요). 본문 fetch는
- *   글당 추가 요청·sleep만 유발하므로 끈다.
+ * @param maxPages 목록 요청 횟수 cap (기본 10 · 한 번에 100건)
+ * @param fetchBody true면 본문도 담는다. 개편 뒤엔 본문이 목록 응답에 함께 오므로
+ *   **추가 요청이 없다**(옛 구조에선 글당 1회 더 받아야 해서 기본으로 껐었다).
+ * @returns `posts` 는 cutoff 안쪽 글(네이버 자동 글 포함 — 옛 게시판과 같은 범위).
+ *   `rawCount` 는 **cutoff 로 자르기 전** 네이버가 내려준 글 수다 — 호출부가 「글이 없다」와
+ *   「API 가 빈 배열을 준다(=또 개편)」를 가르는 데 쓴다. 🔴 이 구분이 없어서
+ *   2026-09-12 개편 때 종목토론 수집이 나흘 동안 조용히 멈춰 있었다.
  */
 export async function fetchNaverBoardPosts(
   code: string,
   sinceDays = 7,
   maxPages = 10,
   fetchBody = false
-): Promise<NaverBoardPost[]> {
+): Promise<{ posts: NaverBoardPost[]; rawCount: number }> {
   const cutoff = new Date(Date.now() - sinceDays * 24 * 60 * 60_000);
   const collected: NaverBoardPost[] = [];
+  let offset: string | null = null;
+  let rawTotal = 0;
 
-  for (let page = 1; page <= maxPages; page++) {
-    const url = `${BASE}/item/board.naver?code=${code}&page=${page}`;
-    const html = await fetchText(url);
-    const items = parseListPage(html);
-    if (items.length === 0) break;
+  for (let page = 0; page < maxPages; page++) {
+    const { items, rawCount, nextOffset } = parseListPayload(
+      await fetchJson(listUrl(code, offset))
+    );
+    rawTotal += rawCount;
+    if (rawCount === 0) break;
 
-    let stopAfterThisPage = false;
-    for (const it of items) {
-      if (it.postedAt < cutoff) {
-        stopAfterThisPage = true;
-        continue;
-      }
-      let body: string | null = null;
-      if (fetchBody) {
-        await sleep(SLEEP_MS);
-        const readUrl = `${BASE}/item/board_read.naver?code=${code}&nid=${it.postId}`;
-        try {
-          const detail = await fetchText(readUrl);
-          body = parseBodyPage(detail);
-        } catch {
-          body = null;
-        }
-      }
-      collected.push({ ...it, body });
+    const fresh = items.filter((it) => it.postedAt >= cutoff);
+    await fillReactions(fresh);
+    for (const it of fresh) {
+      collected.push({
+        postId: it.postId,
+        postedAt: it.postedAt,
+        title: it.title,
+        body: fetchBody ? it.body : null,
+        views: it.views,
+        likes: it.likes,
+        dislikes: it.dislikes,
+      });
     }
 
-    if (stopAfterThisPage) break;
+    // 이 쪽에 cutoff 보다 오래된 글이 있으면 더 볼 필요가 없다(최신순 정렬).
+    if (fresh.length < items.length || !nextOffset) break;
+    offset = nextOffset;
     await sleep(SLEEP_MS);
   }
-  return collected;
+  return { posts: collected, rawCount: rawTotal };
 }
