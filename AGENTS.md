@@ -19,7 +19,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`Architecture.md`](./Architecture.md)** — _시스템 구조의 단일 진실 공급원_. 테이블·뷰 컬럼/인덱스/트리거, 라우트 맵, 캐싱·배포·자동화, 폴더별 **모듈 구성**. **DB 스키마 확인·구조 변경 전.**
 - **[`report.md`](./report.md)** — _보고서(`/reports`) 작성 규칙_. 게시 절차·본문 형식·**한국어 마크다운 렌더 함정(§4)**·이미지·Mermaid·유튜브 워크플로(§7). **보고서 본문 작성·수정 전 정독.** **⚠️ 유튜브 보고서는 주요 장면·차트를 반드시 캡처·삽입(차트 누락 금지, 사용자 지시 2026-07-18) — §7-4·§7-A·§8 필수 체크.**
 - **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. **차트 신규·수정 전 정독**(콤보 이중축 영역 분리 §4-F · 스타일 토큰·글자 크기 §5). `fontSize`·축 domain·범례 순서 임의 변경 금지.
-- **[`docs/report-from-youtube.md`](./docs/report-from-youtube.md)** · **[`docs/report-from-pdf.md`](./docs/report-from-pdf.md)** — _유튜브·PDF → 보고서 규칙 정본_(2026-09-11 신설, 계속 갱신). 🔴 **게시 전 `settle.py --check` + `verify_yt_report.py` 필수** — 도해가 차오르는 «도중» 캡처(리포트 117·122)와 캡션이 그림에 없는 것을 약속하는 결함을 막는다.
+- **[`docs/report-from-youtube.md`](./docs/report-from-youtube.md)** · **[`docs/report-from-pdf.md`](./docs/report-from-pdf.md)** — _유튜브·PDF → 보고서 규칙 정본_(2026-09-11 신설, 계속 갱신). 🔴 **게시 전 정독**(검사 2종은 「검증 명령」) — 도해가 차오르는 «도중» 캡처(리포트 117·122)와 캡션이 그림에 없는 것을 약속하는 결함을 막는다.
 - **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** — _수집·적재·파싱 함정 정본_. **수집기 수정 전 정독.**
 - **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)** — _Playwright·UI 검증 함정_. **UI를 브라우저로 검증하기 전 정독.**
 - **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md)** — _CI·배포·플랫폼 운영 함정_(GHA 실패 판별·Vercel 배포 확인·Supabase MCP 우회·PowerShell·훅 검사기). **워크플로를 돌리거나 배포를 확인하기 전 정독.** 🔴 **넓게 훑은 검색이 0건일 때도**(§8 — 소스의 날 NUL 바이트가 Grep 도구에서 파일을 통째로 지운다). 🔴 **Supabase 보안 경고 메일을 받았을 때도**(§10 — 기준일이 발송일보다 앞서 이미 고친 것이 다시 오고, 남은 두 경고는 의도된 설계다).
@@ -59,9 +59,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`verify_report_sort_wiring.py`** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**. 값을 박으면 링크만 생기고 목록은 안 바뀐다(2026-09-11 `/humanoid/reports` 실사고).
 - **`verify_financials_sanity.py`** — 재무 수집기를 고쳤으면 돌린다. 「미확인 급변」은 DART 원문과 대조한 뒤 **근거와 함께** `VERIFIED_JUMPS` 로.
 - **`verify_call_contracts.py`** — 공용 헬퍼의 **반환형·시그니처를 바꿨으면** 돌린다. `except` 안의 회귀는 실패가 아니라 **침묵**이다(튜플로 바꿔 수집기 3곳이 조용히 죽었다).
+- **`verify_translationese.py`** — 보고서 게시 전 번역투 검사.
 - **`verify_news_relevance.py`** — 뉴스 수집 질의를 고쳤으면 돌린다. 보통명사 사명은 남의 기사를 통째로 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 실측 70% → [`gotchas-data-collection.md`](./docs/gotchas-data-collection.md)).
 - 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
-- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착) + `scripts/verify_yt_report.py --run <산출물>`. 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다 → [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)
+- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착) + `scripts/verify_yt_report.py --run <산출물>`. 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다
 - 🔴 **`pnpm run dev` 금지** — pnpm 11이 스크립트 실행 전 의존성 검사를 돌리다 `ERR_PNPM_IGNORED_BUILDS`(sharp·esbuild·@google/genai 등 5개 빌드 미승인)로 exit 1 나서 dev가 아예 안 뜬다. 포트 3000은 다른 앱 점유라 3001+로 자동 배정된다.
 
 ## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
