@@ -235,6 +235,7 @@ def enrich(row: dict, tracked: dict[str, str]) -> dict:
         bool(company_id),
         row["title"],
         row["is_periodic"],
+        ticker=row.get("ticker"),
     )
     return row
 
@@ -313,6 +314,7 @@ def main() -> int:
             bool(tracked.get(r.get("ticker") or "")),
             r["title"],
             r["is_periodic"],
+            ticker=r.get("ticker"),
         )
     ]
     dropped = len(new_rows) - len(candidates)

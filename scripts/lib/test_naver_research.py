@@ -252,8 +252,34 @@ class TestSummaryTarget(unittest.TestCase):
     def test_untracked_company_without_robot_title_dropped(self):
         self.assertFalse(is_summary_target(KIND_COMPANY, False, "3분기 실적 호조", False))
 
-    def test_tracked_company_kept_regardless_of_title(self):
+    def test_tracked_robot_company_kept_regardless_of_title(self):
+        # 로봇이 «본업»인 추적사(두산로보틱스·로보티즈 등)는 제목에 로봇 낱말이 없어도 남긴다.
         self.assertTrue(is_summary_target(KIND_COMPANY, True, "3분기 실적 호조", False))
+        self.assertTrue(
+            is_summary_target(KIND_COMPANY, True, "3분기 실적 호조", False, ticker="454910")
+        )
+
+    def test_diversified_tracked_company_needs_robot_title(self):
+        # 🔴 개정 ③(2026-09-14) — 현대차·현대모비스·HL만도는 추적사여도 제목을 본다.
+        #    이 조항이 없으면 일반 자동차 실적 리포트가 숫자를 지배한다(실측 59건 중 36건).
+        for ticker in ("005380", "012330", "204320"):
+            with self.subTest(ticker=ticker):
+                self.assertFalse(
+                    is_summary_target(
+                        KIND_COMPANY, True, "2Q26 Review: 모난 것이 전혀 없다", False, ticker=ticker
+                    )
+                )
+                self.assertTrue(
+                    is_summary_target(
+                        KIND_COMPANY, True, "로보틱스 사업 확대 기대", False, ticker=ticker
+                    )
+                )
+
+    def test_diversified_rule_is_inert_without_ticker(self):
+        # 🔴 ticker 를 빠뜨리면 조용히 «옛 규칙»이 된다 — 호출부가 반드시 넘겨야 하는 이유다.
+        self.assertTrue(
+            is_summary_target(KIND_COMPANY, True, "2Q26 Review: 모난 것이 전혀 없다", False)
+        )
 
     def test_industry_keyword_and_not_periodic(self):
         self.assertTrue(is_summary_target(KIND_INDUSTRY, False, "휴머노이드 감속기 점검", False))

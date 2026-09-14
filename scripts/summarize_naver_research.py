@@ -466,7 +466,13 @@ def load_targets(client, args: argparse.Namespace) -> list[dict]:
     rows = q.execute().data
     picked = [
         r for r in rows
-        if is_relevant(r["kind"], r.get("company_id") is not None, r["title"], r["is_periodic"])
+        if is_relevant(
+            r["kind"],
+            r.get("company_id") is not None,
+            r["title"],
+            r["is_periodic"],
+            ticker=r.get("ticker"),
+        )
     ]
     # 🔴 중요도 선별은 **이미 끝난 것을 걸러내기 전에** 한다. 순서를 뒤집으면 「대상별 최소
     #    1편」의 그 1편이 이미 완료됐을 때 같은 대상의 다른 편이 새로 뽑혀 대상당 여러 편이
