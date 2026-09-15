@@ -49,18 +49,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 검증 명령 (작업 완료 후 반드시 실행)
 
-🔴 **명령 목록·실행 절차 정본 = [`docs/commands.md`](./docs/commands.md)**(2026-09-10 이관 — 자동 로드엔 약속만 남겼다).
-"무슨 명령이었지" 싶으면 **거기부터**: npm 검사 · Python 상시 검사 6종 · E2E · 워크플로·배포 확인.
+🔴 **명령 목록·실행 절차 정본 = [`docs/commands.md`](./docs/commands.md)** — "무슨 명령이었지" 싶으면 거기부터.
 
 어기면 조용히 깨지는 것만 여기 남긴다.
 🔴 **아래 `verify_*` 는 전부 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다.
 
-- **`verify_revalidate_tags.py`** — **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(빠뜨리면 수집이 성공해도 그 화면이 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
-- **`verify_report_sort_wiring.py`** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**. 값을 박으면 링크만 생기고 목록은 안 바뀐다(2026-09-11 `/humanoid/reports` 실사고).
+- **`verify_revalidate_tags.py`** — **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(빠뜨리면 그 화면이 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
+- **`verify_report_sort_wiring.py`** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**(박으면 링크만 생기고 목록은 안 바뀐다 · 2026-09-11 실사고).
 - **`verify_financials_sanity.py`** — 재무 수집기를 고쳤으면 돌린다. 「미확인 급변」은 DART 원문과 대조한 뒤 **근거와 함께** `VERIFIED_JUMPS` 로.
 - **`verify_call_contracts.py`** — 공용 헬퍼의 **반환형·시그니처를 바꿨으면** 돌린다. `except` 안의 회귀는 실패가 아니라 **침묵**이다(튜플로 바꿔 수집기 3곳이 조용히 죽었다).
 - **게시 전 2종** — `verify_translationese.py`(번역투) · `verify_report_krw.py`(외화 금액에 **작성 시점 환율로 원화 환산 병기** → [`report.md §3-B`](./report.md)).
-- **`verify_news_relevance.py`** — 뉴스 수집 질의를 고쳤으면 돌린다. 보통명사 사명은 남의 기사를 통째로 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 실측 70% — 경위는 「문서 역할 분리」의 `gotchas-data-collection.md`).
+- **`verify_summary_source.py`** — 회사 설명 보강기를 고쳤으면 돌린다. 국내 상장사 설명 정본은 **fnguide 기업개요**(「동사는…」)이고 LLM 이 덮으면 위반이다(2026-07-17 실사고 166곳).
+- **`verify_news_relevance.py`** — 뉴스 수집 질의를 고쳤으면 돌린다. 보통명사 사명은 남의 기사를 통째로 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 실측 70%).
 - 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
 - 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착) + `scripts/verify_yt_report.py --run <산출물>`. 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다
 - 🔴 **`pnpm run dev` 금지**(`npm run dev`) — 뜨지도 않고 포트는 3001+ → [`gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §6-A.
