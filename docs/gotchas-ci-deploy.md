@@ -119,6 +119,16 @@ untracked 를 정리하거나 새로 추적하기 전에 `sbp_`/토큰 패턴을
 `scripts/lib/revalidate.py` 의 `revalidate_tags([태그])` 를 **로컬로** 호출하면
 (`NEXT_REVALIDATE_URL`=localhost) 해당 태그만 무효화돼 훨씬 빠르다.
 
+### 6-A. `pnpm run dev` 는 dev 가 아예 안 뜬다 — `npm run dev` 를 쓴다
+
+이 레포는 npm 을 쓰는데(`package-lock.json`), 습관적으로 `pnpm run dev` 를 치면
+pnpm 11 이 **스크립트를 실행하기 «전»에** 의존성 검사를 돌리다
+`ERR_PNPM_IGNORED_BUILDS` 로 **exit 1** 을 낸다. sharp · esbuild · `@google/genai` 등
+**5개 패키지의 빌드가 미승인** 상태라서다. dev 서버가 느린 것이 아니라 **뜨지도 않는다.**
+
+- 포트 **3000 은 다른 앱이 점유**하고 있어 **3001 이상으로 자동 배정**된다.
+  화면 확인 전에 실제 배정된 포트를 로그에서 확인할 것.
+
 ## 7. `lib/database.types.ts` 재생성이 손으로 덧붙인 헬퍼 타입을 지운다 (2026-08-21 실측)
 
 `AGENTS.md` 는 컬럼을 추가하면 "`generate_typescript_types` 로 `lib/database.types.ts` 갱신" 하라고
