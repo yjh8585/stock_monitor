@@ -21,7 +21,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib import fnguide_client as fng
 from lib.companies import get_kr_companies
-from lib.db import get_client
+from lib.db import WriteSession, get_client
 from lib.fnguide_guard import is_fnguide_fallback
 
 # ──────────────────────────────────────────────
@@ -70,13 +70,18 @@ def _parse_business_summary(page) -> Optional[str]:
     return None
 
 
-def _update_business_summary(company_id: str, summary: Optional[str]) -> None:
-  """companies.business_summary만 갱신 (시총·주가는 pykrx 담당이라 손대지 않음)."""
+def _update_business_summary(w, company_id: str, summary: Optional[str]) -> None:
+  """companies.business_summary만 갱신 (시총·주가는 pykrx 담당이라 손대지 않음).
+
+  🔴 `WriteSession` 을 받아 쓴다. 예전에는 `get_client()` 로 직접 UPDATE 해서
+     블록 종료 시의 자동 캐시 무효화를 타지 않았고, 수집이 성공해도 화면은
+     `'use cache'` 결과를 들고 낡은 값을 보였다(2026-09-16 발견).
+  """
   if not summary:
     return
   try:
     (
-      get_client()
+      w
       .table('companies')
       .update({'business_summary': summary})
       .eq('id', company_id)
@@ -90,7 +95,7 @@ def _update_business_summary(company_id: str, summary: Optional[str]) -> None:
 # 스크레이핑
 # ──────────────────────────────────────────────
 
-def _scrape_company(page, ticker: str, company_id: str) -> None:
+def _scrape_company(w, page, ticker: str, company_id: str) -> None:
   """단일 회사 Snapshot 페이지에서 기업개요 추출 후 DB UPDATE."""
   snapshot_url = FNGUIDE_SNAPSHOT_URL.format(cmp_cd=_to_cmp_cd(ticker))
 
@@ -110,7 +115,7 @@ def _scrape_company(page, ticker: str, company_id: str) -> None:
   if summary and is_fnguide_fallback(summary, ticker, gi_name):
     logger.warning(f"KR {ticker}: 폴백 페이지(삼성전자 기본) 감지 — 저장 skip")
     summary = None
-  _update_business_summary(company_id, summary)
+  _update_business_summary(w, company_id, summary)
   logger.info(f"KR {ticker}: business_summary={'OK' if summary else '미수집'}")
 
 
@@ -128,7 +133,8 @@ def collectKrSnapshot() -> None:
 
   id_map = _load_company_id_map()
 
-  with sync_playwright() as pw:
+  # WriteSession 블록이 끝나면 건드린 테이블(companies)의 캐시 태그가 자동 무효화된다.
+  with WriteSession() as w, sync_playwright() as pw:
     browser = pw.chromium.launch(headless=True)
     context = browser.new_context(
       user_agent=(
@@ -148,7 +154,7 @@ def collectKrSnapshot() -> None:
           continue
 
         try:
-          _scrape_company(page, ticker, company_id)
+          _scrape_company(w, page, ticker, company_id)
         except Exception as e:
           logger.error(f"KR {ticker} 수집 중 예외 발생: {e}")
 
