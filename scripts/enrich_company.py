@@ -43,6 +43,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from collect_financials import _fetch_company_financials, _process_yf_frames  # noqa: E402
+from lib.companies import keeps_existing_summary  # noqa: E402
 from lib.db import WriteSession, upsert_rows  # noqa: E402
 from lib.financial_sources import SOURCE_WEB_SEARCH  # noqa: E402
 from lib.product_categories import category_guide, fetch_product_categories  # noqa: E402
@@ -553,7 +554,11 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
         if not res or res.get('confidence') == 'low':
           continue
         payload = {}
-        if res.get('business_summary'):
+        if keeps_existing_summary(c):
+          # 🔴 국내 상장사 설명의 정본은 fnguide 기업개요다 — 제품·홈페이지가 비어
+          #    보강 대상이 됐더라도 설명은 건드리지 않는다(경위 = lib/companies.py).
+          logger.debug(f'  {c["name_kr"]}: 국내 상장사 — business_summary는 fnguide 정본 유지')
+        elif res.get('business_summary'):
           bs_clean = strip_citation_tags(res['business_summary'])
           if bs_clean and is_rejection_response(bs_clean):
             logger.warning(f'  {c["name_kr"]}: business_summary가 거부 응답 — skip')

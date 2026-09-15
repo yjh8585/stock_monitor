@@ -25,6 +25,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 import anthropic  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
+from lib.companies import keeps_existing_summary  # noqa: E402
 from lib.db import WriteSession  # noqa: E402
 
 # 사용자 정책 (2026-05-12): Sonnet 비용 우려로 Haiku 4.5 사용. 환경변수 무시 강제.
@@ -142,8 +143,15 @@ def main():
 
 
 def _main_in_session(w, target_names: set[str], api_key: str) -> None:
-    q = w.table('companies').select('id,name_kr,name,country,homepage_url,business_summary').eq('status', 'active')
+    # 🔴 market 을 반드시 싣는다 — 없으면 keeps_existing_summary 가 전부 False 가 된다.
+    q = w.table('companies').select('id,name_kr,name,country,market,homepage_url,business_summary').eq('status', 'active')
     rows = q.execute().data
+    # 🔴 국내 상장사 설명의 정본은 fnguide 기업개요다. 이 스크립트는 설명만 고치므로
+    #    대상 자체에서 뺀다(경위 = lib/companies.py).
+    kept = [r for r in rows if keeps_existing_summary(r)]
+    rows = [r for r in rows if not keeps_existing_summary(r)]
+    if kept:
+        logger.info(f'국내 상장사 {len(kept)}곳은 fnguide 정본이라 제외')
     if target_names:
         rows = [r for r in rows if r['name_kr'] in target_names]
     else:

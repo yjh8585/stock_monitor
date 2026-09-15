@@ -17,6 +17,7 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
+from lib.companies import keeps_existing_summary  # noqa: E402
 from lib.db import WriteSession  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
@@ -121,7 +122,8 @@ def _main_in_session(w, api_key: str) -> None:
 
   companies = (
     w.table('companies')
-    .select('id,ticker,name,name_kr,country,products,business_summary,customers')
+    # 🔴 market 을 반드시 싣는다 — 없으면 keeps_existing_summary 가 전부 False 가 된다.
+    .select('id,ticker,name,name_kr,country,market,products,business_summary,customers')
     .in_('id', cids)
     .eq('status', 'active')
     .execute()
@@ -155,6 +157,10 @@ def _main_in_session(w, api_key: str) -> None:
     bs_clean = strip_citation_tags(res.get('business_summary'))
     if bs_clean and is_rejection_response(bs_clean):
       logger.warning(f'  {name_kr}: business_summary가 거부 응답 — 기존 값 유지')
+      bs_clean = None
+    if keeps_existing_summary(c):
+      # 🔴 국내 상장사 설명의 정본은 fnguide 기업개요다 — 제품·고객사만 보강하고
+      #    설명은 건드리지 않는다(경위 = lib/companies.py).
       bs_clean = None
     update_payload = {
       'business_summary': bs_clean or c.get('business_summary'),

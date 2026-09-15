@@ -29,6 +29,7 @@ import yfinance as yf  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 from lib import fnguide_client as fng  # noqa: E402
+from lib.companies import keeps_existing_summary  # noqa: E402
 from lib.db import WriteSession  # noqa: E402
 from lib.fnguide_guard import is_fnguide_fallback  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
@@ -231,7 +232,9 @@ def main():
 
 
 def _main_in_session(w, target: set[str], api_key: str) -> None:
-    rows = w.table('companies').select('id,name_kr,name,ticker,country,data_source,homepage_url,business_summary').eq('status', 'active').execute().data
+    # 🔴 market 을 반드시 싣는다 — 없으면 keeps_existing_summary 가 전부 False 가 되어
+    #    가드가 조용히 무동작한다.
+    rows = w.table('companies').select('id,name_kr,name,ticker,country,market,data_source,homepage_url,business_summary').eq('status', 'active').execute().data
     if target:
         rows = [r for r in rows if r['name_kr'] in target]
 
@@ -274,6 +277,13 @@ def _main_in_session(w, target: set[str], api_key: str) -> None:
 
                 # === 2차: 1차가 부족하면 홈페이지+검색 → Haiku ===
                 if not desc or len(desc) < MIN_LEN_THRESHOLD:
+                    # 🔴 2026-07-17 사고의 진원지다. 구 fnguide 도메인이 폐지돼 HTTP 200
+                    #    안내 페이지를 돌려주자 1차가 조용히 실패했고, 2차 LLM 이 국내
+                    #    상장사 166곳의 정본을 홈페이지 요약문으로 덮었다.
+                    #    기존 값이 있으면 폴백이 정본을 덮게 두지 않는다.
+                    if keeps_existing_summary(c):
+                        logger.warning(f'  {name}: fnguide 수집 실패 — 기존 정본을 LLM으로 덮지 않는다, skip')
+                        continue
                     web_text = fetch_web_text(page, c, llm=llm)
                     if len(web_text) >= 200:
                         candidate = haiku_extract(llm, web_text, name)

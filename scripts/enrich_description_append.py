@@ -24,6 +24,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 import anthropic  # noqa: E402
 
+from lib.companies import keeps_existing_summary  # noqa: E402
 from lib.db import get_client  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
@@ -134,10 +135,16 @@ def main():
     client = get_client()
     rows = (
         client.table('companies')
-        .select('id,name_kr,name,country,data_source,business_summary')
+        .select('id,name_kr,name,country,market,data_source,business_summary')
         .eq('status', 'active')
         .execute().data
     )
+    # 🔴 국내 상장사 설명의 정본은 fnguide 기업개요다. 이 스크립트는 설명만 덧붙이므로
+    #    대상 자체에서 뺀다(경위 = lib/companies.py).
+    kept = [r for r in rows if keeps_existing_summary(r)]
+    rows = [r for r in rows if not keeps_existing_summary(r)]
+    if kept:
+        logger.info(f'국내 상장사 {len(kept)}곳은 fnguide 정본이라 제외')
     targets = [r for r in rows if r.get('business_summary') and len(r['business_summary']) < 200]
     logger.info(f'대상: {len(targets)}개 (200자 미만)')
 
