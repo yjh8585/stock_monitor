@@ -17,6 +17,8 @@
 - `title`, `source_name`(발행기관/저자), `source_url`(원문), `content`(**마크다운 본문**)
 - `source_published_at`(원문 작성일, 모르면 null), `category`, `thumbnail_url`
 - PDF 첨부형: `file_path`/`file_name`(Storage `reports` 버킷). 상세 페이지가 다운로드 링크 자동 생성.
+  🔴 **단 첨부는 최후 수단이다 — 발행처 인터넷 링크를 먼저 찾아 `source_url` 로 대체한다**(사용자 지시
+  2026-09-15 · 절차는 [`docs/report-from-pdf.md`](./docs/report-from-pdf.md) §2-A).
 - `is_confidential`(기본 false): 사외비 여부. true 면 anon 키로는 조회되지 않고 열람 역할이 제한된다 — **↓ §2-C**.
 - 쓰기는 **service_role만**. RLS `posts_select_public` 은 anon·authenticated 에게 **`is_confidential = false` 행만** 허용(INSERT/UPDATE/DELETE 정책 없음).
 
@@ -124,6 +126,7 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
 - **영상에서 직접 프레임을 캡처**해 본문 이미지로 쓰는 방법(yt-dlp 구간 다운 + ffmpeg)은 **§7 워크플로** 참조.
 - **로컬 저장본(`*_files/...`) 경로를 그대로 본문에 넣지 말 것** — 공개 URL이 아니라 깨진다. 반드시 Storage에 올린 뒤 그 URL을 쓴다.
 - PDF 첨부는 이미지가 아니라 `file_path`/`file_name`(같은 버킷)로 — 상세 페이지가 다운로드 링크를 만든다.
+  🔴 **먼저 발행처 원문 URL 을 찾아 `source_url` 로 대체하고, 못 찾았을 때만 올린다** → [`docs/report-from-pdf.md`](./docs/report-from-pdf.md) §2-A.
 
 ---
 

@@ -41,6 +41,26 @@ python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 
 
 Python 스크립트는 `scripts/venv` 활성화 후 실행한다. 환경변수는 `scripts/.env`.
 
+### 필요할 때만 (상시 아님)
+
+```powershell
+scripts/venv/Scripts/python.exe scripts/_prune_katech_pdfs.py            # 대조만 — 아무것도 안 지운다
+scripts/venv/Scripts/python.exe scripts/_prune_katech_pdfs.py --delete   # 대조 통과분만 삭제
+```
+
+`posts` 에 첨부된 한국자동차연구원 PDF 가 **발행처 사이트에 그대로 있는지** 파일명·바이트수로 대조하고,
+일치하는 건만 Storage 에서 지운 뒤 `file_path`·`file_name` 을 비운다.
+🔴 **하나라도 어긋나면 그 건은 건드리지 않는다**(원문이 바뀌었거나 내려갔다는 뜻이다).
+
+2026-09-15 에 18건을 이걸로 지웠고(18/18 완전 일치), 지금은 대상이 0건이라 **KATECH PDF 가 다시
+올라왔을 때만 쓸 일이 있다.** 새 규칙(→ [`report-from-pdf.md`](./report-from-pdf.md) §2-A)대로라면
+애초에 안 올라오는 것이 정상이다.
+
+⚠️ **이 파일은 `.gitignore:110` 의 `scripts/_*.py` 에 걸려 버전 관리 밖에 있다**(이 레포가 `_` 접두를
+일회성·진단용으로 정해 둔 결과다). 새로 클론하면 없다 — 필요하면 **다시 만든다.** 되살리는 데 필요한
+것은 전부 `report-from-pdf.md` §2-A 에 적어 뒀다(상세 링크 형식 · `/download/` 위치 · 파일명·바이트수
+대조로 「같은 파일이 인터넷에 있다」를 확증하는 방법).
+
 ## E2E (dev 기동 후 · exit 0 정상 · `--self-test`)
 
 - `e2e_smoke.py` = 역할 5종 × 라우트 13개 **65칸**(열려야 48 · 막혀야 17)
