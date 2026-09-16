@@ -6,6 +6,7 @@
 | 트리거                                                                 | 볼 항목                                                        |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------- |
 | dev 서버가 재기동 안 됨 (`Another next dev server is already running`) | dev 서버 종료                                                  |
+| UI 를 어느 도구로 볼지 · 콘솔 창이 떴을 때                             | UI 검증 도구는 playwright MCP 와 e2e 스크립트                  |
 | 로그인이 404 / Server Action 오류                                      | 검증 산출물 위치 · 로그인 실패 진단                            |
 | 보호 라우트(`/management/*`) UI 검증                                   | 보호 라우트 UI Playwright 검증                                 |
 | recharts 차트 개수·라벨이 0으로 측정됨                                 | 보호 라우트 UI Playwright 검증 (LazyMount·portal·headless 절)  |
@@ -20,6 +21,26 @@
 - **dev 서버 종료는 포트 점유 PID를 직접 kill**: 래퍼(`npm run dev`)만 죽이면 자식 `next`가 포트를 물고 있어 재기동이 `⨯ Another next dev server is already running`으로 exit 1. `(Get-NetTCPConnection -LocalPort <port> -State Listen).OwningProcess` → `taskkill //PID <pid> //F`.
 
 - **검증 산출물(스크린샷·로그)은 프로젝트 밖(scratchpad)에 쓸 것**: 프로젝트 폴더에 쓰면 Turbopack이 재컴파일해 Server Action ID가 어긋나고, 로그인 POST가 404(`Failed to find Server Action`) + 쿠키 미생성으로 깨진다. `.gitignore` 대상 폴더(`참고/`)도 **파일 감시자는 gitignore와 무관**하므로 예외 아님. 처방은 `.next` 삭제 후 재기동.
+
+- 🔴 **UI 검증 도구는 playwright MCP 와 `scripts/e2e_*.py` 다 — gstack `browse` 스킬은 쓰지 않는다** (2026-09-16 판정). browse 의 Windows 실행 경로(`browse/src/cli.ts` 의 `spawn(..., {detached:true})`)에 `windowsHide` 가 빠져 있어 **콘솔 창이 뜬다** — Node 는 Windows 에서 `detached` 를 주면 자식에게 새 콘솔을 붙이고, `playwright-core` 는 Windows 에서 `detached:false` 라 브라우저가 그 콘솔을 그대로 물려받는다(그래서 창 제목이 `chrome-headless-shell.exe` 로 뜬다). 데몬은 부모가 죽어도 **유휴 30분**까지 남아 그동안 창이 화면에 있다. 업스트림(`garrytan/gstack`) 코드라 고치려면 98MB `browse.exe` 재빌드가 필요하고 `gstack-upgrade` 때 날아간다 → **안 쓰는 쪽으로 정리했다.** 떠 있는 창을 치울 때는 **PID 를 지정**해 죽인다(`@playwright/mcp` 가 같은 실행 파일을 쓰므로 이름으로 싹 죽이지 말 것).
+  - **그래서 `.mcp.json` 의 playwright 인자에 두 개를 더 준다.** `--headless` 만 있으면 브라우저 프로필이 **매번 임시 폴더**라 로그인이 세션마다 날아간다 → `--user-data-dir` 로 한 번 로그인한 프로필을 재사용한다(폴더는 자동 생성이라 `--storage-state` 처럼 「파일이 없으면 깨지는」 위험이 없어 이쪽을 골랐다). 산출물은 `--output-dir` 로 프로젝트 밖에 쓴다 — **바로 위 항목의 Turbopack 재컴파일 사고**를 막기 위해서다. 둘 다 `${LOCALAPPDATA}` 아래를 가리키고, `.mcp.json` 은 `${VAR}` 확장을 지원한다.
+  - 🔴 **`.mcp.json` 은 `.gitignore:64` 에 올라 있어 추적되지 않는다** — 새로 클론하면 이 설정이 없으니 **인자 원문을 여기 남긴다**(2026-09-16). `${VAR}` 확장은 `command`·`args`·`env`·`url`·`headers` 에서 동작한다(공식 문서 확인).
+
+    ```json
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y", "@playwright/mcp@latest", "--headless",
+        "--user-data-dir", "${LOCALAPPDATA}/stock-monitor-mcp-profile",
+        "--output-dir", "${LOCALAPPDATA}/stock-monitor-mcp-out"
+      ]
+    }
+    ```
+
+    ⚠️ **`.mcp.json` 을 고치면 그 서버는 「Pending approval」 로 떨어진다** — 다음 세션에서 한 번 승인해야 붙는다(`claude mcp get playwright` 로 확인 가능).
+
+  - ⚠️ **프로필이 남긴다고 「모든」 쿠키가 남는 것은 아니다** — 만료가 없는 **세션 쿠키는 브라우저가 닫히면 사라진다**(2026-09-16 실측: 같은 프로필에 두 개를 심었더니 만료 있는 것만 2회차에 읽혔다). 이 앱은 로그인 쿠키에 `maxAge` 를 주므로(`lib/auth/session.ts` 의 `SESSION_MAX_AGE_SECONDS` = 30일) **로그인은 남는다.** 🔴 처음에 세션 쿠키로 시험해 「프로필이 안 남는다」로 오판할 뻔했다 — **안 남는 것과 못 재는 것을 가를 것.**
+  - 🔴 **`--output-dir` 는 「자동 이름」 파일에만 걸린다** — 도움말 원문이 「Files with an explicit name are resolved against the workspace root」다. **`browser_take_screenshot` 에 파일명을 주지 말 것.** 주는 순간 프로젝트 «안» 에 떨어져 위 사고가 그대로 재현된다.
 
 - **Playwright 로그인 실패 시 dev 서버 로그부터 확인**: `POST /login 303`이면 인증 성공(그 뒤 튕기면 다른 문제), `POST /login 404` + Server Action 오류면 위 항목. 인증 코드·`permissions.ts`를 먼저 의심하지 말 것.
 

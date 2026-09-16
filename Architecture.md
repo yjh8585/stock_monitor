@@ -228,24 +228,24 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 
 #### `companies` (574행) — 회사 마스터
 
-| 컬럼                                                                                | 타입        | 설명                                                                       |
-| ----------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
-| `id`                                                                                | uuid PK     | 내부 식별자                                                                |
-| `ticker`                                                                            | text UNIQUE | 6자리(KR) / 글로벌 ticker / 비상장은 회사명                                |
-| `name`, `name_kr`                                                                   | text        | 영문·한글명 (트리거가 (주)·㈜·주식회사 자동 제거)                          |
-| `country`, `market`, `currency`                                                     | text        | KR/US/JP… / kospi/kosdaq/nasdaq/NULL=비상장 / KRW/USD…                     |
-| `status`                                                                            | text        | `active` / `hidden` / `merged_into` (구 `delisted` → `hidden`, 2026-05-20) |
-| `data_source`                                                                       | text        | yfinance / fnguide / dart / marklines / other                              |
-| `group_name`                                                                        | text        | 그룹 분류 (50개 그룹, 사람인 NICE 기반)                                    |
-| `company_type`, `region`                                                            | text        | OEM/부품사, 국내/해외 (related_stocks_view용)                              |
-| `homepage_url`                                                                      | text        | 비상장사 회사명 클릭 시 새 창 (enrich_company가 수집)                      |
+| 컬럼                                                                                | 타입        | 설명                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`                                                                                | uuid PK     | 내부 식별자                                                                                                              |
+| `ticker`                                                                            | text UNIQUE | 6자리(KR) / 글로벌 ticker / 비상장은 회사명                                                                              |
+| `name`, `name_kr`                                                                   | text        | 영문·한글명 (트리거가 (주)·㈜·주식회사 자동 제거)                                                                        |
+| `country`, `market`, `currency`                                                     | text        | KR/US/JP… / kospi/kosdaq/nasdaq/NULL=비상장 / KRW/USD…                                                                   |
+| `status`                                                                            | text        | `active` / `hidden` / `merged_into` (구 `delisted` → `hidden`, 2026-05-20)                                               |
+| `data_source`                                                                       | text        | yfinance / fnguide / dart / marklines / other                                                                            |
+| `group_name`                                                                        | text        | 그룹 분류 (50개 그룹, 사람인 NICE 기반)                                                                                  |
+| `company_type`, `region`                                                            | text        | OEM/부품사, 국내/해외 (related_stocks_view용)                                                                            |
+| `homepage_url`                                                                      | text        | 비상장사 회사명 클릭 시 새 창 (enrich_company가 수집)                                                                    |
 | `business_summary`                                                                  | text        | 🔴 **국내 상장사는 fnguide 기업개요가 정본**(LLM 덮어쓰기 금지 · `verify_summary_source.py`) · 그 밖은 yfinance/LLM 요약 |
-| `products`, `customers`                                                             | jsonb       | LLM enrich로 채움, append-only                                             |
-| `last_price`, `last_change_pct`, `last_volume`, `last_updated_at`                   | —           | 최신 가격 캐시                                                             |
-| `market_cap`                                                                        | numeric     | 시총(억원). KRX 시총 API 가 죽어 **네이버 경유**(`lib/naver_market_cap.py`, 2026-09-16) |
-| `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after`     | —           | DART 수집 상태 추적                                                        |
-| `merged_into_company_id`                                                            | uuid        | 사명변경·합병 시 새 회사로 마이그레이션 후 이 컬럼에 연결                  |
-| `is_seed`, `summary_updated_at`, `customers_updated_at`, `created_at`, `updated_at` | —           | 메타                                                                       |
+| `products`, `customers`                                                             | jsonb       | LLM enrich로 채움, append-only                                                                                           |
+| `last_price`, `last_change_pct`, `last_volume`, `last_updated_at`                   | —           | 최신 가격 캐시                                                                                                           |
+| `market_cap`                                                                        | numeric     | 시총(억원). KRX 시총 API 가 죽어 **네이버 경유**(`lib/naver_market_cap.py`, 2026-09-16)                                  |
+| `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after`     | —           | DART 수집 상태 추적                                                                                                      |
+| `merged_into_company_id`                                                            | uuid        | 사명변경·합병 시 새 회사로 마이그레이션 후 이 컬럼에 연결                                                                |
+| `is_seed`, `summary_updated_at`, `customers_updated_at`, `created_at`, `updated_at` | —           | 메타                                                                                                                     |
 
 **인덱스**: ticker UNIQUE / status / country / company_type / group_name / dart_corp_code (partial) / dart_collection_status+retry_after (partial) / merged_into_company_id (partial)  
 **트리거**: `companies_clean_legal_form_before_iu` — name/name_kr 한글 법인격 자동 정리
