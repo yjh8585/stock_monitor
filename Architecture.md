@@ -239,10 +239,10 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 | `group_name`                                                                        | text        | 그룹 분류 (50개 그룹, 사람인 NICE 기반)                                    |
 | `company_type`, `region`                                                            | text        | OEM/부품사, 국내/해외 (related_stocks_view용)                              |
 | `homepage_url`                                                                      | text        | 비상장사 회사명 클릭 시 새 창 (enrich_company가 수집)                      |
-| `business_summary`                                                                  | text        | fnguide / yfinance / LLM 요약                                              |
+| `business_summary`                                                                  | text        | 🔴 **국내 상장사는 fnguide 기업개요가 정본**(LLM 덮어쓰기 금지 · `verify_summary_source.py`) · 그 밖은 yfinance/LLM 요약 |
 | `products`, `customers`                                                             | jsonb       | LLM enrich로 채움, append-only                                             |
 | `last_price`, `last_change_pct`, `last_volume`, `last_updated_at`                   | —           | 최신 가격 캐시                                                             |
-| `market_cap`                                                                        | numeric     | 시총                                                                       |
+| `market_cap`                                                                        | numeric     | 시총(억원). KRX 시총 API 가 죽어 **네이버 경유**(`lib/naver_market_cap.py`, 2026-09-16) |
 | `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after`     | —           | DART 수집 상태 추적                                                        |
 | `merged_into_company_id`                                                            | uuid        | 사명변경·합병 시 새 회사로 마이그레이션 후 이 컬럼에 연결                  |
 | `is_seed`, `summary_updated_at`, `customers_updated_at`, `created_at`, `updated_at` | —           | 메타                                                                       |
