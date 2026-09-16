@@ -59,10 +59,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`verify_financials_sanity.py`** — 재무 수집기를 고쳤으면 돌린다. 「미확인 급변」은 DART 원문과 대조한 뒤 **근거와 함께** `VERIFIED_JUMPS` 로.
 - **`verify_call_contracts.py`** — 공용 헬퍼의 **반환형·시그니처를 바꿨으면** 돌린다. `except` 안의 회귀는 실패가 아니라 **침묵**이다(튜플로 바꿔 수집기 3곳이 조용히 죽었다).
 - **게시 전 2종** — `verify_translationese.py`(번역투) · `verify_report_krw.py`(외화 금액에 **작성 시점 환율로 원화 환산 병기** → [`report.md §3-B`](./report.md)).
-- **`verify_summary_source.py`** — 회사 설명 보강기를 고쳤으면 돌린다. 국내 상장사 설명 정본은 **fnguide 기업개요**(「동사는…」)이고 LLM 이 덮으면 위반이다(2026-07-17 실사고 166곳).
-- **`verify_news_relevance.py`** — 뉴스 수집 질의를 고쳤으면 돌린다. 보통명사 사명은 남의 기사를 통째로 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 실측 70%).
+- **`verify_summary_source.py`** · **`verify_news_relevance.py`** — 보강기·뉴스 질의를 고쳤으면 돌린다. 설명 정본은 **fnguide 기업개요**(「동사는…」)라 LLM 이 덮으면 위반이고(2026-07-17 166곳), 보통명사 사명은 남의 기사를 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 70%).
+- **`verify_research_company_link.py`** — 휴머노이드에 회사를 **추가한 뒤** 돌린다. 나중에 넣은 회사의 리포트는 연결이 끊기고 **재수집으로 안 고쳐진다**(`--fix`).
 - 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
-- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종** — `scripts/yt_report/settle.py --check`(애니메이션 정착) + `scripts/verify_yt_report.py --run <산출물>`. 훅 `block-yt-publish-without-checks` 가 `publish.ts` 를 막는다
+- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종**(명령·순서 = [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)) — 안 돌리면 훅이 게시를 막는다
 - 🔴 **`pnpm run dev` 금지**(`npm run dev`) — 뜨지도 않고 포트는 3001+ → [`gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §6-A.
 
 ## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
