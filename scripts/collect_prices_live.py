@@ -20,6 +20,7 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.companies import get_global_companies, get_kr_companies
 from lib.db import WriteSession
+from lib.naver_market_cap import fetch_market_cap_eok, self_test as _naver_cap_self_test
 
 # pykrx 시총은 KRW 원 단위 — DB 표준은 KRW 억원
 EOK = 100_000_000
@@ -112,21 +113,21 @@ def _collect_kr_live(w) -> int:
       change_pct = float(row.get('등락률', 0))
       volume = int(row.get('거래량', 0)) or None
 
-      # 시가총액 — 별도 API 호출. 보통주 기준(KRX 종목코드 단위) KRW 원 → 억원 변환
+      # 시가총액 — 보통주 기준. KRX(원 단위)가 살아 있으면 그쪽을 쓰고, 죽었으면 네이버.
       market_cap_eok: float | None = None
       cap_attempted += 1
       try:
-        cap_df = pykrx_stock.get_market_cap(today_str, today_str, ticker)
-        raw = 0.0
-        if not cap_df.empty:
-          raw = float(cap_df.iloc[-1].get('시가총액', 0))
-        if raw <= 0:
-          # 예전에는 여기가 조용했다 — 빈 응답이 예외가 아니라서 실패로 안 잡혔고,
-          # 값이 없으면 payload 에서 빠져 과거 값이 그대로 남았다.
-          raw = _market_cap_by_ticker(today_str).get(str(ticker).zfill(6), 0.0)
+        raw = _market_cap_by_ticker(today_str).get(str(ticker).zfill(6), 0.0)
         if raw > 0:
           market_cap_eok = round(raw / EOK, 2)
         else:
+          # 🔴 KRX 시총 계열이 죽었을 때의 대체 출처(2026-09-16 실측: 종목 단위·시장
+          #    전체 둘 다 죽었고 주가만 살아 있었다). 네이버는 **이미 억원 단위**라
+          #    EOK 로 나누지 않는다 — 나누면 자릿수가 통째로 어긋난다.
+          market_cap_eok = fetch_market_cap_eok(ticker)
+        if market_cap_eok is None:
+          # 예전에는 여기가 조용했다 — 값이 없으면 payload 에서 빠져 과거 값이 남았고,
+          # 주가는 정상 갱신되니 화면에서 구분되지 않았다.
           logger.warning(f"KR {ticker} 시가총액 조회 실패 — 기존 값이 그대로 남는다")
           cap_failed += 1
       except Exception as e:
@@ -191,6 +192,9 @@ def collectPricesLive() -> None:
   시가총액이 전면 실패해도 **주가 갱신과 글로벌 수집은 끝까지 마치고**, 마지막에
   exit 3 으로 알린다(2026-09-16 — 조용한 실패로 179건이 과거 값에 멈춰 있었다).
   """
+  # 🔴 시총 문자열 파싱이 조용히 틀리면 자릿수가 통째로 어긋난 채 화면에 뜬다.
+  #    수집을 시작하기 «전에» 파싱이 살아 있는지 확인한다.
+  _naver_cap_self_test()
   cap_broken: MarketCapBroken | None = None
   with WriteSession() as w:
     try:
