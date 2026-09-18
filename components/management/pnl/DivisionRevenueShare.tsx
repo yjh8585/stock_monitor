@@ -118,7 +118,10 @@ export default function DivisionRevenueShare({ annualByBasis }: Props) {
             )}
             {divisions.map((name) => {
               const isHl = highlighted.has(name);
-              const labelBg = isHl ? ROW_HIGHLIGHT_CLASS : 'bg-card';
+              // 🔴 `bg-card`(순백)가 아니라 `bg-background` — 이 테마의 background 는 순백이 아니라
+              // 아주 연한 녹색(oklch 색상각 121°)이고, 5·7~10번 표(`PnlTable`)의 부문·연도 sticky
+              // 열이 쓰는 색이 이것이다. 옆 표와 같은 음영으로 보이려면 여기를 맞춰야 한다.
+              const labelBg = isHl ? ROW_HIGHLIGHT_CLASS : 'bg-background';
               return (
                 <tr
                   key={name}
