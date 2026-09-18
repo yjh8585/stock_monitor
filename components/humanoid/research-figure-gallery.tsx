@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
+import { ZoomableImage } from '@/components/common/ImageLightbox';
 import type { ResearchFigure } from '@/lib/humanoid/research';
 
 interface Props {
@@ -38,11 +39,12 @@ export function ResearchFigureGallery({ figures }: Props) {
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           {figures.map((f) => (
             <figure key={f.url} className="space-y-1">
-              {/* next/image 를 쓰지 않는다 — 크기가 제각각이고 최적화 대상이 아니다. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              {/* next/image 를 쓰지 않는다 — 크기가 제각각이고 최적화 대상이 아니다.
+                  격자에 줄여 붙이면 차트 글씨를 못 읽으니 클릭하면 전체화면으로 확대한다. */}
+              <ZoomableImage
                 src={f.url}
                 alt={f.caption || `${f.page}쪽 그림`}
+                label={`${f.page}쪽${f.caption ? ` · ${f.caption}` : ''}`}
                 loading="lazy"
                 className="border-border w-full rounded border bg-white"
               />

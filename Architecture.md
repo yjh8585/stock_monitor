@@ -104,7 +104,7 @@
 
 탭: **pnl** / **plan** / **stellantis** / **inventory** / **production** / **personnel** / **finance** / **org-chart** / **companies**. 사외비 테이블(`pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`·`pnl_plan`·`longterm_revenue_plan`·`inventory_entries`·`personnel_entries`·`finance_entries`·`loan_entries`)은 모두 `confidentialDb.from(...)` 경유(§7-G + AGENTS.md 데이터·DB 규칙).
 
-- **pnl** — 손익 16섹션: 1 전사 비용구조, **2-1 손익분기점(BEP) 분석**(콤보차트: 우상단 토글[손익분기점·매출(억원) / 공헌이익률·고정비율(%)] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리[§4-F]·범례 LegendRow. 영업이익률=공헌이익률−고정비율), **2-2 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬['기타'는 맨 아래], 행 클릭 시 노란 강조 토글(다중)), 3 2026 연간 추정, 4~9 전사/부문/고객/제품/고객·제품/실별 실적, 10 수익성 산점(매출 YoY×영업이익률), 11 이익기여도 TOP10/WORST10, 12·13 전년대비 월별, 14 제품·고객 YoY, 15 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
+- **pnl** — 손익 17섹션: 1 전사 비용구조, **2-1 손익분기점(BEP) 분석**(콤보차트: 우상단 토글[손익분기점·매출(억원) / 공헌이익률·고정비율(%)] 묶은 막대 + 영업이익률 표식 꺾은선, 이중축 영역 분리[§4-F]·범례 LegendRow. 영업이익률=공헌이익률−고정비율), **2-2 전사 고정비·변동비 구조**(계정명 표: 매출액→비용합계→상세→영업이익, 연도별 합계/고정비/변동비+매출대비% & 변동비/고정비율 열. 우상단 토글 기본/상세·인건비·상각비 — 인건비/상각비는 해당 계정을 비용 상단 소계로 묶고 원그룹서 제외. 계정명은 최신연도 합계 내림차순 정렬['기타'는 맨 아래], 행 클릭 시 노란 강조 토글(다중)), 3 2026 연간 추정, 4·5 전사/부문 실적, **6 부문별 매출 비중**(1번과 같은 표 양식 — 행=부문·열=연도, 셀은 매출액 위 + 그해 **전사 매출 대비** 비중% 아래, 맨 아래 합계 100%. 분모가 전사라 `기타`·미분류 부문도 행으로 남긴다), 7~10 고객/제품/고객·제품/실별 실적, 11 수익성 산점(매출 YoY×영업이익률), 12 이익기여도 TOP10/WORST10, 13·14 전년대비 월별, 15 제품·고객 YoY, 16 고객 매출 집중도(파레토). 소스 `pnl_entries`·`pnl_cost_structure`·`pnl_fixed_variable`.
 - **plan** — 차트 10종.
   1. **중장기 매출 전망**(`LongtermRevenueChart`) — 2027~2031 연도별 세로 그룹 막대 3계열(수주 Volume·고객 EDI 100%·한세 전망) + 데이터 기준 드롭다운(2026.1Q/2026.2Q, 기본=최신). 단위 **억원**(DB `value_mwon`은 엑셀 원본 백만원, `buildLongtermPoints()`가 ÷100 환산 — 재무 탭과 같은 규칙). 환율 기준은 엑셀 원문 문구를 차트 상단에 표기. 값이 전무한 계열은 막대·범례 모두 생략(2026.1Q의 '고객 EDI 100%'=엑셀 N/A). 범례 클릭으로 계열 on/off(`useHiddenSeries`), **기본은 '한세 전망'만 켜짐**. 범례는 `LegendRow`로 순서 고정(recharts 기본 범례는 데이터 키 가나다순을 따라가 막대 왼→오와 어긋남). 소스 `longterm_revenue_plan`(§7-G), 적재 `sync_longterm_revenue.py`.
   2. ~10. 계획 대비 실적·달성율 콤보 차트 9종(수주·입찰 성공율·전사 매출/영업이익·미국/상숙/지린·손익개선·공장). `pnl_plan` 사외비 + 차트 4·5는 `pnl_entries` 실적 재사용. 2026 계획=연간, 실적=YTD. USD 환산 FX 적용.
@@ -1083,6 +1083,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 
 - `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - `layout/`, `common/`, `charts/` — 공용 / 나머지는 페이지별(`related-stocks/`, `oem/`, `hansae/`, `management/` 등)
+- **그림 클릭 확대는 `components/common/ImageLightbox.tsx` 를 재사용**(인라인 재구현 금지) — `ZoomableImage`(클릭하면 열리는 그림) / `ImageLightbox`(열림을 바깥에서 제어할 때. 조직도가 이 쪽). 원본 해상도 스크롤 + 화면 맞춤 전환 + grab-to-pan + Esc 닫기가 한 벌로 붙어 있다. 쓰는 곳은 보고서 본문(`MarkdownView` 의 `img`) · 증권사 리포트 하단 갤러리 · 조직도.
 - **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 
 ### `lib/`

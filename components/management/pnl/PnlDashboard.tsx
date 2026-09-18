@@ -5,6 +5,7 @@ import CostStructure from './CostStructure';
 import FixedVariableStructure from './FixedVariableStructure';
 import CompanyOverview from './CompanyOverview';
 import DivisionPerformance from './DivisionPerformance';
+import DivisionRevenueShare from './DivisionRevenueShare';
 import CustomerPerformance from './CustomerPerformance';
 import ProductPerformance from './ProductPerformance';
 import ProductCustomerCross from './ProductCustomerCross';
@@ -38,7 +39,7 @@ export type EntriesByBasis = Record<Basis, PnlEntry[]>;
  * 손익 페이지 클라이언트 루트.
  *
  * - 서버에서 사전 가공된 `prepared`를 받아 그대로 자식에 전달 (client useMemo 제거)
- * - 1~5번 표 섹션 + 6~10번 차트/표 섹션 (총 10개)
+ * - 1~9번 표 섹션 + 10~16번 차트/표 섹션 (총 16개)
  * - 월별 차트는 monthlyByBasis 사용, 연간 차트는 annualEntries/annualByBasis 사용
  *
  * 성능 최적화:
@@ -67,6 +68,7 @@ export default function PnlDashboard({ prepared, costStructure, fixedVariable }:
       />
       <CompanyOverview annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <DivisionPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      <DivisionRevenueShare annualByBasis={annualByBasis} />
       <CustomerPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <ProductPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <ProductCustomerCross annualEntries={annualEntries} annualByBasis={annualByBasis} />

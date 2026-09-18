@@ -59,9 +59,9 @@ interface ChartRow {
 }
 
 /**
- * 12. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
+ * 14. 전년 대비 월별 비교 — 고객·제품 필터 + 단일 지표(매출/영업이익).
  *
- * - 9번과 동일한 막대 비교 패턴, 단 지표는 매출/영업이익 중 1개만 선택(디폴트=매출)
+ * - 13번과 동일한 막대 비교 패턴, 단 지표는 매출/영업이익 중 1개만 선택(디폴트=매출)
  * - 고객/제품 multi-select 필터 — 미선택 = 전체
  */
 export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
@@ -164,7 +164,7 @@ export default function YoyMonthlyFiltered({ monthlyByBasis }: Props) {
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h2 className="text-lg font-semibold">
-          13. 전년 대비 월별 비교 (고객·제품 선택){' '}
+          14. 전년 대비 월별 비교 (고객·제품 선택){' '}
           <span className="text-sm font-normal text-muted-foreground">· 단위 억원</span>
         </h2>
         <div className="flex items-center gap-2 flex-wrap">

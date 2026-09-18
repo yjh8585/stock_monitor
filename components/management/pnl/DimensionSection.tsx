@@ -20,7 +20,7 @@ interface DimensionConfig {
 }
 
 interface Props {
-  /** 섹션 제목 (예: '2. 부문 실적') */
+  /** 섹션 제목 (예: '5. 부문 실적') */
   title: string;
   /** 단일 차원 (부문/고객/제품) 또는 복합 차원 (제품·고객) */
   dimensions: DimensionConfig[];
@@ -32,7 +32,7 @@ interface Props {
 }
 
 /**
- * 2~5번 섹션 공통 구현.
+ * 5·7·8·9번 섹션 공통 구현.
  *
  * - basis 토글 + 각 차원에 대해 멀티 선택 필터
  * - 행: 차원 조합 × 연도. 1차 차원 매출-desc → 2차 차원 매출-desc → ... → 연도 asc 순으로 정렬

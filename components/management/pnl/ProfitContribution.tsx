@@ -96,7 +96,7 @@ export default function ProfitContribution({ annualByBasis }: Props) {
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h2 className="text-lg font-semibold">11. 이익기여도 TOP10 / WORST10 (고객·제품)</h2>
+        <h2 className="text-lg font-semibold">12. 이익기여도 TOP10 / WORST10 (고객·제품)</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
           <YearSelect label="연도" options={yearLabels} value={effYear} onChange={setYearLabel} />
@@ -235,7 +235,7 @@ function SummaryRow({
   toggleProps: ToggleProps;
 }) {
   const margin = marginOf(agg.revenue, agg.op_income);
-  // 11번 차트(YoyMonthlyCompare)의 blue-600 solid / blue-600 0.45 톤을 표 행 음영에 매핑.
+  // 13번 차트(YoyMonthlyCompare)의 blue-600 solid / blue-600 0.45 톤을 표 행 음영에 매핑.
   const bgCls =
     tone === 'corp'
       ? 'bg-blue-200/80 dark:bg-blue-900/60'

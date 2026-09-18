@@ -123,7 +123,7 @@ interface HeatmapCell {
 }
 
 /**
- * 9. 제품·고객 YoY heatmap + 셀 클릭 시 월별 추이 모달.
+ * 15. 제품·고객 YoY heatmap + 셀 클릭 시 월별 추이 모달.
  *
  * - basis 토글 + 2개 연도 선택
  * - 행 = 제품(매출 상위), 열 = 고객(매출 상위)
@@ -213,7 +213,7 @@ export default function YoyProductCustomer({ annualByBasis, monthlyByBasis }: Pr
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h2 className="text-lg font-semibold">
-          14. 제품·고객 YoY 매트릭스{' '}
+          15. 제품·고객 YoY 매트릭스{' '}
           <span className="text-sm font-normal text-muted-foreground">
             · 셀=YoY% · 툴팁=매출 백만원
           </span>

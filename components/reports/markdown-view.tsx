@@ -6,6 +6,8 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkGfm from 'remark-gfm';
 
+import { ZoomableImage } from '@/components/common/ImageLightbox';
+
 import { MermaidBlock } from './mermaid-block';
 import { YoutubeBlock } from './youtube-block';
 
@@ -50,6 +52,14 @@ function preprocess(content: string): string {
 }
 
 const components: Components = {
+  /**
+   * 본문 그림 — 클릭하면 전체화면으로 확대한다(조직도와 같은 팝업).
+   * 리포트의 차트·도표는 본문 폭에서는 글씨가 작아 읽기 어렵다.
+   */
+  img({ src, alt }) {
+    if (typeof src !== 'string' || src.length === 0) return null;
+    return <ZoomableImage src={src} alt={alt ?? ''} label={alt || undefined} loading="lazy" />;
+  },
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className ?? '');
     const language = match?.[1];

@@ -32,7 +32,7 @@ type Mode = 'bep' | 'cm';
 const BLUE = OEM_COLORS[0]; // blue-600
 const OPMARGIN_COLOR = '#dc2626'; // 영업이익률 라인 (달성율/비율선 컨벤션)
 
-/** hex(#RRGGBB) → rgba. 12번 차트(YoyMonthlyCompare)와 동일한 2톤 음영 패턴. */
+/** hex(#RRGGBB) → rgba. 13번 차트(YoyMonthlyCompare)와 동일한 2톤 음영 패턴. */
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -41,7 +41,7 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 const BLUE_LIGHT = hexToRgba(BLUE, 0.45);
 
-/** 데이터 라벨 — 경영관리 차트 표준 16px(12번 등 동일, chart-guide §5 "콤보·인원 라벨 16px"). */
+/** 데이터 라벨 — 경영관리 차트 표준 16px(13번 등 동일, chart-guide §5 "콤보·인원 라벨 16px"). */
 const BAR_LABEL_STYLE = { fontSize: 16, fill: 'var(--foreground)', fontWeight: 600 } as const;
 
 /** 백만원 → 억원 */
@@ -190,7 +190,7 @@ const pctLabel = (value: unknown) =>
  *
  * - 손익분기점 모드: 묶은 막대 손익분기점·매출(억원, 좌축) + 표식 꺾은선 영업이익률(%, 우축)
  * - 공헌이익률 모드: 묶은 막대 공헌이익률·고정비율(%, 좌축) + 표식 꺾은선 영업이익률(%, 우축)
- * - 막대 음영: 12번 차트와 동일한 blue-600 2톤(진한/45% 투명).
+ * - 막대 음영: 13번 차트와 동일한 blue-600 2톤(진한/45% 투명).
  * - 이중축 영역 분리(chart-guide §4-F): 좌축 막대 [0, max×2.5] → 하단,
  *   우축 영업이익률선 [-opMax×1.5, opMax×1.1] → 상단. 두 영역이 겹치지 않는다.
  * - 데이터 라벨: 경영관리 표준 16px(BAR_LABEL_STYLE). 영업이익률 = 공헌이익률 − 고정비율.

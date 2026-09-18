@@ -9,7 +9,7 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
-/** 4. 부문 실적 — 디폴트: 구동 */
+/** 5. 부문 실적 — 디폴트: 구동 */
 export default function DivisionPerformance({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection

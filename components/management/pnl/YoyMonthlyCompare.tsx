@@ -71,7 +71,7 @@ interface ChartRow {
 }
 
 /**
- * 11. 전년 대비 전사 월별 비교 차트.
+ * 13. 전년 대비 전사 월별 비교 차트.
  *
  * - basis 토글 + 기준 연도 + 비교 연도 + 지표 multi-select
  * - X = 1~12월
@@ -169,7 +169,7 @@ export default function YoyMonthlyCompare({ monthlyByBasis }: Props) {
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <header className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h2 className="text-lg font-semibold">
-          12. 전년 대비 월별 비교{' '}
+          13. 전년 대비 월별 비교{' '}
           <span className="text-sm font-normal text-muted-foreground">· 단위 억원</span>
         </h2>
         <div className="flex items-center gap-2 flex-wrap">

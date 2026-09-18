@@ -117,7 +117,7 @@ export default function CostStructure({ costStructure }: Props) {
                 row.emphasis === 'footer' ||
                 row.emphasis === 'category';
               // thead(bg-muted/40 회색)와 색조를 달리해 구분.
-              // 9. 전년 대비 월별 비교의 blue-600 베이스 + 45% 투명도 2톤과 동일 계열 사용:
+              // 13. 전년 대비 월별 비교의 blue-600 베이스 + 45% 투명도 2톤과 동일 계열 사용:
               //  매출/영업이익 = 진한 파랑
               //  카테고리      = 옅은 파랑
               //  일반          = 무색
