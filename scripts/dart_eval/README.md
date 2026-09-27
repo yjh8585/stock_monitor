@@ -14,6 +14,7 @@ M&A 지식위키 보강용. **설계·결정 정본은 agents 레포**에 있다
 | **`scan_all.py`**       | 🔴 **Q1a 층1 전수 스캔기(본편)** — 5년치 목록 → 본문 XML 파싱 → **파라미터 대장** 생성. 웹을 안 거치므로 차단 위험 0. 중단돼도 이어서 돌아간다(`scan_all_raw.jsonl`) |
 | **`fetch_opinion.py`**  | 🔴 **Q1b 층2 선별 수집기(본편)** — 대장에서 후보 선정 → 첨부 의견서 본문 확보 → 100점 점수화 → 볼트 `_추출/dart-eval/` 저장. **웹을 쓰므로 간격 2초**                |
 | `verify_rcpno_pair.py`  | 층2 **원형**(가설 검증 10/10 통과). 위 `fetch_opinion.py` 로 승격됐다 — 새 작업은 그쪽을 쓸 것                                                                       |
+| **`restore_contract_pages.py`** | 🔴 **회수한 계약서 쪽을 콕 집어 다시 받는다**(2026-09-27 신설). `_meta.json` 의 `src_url` 로 필요한 쪽만 받고 **받은 파일 목록을 명세로 남겨 `--reclaim` 으로 그것만 지운다**(agents 의 `ma-contract-reap.py` 는 `folder` 칸을 요구해 문언 대장으로는 한 장도 못 지운다). 주문서는 agents 가 만든다 — `ma-clause-text-todo.py --restore-plan` |
 | `*_result.json`         | 위 스크립트들의 실측 결과(계획서의 근거)                                                                                                                             |
 
 ## 🔴 반드시 지킬 것 (실측으로 얻은 것)
