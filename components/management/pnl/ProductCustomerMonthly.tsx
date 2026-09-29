@@ -55,6 +55,7 @@ function valuesByRevenue(
  * - 연도·월 드롭다운 (디폴트 = basis의 최근 적재 연월)
  * - 선택한 연월이 basis 토글·연도 변경으로 사라지면 그 연도의 최근 월로 붙는다
  * - 행 정렬: 고객 매출 desc → 같은 고객 안에서 (고객·제품) 매출 desc
+ * - 맨 위에 선택(필터 통과) 행 전체의 「선택 합계」 행
  */
 export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
@@ -121,9 +122,9 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
       if (ra !== rb) return ra - rb;
       return b.revenue - a.revenue;
     });
-    return aggregated.map((agg) => ({
+    const toRow = (agg: (typeof aggregated)[number], labels: string[]): PnlTableRow => ({
       key: agg.key,
-      labels: [...DIMENSIONS.map((d) => agg.dims[d.key] || '(미분류)'), periodLabel],
+      labels,
       revenue: agg.revenue,
       material_cost: agg.material_cost,
       labor_cost: agg.labor_cost,
@@ -131,7 +132,14 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
       sga: agg.sga,
       rnd: agg.rnd,
       op_income: agg.op_income,
-    }));
+    });
+    const dataRows = aggregated.map((agg) =>
+      toRow(agg, [...DIMENSIONS.map((d) => agg.dims[d.key] || '(미분류)'), periodLabel])
+    );
+    if (dataRows.length === 0) return dataRows;
+    // 맨 위 합계 행 — 필터를 통과한 행 전체의 합(빈 dims → 단일 합계 행)
+    const [total] = aggregateBy(filtered, []);
+    return [{ ...toRow(total, ['선택 합계', '─', periodLabel]), isGrandTotal: true }, ...dataRows];
   }, [monthEntries, selections, revOrder, periodLabel]);
 
   const monthOptions = Array.from({ length: maxMonth }, (_, i) => monthLabel(i + 1));
