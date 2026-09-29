@@ -9,6 +9,7 @@ import DivisionRevenueShare from './DivisionRevenueShare';
 import CustomerPerformance from './CustomerPerformance';
 import ProductPerformance from './ProductPerformance';
 import ProductCustomerCross from './ProductCustomerCross';
+import ProductCustomerMonthly from './ProductCustomerMonthly';
 import SilPerformance from './SilPerformance';
 import AnnualForecast from './AnnualForecast';
 import LazyMount from '@/components/common/LazyMount';
@@ -72,6 +73,7 @@ export default function PnlDashboard({ prepared, costStructure, fixedVariable }:
       <CustomerPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <ProductPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <ProductCustomerCross annualEntries={annualEntries} annualByBasis={annualByBasis} />
+      <ProductCustomerMonthly monthlyByBasis={monthlyByBasis} />
       <SilPerformance annualEntries={annualEntries} annualByBasis={annualByBasis} />
       <LazyMount className="min-h-[420px] md:min-h-[520px]">
         <MarginScatter

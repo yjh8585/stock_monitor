@@ -9,11 +9,11 @@ interface Props {
   annualByBasis: EntriesByBasis;
 }
 
-/** 9. 고객·제품 cross 실적 — 디폴트: (Stellantis NA, VW NA) × HALFSHAFT */
+/** 9-1. 고객·제품 cross 실적 — 디폴트: (Stellantis NA, VW NA) × HALFSHAFT. 월별판은 9-2(ProductCustomerMonthly). */
 export default function ProductCustomerCross({ annualEntries, annualByBasis }: Props) {
   return (
     <DimensionSection
-      title="9. 고객·제품 실적"
+      title="9-1. 고객·제품 실적"
       dimensions={[
         { key: 'customer', label: '고객' },
         { key: 'product', label: '제품' },
