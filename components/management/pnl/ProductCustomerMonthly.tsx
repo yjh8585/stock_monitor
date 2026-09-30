@@ -5,7 +5,7 @@ import BasisToggle from './BasisToggle';
 import YearSelect from './YearSelect';
 import GroupMultiSelect from '@/components/common/GroupMultiSelect';
 import PnlTable, { type PnlTableRow } from './PnlTable';
-import { aggregateBy, getMonthlyYears } from '@/lib/pnl/aggregate';
+import { aggregateBy, getMonthlyYears, ytdMonthsOfYear } from '@/lib/pnl/aggregate';
 import type { AggregatedRow, Basis, DimensionKey, PnlEntry } from '@/lib/pnl/types';
 import type { EntriesByBasis } from './PnlDashboard';
 
@@ -24,9 +24,11 @@ const DEFAULT_SELECTIONS: Record<string, string[]> = {
   product: ['HALFSHAFT'],
 };
 
+const monthLabel = (m: number) => `${m}월`;
+
 /**
- * 한 차원의 unique 값(전 기간 월별 행)을 선택 연도 매출 desc(동률은 가나다) 순으로.
- * 선택 연도에 매출이 없는 값도 남겨야 기본 필터를 목록에서 해제할 수 있다(9-1과 같은 방식).
+ * 한 차원의 unique 값(전 기간 월별 행)을 선택 기간(1월~선택 월) 매출 desc(동률은 가나다) 순으로.
+ * 선택 기간에 매출이 없는 값도 남겨야 기본 필터를 목록에서 해제할 수 있다(9-1과 같은 방식).
  */
 function valuesByRevenue(
   allMonthly: readonly PnlEntry[],
@@ -48,16 +50,17 @@ function valuesByRevenue(
 }
 
 /**
- * 9-2. 월별 고객·제품 실적 — 9-1과 같은 표를 선택한 연도의 월별로 보여 준다.
+ * 9-2. 월별 고객·제품 실적 — 9-1과 같은 표를 선택한 연도의 1월~선택 월까지 월별로 보여 준다.
  *
- * - 연도 드롭다운 (디폴트 = basis의 최근 적재 연도). 선택 연도가 basis 토글로 사라지면 최근 연도로 붙는다
- * - (고객·제품) 묶음마다 1~12월 중 데이터가 있는 월만 행으로 나열(9-1의 연도 행과 같은 모양)
- * - 행 정렬: 고객 연매출 desc → 같은 고객 안에서 (고객·제품) 연매출 desc → 월 asc
- * - 맨 위에 선택(필터 통과) 행 전체의 월별 「선택 합계」 묶음
+ * - 연도·월 드롭다운 (디폴트 = basis의 최근 적재 연월). 선택값이 basis 토글·연도 변경으로 사라지면 최근 값으로 붙는다
+ * - (고객·제품) 묶음마다 1월~선택 월 중 데이터가 있는 월만 행으로 나열(9-1의 연도 행과 같은 모양)
+ * - 행 정렬: 고객 기간 매출 desc → 같은 고객 안에서 (고객·제품) 기간 매출 desc → 월 asc
+ * - 맨 위에 선택(필터 통과) 행 전체의 「선택 합계」 한 행(기간 합 — 월별로 쪼개지 않는다)
  */
 export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
   const [pickedYear, setPickedYear] = useState<number | null>(null);
+  const [pickedMonth, setPickedMonth] = useState<number | null>(null);
   const [selections, setSelections] = useState<Record<string, string[]>>(DEFAULT_SELECTIONS);
 
   const basisMonthly = monthlyByBasis[basis];
@@ -65,14 +68,20 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
 
   const latestYear = years[years.length - 1] ?? 0;
   const year = pickedYear != null && years.includes(pickedYear) ? pickedYear : latestYear;
+  const maxMonth = ytdMonthsOfYear(basisMonthly, basis, year);
+  const month =
+    pickedMonth != null && pickedMonth >= 1 && pickedMonth <= maxMonth ? pickedMonth : maxMonth;
 
   const yearEntries = useMemo(
     () =>
       basisMonthly.filter(
         (e) =>
-          e.basis === basis && e.period_year === year && e.period_month >= 1 && e.period_month <= 12
+          e.basis === basis &&
+          e.period_year === year &&
+          e.period_month >= 1 &&
+          e.period_month <= month
       ),
-    [basisMonthly, basis, year]
+    [basisMonthly, basis, year, month]
   );
 
   const revOrder = useMemo(
@@ -105,7 +114,7 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
       })
     );
     const dimKeys = DIMENSIONS.map((d) => d.key);
-    // 데이터가 있는 월만 (1~12 중 적재된 월)
+    // 데이터가 있는 월만 (1월~선택 월 중 적재된 월)
     const months = Array.from(new Set(filtered.map((e) => e.period_month))).sort((a, b) => a - b);
     const periodLabel = (m: number) => `${year}.${String(m).padStart(2, '0')}`;
 
@@ -121,7 +130,7 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
       op_income: agg.op_income,
     });
 
-    // (고객·제품) 묶음 순서 — 고객 연매출 desc → 같은 고객 안에서 (고객·제품) 연매출 desc
+    // (고객·제품) 묶음 순서 — 고객 기간 매출 desc → 같은 고객 안에서 (고객·제품) 기간 매출 desc
     const customerRank = new Map(revOrder.customer.map((v, i) => [v, i]));
     const combos = aggregateBy(filtered, dimKeys).sort((a, b) => {
       const ra = customerRank.get(a.dims.customer) ?? Number.POSITIVE_INFINITY;
@@ -132,11 +141,8 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
 
     // 월별 (고객·제품) 집계 — 묶음 key → 월 → 집계행
     const byCombo = new Map<string, Map<number, AggregatedRow>>();
-    const totals: PnlTableRow[] = [];
     for (const m of months) {
       const monthRows = filtered.filter((e) => e.period_month === m);
-      const [total] = aggregateBy(monthRows, []);
-      totals.push({ ...toRow(total, ['선택 합계', '─', periodLabel(m)], m), isGrandTotal: true });
       for (const agg of aggregateBy(monthRows, dimKeys)) {
         if (!byCombo.has(agg.key)) byCombo.set(agg.key, new Map());
         byCombo.get(agg.key)!.set(m, agg);
@@ -151,8 +157,19 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
         if (agg) dataRows.push(toRow(agg, [...labels, periodLabel(m)], m));
       }
     }
-    // 맨 위에 월별 선택 합계 묶음 — 필터를 통과한 행 전체의 합
-    return [...totals, ...dataRows];
+    if (dataRows.length === 0) return dataRows;
+    // 맨 위 합계 행 하나 — 필터를 통과한 행 전체(1월~선택 월)의 합
+    const [total] = aggregateBy(filtered, []);
+    const first = months[0];
+    const last = months[months.length - 1];
+    const totalPeriod =
+      first === last
+        ? periodLabel(first)
+        : `${periodLabel(first)}~${String(last).padStart(2, '0')}`;
+    return [
+      { ...toRow(total, ['선택 합계', '─', totalPeriod], 0), isGrandTotal: true },
+      ...dataRows,
+    ];
   }, [yearEntries, selections, revOrder, year]);
 
   return (
@@ -169,6 +186,12 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
             options={years.map(String)}
             value={String(year)}
             onChange={(v) => setPickedYear(Number(v))}
+          />
+          <YearSelect
+            label="월"
+            options={Array.from({ length: maxMonth }, (_, i) => monthLabel(i + 1))}
+            value={monthLabel(month)}
+            onChange={(v) => setPickedMonth(parseInt(v, 10))}
           />
           {DIMENSIONS.map((d) => (
             <GroupMultiSelect
