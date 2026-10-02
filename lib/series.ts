@@ -26,14 +26,6 @@ export type SeriesMeta = {
   hasData: boolean; // yf_symbol 또는 fred_symbol이 지정되어 수집 대상인 경우
 };
 
-export type MacroNote = {
-  id: string;
-  note_date: string;
-  source: string;
-  summary: string;
-  sentiment: string | null;
-};
-
 /** USD/EUR/CNY → KRW 환율 5년 일봉을 SeriesPoint[]로 반환 (exchange_rates 재사용) */
 export async function getExchangeRateSeries(base: 'USD' | 'EUR' | 'CNY'): Promise<SeriesPoint[]> {
   'use cache';
@@ -168,32 +160,4 @@ export async function getSeriesMetaByCategory(category: SeriesCategory): Promise
     // 수집 가능 판정: yfinance/FRED 직접 수집 또는 별도 스크래퍼(source != 'placeholder')로 1회 이상 적재됨
     hasData: r.yf_symbol != null || r.fred_symbol != null || r.source !== 'placeholder',
   }));
-}
-
-/** 미국 경제 통합 요약 (source='US_ECONOMY')에서 가장 최근 1건 */
-export async function getEconomyOutlook(): Promise<MacroNote | null> {
-  'use cache';
-  cacheLife('hours');
-  cacheTag('macro_outlook_notes');
-  const sb = createSupabaseAnonClient();
-  const { data, error } = await sb
-    .from('macro_outlook_notes')
-    .select('id,note_date,source,summary,sentiment')
-    .eq('source', 'US_ECONOMY')
-    .order('note_date', { ascending: false })
-    .limit(1);
-
-  if (error) {
-    logger.error({ err: error }, 'macro_outlook_notes 조회 실패');
-    return null;
-  }
-  const r = (data ?? [])[0];
-  if (!r) return null;
-  return {
-    id: r.id,
-    note_date: r.note_date,
-    source: r.source,
-    summary: r.summary,
-    sentiment: r.sentiment ?? null,
-  };
 }

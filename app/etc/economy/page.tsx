@@ -5,7 +5,6 @@ import {
   getMarketSeriesLive,
   appendLivePoint,
   getSeriesMetaByCategory,
-  getEconomyOutlook,
   type SeriesMeta,
   type SeriesPoint,
 } from '@/lib/series';
@@ -20,11 +19,6 @@ const COLOR: Record<string, string> = {
   SILVER: '#64748b',
   BTC: '#f7931a',
   ETH: '#627eea',
-};
-const SENTIMENT_STYLE: Record<string, string> = {
-  bullish: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  neutral: 'bg-muted text-muted-foreground',
-  bearish: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
 };
 
 export default async function EconomyPage() {
@@ -41,7 +35,6 @@ export default async function EconomyPage() {
     btc,
     eth,
     metas,
-    outlook,
     kospiL,
     kosdaqL,
     spxL,
@@ -63,7 +56,6 @@ export default async function EconomyPage() {
     getMarketSeries('BTC'),
     getMarketSeries('ETH'),
     getSeriesMetaByCategory('economy'),
-    getEconomyOutlook(),
     getMarketSeriesLive('KOSPI'),
     getMarketSeriesLive('KOSDAQ'),
     getMarketSeriesLive('SPX'),
@@ -99,8 +91,8 @@ export default async function EconomyPage() {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold">경제</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          미국 국채(30Y/10Y/2Y) · 한국·미국 주가지수 · 금/은 · 비트코인·이더리움 · 미국 경제 전망
-          노트 · 5년 일봉 + 지수 끝점 매시간 라이브(국채 제외) · 전망 매일 KST 06:30 갱신
+          미국 국채(30Y/10Y/2Y) · 한국·미국 주가지수 · 금/은 · 비트코인·이더리움 · 5년 일봉 + 지수
+          끝점 매시간 라이브(국채 제외)
         </p>
       </div>
       <div className="flex-1 overflow-auto p-4 space-y-4">
@@ -132,35 +124,6 @@ export default async function EconomyPage() {
             );
           })}
         </div>
-
-        <section className="rounded-xl bg-card p-5 ring-1 ring-foreground/10">
-          <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-lg font-semibold">미국 경제 전망</h2>
-            {outlook?.sentiment && (
-              <span
-                className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${SENTIMENT_STYLE[outlook.sentiment] ?? 'bg-muted text-muted-foreground'}`}
-              >
-                {outlook.sentiment}
-              </span>
-            )}
-            <span className="ml-auto text-[11px] text-muted-foreground">
-              {outlook?.note_date ?? '—'} · WMT/TGT/COST · F/GM/STLA · AN/ABG/LAD · FDX/UPS/CASS
-              뉴스·8-K 통합 요약
-            </span>
-          </div>
-          {outlook ? (
-            <div className="rounded-md border border-border bg-background/50 px-5 py-4">
-              <p className="text-base md:text-lg leading-8 text-foreground whitespace-pre-line">
-                {outlook.summary}
-              </p>
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground py-6 text-center">
-              아직 통합 요약이 적재되지 않았습니다. <code>collect_macro_outlook</code> 실행을 기다려
-              주세요.
-            </div>
-          )}
-        </section>
       </div>
     </div>
   );
