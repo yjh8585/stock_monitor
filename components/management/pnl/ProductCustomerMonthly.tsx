@@ -26,8 +26,47 @@ const DEFAULT_SELECTIONS: Record<string, string[]> = {
 
 const monthLabel = (m: number) => `${m}월`;
 
+/** 당월 = 선택 월 하나 · 누적 = 1월~선택 월 */
+type PeriodMode = 'month' | 'ytd';
+
+/** 우상단 당월/누적 토글 (BasisToggle 양식). */
+function PeriodToggle({
+  value,
+  onChange,
+}: {
+  value: PeriodMode;
+  onChange: (m: PeriodMode) => void;
+}) {
+  const options: { v: PeriodMode; label: string }[] = [
+    { v: 'month', label: '당월' },
+    { v: 'ytd', label: '누적' },
+  ];
+  return (
+    <div className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5">
+      {options.map((opt) => {
+        const active = opt.v === value;
+        return (
+          <button
+            key={opt.v}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(opt.v)}
+            className={`text-sm px-2.5 py-1 rounded-sm transition-colors ${
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
- * 한 차원의 unique 값(전 기간 월별 행)을 선택 기간(1월~선택 월) 매출 desc(동률은 가나다) 순으로.
+ * 한 차원의 unique 값(전 기간 월별 행)을 선택 기간(당월 또는 1월~선택 월) 매출 desc(동률은 가나다) 순으로.
  * 선택 기간에 매출이 없는 값도 남겨야 기본 필터를 목록에서 해제할 수 있다(9-1과 같은 방식).
  */
 function valuesByRevenue(
@@ -50,15 +89,17 @@ function valuesByRevenue(
 }
 
 /**
- * 9-2. 월별 고객·제품 실적 — 9-1과 같은 표를 선택한 연도의 1월~선택 월까지 월별로 보여 준다.
+ * 9-2. 월별 고객·제품 실적 — 9-1과 같은 표를 선택한 연도의 당월(선택 월) 또는 누적(1월~선택 월)으로 보여 준다.
  *
  * - 연도·월 드롭다운 (디폴트 = basis의 최근 적재 연월). 선택값이 basis 토글·연도 변경으로 사라지면 최근 값으로 붙는다
- * - (고객·제품) 묶음마다 1월~선택 월 중 데이터가 있는 월만 행으로 나열(9-1의 연도 행과 같은 모양)
+ * - 당월/누적 토글 (디폴트 = 누적). 당월은 선택 월 한 달, 누적은 1월~선택 월
+ * - (고객·제품) 묶음마다 선택 기간 중 데이터가 있는 월만 행으로 나열(9-1의 연도 행과 같은 모양)
  * - 행 정렬: 고객 기간 매출 desc → 같은 고객 안에서 (고객·제품) 기간 매출 desc → 월 asc
  * - 맨 위에 선택(필터 통과) 행 전체의 「선택 합계」 한 행(기간 합 — 월별로 쪼개지 않는다)
  */
 export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
   const [basis, setBasis] = useState<Basis>('consolidated');
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('ytd');
   const [pickedYear, setPickedYear] = useState<number | null>(null);
   const [pickedMonth, setPickedMonth] = useState<number | null>(null);
   const [selections, setSelections] = useState<Record<string, string[]>>(DEFAULT_SELECTIONS);
@@ -71,6 +112,7 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
   const maxMonth = ytdMonthsOfYear(basisMonthly, basis, year);
   const month =
     pickedMonth != null && pickedMonth >= 1 && pickedMonth <= maxMonth ? pickedMonth : maxMonth;
+  const firstMonth = periodMode === 'month' ? month : 1;
 
   const yearEntries = useMemo(
     () =>
@@ -78,10 +120,10 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
         (e) =>
           e.basis === basis &&
           e.period_year === year &&
-          e.period_month >= 1 &&
+          e.period_month >= firstMonth &&
           e.period_month <= month
       ),
-    [basisMonthly, basis, year, month]
+    [basisMonthly, basis, year, firstMonth, month]
   );
 
   const revOrder = useMemo(
@@ -114,7 +156,7 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
       })
     );
     const dimKeys = DIMENSIONS.map((d) => d.key);
-    // 데이터가 있는 월만 (1월~선택 월 중 적재된 월)
+    // 데이터가 있는 월만 (선택 기간 중 적재된 월)
     const months = Array.from(new Set(filtered.map((e) => e.period_month))).sort((a, b) => a - b);
     const periodLabel = (m: number) => `${year}.${String(m).padStart(2, '0')}`;
 
@@ -158,7 +200,7 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
       }
     }
     if (dataRows.length === 0) return dataRows;
-    // 맨 위 합계 행 하나 — 필터를 통과한 행 전체(1월~선택 월)의 합
+    // 맨 위 합계 행 하나 — 필터를 통과한 행 전체(선택 기간)의 합
     const [total] = aggregateBy(filtered, []);
     const first = months[0];
     const last = months[months.length - 1];
@@ -181,6 +223,7 @@ export default function ProductCustomerMonthly({ monthlyByBasis }: Props) {
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <BasisToggle value={basis} onChange={setBasis} />
+          <PeriodToggle value={periodMode} onChange={setPeriodMode} />
           <YearSelect
             label="연도"
             options={years.map(String)}
