@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { createChart, LineSeries, type IChartApi } from 'lightweight-charts';
+import { useTheme } from 'next-themes';
 import type {
   BoardPostSummary,
   IntradayPoint,
@@ -39,6 +40,9 @@ export default function IntradayCombinedChart({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  // 가격선이 검정이라 다크 배경에 묻힌다 — 캔버스라 CSS 로 못 덮어 테마로 가른다
+  const { resolvedTheme } = useTheme();
+  const priceColor = resolvedTheme === 'dark' ? '#e4e4e7' : '#000000';
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -66,7 +70,7 @@ export default function IntradayCombinedChart({
     const priceSeries = chart.addSeries(
       LineSeries,
       {
-        color: '#000000',
+        color: priceColor,
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -133,7 +137,7 @@ export default function IntradayCombinedChart({
       chart.remove();
       chartRef.current = null;
     };
-  }, [intraday, supply, height]);
+  }, [intraday, supply, height, priceColor]);
 
   const commentary = buildIntradayCommentary(intraday, supply, news, posts);
 

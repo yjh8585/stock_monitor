@@ -100,7 +100,9 @@ function MessageBubble({ message }: { message: DisplayMessage }) {
           <span className="inline-block h-2 w-12 animate-pulse rounded bg-muted-foreground/30" />
         )}
         {message.warning && (
-          <div className="mt-1 text-[11px] text-amber-700">⚠ {message.warning}</div>
+          <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+            ⚠ {message.warning}
+          </div>
         )}
         {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
           <details className="mt-1.5 text-[11px] text-muted-foreground">

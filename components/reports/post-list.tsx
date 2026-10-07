@@ -110,7 +110,7 @@ export function PostList({
     <div className="rounded-md border">
       <Table className="w-full table-fixed">
         <TableHeader>
-          <TableRow className="bg-blue-50 hover:bg-blue-50">
+          <TableRow className="bg-blue-50 hover:bg-blue-50 dark:bg-blue-950/40 dark:hover:bg-blue-950/40">
             <TableHead
               className="w-12 text-center"
               aria-sort={isCreatedActive ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -158,7 +158,7 @@ export function PostList({
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => (
-            <TableRow key={row.id} className="bg-white">
+            <TableRow key={row.id} className="bg-white dark:bg-transparent">
               <TableCell className="text-muted-foreground text-center">
                 {isCreatedActive && order === 'asc'
                   ? startIndex + index + 1

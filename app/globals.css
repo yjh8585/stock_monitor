@@ -205,3 +205,34 @@
     @apply font-sans;
   }
 }
+
+/*
+ * 다크모드 — Recharts 기본색 덮기 (2026-10-07).
+ * Recharts 는 격자(#ccc)·축 글자(#666)·기본 툴팁(흰 바탕)을 SVG 속성/인라인으로 박는다.
+ * SVG 속성은 CSS 규칙에 지므로 차트 50여 개를 하나씩 고치지 않고 여기서 한 번에 덮는다.
+ * 시리즈 색·데이터 라벨(style 인라인)은 건드리지 않는다.
+ */
+.dark .recharts-cartesian-grid line,
+.dark .recharts-polar-grid line,
+.dark .recharts-polar-grid path {
+  stroke: var(--border);
+}
+.dark .recharts-cartesian-axis-line,
+.dark .recharts-cartesian-axis-tick-line {
+  stroke: var(--border);
+}
+.dark .recharts-cartesian-axis-tick-value,
+.dark .recharts-polar-angle-axis-tick-value,
+.dark .recharts-cartesian-axis .recharts-label {
+  fill: var(--muted-foreground);
+}
+/* contentStyle 를 안 넘긴 차트의 기본 툴팁(인라인 흰 바탕) — 인라인이라 !important 필요 */
+.dark .recharts-default-tooltip {
+  background-color: var(--popover) !important;
+  border-color: var(--border) !important;
+  color: var(--popover-foreground);
+}
+.dark .recharts-tooltip-cursor {
+  fill: var(--muted);
+  opacity: 0.4;
+}

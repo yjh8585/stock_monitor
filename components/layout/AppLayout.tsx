@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
-import Sidebar, { MobileNav } from './Sidebar';
+import Sidebar, { MobileNav, LOGO_CLASS } from './Sidebar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import ChatWidget from '@/components/chat/ChatWidget';
 import type { CurrentUser } from '@/lib/auth/get-current-user';
@@ -56,7 +56,7 @@ export default function AppLayout({
           className="ml-3 flex items-center hover:opacity-80 transition-opacity"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/logo-full.png" alt="한세모빌리티" className="h-6 w-auto" />
+          <img src="/brand/logo-full.png" alt="한세모빌리티" className={LOGO_CLASS} />
         </Link>
       </div>
       {/* 데스크톱: 사이드바 + 메인 가로 배치 */}

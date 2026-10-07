@@ -297,6 +297,7 @@ const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
 | 내수/수출/해외          | `#1e3a5f` / `#22c55e` / `#bbf7d0`                                                                                           | 출하                                                                            |
 
 다크모드는 hex 고정색 + `var(--card)/--border/--foreground/--muted` 토큰 혼용으로 대응.
+**Recharts 의 격자·축 글자·축선·기본 툴팁은 `app/globals.css` 의 `.dark .recharts-*` 규칙이 일괄로 덮는다**(2026-10-07 — SVG 속성은 CSS 에 지므로 차트마다 다크 분기를 넣지 말 것). 범례·데이터 라벨·시리즈 색은 덮지 않으니 **검정·아주 진한 색을 시리즈/라벨에 쓰면 다크에서 묻힌다** — `var(--foreground)` 를 쓴다. lightweight-charts 는 캔버스라 CSS 가 안 먹어 `useTheme()` 으로 가르고 **`useEffect` 의존성에 그 색을 넣는다**(`SeriesChart`·`IntradayCombinedChart` 참고).
 
 **⚠️ 경영관리(`/management`) 색 규칙 — 신규/수정 차트는 반드시 준수**
 

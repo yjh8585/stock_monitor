@@ -3,6 +3,7 @@
 /** 종목 카드 안에 들어가는 5분봉 미니 라인 차트. lightweight-charts 사용. */
 import { useEffect, useRef } from 'react';
 import { createChart, LineSeries, type IChartApi } from 'lightweight-charts';
+import { useTheme } from 'next-themes';
 import type { IntradayPoint } from '@/lib/hansae/data';
 
 interface Props {
@@ -14,6 +15,9 @@ interface Props {
 export default function IntradayMiniChart({ data, changePct, height = 80 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  // 가격선이 검정이라 다크 배경에 묻힌다 — 캔버스라 CSS 로 못 덮어 테마로 가른다
+  const { resolvedTheme } = useTheme();
+  const priceColor = resolvedTheme === 'dark' ? '#e4e4e7' : '#000000';
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -41,7 +45,7 @@ export default function IntradayMiniChart({ data, changePct, height = 80 }: Prop
     chartRef.current = chart;
 
     const series = chart.addSeries(LineSeries, {
-      color: '#000000',
+      color: priceColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -71,7 +75,7 @@ export default function IntradayMiniChart({ data, changePct, height = 80 }: Prop
       chart.remove();
       chartRef.current = null;
     };
-  }, [data, changePct, height]);
+  }, [data, changePct, height, priceColor]);
 
   if (data.length === 0) {
     return (

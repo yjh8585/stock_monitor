@@ -26,7 +26,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/logo-full.png" alt="한세모빌리티" className="h-10 w-auto" />
+          <img
+            src="/brand/logo-full.png"
+            alt="한세모빌리티"
+            className="h-10 w-auto dark:rounded dark:bg-white dark:px-1.5 dark:py-1"
+          />
           <CardDescription className="text-center pt-1">
             한세모빌리티 / 홀딩스 계정으로 로그인하세요.
           </CardDescription>

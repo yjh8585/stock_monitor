@@ -214,7 +214,7 @@ export function ResearchList({ rows, brokers, targets, total, summarized }: Prop
             <div className="rounded-md border">
               <Table className="w-full table-fixed">
                 <TableHeader>
-                  <TableRow className="bg-blue-50 hover:bg-blue-50">
+                  <TableRow className="bg-blue-50 hover:bg-blue-50 dark:bg-blue-950/40 dark:hover:bg-blue-950/40">
                     <TableHead className="w-12 text-center">No.</TableHead>
                     <TableHead className="w-36 text-center">종목·업종</TableHead>
                     <TableHead className="text-center">제목</TableHead>
@@ -238,7 +238,7 @@ export function ResearchList({ rows, brokers, targets, total, summarized }: Prop
                 </TableHeader>
                 <TableBody>
                   {pageRows.map((row, index) => (
-                    <TableRow key={row.id} className="bg-white">
+                    <TableRow key={row.id} className="bg-white dark:bg-transparent">
                       <TableCell className="text-muted-foreground text-center">
                         {filtered.length - startIndex - index}
                       </TableCell>

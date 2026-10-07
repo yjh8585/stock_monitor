@@ -544,7 +544,12 @@ export default function MarginScatter({ annualByBasis, monthlyByBasis }: Props) 
               contentStyle={TOOLTIP_CONTENT_STYLE}
               content={<BubbleTooltip baseYear={effBase} compareYear={effCompare} />}
             />
-            <Scatter name={dimConfig.label} data={chartPoints} fill="#000000" shape="circle">
+            <Scatter
+              name={dimConfig.label}
+              data={chartPoints}
+              fill="var(--foreground)"
+              shape="circle"
+            >
               <LabelList dataKey="name" content={renderBubbleLabel} />
             </Scatter>
           </ScatterChart>

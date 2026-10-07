@@ -23,6 +23,10 @@ import {
 import { logoutAction } from '@/lib/auth/actions';
 import { canAccess } from '@/lib/auth/permissions';
 import type { CurrentUser } from '@/lib/auth/get-current-user';
+import ThemeToggle from './ThemeToggle';
+
+/** 로고 글자가 검정이라 다크에선 배경에 묻힌다 — 다크일 때만 흰 바탕을 깐다(그라데이션이라 반전 불가) */
+export const LOGO_CLASS = 'h-6 w-auto dark:rounded dark:bg-white dark:px-1 dark:py-0.5';
 
 type NavChild = { label: string; href: string };
 type NavItem = {
@@ -131,8 +135,11 @@ export function MobileNav({ user, onClose }: { user: CurrentUser | null; onClose
           );
         })}
       </div>
+      <div className="mt-3 pt-3 border-t border-border">
+        <ThemeToggle />
+      </div>
       {user ? (
-        <div className="mt-3 pt-3 border-t border-border">
+        <div className="mt-1">
           <div className="px-2 mb-2 text-xs text-muted-foreground truncate" title={user.id}>
             {user.displayName}
           </div>
@@ -177,7 +184,7 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
             className="flex items-center hover:opacity-80 transition-opacity"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/logo-full.png" alt="한세모빌리티" className="h-6 w-auto" />
+            <img src="/brand/logo-full.png" alt="한세모빌리티" className={LOGO_CLASS} />
           </Link>
         )}
         <button
@@ -238,8 +245,11 @@ export default function Sidebar({ user }: { user: CurrentUser | null }) {
         })}
       </nav>
 
+      <div className="border-t border-border p-1.5">
+        <ThemeToggle collapsed={collapsed} />
+      </div>
       {user ? (
-        <div className="border-t border-border p-1.5">
+        <div className="p-1.5 pt-0">
           {!collapsed && (
             <div className="px-2 mb-1 text-xs text-muted-foreground truncate" title={user.id}>
               {user.displayName}
