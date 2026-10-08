@@ -3,7 +3,7 @@
  *
  * 재무(finance_entries)에 없는 영업이익·상각비를 손익 데이터에서 뽑아 자금조달 표에 공급한다.
  * - 영업이익: pnl_entries 연결 전사 op_income (lib/plan/aggregate.ts buildCorpAchievement와 동일 규칙).
- * - 상각비: pnl_fixed_variable 상각비 합계(2-2 고정비·변동비 구조표의 '상각비합계' 토글과 동일 정의).
+ * - 상각비: pnl_fixed_variable 상각비 합계(2-2 고정비·변동비 구조표의 경비관리 › '상각비합계' 행과 동일 정의).
  *
  * 서버 전용 헬퍼 — 큰 PreparedPnlData(monthly 포함)·fixedVariable는 여기서 소비하고,
  * 클라이언트엔 가벼운 PnlDerivedSeries만 전달(RSC payload 최소화 + 차트 빌더 aggregate.ts 분리).

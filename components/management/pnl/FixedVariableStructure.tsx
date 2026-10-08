@@ -58,9 +58,13 @@ type RowKind = 'revenue' | 'total' | 'op' | 'group' | 'leaf';
 interface RowDef {
   id: string;
   label: string;
-  depth: 0 | 1 | 2;
+  depth: 0 | 1 | 2 | 3;
   kind: RowKind;
-  emphasis: 'header' | 'total' | 'footer' | 'group' | 'subgroup' | 'normal';
+  /**
+   * header/total/footer=진한 파랑 · group=연한 파랑(개별관리·경비관리) · section=배경 녹색(매출원가·판관비)
+   * · subgroup/normal=음영 없음
+   */
+  emphasis: 'header' | 'total' | 'footer' | 'group' | 'section' | 'subgroup' | 'normal';
   /** 금액 합산 매칭. op(영업이익)은 파생이라 null. */
   match: ((r: FixedVariableRow) => boolean) | null;
   /** 변동/고정비율 조회 키 (계정명 leaf만). */
@@ -69,7 +73,7 @@ interface RowDef {
 
 const isCost = (r: FixedVariableRow) => r.cost_type === '고정비' || r.cost_type === '변동비';
 
-/** 인건비(인건비 버튼으로 묶는 대상): 노무비 전체 + 판관 인건비 + 연구 인건비. */
+/** 인건비(경비관리 › 개별관리 › 인건비합계 대상): 노무비 전체 + 판관 인건비 + 연구 인건비. */
 function isLaborAccount(cat2: string, cat3: string, account: string): boolean {
   return (
     (cat2 === '매출원가' && cat3 === '노무비') ||
@@ -77,7 +81,7 @@ function isLaborAccount(cat2: string, cat3: string, account: string): boolean {
     (cat2 === '판매관리비' && cat3 === '연구개발비' && account === '연구 인건비')
   );
 }
-/** 상각비(상각비 버튼으로 묶는 대상): 경비-감가상각비 + 경비-개발비상각 + 연구개발비-감가상각비. */
+/** 상각비(경비관리 › 개별관리 › 상각비합계 대상): 경비-감가상각비 + 경비-개발비상각 + 연구개발비-감가상각비. */
 function isAmortAccount(cat2: string, cat3: string, account: string): boolean {
   return (
     (cat2 === '매출원가' &&
@@ -87,30 +91,170 @@ function isAmortAccount(cat2: string, cat3: string, account: string): boolean {
   );
 }
 
+/** 재료비(경비관리 ON 일 때 개별관리로 옮기는 대상). */
+function isMaterialAccount(cat2: string, cat3: string): boolean {
+  return cat2 === '매출원가' && cat3 === '재료비';
+}
+
+/** 개별관리 아래 소계(인건비합계·상각비합계). */
+const INDIVIDUAL_SUBTOTALS = [
+  { id: '인건비합계', label: '인건비합계', is: isLaborAccount },
+  { id: '상각비합계', label: '상각비합계', is: isAmortAccount },
+] as const;
+
+/** 인건비합계·상각비합계를 펼칠 때의 계정 라벨 — 원래 그룹을 떠나므로 출처를 붙인다. */
+function individualLeafLabel(cat2: string, cat3: string, account: string): string {
+  if (cat3 === '노무비') return `노무비 ${account}`;
+  if (account === '감가상각비') return `감가상각비(${cat2 === '매출원가' ? '매출원가' : cat3})`;
+  return account;
+}
+
+/** 계정 leaf 행 — 금액 매칭 + 변동비율 키. */
+function leafDef(
+  cat2: string,
+  cat3: string,
+  account: string,
+  label: string,
+  depth: RowDef['depth']
+): RowDef {
+  return {
+    id: `${cat2}|${cat3}|${account}`,
+    label,
+    depth,
+    kind: 'leaf',
+    emphasis: 'normal',
+    match: (r) =>
+      isCost(r) && r.category2 === cat2 && r.category3 === cat3 && r.account === account,
+    ratioKey: { cat2, cat3, account },
+  };
+}
+
+/** 최신연도 합계(고정+변동) 큰 순. '기타'는 금액과 무관하게 맨 아래. 동률·무데이터는 원순서(stable). */
+function byLatestTotal(totals: Map<string, number>, key: (a: string) => string) {
+  return (a: string, b: string) => {
+    const aEtc = a === '기타';
+    const bEtc = b === '기타';
+    if (aEtc !== bEtc) return aEtc ? 1 : -1;
+    return (totals.get(key(b)) ?? 0) - (totals.get(key(a)) ?? 0);
+  };
+}
+
 /**
- * 행 정의 — 매출액 → 비용합계 → (인건비합계 · 상각비합계) → 비용 상세 → 영업이익.
- * @param detail true=상세(계정명까지) / false=기본(분류3까지)
- * @param labor  true=인건비 묶기(노무비·판관/연구 인건비 → 인건비합계)
- * @param amort  true=상각비 묶기(경비 감가상각비·개발비상각 + 연구개발비 감가상각비 → 상각비합계)
- *
- * 인건비합계·상각비합계는 비용 상단(매출원가 위)에 배치하고, 해당 계정은 원래 그룹(매출원가/판관비)에서 제외.
+ * 매출원가·판관비 트리를 defs 에 붙인다. extracted 계정은 빼고, 비면 그룹째 생략.
+ * @param offset 0=비용합계 바로 아래 · 1=경비관리 아래
+ */
+function pushCostTree(
+  defs: RowDef[],
+  offset: 0 | 1,
+  extracted: (c2: string, c3: string, a: string) => boolean,
+  detail: boolean,
+  totals: Map<string, number>
+): void {
+  const extractedRow = (r: FixedVariableRow) => extracted(r.category2, r.category3, r.account);
+  for (const node of COST_TREE) {
+    defs.push({
+      id: `g:${node.cat2}`,
+      label: node.label,
+      depth: offset,
+      kind: 'group',
+      emphasis: 'section',
+      match: (r) => isCost(r) && r.category2 === node.cat2 && !extractedRow(r),
+      ratioKey: null,
+    });
+    for (const g of node.groups) {
+      const accts = g.accounts.filter((a) => !extracted(node.cat2, g.cat3, a));
+      if (accts.length === 0) continue; // 그룹 전체가 개별관리로 이동
+      accts.sort(byLatestTotal(totals, (a) => `${node.cat2}|${g.cat3}|${a}`));
+      if (accts.length === 1 && accts[0] === g.cat3) {
+        defs.push(leafDef(node.cat2, g.cat3, accts[0], g.label, (offset + 1) as 1 | 2));
+        continue;
+      }
+      defs.push({
+        id: `g:${node.cat2}|${g.cat3}`,
+        label: g.label,
+        depth: (offset + 1) as 1 | 2,
+        kind: 'group',
+        emphasis: 'subgroup',
+        match: (r) =>
+          isCost(r) && r.category2 === node.cat2 && r.category3 === g.cat3 && !extractedRow(r),
+        ratioKey: null,
+      });
+      if (detail) {
+        for (const account of accts) {
+          defs.push(leafDef(node.cat2, g.cat3, account, account, (offset + 2) as 2 | 3));
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 개별관리(재료비 · 인건비합계 · 상각비합계)를 defs 에 붙인다.
+ * 두 소계는 「상세」와 무관하게 한 줄이고, 개별관리상세(expand)일 때만 구성 계정으로 펼친다.
+ */
+function pushIndividual(defs: RowDef[], expand: boolean, totals: Map<string, number>): void {
+  defs.push({
+    id: '개별관리',
+    label: '개별관리',
+    depth: 0,
+    kind: 'group',
+    emphasis: 'group',
+    match: (r) => isCost(r) && isIndividualAccount(r.category2, r.category3, r.account),
+    ratioKey: null,
+  });
+  defs.push(leafDef('매출원가', '재료비', '재료비', '재료비', 1));
+  for (const s of INDIVIDUAL_SUBTOTALS) {
+    defs.push({
+      id: s.id,
+      label: s.label,
+      depth: 1,
+      kind: 'group',
+      emphasis: 'subgroup',
+      match: (r) => isCost(r) && s.is(r.category2, r.category3, r.account),
+      ratioKey: null,
+    });
+    if (!expand) continue;
+    const members: { cat2: string; cat3: string; account: string }[] = [];
+    for (const node of COST_TREE) {
+      for (const g of node.groups) {
+        for (const account of g.accounts) {
+          if (s.is(node.cat2, g.cat3, account))
+            members.push({ cat2: node.cat2, cat3: g.cat3, account });
+        }
+      }
+    }
+    const key = (m: (typeof members)[number]) => `${m.cat2}|${m.cat3}|${m.account}`;
+    members.sort((a, b) => (totals.get(key(b)) ?? 0) - (totals.get(key(a)) ?? 0));
+    for (const m of members) {
+      defs.push(
+        leafDef(m.cat2, m.cat3, m.account, individualLeafLabel(m.cat2, m.cat3, m.account), 2)
+      );
+    }
+  }
+}
+
+/** 개별관리 대상 = 인건비 ∪ 상각비 ∪ 재료비. */
+function isIndividualAccount(cat2: string, cat3: string, account: string): boolean {
+  return (
+    isLaborAccount(cat2, cat3, account) ||
+    isAmortAccount(cat2, cat3, account) ||
+    isMaterialAccount(cat2, cat3)
+  );
+}
+
+/**
+ * 행 정의 — 매출액 → 비용합계 → 비용 상세 → 영업이익.
+ * @param detail      true=상세(계정명까지) / false=기본(분류3까지)
+ * @param expenseMgmt true=경비관리 보기 — 비용을 개별관리(인건비·상각비·재료비)와
+ *                    경비관리(나머지 매출원가·판관비)로 나눈다. 옮긴 계정은 원래 자리에서 빠져 이중 집계가 없다.
+ * @param individualDetail true=개별관리상세 — 인건비합계·상각비합계를 구성 계정까지 펼친다
  */
 function buildRowDefs(
   detail: boolean,
-  labor: boolean,
-  amort: boolean,
+  expenseMgmt: boolean,
+  individualDetail: boolean,
   totals: Map<string, number>
 ): RowDef[] {
-  const extractors: {
-    id: string;
-    label: string;
-    is: (c2: string, c3: string, a: string) => boolean;
-  }[] = [];
-  if (labor) extractors.push({ id: '인건비합계', label: '인건비합계', is: isLaborAccount });
-  if (amort) extractors.push({ id: '상각비합계', label: '상각비합계', is: isAmortAccount });
-  const extracted = (c2: string, c3: string, a: string) => extractors.some((e) => e.is(c2, c3, a));
-  const extractedRow = (r: FixedVariableRow) => extracted(r.category2, r.category3, r.account);
-
   const defs: RowDef[] = [
     {
       id: '매출액',
@@ -132,89 +276,20 @@ function buildRowDefs(
     },
   ];
 
-  // 인건비합계 · 상각비합계 (비용 상단)
-  for (const e of extractors) {
+  if (expenseMgmt) {
+    pushIndividual(defs, individualDetail, totals);
     defs.push({
-      id: e.id,
-      label: e.label,
+      id: '경비관리',
+      label: '경비관리',
       depth: 0,
       kind: 'group',
       emphasis: 'group',
-      match: (r) => isCost(r) && e.is(r.category2, r.category3, r.account),
+      match: (r) => isCost(r) && !isIndividualAccount(r.category2, r.category3, r.account),
       ratioKey: null,
     });
-  }
-
-  for (const node of COST_TREE) {
-    defs.push({
-      id: `g:${node.cat2}`,
-      label: node.label,
-      depth: 0,
-      kind: 'group',
-      emphasis: 'group',
-      match: (r) => isCost(r) && r.category2 === node.cat2 && !extractedRow(r),
-      ratioKey: null,
-    });
-    for (const g of node.groups) {
-      const accts = g.accounts.filter((a) => !extracted(node.cat2, g.cat3, a));
-      if (accts.length === 0) continue; // 그룹 전체가 인건비/상각비로 이동
-      // 계정명을 최신연도 합계(고정+변동) 큰 순으로 내림차순. 단 '기타'는 금액과 무관하게 항상 맨 아래.
-      // 동률·무데이터는 원순서 유지(stable sort).
-      accts.sort((a, b) => {
-        const aEtc = a === '기타';
-        const bEtc = b === '기타';
-        if (aEtc !== bEtc) return aEtc ? 1 : -1;
-        return (
-          (totals.get(`${node.cat2}|${g.cat3}|${b}`) ?? 0) -
-          (totals.get(`${node.cat2}|${g.cat3}|${a}`) ?? 0)
-        );
-      });
-      const single = accts.length === 1 && accts[0] === g.cat3;
-      if (single) {
-        const account = accts[0];
-        defs.push({
-          id: `${node.cat2}|${g.cat3}|${account}`,
-          label: g.label,
-          depth: 1,
-          kind: 'leaf',
-          emphasis: 'normal',
-          match: (r) =>
-            isCost(r) &&
-            r.category2 === node.cat2 &&
-            r.category3 === g.cat3 &&
-            r.account === account,
-          ratioKey: { cat2: node.cat2, cat3: g.cat3, account },
-        });
-      } else {
-        defs.push({
-          id: `g:${node.cat2}|${g.cat3}`,
-          label: g.label,
-          depth: 1,
-          kind: 'group',
-          emphasis: 'subgroup',
-          match: (r) =>
-            isCost(r) && r.category2 === node.cat2 && r.category3 === g.cat3 && !extractedRow(r),
-          ratioKey: null,
-        });
-        if (detail) {
-          for (const account of accts) {
-            defs.push({
-              id: `${node.cat2}|${g.cat3}|${account}`,
-              label: account,
-              depth: 2,
-              kind: 'leaf',
-              emphasis: 'normal',
-              match: (r) =>
-                isCost(r) &&
-                r.category2 === node.cat2 &&
-                r.category3 === g.cat3 &&
-                r.account === account,
-              ratioKey: { cat2: node.cat2, cat3: g.cat3, account },
-            });
-          }
-        }
-      }
-    }
+    pushCostTree(defs, 1, isIndividualAccount, detail, totals);
+  } else {
+    pushCostTree(defs, 0, () => false, detail, totals);
   }
 
   defs.push({
@@ -295,18 +370,47 @@ function SegToggle({
   );
 }
 
+/** 눌림 상태가 유지되는 단일 토글 버튼(경비관리 · 개별관리상세). */
+function PressToggle({
+  value,
+  onChange,
+  label,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={value}
+      onClick={() => onChange(!value)}
+      className={`text-sm px-2.5 py-1.5 rounded-md border transition-colors ${
+        value
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 /**
  * 2-2. 전사 고정비·변동비 구조 — 비용 계정을 고정비/변동비로 분해.
  *
- * - 우상단 토글: 기본(분류3까지)/상세(계정명까지), 인건비·상각비(해당 계정을 합쳐 비용 상단 소계로)
- * - 구분 우측에 변동비(%)·고정비(%) 열(기준 변동비율, 계정명 행에만. 고정비% = 1 − 변동비%)
- * - 행: 매출액 → 비용합계 → (인건비합계·상각비합계) → 비용 상세 → 영업이익(= 매출 − 비용합계)
- * - 연도 열(2023~2026 YTD) × 합계/고정비/변동비. 각 금액 아래 매출 대비 %
+ * - 우상단 토글: 기본(분류3까지)/상세(계정명까지) · 합계/고정비(열 구성) · 경비관리(개별관리·경비관리로 나눔)
+ *   · 개별관리상세(경비관리일 때만 — 인건비합계·상각비합계를 구성 계정으로 펼침)
+ * - 구분 우측 「기준」 아래 변동비(%)·고정비(%) 열(기준 변동비율, 계정명 행에만. 고정비% = 1 − 변동비%).
+ *   합계 모드에선 숨긴다
+ * - 행: 매출액 → 비용합계 → (개별관리 · 경비관리) → 비용 상세 → 영업이익(= 매출 − 비용합계)
+ * - 연도 열(2023~2026 YTD) × 합계/고정비/변동비(합계 모드면 합계만). 각 금액 아래 매출 대비 %
  */
 export default function FixedVariableStructure({ fixedVariable }: Props) {
   const [detail, setDetail] = useState(false); // false=기본(분류3), true=상세(계정명)
-  const [labor, setLabor] = useState(false);
-  const [amort, setAmort] = useState(false);
+  const [breakdown, setBreakdown] = useState(true); // false=합계만, true=합계·고정비·변동비 + 기준열
+  const [expenseMgmt, setExpenseMgmt] = useState(false);
+  const [individualDetail, setIndividualDetail] = useState(false); // 인건비합계·상각비합계 펼침
   const [highlighted, setHighlighted] = useState<Set<string>>(() => new Set());
 
   const toggleHighlight = (id: string) =>
@@ -335,8 +439,8 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
   }, [fixedVariable]);
 
   const rowDefs = useMemo(
-    () => buildRowDefs(detail, labor, amort, accountTotals),
-    [detail, labor, amort, accountTotals]
+    () => buildRowDefs(detail, expenseMgmt, individualDetail, accountTotals),
+    [detail, expenseMgmt, individualDetail, accountTotals]
   );
 
   // 변동비율 기준행은 period_year=0 · period_kind='annual'로 저장돼 있어 그대로 두면
@@ -372,7 +476,8 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
   }, [fixedVariable]);
 
   const ytdGroup = yearGroups.find((g) => g.ytdMonths !== null);
-  const dataColCount = yearGroups.length * COST_COLS.length;
+  const costCols = breakdown ? COST_COLS : COST_COLS.filter((c) => c.costType === null);
+  const dataColCount = yearGroups.length * costCols.length;
 
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -396,40 +501,36 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
               { v: true, label: '상세' },
             ]}
           />
-          <button
-            type="button"
-            aria-pressed={labor}
-            onClick={() => setLabor((v) => !v)}
-            className={`text-sm px-2.5 py-1.5 rounded-md border transition-colors ${
-              labor
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            인건비
-          </button>
-          <button
-            type="button"
-            aria-pressed={amort}
-            onClick={() => setAmort((v) => !v)}
-            className={`text-sm px-2.5 py-1.5 rounded-md border transition-colors ${
-              amort
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            상각비
-          </button>
+          <SegToggle
+            value={breakdown}
+            onChange={setBreakdown}
+            options={[
+              { v: false, label: '합계' },
+              { v: true, label: '고정비' },
+            ]}
+          />
+          <PressToggle value={expenseMgmt} onChange={setExpenseMgmt} label="경비관리" />
+          {/* 개별관리 행은 경비관리 보기에만 있으므로 그때만 노출 */}
+          {expenseMgmt && (
+            <PressToggle
+              value={individualDetail}
+              onChange={setIndividualDetail}
+              label="개별관리상세"
+            />
+          )}
         </div>
       </header>
       <div className="overflow-x-auto">
-        <table className="text-base" style={{ minWidth: `${10 + 4.5 * 2 + dataColCount * 6}rem` }}>
+        <table
+          className="text-base"
+          style={{ minWidth: `${10 + (breakdown ? 4.5 * 2 : 0) + dataColCount * 6}rem` }}
+        >
           <colgroup>
             <col style={{ minWidth: '10rem' }} />
-            <col style={{ minWidth: '4.5rem' }} />
-            <col style={{ minWidth: '4.5rem' }} />
+            {breakdown && <col style={{ minWidth: '4.5rem' }} />}
+            {breakdown && <col style={{ minWidth: '4.5rem' }} />}
             {yearGroups.map((g) =>
-              COST_COLS.map((c) => (
+              costCols.map((c) => (
                 <col key={`${g.label}-${c.label}`} style={{ minWidth: '6rem' }} />
               ))
             )}
@@ -442,19 +543,18 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
               >
                 구분
               </th>
-              <th
-                rowSpan={2}
-                className="border-l border-border px-2 py-2 text-center font-medium align-bottom"
-              >
-                변동비(%)
-              </th>
-              <th rowSpan={2} className="px-2 py-2 text-center font-medium align-bottom">
-                고정비(%)
-              </th>
+              {breakdown && (
+                <th
+                  colSpan={2}
+                  className="border-l border-border px-2 py-2 text-center font-medium"
+                >
+                  기준
+                </th>
+              )}
               {yearGroups.map((g) => (
                 <th
                   key={g.label}
-                  colSpan={COST_COLS.length}
+                  colSpan={costCols.length}
                   className="border-l border-border px-3 py-2 text-center font-medium"
                 >
                   {g.label}
@@ -462,8 +562,16 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
               ))}
             </tr>
             <tr>
+              {breakdown && (
+                <>
+                  <th className="border-l border-border px-2 py-2 text-center font-medium">
+                    변동비(%)
+                  </th>
+                  <th className="px-2 py-2 text-center font-medium">고정비(%)</th>
+                </>
+              )}
               {yearGroups.map((g) =>
-                COST_COLS.map((c, ci) => (
+                costCols.map((c, ci) => (
                   <th
                     key={`${g.label}-${c.label}`}
                     className={`px-3 py-2 text-center font-medium ${ci === 0 ? 'border-l border-border' : ''}`}
@@ -480,19 +588,24 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
                 row.emphasis === 'header' ||
                 row.emphasis === 'total' ||
                 row.emphasis === 'footer' ||
-                row.emphasis === 'group';
+                row.emphasis === 'group' ||
+                row.emphasis === 'section';
+              // 진한 파랑(매출액·비용합계·영업이익) · 연한 파랑(개별관리·경비관리)
+              // · 연한 녹색(매출원가·판관비 = 테마 배경 bg-background, 4. 전사 실적 연도 칸과 같은 토큰)
               const rowBg =
                 row.emphasis === 'header' || row.emphasis === 'total' || row.emphasis === 'footer'
                   ? 'bg-blue-100 dark:bg-blue-900/40'
                   : row.emphasis === 'group'
                     ? 'bg-blue-50 dark:bg-blue-950/30'
-                    : '';
+                    : row.emphasis === 'section'
+                      ? 'bg-background'
+                      : '';
               const rowExtra =
                 row.emphasis === 'total'
                   ? 'border-t border-border'
                   : row.emphasis === 'footer'
                     ? 'border-t-2 border-border'
-                    : row.emphasis === 'group'
+                    : row.emphasis === 'group' || row.emphasis === 'section'
                       ? 'border-t border-border/60'
                       : '';
               const isHl = highlighted.has(row.id);
@@ -533,14 +646,18 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
                   >
                     {row.label}
                   </td>
-                  <td className="border-l border-border px-2 py-2 text-center align-middle tabular-nums text-muted-foreground">
-                    {varPct}
-                  </td>
-                  <td className="px-2 py-2 text-center align-middle tabular-nums text-muted-foreground">
-                    {fixPct}
-                  </td>
+                  {breakdown && (
+                    <>
+                      <td className="border-l border-border px-2 py-2 text-center align-middle tabular-nums text-muted-foreground">
+                        {varPct}
+                      </td>
+                      <td className="px-2 py-2 text-center align-middle tabular-nums text-muted-foreground">
+                        {fixPct}
+                      </td>
+                    </>
+                  )}
                   {yearGroups.map((g, gi) =>
-                    COST_COLS.map((c, ci) => {
+                    costCols.map((c, ci) => {
                       let value: number | null;
                       if (row.kind === 'op') {
                         const { revenue, totalCost } = perYear[gi];
