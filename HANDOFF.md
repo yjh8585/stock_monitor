@@ -18,7 +18,7 @@
 - 음영: 매출액·비용합계·영업이익 = 진한 파랑 · 개별관리·경비관리 = 연한 파랑 · **매출원가·판관비 = `bg-background`**. 사용자가 「4. 전사 실적 연도 칸의 연한 녹색」을 지목했는데, 그 녹색은 따로 정의된 색이 아니라 **테마 배경 토큰**(`app/globals.css` `--background` 가 녹색기 오프화이트)이었다. 2-2 표 일반 행은 `bg-card` 라 차이가 보인다. 경비관리를 꺼도 매출원가·판관비는 이 색이다.
 - 펼친 감가상각비는 같은 이름이 둘이라 「감가상각비(매출원가)」「감가상각비(연구개발비)」로 출처를 붙였다.
 
-**막힌 곳 / 안 되더라**: 3000번 포트는 여전히 **이 앱이 아니다** — `npm run dev` 는 3001로 비켜 뜬다. `TaskStop` 으로 `npm run dev` 를 꺼도 **Next 자식 `node.exe` 가 포트를 잡고 남는다** → `netstat` 으로 PID 확인 후 `taskkill //PID <번호> //T //F`. `npm run check-all` 은 여전히 `scripts/dart_eval/README.md` 형식 경고로 기존부터 실패(이번 변경 무관).
+**막힌 곳 / 안 되더라**: 3000번 포트는 여전히 **이 앱이 아니다** — `npm run dev` 는 3001로 비켜 뜬다. `TaskStop` 으로 `npm run dev` 를 꺼도 **Next 자식 `node.exe` 가 포트를 잡고 남는다** → `netstat` 으로 PID 확인 후 `taskkill //PID <번호> //T //F`. `npm run check-all` 을 9월 28일부터 실패시키던 `scripts/dart_eval/README.md` 형식 경고(표 칸 너비)는 같은 날 prettier 로 정리해 **이제 통과한다**(EXIT=0 · lint 경고 2건은 기존).
 
 **재개 지점**: 화면 실물은 사용자가 dev 서버에서 1차 확인 후 수정 지시를 줬고, **2차 수정본(순서·볼드·개별관리상세)은 아직 눈으로 안 봤다.** `/management/pnl` 2-2 표에서 경비관리 → 개별관리상세를 눌러 확인하면 된다. 행 정의 함수(`buildRowDefs`)는 export 되지 않아 단위 시험이 없다.
 
