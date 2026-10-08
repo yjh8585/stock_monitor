@@ -836,8 +836,9 @@ export interface KiaRetailRegionPoint {
 /** 지역별 retail stacked — month/annual 토글.
  *  YTD 라벨은 **진행 중 연도(=현재 연도)에 12개월 미만일 때만** 부착.
  *  과거 연도(2024 등)는 12개월 미만이어도 그냥 'YYYY'로 표시 (출처 한계는 footer로 안내).
- *  annual 모드는 [2021..현재] 범위 빈 row 보장 — 사용자 명시 "다른 차트처럼 2021부터". */
-const RETAIL_ANNUAL_MIN_YEAR = 2021;
+ *  annual 모드는 빈 연도 행을 채우지 않는다 — 사용자 명시 "다른 차트처럼 2021부터"는
+ *  데이터가 2021년부터 해마다 빠짐없이 있어 충족된다(kia_retail_sales 2021~2026 실측, 2026-10-08).
+ *  SHORTCUT: 중간 연도가 통째로 비면 그 해가 축에서 사라진다 → 그때 [2021..currentYear()] 빈 행 채우기 추가. */
 
 export function aggregateKiaRetailRegions(
   rows: KiaRetailSaleRow[],

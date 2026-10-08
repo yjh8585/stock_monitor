@@ -509,7 +509,14 @@ export default function FixedVariableStructure({ fixedVariable }: Props) {
               { v: true, label: '고정비' },
             ]}
           />
-          <PressToggle value={expenseMgmt} onChange={setExpenseMgmt} label="경비관리" />
+          <PressToggle
+            value={expenseMgmt}
+            onChange={(v) => {
+              setExpenseMgmt(v);
+              if (v) setDetail(true); // 켤 때 상세로 전환(사용자 지시 2026-10-08). 끌 때는 그대로 둔다
+            }}
+            label="경비관리"
+          />
           {/* 개별관리 행은 경비관리 보기에만 있으므로 그때만 노출 */}
           {expenseMgmt && (
             <PressToggle

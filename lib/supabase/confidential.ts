@@ -39,7 +39,7 @@ import { createSupabaseAdminClient } from './admin';
  * - org_charts: 조직도 이미지 메타 (migration 20260624000002)
  * - longterm_revenue_plan: 영업본부 중장기 매출 전망 (migration 20260715000001)
  */
-const CONFIDENTIAL_TABLES = [
+export const CONFIDENTIAL_TABLES = [
   'pnl_entries',
   'pnl_cost_structure',
   'chat_audit_log',
