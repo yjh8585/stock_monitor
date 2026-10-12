@@ -10,8 +10,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 자동차 산업 주식 모니터링 대시보드. Next.js + Supabase로 21개사 + α의 주가·환율·재무·뉴스·DART 공시 등을 수집·시각화한다.
 
-- 현재 단계는 `ROADMAP.md`(Phase 0~3 완료, 3.5/5 진행 중)와 **개인 메모리**(누적 진행) 우선 확인. 🔴 메모리는 **이 레포에 없다** — `~/.claude/projects/C--Users-junghwan-yoon-workspace-1-----stock-monitor/memory/`의 `MEMORY.md` 인덱스가 실물이다.
-- 7개 페이지: 관련주식 / 비교 / 국내자동차 / OEM / 부품사 TOP100 / 한세그룹 / 기타. `/reports`, `/management`, `/login`, `/stock-popup/[id]` 별도.
+- 현재 단계는 `ROADMAP.md`(Phase 0~6 완료)와 **개인 메모리**(누적 진행) 우선 확인. 🔴 메모리는 **이 레포에 없다** — `~/.claude/projects/C--Users-junghwan-yoon-workspace-1-----stock-monitor/memory/`의 `MEMORY.md` 인덱스가 실물이다.
+- 8개 페이지: 관련주식 / 비교 / 국내자동차 / OEM / 부품사 TOP100 / 휴머노이드 / 한세그룹 / 기타. `/reports`, `/management`, `/login`, `/stock-popup/[id]` 별도.
 
 ## 문서 역할 분리
 
@@ -26,7 +26,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`docs/oem-collection.md`](./docs/oem-collection.md)** — OEM 회사별 탭(`/oem/*`) 수집 로직·MarkLines 함정. **OEM 탭 작업 전.**
 - **[`docs/isr-write-optimization.md`](./docs/isr-write-optimization.md)** — _Vercel ISR Write 한도 대응_. **주식 뷰 3종(`related`/`domestic`/`parts-top100`)의 payload·cacheTag를 건드리기 전 정독** — `cacheTag('exchange_rates_live')`를 되돌리거나 `financials_by_year` 트리밍을 풀면 한도가 다시 터진다.
 - **[`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md)** — fnguide 신버전(wcomp) JSON 계약표·계정 코드. **`scripts/verify_fnguide.py`가 실패했을 때.**
-- **[`docs/commands.md`](./docs/commands.md)** — _명령·검사 스크립트 목록_. **"무슨 명령이었지" 싶을 때.**
 
 > AGENTS.md는 "이 약속을 지켜라"만 다룬다. 구조 설명이 길어지면 Architecture.md로 옮기고 여기선 참조한다.
 >
@@ -39,13 +38,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Next.js 16.2.4** + React 19.2.4 + TS 5 / **Tailwind 4** + shadcn/ui + base-ui/react / 차트 lightweight-charts + Recharts / Supabase JS(`@supabase/ssr`) / Zustand · RHF+Zod · Pino / AI `@anthropic-ai/sdk`·`@google/genai` / 수집 Python 3 + `postgrest-py` + Playwright + pykrx + yfinance. 상세·버전 정본 = [`Architecture.md §2`](./Architecture.md).
 
 > 글로벌 CLAUDE.md는 pnpm/uv를 권장하나 **이 프로젝트는 npm + venv 사용 중**(`package-lock.json`, `scripts/venv`). 임의 마이그레이션 금지.
+>
+> 코딩 스타일 = `~/.claude/docs/playbook.md` §2.
 
 ## Next.js 16 주의 사항 (학습 데이터와 다름)
 
 - **`proxy.ts`** = 구 `middleware.ts`. 루트에서 세션 쿠키 검증 + 권한 체크(`lib/auth/permissions.ts`). 새 미들웨어 로직은 여기에.
-- **`cacheComponents: true`** (next.config.ts). `'use cache'` 디렉티브로 캐싱, 무효화는 `updateTag(...)`. `unstable_cache` 미사용. 패턴은 `/reports` 라우트·메모리 `project_reports_migration.md` 참고.
+- **`cacheComponents: true`** (next.config.ts). `'use cache'` 디렉티브로 캐싱, 무효화는 `updateTag(...)`. `unstable_cache` 미사용. 패턴은 `/reports` 라우트 참고.
 - `experimental.staleTimes`(라우터 캐시 TTL 0) · `serverExternalPackages`(`@napi-rs/canvas`·`pdfjs-dist`·`jsdom` 등 번들 제외) — 설정 근거는 [`Architecture.md §9`](./Architecture.md).
-- 배포 설정은 **`vercel.json`** 사용 (`vercel.ts`로 옮기지 말 것). Vercel cron은 Hobby 제약(일 1회)으로 미사용, 짧은 간격 cron은 GitHub Actions(`.github/workflows/cron-*.yml`)에서 curl 트리거.
+- 배포 설정은 **`vercel.json`** 사용 (`vercel.ts`로 옮기지 말 것). Vercel cron은 Hobby 제약(일 1회)으로 미사용, 짧은 간격 cron은 GitHub Actions(`.github/workflows/cron-sentiment.yml`)에서 curl 트리거.
 
 ## 검증 명령 (작업 완료 후 반드시 실행)
 
@@ -70,16 +71,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 > 🔴 **어기면 조용히 깨지는 것만** 여기 남긴다. 폴더가 무엇을 맡는지 · 라우트 목록 · 모듈 구성은
 > [`Architecture.md 부록 C`](./Architecture.md)(이관 2026-08-25 · 20,029B). "이 파일 어디 있지"는 거기부터.
 
-- [`app/`] 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
+- [`app/`] 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `lib/oem-competition/signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
 - [`app/`] 🔴 **로봇 카테고리 글은 `/humanoid` 전용**(사용자 지시 2026-09-11) — 게시판 `/reports` 목록·필터에서 감춘다. 카테고리 문자열·제목 판정 SSOT 는 **`lib/reports/robot.ts`**(페이지마다 다시 박지 말 것) · 제외는 `excludeCategory` (**`.neq()` 단독 금지** — `NULL <> '로봇'` 이 참이 아니라 카테고리 빈 글까지 지운다) · 새 글은 `isRobotTitle()` 이 LLM 분류를 건너뛰고 고정한다(안 그러면 조용히 새어 휴머노이드에 영영 안 뜬다). 목록·상세 컴포넌트의 `basePath` 를 하드코딩하지 말 것.
 - [`app/`] 🔴 Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
 - [`app/`] 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
 - [`app/`] 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`). 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
-- [`app/`] **사외비 보고서**(`posts.is_confidential`)는 RLS가 anon 읽기를 막고 `canAccessConfidentialReports`(admin·holdings·mobility)가 service_role 조회를 게이트한다 — 목록·상세 `'use cache'` 함수에 `includeConfidential`을 **인자로** 넘겨 역할별 캐시를 분리하므로 **새 호출부에서 이 인자를 빠뜨리지 말 것**.
 - [`app/`] 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. 🔴 **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(2026-08-12 기준 12종 — 여기 다시 나열하지 말 것. 문서에 베껴 적었더니 9종·5종으로 갈려 있었다).
 - [`app/`] **공개는 `api/cron/*`·`api/revalidate*` 뿐이고 나머지는 세션 필수.** 새 `route.ts` 를 만들면 `proxy.ts` 의 `PUBLIC_PATH_PREFIXES` 와 [`Architecture.md §5`](./Architecture.md) 의 라우트 목록을 **함께** 갱신한다(목록 정본은 Architecture — 여기 중복하지 않는다. 두 곳에 두면 갈린다).
 - [`app/`] 🔴 **세션 통과 ≠ 권한** — `canAccess` 는 `/api/*` 에 `return true` 다. mutating 라우트는 핸들러 첫 줄에서 역할 판정 → **403 JSON**, 화면·버튼도 같이. 판정 함수는 `lib/auth/permissions.ts`(`canPublishReports` = 게시 · `canUseChat` = 챗봇, guest 제외). **명단이 겹쳐도 의미가 다르면 함수를 따로 둔다** → [`gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
-- [`app/`] `api/revalidate*`은 SSRF·쿠키 가드 패치 이력(commit `ea090be`). 회귀 주의.
 - [`components/`] `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - [`components/`] **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - [`lib/`] 공용 유틸·React 훅 목록 → [`Architecture.md §6`](./Architecture.md). **표 행 클릭 강조는 `useRowHighlight` 훅을 재사용**(인라인 재구현 금지 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. sticky 셀은 행 bg를 명시적으로 덮어야 따라온다)
@@ -108,7 +107,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **유의 사항 (규칙):**
 
-- 수집 스크립트가 끝나면 **반드시 `scripts/lib/revalidate.py`로 태그 무효화**. 안 하면 페이지가 `'use cache'` 결과를 들고 있어 stale.
+- 수집 스크립트의 태그 무효화 = 「Python 스크립트 규칙」의 자동 hook 두 경로.
 - **수집 외 경로의 캐시 무효화**: `posts` 등 `'use cache'` 테이블을 수동(tsx/직접 INSERT)으로 변경하면 `revalidateTag`를 코드에서 못 부름 → `/api/revalidate`(POST `x-revalidate-secret` + `{tags:[...]}`, 프로덕션은 `NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET`) curl 또는 로컬 dev 재시작.
 - **⚠️ GHA revalidate 시크릿 이름은 `NEXT_REVALIDATE_SECRET`**(`lib/revalidate.py`가 읽는 이름). 오타면 **적재는 정상인데 캐시 무효화만 조용히 스킵**된다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md). 신규 워크플로 작성 시 이름 확인.
 - **dev `'use cache'` stale 무효화**는 `rm -rf .next`+재시작 말고 `revalidate_tags([태그])` 로컬 호출이 빠르다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md).
@@ -143,15 +142,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`financials` 생성컬럼**: `operating_margin`·`gross_margin`·`net_margin`·`debt_ratio`는 GENERATED ALWAYS — **직접 UPDATE 금지**(base 컬럼만 고치면 자동 재계산). 재수집 후 `q4_annual_bad`(허위 Q4=연간행) 재확인 — 신선 annual 갱신이 옛 잔존 Q4행과 값이 일치해 재등장할 수 있다.
 - **챗봇 외부 LLM 전송 정책** (2026-05-23/24 SSOT): 챗봇(`/api/chat`) 도구 결과는 모두 Anthropic API로 전송. (1) `lib/chat/tools.ts` 화이트리스트에 **사외비 테이블 추가 금지**(PnL 의도적 제외) (2) `lib/chat/system-prompt.ts` DATA_CATALOG에 내부 고객사·공장·제품 명단 **평문 금지** (3) 모든 도구 호출은 `chat_audit_log` 자동 기록(`lib/chat/audit.ts` fire-and-forget) (4) 사외비 토픽 거절 안내는 `lib/chat/sensitive-policy.ts`의 `BLOCKED_TOPICS` SSOT — 새 도메인은 한 줄 추가.
 
-- **보고서는 행 단위 사외비** (`posts.is_confidential`): posts는 통째로 막지 않고 **행 단위**로 가른다 — 정책 `posts_select_public`이 anon·authenticated에게 `is_confidential = false` 행만 준다. 사외비 행은 service_role로만 읽고 `canAccessConfidentialReports`(admin·holdings·mobility)로 게이트한다. **원문 파일을 `reports` 버킷(public)에 올리지 말 것.** 원본 HTML 첨부(`posts.html_path`)는 비공개 버킷 `reports-html` + 인증 프록시 `/api/reports/[id]/html` 전용 → [`Architecture.md §7-G`](./Architecture.md). 절차 → [`report.md §2-C`](./report.md).
+- **보고서는 행 단위 사외비** (`posts.is_confidential`): posts는 통째로 막지 않고 **행 단위**로 가른다 — 정책 `posts_select_public`이 anon·authenticated에게 `is_confidential = false` 행만 준다. 사외비 행은 service_role로만 읽고 `canAccessConfidentialReports`(admin·holdings·mobility)로 게이트한다 — 목록·상세 `'use cache'` 함수에 `includeConfidential`을 **인자로** 넘겨 역할별 캐시를 가르므로 **새 호출부에서 빠뜨리지 말 것**. **원문 파일을 `reports` 버킷(public)에 올리지 말 것.** 원본 HTML 첨부(`posts.html_path`)는 비공개 버킷 `reports-html` + 인증 프록시 `/api/reports/[id]/html` 전용 → [`Architecture.md §7-G`](./Architecture.md). 절차 → [`report.md §2-C`](./report.md).
 
 **챗봇 감사 로그**(`chat_audit_log`): 도구 실행 직후 `logToolCall()`이 기록하되 **await하지 않는다**(실패해도 응답 정상). service_role 전용·보존 1년. 스키마 → [`Architecture.md 부록 B-4`](./Architecture.md).
 
 ## Python 스크립트 규칙
 
-- DB 접근은 **postgrest-py 직접 호출**(`scripts/lib/db.py`). `supabase` SDK 금지(인증 의존성·실패 모드 — 메모리 `feedback_supabase_postgrest.md`).
+- DB 접근은 **postgrest-py 직접 호출**(`scripts/lib/db.py`). `supabase` SDK 금지(인증 의존성·실패 모드).
 - 공통 모듈 재사용(`db.py`·`accounts_map.py`·`fx.py`). upsert 키·멱등성 확보.
-- **캐시 무효화는 자동 hook 두 경로**: (1) `db.upsert_rows(...)` bulk upsert가 `revalidate_for_tables`를 자동 호출 (2) `WriteSession` 블록 종료 시 누적 테이블을 자동 revalidate(`select`는 추적 X, 예외 시에도 호출, silent fail). 🔴 **신규 mutating 스크립트는 반드시 `WriteSession`.**
+- **캐시 무효화는 자동 hook 두 경로**: (1) `db.upsert_rows(...)` bulk upsert가 `revalidate_for_tables`를 자동 호출 (2) `WriteSession` 블록 종료 시 누적 테이블을 자동 revalidate(`select`는 추적 X, 예외 시에도 호출, silent fail). 🔴 **신규 mutating 스크립트는 반드시 `WriteSession`**(안 타면 페이지가 `'use cache'` 결과를 들고 있어 stale).
 - Playwright는 시스템 캐시(`PLAYWRIGHT_BROWSERS_PATH`). 프로젝트에 브라우저 다운로드 금지.
 - **OEM MarkLines Excel sync**(`sync_oem_excel.py`·`sync_oem_production_excel.py`)는 만료되는 세션 쿠키 GitHub Secret **`MARKLINES_COOKIE`** 에 의존한다(자동 로그인 아님 — 수동 채취). 만료 시 워크플로가 exit 1로 실패 → Secret 재채취. 채취 절차·단일 디바이스 정책 → [`docs/oem-collection.md`](./docs/oem-collection.md).
 - **LLM 추출 수집기**(`collect_uzauto_financials.py`·현대 분기 IR·`collect_cox_inventory.py` 등)는 **로컬 실행 가능**하다 — `lib/bootstrap.py`의 `init_script()`가 `scripts/.env`와 **루트 `.env.local`을 둘 다** 로드하기 때문(`ANTHROPIC_API_KEY`는 후자에 있다). 구식 스크립트가 한쪽만 로드하면 `init_script`로 교체할 것 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md).
@@ -162,7 +161,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## PowerShell 환경 메모
 
 - 셸은 PowerShell 5.1. `&&` 미지원 → `;` 또는 `if ($?) { ... }`.
-- 기본 인코딩 UTF-16 LE BOM. 외부 도구 입력은 `-Encoding utf8` 명시.
+- 기본 인코딩 UTF-16 LE BOM. 🔴 `-Encoding utf8` 은 PS 5.1 에서 **BOM 을 붙인다** — 파일은 Write 도구나 `[IO.File]::WriteAllText($p, $s, [Text.UTF8Encoding]::new($false))`.
 - **백업 봇 push 거부·Codex CLI stdin·`grep -a`·`PYTHONIOENCODING`** → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §4.
 - **Playwright·UI 검증 함정**(dev 서버 재기동·검증 산출물 위치·로그인 404 진단·보호 라우트 검증·recharts headless/portal·사외비 차트) → **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md) 정독**. UI를 브라우저로 검증하기 전에 반드시 읽을 것.
 
@@ -172,7 +171,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - 키·토큰은 `.env.local`/`scripts/.env`/GitHub Actions Secrets에만. **코드·커밋 금지.**
 - **커밋 전 secret 점검**: untracked 정리·신규 추적 전 `sbp_`/토큰 패턴 grep(하드코딩 잔재가 남아 있다). master 직접 push라 Push Protection(GH013) 차단 시 해당 파일 제외 후 재커밋 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §5.
-- `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`) 외 라우트는 세션 필수. 새 공개 라우트 신중히.
 - `/api/revalidate*`은 토큰 검증 후 `updateTag()`. SSRF·쿠키 가드 회귀 주의(commit `ea090be`).
 - **사외비 데이터**는 `service_role` 전용. NEXT_PUBLIC anon key는 클라이언트 번들 노출 → RLS `USING(true)`로 노출 금지. 새 사외비 테이블은 RLS enable + 정책 없음(default deny) 유지.
 
@@ -189,16 +187,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 다음 변경이 발생하면 **같은 커밋에서 AGENTS.md도 같이 수정한다.** 누락은 `.githooks/pre-commit`이 차단(`USER_ACTIONS.md` §8 참고).
 
-- `supabase/migrations/*.sql` 새 파일 → 스키마·뷰·제약이 디렉터리 지도/데이터 흐름과 갈리면 갱신
-- `app/<라우트>/page.tsx` 새 파일 → 라우트 책임 표에 행 추가
+- `supabase/migrations/*.sql` 새 파일 → 스키마·뷰·제약이 갈리면 Architecture.md §7·§8 갱신
+- `app/<라우트>/page.tsx` 새 파일 → Architecture.md §5 라우트 맵에 행 추가
 - `app/oem/<slug>` 탭 변경 → `docs/oem-collection.md` 갱신
 - `app/api/**/route.ts` 새 파일 → 공개/보호 라우트 목록 + `proxy.ts`의 `PUBLIC_PATH_PREFIXES` 정합성 확인
 - `scripts/lib/*` 새 모듈 → **[`Architecture.md 부록 C`](./Architecture.md)** 의 모듈 목록 갱신(AGENTS엔 약속만)
 - `scripts/verify_*.py` 새 검사기 → 「검증 명령」에 한 줄 + **통과 상태가 무엇인지** 명시
 - `.github/workflows/*` 신규/제거 → Architecture.md §10 갱신
 - `next.config.ts` / `proxy.ts` / `vercel.json` 변경 → 루트 설정 또는 Next.js 16 주의 사항 점검
-- `lib/<new-domain>/` 새 도메인 폴더 → 도메인 폴더 섹션에 추가 (hook은 잡지 않음 — 사람이 챙긴다)
-- `scripts/` 새 prefix 카테고리 → prefix 컨벤션 목록 갱신 (hook은 잡지 않음)
+- `lib/<new-domain>/` 새 도메인 폴더 → Architecture.md 부록 C 갱신 · 약속은 「폴더별 약속」에 한 줄 (hook은 잡지 않음)
+- `scripts/` 새 prefix 카테고리 → Architecture.md 부록 C 갱신 (hook은 잡지 않음)
 - **새로 겪은 함정** → AGENTS.md 본문이 아니라 `docs/gotchas-*.md`에 적고, 트리거가 새로우면
   `문서 역할 분리` 목록에 **한 줄만** 추가
 - 도메인 약속 변경(append-only / 연결 우선 / `status` 값 등) → 데이터·DB 규칙 갱신

@@ -174,11 +174,11 @@
 - [x] 매출 십억원·시가총액 조원 단위, 외화 → KRW 환율 자동 환산
 - [x] `related_stocks_view` — companies + 4년 annual 실적 + 환율 합성 뷰
 
-### Page 2: 비교 (예정)
+### Page 2: 비교 ✅ 완료
 
-### Page 3: 국내자동차 (예정)
+### Page 3: 국내자동차 ✅ 완료
 
-### Page 4: OEM (예정)
+### Page 4: OEM ✅ 완료
 
 - [x] `/oem/competition` — 핵심 차종 10종 경쟁 분석 (2026-08-13)
   - 경쟁군 정의 SSOT `oem_competitor_set` + 세그먼트 매핑 `oem_model_segment`
@@ -263,11 +263,11 @@
   - 목표주가 단위 버그(「35.6만원」→`35`) 26건 복구 · 투자의견 표기 4종→3종 통일
   - 상세 → [`AGENTS.md`](./AGENTS.md) 「`/humanoid` 상세」·「`/humanoid/research` 상세」
 
-### Page 5: 부품사 TOP100 (예정)
+### Page 5: 부품사 TOP100 ✅ 완료
 
-### Page 6: 한세그룹 (예정)
+### Page 6: 한세그룹 ✅ 완료
 
-### Page 7: 기타정보 (예정)
+### Page 7: 기타정보 ✅ 완료
 
 ---
 

@@ -35,6 +35,9 @@ scripts/venv/Scripts/python.exe scripts/verify_financials_sanity.py # 재무 이
 scripts/venv/Scripts/python.exe scripts/verify_call_contracts.py # 수집기 호출 계약(시그니처 불일치·튜플 반환을 스칼라로 받음)
 scripts/venv/Scripts/python.exe scripts/verify_news_relevance.py # 뉴스가 «그 회사 기사» 인가(보통명사 사명 오염)
 scripts/venv/Scripts/python.exe scripts/verify_translationese.py # 보고서 번역투(cover→「덮다」 등). --run <원고> 로 게시 전 1편
+scripts/venv/Scripts/python.exe scripts/verify_report_krw.py --run <원고.md> # 외화 금액 원화 환산 병기(게시 전). --post <id> · --all-posts(참고용 전수)
+scripts/venv/Scripts/python.exe scripts/verify_research_company_link.py # 휴머노이드 회사 추가 후 리포트 연결 끊김. --fix 로 채운다
+scripts/venv/Scripts/python.exe scripts/verify_summary_source.py # 회사 설명이 fnguide 기업개요 원문인가(LLM 덮어쓰기). --list 로 전체
 scripts/venv/Scripts/python.exe -m pytest scripts/lib -q         # 순수 함수 회귀
 python -X utf8 scripts/verify-hookify-rules.py                   # .claude/ 훅 규칙 (venv 아닌 시스템 python)
 ```

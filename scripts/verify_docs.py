@@ -10,7 +10,7 @@
   1. 표 구조 — 행별 셀 개수가 헤더와 일치하는가(이스케이프된 `\\|`는 셀 경계 아님)
   2. 상대 링크 — `](./x.md)` 가 실재하는 파일을 가리키는가
      (문서를 docs/ 로 옮길 때 링크가 조용히 깨지는 사고를 잡는다)
-  3. 자동 로드 분량 — AGENTS.md 가 임계값을 넘지 않는가
+  3. 자동 로드 분량 — AGENTS.md 가 임계값을 넘지 않는가 (+ 참조 문서 상한 REFERENCE_DOC_LIMITS)
   4. 표 패딩 — 정렬 공백이 파일에서 차지하는 비중
   5. 강조 기호 짝 — `**` 가 홀수개인 줄(렌더에서 별표가 그대로 노출된다)
 
@@ -57,6 +57,16 @@ AUTOLOAD_DOC = 'AGENTS.md'
 #    남은 자리가 없어 한 줄만 더해도 터지는 상태였고, 그래서 다이어트가 아니라 인상 압력이 생긴다.
 AUTOLOAD_WARN_BYTES = 36_600   # 실측 34,082 + 여유 2,500. 넘으면 참조형을 Architecture.md·docs/ 로 옮길 시점
 PADDING_WARN_RATIO = 0.10      # 표 정렬 공백이 파일의 10% 넘으면 경고
+
+# 「먼저 읽어라」 문서 상한 — 2026-10-12 착수 시점 크기 × 1.05(올림). 자동 로드만 막자 증가분이 여기로 옮겨 왔다.
+REFERENCE_DOC_LIMITS = {
+  'Architecture.md': 150_975,
+  'docs/gotchas-ci-deploy.md': 23_075,
+  'docs/gotchas-data-collection.md': 130_645,
+  'docs/gotchas-playwright-ui.md': 37_562,
+  'HANDOFF.md': 40_314,
+  'ROADMAP.md': 33_380,
+}
 
 # 이스케이프되지 않은 파이프만 셀 경계로 본다.
 _CELL_SPLIT = re.compile(r'(?<!\\)\|')
@@ -169,8 +179,28 @@ def padding_ratio(lines: list[str]) -> tuple[int, int]:
   return raw - squeezed, total
 
 
+def check_size_limit(name: str, size: int, limit: int) -> str | None:
+  """참조 문서가 상한을 넘으면 처방을 담은 오류 문장을, 아니면 None 을 돌려준다."""
+  if size <= limit:
+    return None
+  stem = Path(name).stem
+  return (f'{name}가 {size:,}B로 상한 {limit:,}B 초과 — 경위·실측은 '
+          f'docs/history/{stem}-경위.md 로 옮기고 본문엔 규칙 1줄 + 링크. 🔴 상한을 올려서 통과시키지 말 것')
+
+
+def _self_test() -> None:
+  """상한 판정이 양방향으로 살아 있는지 본다. 어긋나면 본 검사를 돌리지 않는다."""
+  if check_size_limit('ROADMAP.md', 100, 100) is not None:
+    print('자가 시험 실패 — 상한과 같은 크기를 초과로 잡았다')
+    sys.exit(2)
+  if check_size_limit('ROADMAP.md', 101, 100) is None:
+    print('자가 시험 실패 — 상한 +1B 를 통과시켰다')
+    sys.exit(2)
+
+
 def verifyDocs() -> int:
   """문서 무결성을 검사하고 실패 수를 반환한다."""
+  _self_test()
   errors: list[str] = []
   warnings: list[str] = []
 
@@ -209,6 +239,15 @@ def verifyDocs() -> int:
         f'{AUTOLOAD_DOC}가 {size:,}B로 상한 {AUTOLOAD_WARN_BYTES:,}B 초과 — '
         f'참조형(구조 설명·명령 목록·env)은 Architecture.md·docs/로 옮기고 트리거 한 줄만 남길 것. '
         f'🔴 상한을 올려서 통과시키지 말 것')
+
+  for name, limit in REFERENCE_DOC_LIMITS.items():
+    path = ROOT / name
+    if not path.exists():
+      warnings.append(f'{name}: 파일 없음 (REFERENCE_DOC_LIMITS 갱신 필요)')
+      continue
+    err = check_size_limit(name, len(path.read_bytes()), limit)
+    if err:
+      errors.append(err)
 
   for w in warnings:
     print(f'[WARN] {w}')
