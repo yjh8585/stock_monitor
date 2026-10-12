@@ -2,6 +2,7 @@
 
 `AGENTS.md`에서 옮겨온 실측 함정 전문이다(원문 보존). **분량이 커 자동 로드에서 뺐을 뿐,
 중요도는 그대로다.** 수집기를 건드리기 전에 읽는다.
+**날짜 붙은 경위·사고 서사·실측표·인용은 [경위 문서](./history/gotchas-data-collection-경위.md) 의 같은 제목 절로 옮겼다**(2026-10-12). 여기엔 규칙·처방만 둔다.
 
 | 트리거                                    | 볼 항목                                        |
 | ----------------------------------------- | ---------------------------------------------- |
@@ -23,13 +24,18 @@
 
 ---
 
-- **DART 계정명→컬럼 매핑은 부분문자열 매칭 금지** — 반드시 `collect_dart_audit._match_acct`(정확일치 우선 + `ACCT_REJECT`) 경유. 짧은 키 `'매출'`이 `'매출채권'`(외상매출금)을 잡아 매출채권을 revenue로 오적재한 버그가 있었다(2026-07-17, 국내 상장사 다수 매출 축소·이익률 뻥튀기). **회사명→corp_code 부분매칭도 짧은 이름의 중간 삽입 매칭 금지**(`_name_contains_match` 길이·경계 가드) — 과거 `'워트' in '한국파워트레인'`, `'지디' in '인지디스플레이'`로 비상장 회사가 엉뚱한 상장 티커로 승격됐다. 약한 매칭 corp_code는 **자동 캐시 금지**(완전일치만). **⚠️ 동명이인 방어**: `collect_dart_domestic._resolve_corp_code`는 **DB `dart_corp_code` > `manual_dart_mapping` > `find_corp_code(name_kr)`+개체검증** 순으로 해석한다(2026-07-18 수정). 이전엔 이름을 최우선 재해석해 동명이인(다스·삼송·동희·우진공업 등 비상장 다수)이 재수집마다 엉뚱한 동명 소기업에 오배정됐다. **DB corp·수동매핑은 신뢰(무검증), 이름 해석분은 엔티티 검증으로 게이트**(2026-07-18 구현): 해석된 corp의 DART `company.json` 프로필(상장코드·홈페이지)이 우리 회사와 맞는지 `collect_dart_audit._verify_corp_identity(info, profile)`(순수)로 판정 → `'confirm'`(상장코드 일치 or 홈페이지 도메인 일치)/`'reject'`(상장코드 불일치·상장/비상장 어긋남·비상장 placeholder의 상장 승격)/`'unknown'`. 정책 `_identity_allows`: **confirm→통과, reject→차단, unknown→동명(정확일치 후보 2개↑)일 때만 차단**(사용자 결정 '동명 있을 때만 차단' — 동명 없으면 홈피 확증 없어도 수집 유지). ⚠️ `hm_url`은 모회사/JV 도메인 잡음이 섞여 도메인 **불일치만으로는 reject 안 함**(일치할 때만 confirm 근거). 회사당 `company.json` 1회 추가 호출(일일한도 2만의 <1%). 배선 3곳: domestic·audit `_resolve_corp_code_impl`(다중후보는 induty is_auto+identity 결합, 확증 후보 우선·전부 미확증이면 스킵. **삼송처럼 동명 후보가 둘 다 자동차면 induty 무력 → 홈피로 tie-break**)·`enrich_company` 자동캐싱(confirm일 때만 DB 저장). `profile=None`이면 게이트 skip(범위 밖 호출부 무회귀). 회귀 테스트 `scripts/lib/test_dart_corp_match.py`(`TestDomainKey`·`TestVerifyCorpIdentity`·`TestIdentityAllows`). **여전히 남는 사각지대 = 홈페이지·상장코드 둘 다 없는 비상장 동명이인**(예 위월드·티피씨 등 5개사) → 이 경우 수동 `manual_dart_mapping.json` 필요. 동명 회사 재무를 지울 땐 **행 삭제 대신 값만 NULL**(행 유지=has_fin)해야 재수집 재오염 방지. **비상장사는 `finstate_all` API가 "데이터없음(013)" 반환** → 감사보고서 HTML 파싱만 가능. 그 audit-HTML 경로가 `_collect_year`의 튜플버그(`_get_audit_rcpt` 3튜플을 통째로 `_get_main_doc_url`에 전달 → `'tuple' object has no attribute 'isdecimal'`)로 전면 실패하던 것을 2026-07-17 수정(rcpt_no만 전달). 상세 → 메모리 `project_domestic_data_contamination_2026_07_17`. **⚠️ DART audit-HTML 파싱 스코프**(2026-07-18): `_parse_financial_tables`는 손익계정을 '손익계산서 첫 본표'(매출액 + 영업이익/순이익 동시 보유)에서만, 대차계정을 재무상태표 본표에서만 추출(`income_done`/`balance_done`). 성질별 손익계산서엔 매출원가 행이 없어 주석/요약표에서 잘못 집던 것(단위 1000×·세부라인)을 차단 — 이런 회사는 **cogs=None이 정상**(미보고). OpenDartReader `sub_docs`는 라이브러리 버그(`name 'url' is not defined`, dart_utils.py:141)라 직접 호출 말고 `_get_main_doc_url`(직접 트리 파싱 + 주석 배제 `_pick_statement_node`) 경유. 회귀 `test_dart_statement_scope.py`·`test_dart_docsel.py`.
+- **DART 계정명→컬럼 매핑은 부분문자열 매칭 금지** — 반드시 `collect_dart_audit._match_acct`(정확일치 우선 + `ACCT_REJECT`) 경유(`'매출'`이 `'매출채권'`을 잡는다). **회사명→corp_code 부분매칭도 짧은 이름의 중간 삽입 매칭 금지**(`_name_contains_match` 길이·경계 가드). 약한 매칭 corp_code는 **자동 캐시 금지**(완전일치만).
+  - **⚠️ 동명이인 방어**: `collect_dart_domestic._resolve_corp_code`는 **DB `dart_corp_code` > `manual_dart_mapping` > `find_corp_code(name_kr)`+개체검증** 순. DB corp·수동매핑은 신뢰(무검증), 이름 해석분은 `collect_dart_audit._verify_corp_identity(info, profile)`로 `'confirm'`/`'reject'`/`'unknown'` 판정 → `_identity_allows`: **confirm→통과, reject→차단, unknown→동명(정확일치 후보 2개↑)일 때만 차단**(사용자 결정). `hm_url` 도메인 **불일치만으로는 reject 안 함**. 동명 후보가 둘 다 자동차면 induty 무력 → 홈피로 tie-break. `profile=None`이면 게이트 skip. 회귀 `scripts/lib/test_dart_corp_match.py`.
+  - **남는 사각지대 = 홈페이지·상장코드 둘 다 없는 비상장 동명이인** → 수동 `manual_dart_mapping.json`. 동명 회사 재무를 지울 땐 **행 삭제 대신 값만 NULL**(행 유지=has_fin)해야 재수집 재오염 방지.
+  - **비상장사는 `finstate_all` API가 "데이터없음(013)"** → 감사보고서 HTML 파싱만 가능(`_get_audit_rcpt` 는 rcpt_no 만 넘긴다).
+  - **⚠️ DART audit-HTML 파싱 스코프**: `_parse_financial_tables`는 손익계정을 '손익계산서 첫 본표'에서만, 대차계정을 재무상태표 본표에서만 추출(`income_done`/`balance_done`). 성질별 손익계산서 회사는 **cogs=None이 정상**. OpenDartReader `sub_docs`는 라이브러리 버그라 직접 호출 말고 `_get_main_doc_url`(주석 배제 `_pick_statement_node`) 경유. 회귀 `test_dart_statement_scope.py`·`test_dart_docsel.py`.
 
-- **GHA 로그 맨 끝의 `KRX 로그인 실패`는 실패 원인이 아니다** (2026-08-10 실측) — `disable_pykrx_autologin()`이 pykrx import 전에 `KRX_ID`/`KRX_PW`를 `os.environ`에서 pop하므로, pykrx가 import 시점에 stdout으로 `KRX 로그인 실패: KRX_ID 또는 KRX_PW 환경 변수가 설정되지 않았습니다.`를 찍는다 — **우리 코드 문자열이 아니다**(`scripts/` 전체에 없다. 우리 것은 `krx_auth.py`의 `KRX 로그인 실패 — KRX 수집을 건너뜁니다.`). 직후 `ensure_krx_login()`이 직접 로그인해 `KRX 로그인 시도.../완료.`가 이어지고 코스피·코스닥은 정상 수집된다(성공 run 31350128047에서 각 1,221행). ⚠️ **pykrx는 stdout, loguru는 stderr라 GHA 로그에서 순서가 뒤섞여 실행 초반의 이 세 줄이 로그 맨 끝에 몰려 보인다** → `--log-failed`를 tail로 읽으면 마지막 줄이라 진짜 원인처럼 읽힌다(자격증명 Secret은 멀쩡한데 "KRX secret 만료"로 오진하기 쉽다). **진짜 원인은 그 위 `market_series 수집 실패: <이유>` 줄**이다(2026-08-09 실패는 `Server disconnected`, 외부 일시 오류라 이후 8회 연속 성공). 같은 이유로 실패 로그는 tail이 아니라 `Select-String`으로 `ERROR|실패` 라인을 뽑아 읽을 것.
+- **GHA 로그 맨 끝의 `KRX 로그인 실패`는 실패 원인이 아니다** — pykrx 가 import 시 stdout 으로 찍는 문구다(우리 것은 `krx_auth.py`의 `KRX 로그인 실패 — KRX 수집을 건너뜁니다.`). 직후 `ensure_krx_login()`이 직접 로그인한다. pykrx는 stdout·loguru는 stderr라 순서가 뒤섞여 맨 끝에 몰린다 → **진짜 원인은 그 위 `market_series 수집 실패: <이유>` 줄**. 실패 로그는 tail이 아니라 `ERROR|실패` 라인을 뽑아 읽을 것.
 
-- **LLM 수집기 모델을 바꿀 땐 thinking 기본값부터 확인** (2026-08-06 Opus 4.7 → Sonnet 5 전환 실측) — **모델마다 `thinking` 생략 시 동작이 다르다.** Opus 4.7은 생략 = 사고 없음이지만 **Sonnet 5는 생략 시 adaptive thinking이 기본 on**이다. 그대로 두면 (a) 사고 토큰이 과금돼 전환 목적인 비용 절감이 상쇄되고 (b) `max_tokens`가 사고+응답 **합산** 상한이라 tool_use 출력이 잘린다 → `thinking={'type': 'disabled'}`를 명시한다(`collect_cox_inventory.py`·`collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py` 적용). 세 스크립트 모두 `tool_choice`로 도구를 강제하므로 "thinking off 시 도구를 덜 쓴다"는 Sonnet 5의 알려진 경향에는 영향받지 않는다(이게 전환을 안전하게 만든 조건). 모델은 전부 env var(`COX_INVENTORY_MODEL`·`HYUNDAI_QUARTERLY_MODEL`·`UZAUTO_FINANCIALS_MODEL`)로 즉시 환원 가능. **⚠️ 검증 경로는 수집기마다 다르다**: Cox는 `--dry-run --year-month YYYYMM --reprocess-all`이 A/B 도구다 — `--reprocess-all`을 빼면 로컬 sha256 캐시가 히트해 **LLM 호출 0**이라 모델이 바뀐 것을 검증하지 못하고(실측으로 한 번 헛돌았다), 붙이면 `diff_rows`가 판독값을 기존 DB(옛 모델 적재분)와 대조해 정확도 차이를 자동 보고한다(202605·202606 둘 다 "기존 DB와 값 변경 없음", 이상치 제외 브랜드·불규칙 파일명 케이스 포함). 반면 **`collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py`는 `--dry-run`이 LLM 호출 자체를 건너뛰어**(각각 "PDF 다운로드+sha256까지만", "링크 추출까지만") DB에 쓰지 않고 추출 정확도만 보는 경로가 없다 → 실환경 첫 실행 로그로 확인할 것.
+- **LLM 수집기 모델을 바꿀 땐 thinking 기본값부터 확인** — Sonnet 5는 `thinking` 생략 시 adaptive thinking이 기본 on이다(사고 토큰 과금 + `max_tokens`가 사고+응답 **합산** 상한이라 tool_use 출력이 잘린다) → `thinking={'type': 'disabled'}`를 명시한다. 모델은 env var(`COX_INVENTORY_MODEL`·`HYUNDAI_QUARTERLY_MODEL`·`UZAUTO_FINANCIALS_MODEL`)로 즉시 환원 가능.
+  - **⚠️ 검증 경로는 수집기마다 다르다**: Cox는 `--dry-run --year-month YYYYMM --reprocess-all`(빼면 sha256 캐시 히트로 **LLM 호출 0**) · `collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py`는 `--dry-run`이 LLM 호출을 건너뛰므로 실환경 첫 실행 로그로 확인.
 
-- **국내 재무 수집기 계통 오류 (2026-07-18 감사 → 정정·근본수정 완료)**: /domestic·/parts-top100 전수 감사(32건 CONFIRMED)로 확인된 수집기 계통 버그 — (a) **fnguide 분기 Q4 슬롯에 연간누적값**(153개사, `collect_financials.py` 분기 파싱 L385~510; annual 행은 정상, 분기합·Q4차트만 오염), (b) **`부채총계`가 `부채및자본총계(=자산총계)`를 오파싱**해 `total_liabilities==total_assets`(79개사217행, `collect_financials.py` 계정맵 L75 — `_match_acct`식 정확일치 미이식; 부채비율 지표 오염), (c) **market='KOSPI' 기본값**(실제 KOSDAQ 72+KONEX 3 오표기, `rematch_dart_unmatched.py:121` 하드코딩·`classify_new_marklines.py` LLM; pykrx 재도출로 정정), (d) DART audit-HTML **천원→백만원 단위 미변환** cogs(케이비오토텍·평화기공·피엔디티, `_table_unit_divider` 오인식), (e) **결산월 오설정**(동원모빌리티(구 동원금속) 3월인데 `fiscal_year_end_month=12`→열정렬 어긋나 매출 과소). corp **레거시 오배정 3건**(일진복합소재·베바스토코리아·서한이노빌리티 — 2026-07-18 게이트가 DB corp를 신뢰해 자동 미교정, 수동 DB 정정 필요). **정정 체크리스트·재현쿼리·수정대상 파일 → [`docs/data-audit-2026-07-18.md`](./data-audit-2026-07-18.md)** + 메모리 `project_domestic_parts_audit_2026_07_18`. 회사소개·부품사 해외상장사는 클린. **✅ 전량 해결(세션 2~4, 2026-07-18)**: 근본은 위 `collect_financials.py` fnguide 레이아웃 변경 + DART 파싱 스코프였다(옛 L385~510/L75 번호 무의미). P1 계통(Q4=연간·부채=자산·market)은 산술/pykrx로, cogs는 파싱스코프로, corp 3건은 수동 DB로 정정. KR 상장 ~169 신선 재수집 완료. 상세 → `docs/data-audit-2026-07-18.md` 상단 "정정 실행 결과".
+- **국내 재무 수집기 계통 오류 (2026-07-18 감사 → 정정·근본수정 완료)** — 정정 체크리스트·재현쿼리·수정대상 파일 → [`docs/data-audit-2026-07-18.md`](./data-audit-2026-07-18.md) 상단 "정정 실행 결과". corp 레거시 오배정은 게이트가 DB corp를 신뢰하므로 **자동 교정되지 않는다**(수동 DB 정정).
 
 - **fnguide 재무 수집(`collect_financials.py`)은 도메인·구조를 자주 갈아엎는다** (2026-07 레이아웃 변경 → 2026-08 도메인 이전, 두 번 다 KR 상장사 0행) — **현재 계약은 신버전 `wcomp.fnguide.com` JSON 엔드포인트**(`getFinIncome`/`getFinBalance`, `cmp_cd`+`freq_typ=Y|Q`+`consol_typ=C|P`). 브라우저 불필요, `scripts/lib/fnguide_client.py` 경유. 계정은 이름이 아니라 **표준 `AC_CODE`로 매칭**(200000 매출·130000 부채총계 등)해 '부채총계'가 '부채및자본총계'를 집던 부류를 원천차단한다. 분기 응답이 discrete 분기값이라 Q4=연간 버그도 차단. ⚠️ **연간(Y) 응답에 `(최근분기)` 열이 섞여 오고, `(전년동기)` 열은 손익에만 있어 적재하면 반쪽 행이 온전한 행을 덮는다** → `period_columns()`의 라벨 배제 규칙을 건드리지 말 것(단 결산월과 최신분기가 겹치면 라벨이 아예 안 붙는다). 연결(C) 우선·없으면 별도(P) 자동 폴백. 구조 변경 감지 가드 `_kr_health_ok`: KR 절반↑ 0행이면 `sys.exit(2)`. **계약이 또 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**(주 1회 `verify-fnguide.yml`이 자동 실행). 대상=`get_kr_companies()`(market 있는 전 KR ~169). 회귀 `test_fnguide_wcomp.py`. 계약표 전문 → [`fnguide-wcomp-migration.md`](./fnguide-wcomp-migration.md).
 
@@ -37,7 +43,10 @@
   - `collect_stellantis_shipments_ir.py` (**primary**) — **stellantis.com IR 홈페이지**의 분기 'Estimated Consolidated Shipments' 릴리스. **2026-01부터 이 릴리스가 지역별 절대값 표를 싣는다**(첫 열 `units/000`, `North America` 당기값을 직접 → `is_derived=false`). EDGAR 재무결과보다 ~2주 먼저 나오고 차분 도출이 불필요하다. **stellantis.com은 Akamai가 requests/curl을 403 차단하므로 Playwright 실브라우저로 우회**한다(과거 "쓰지 않는다"에서 정정 — 2026 형식 변경으로 primary 승격). 목록 페이지(`/en/news/press-releases`)에서 슬러그 `stellantis-reports-q{N}-{YYYY}-estimated-consolidated-shipments`로 PR 자동 발견. ⚠️ 2026-01-01부로 **'where sold' 기준 + 마세라티 지역 합산**이라 pre-2026(EDGAR, 마세라티 별도)과 완전 동일 기준은 아니다(북미 마세라티는 작아 방향엔 영향 미미). 파싱 회귀 `scripts/lib/test_stellantis_shipments_ir.py`. 워크플로 `collect-stellantis-shipments-ir.yml`(Jan/Apr/Jul/Oct 16·22·28일, Playwright chromium).
   - `collect_stellantis_shipments.py` (**보완·백필**) — SEC EDGAR 6-K(`data.sec.gov/submissions/CIK0001605484.json`, **UA 헤더 필수**). 지역별 절대값 표가 실린 실적 PR은 **Q1/H1/Q3/FY 4회만** → **Q2 = H1 − Q1, Q4 = FY − H1 − Q3** 차분 도출(`is_derived=true`, ±1,000대). **pre-2026 백필 + 교차검증**을 맡는다. **IR이 이미 실측(is_derived=false)으로 채운 분기를 차분값으로 덮지 않는 가드**(`existing_direct_quarters()`) 내장 — H1 발표 후 EDGAR가 Q2를 차분해도 IR 직접값(예: 26Q2 445천대)이 보존된다. 파싱 회귀 `scripts/lib/test_stellantis_shipments.py`.
 
-- **Cox 브랜드별 딜러 재고일수(`collect_cox_inventory.py`) → `cox_brand_inventory`** — 무료·무로그인이나 **브랜드별 수치가 차트 JPEG 안에만** 있어 Anthropic vision 판독. URL 슬러그가 불규칙(어순 2종·full/축약 혼용, `february-`는 404이고 `feb-`가 정답) → **WordPress REST API 커스텀 포스트 타입 `insight`**로 발견(기본 `posts`는 빈 배열). **⚠️ Cox는 업계 평균(NATION) 2배 초과 브랜드를 차트에서 빼고 이름만 싣는다** → `days_supply=null` + `is_outlier_excluded=true`로 적재(값 없음이 아니라 "NATION×2 이상"이라는 신호. **대상 브랜드는 달마다 바뀐다** — Chrysler 202512~202603, Ram·Dodge 202606). **행 자체가 없는 것**은 저물량 제외·로스터 누락·판독실패로 의미가 다르니 섞지 말 것. **⚠️ 차트 이미지 파일명도 불규칙** — 실측 9개월은 전부 `inventory`를 포함했으나 202606은 `Slide1-v2.jpeg`(파워포인트 기본 내보내기 이름)로 올라와 파일명 필수 힌트가 깨졌다(2026-07-20 GHA 실패). `select_chart_image`는 힌트가 전부 어긋나면 **본문 이미지가 유일할 때만** 파일명 무관 채택하고, 여러 장이면 찍지 않고 None(차트 여부 최종 판정은 vision·`validate_extraction`에 위임). 파일명 힌트에 새 단어를 덧대는 식으로 대응하지 말 것. `temperature`는 **지정 금지**(Opus 4.7·Sonnet 5 모두 sampling 파라미터 거부 → 400 에러). 모델·`thinking` 설정은 위 「LLM 수집기 모델을 바꿀 땐…」 항목을 따른다. freshness 게이트가 조용한 정지를 exit 3으로 알린다.
+- **Cox 브랜드별 딜러 재고일수(`collect_cox_inventory.py`) → `cox_brand_inventory`** — 브랜드별 수치가 **차트 JPEG 안에만** 있어 Anthropic vision 판독. 포스트 발견은 **WordPress REST API 커스텀 포스트 타입 `insight`**(슬러그 불규칙 · 기본 `posts`는 빈 배열).
+  - **⚠️ NATION 2배 초과 브랜드는 차트에서 빠진다** → `days_supply=null` + `is_outlier_excluded=true`(대상 브랜드는 달마다 바뀐다). **행 자체가 없는 것**(저물량 제외·로스터 누락·판독실패)과 섞지 말 것.
+  - **⚠️ 차트 이미지 파일명도 불규칙** — `select_chart_image`는 힌트가 전부 어긋나면 **본문 이미지가 유일할 때만** 채택, 여러 장이면 None. 파일명 힌트에 새 단어를 덧대지 말 것.
+  - `temperature`는 **지정 금지**(sampling 파라미터 거부 → 400). 모델·`thinking`은 위 「LLM 수집기 모델을 바꿀 땐…」 항목. freshness 게이트가 조용한 정지를 exit 3으로 알린다.
 
 - **사외비 월별손익 sync 8종의 적재 세부** (`sync_pnl_excel`·`sync_pnl_plan`·`sync_inventory`·`sync_personnel`·`sync_pnl_cost_structure`·`sync_pnl_fixed_variable`·`sync_finance`·`sync_loan`) — **"stdout에 금액·인원수 비노출"이라는 약속 자체는 AGENTS.md에 남아 있다.** 여기엔 실행 세부만 적는다. `sync_inventory.py`는 4분류합 vs 전체재고 검증(mismatch 행수만 보고, 임계 0.5%), `sync_finance.py`는 자산==부채+자본 항등식 검증(mismatch 시점수만 보고, 임계 0.5%) + '재무' 시트 '연간' 텍스트/월=12를 annual(연말)로, 월=1~11을 monthly로 정규화하고 PK 중복행(`자본` 중복 등)을 dedupe. `sync_loan.py`는 '이인텔리전스' 시트→`loan_entries`(억원, kind '계획'/'실적' 한글 그대로, 공란→null). WriteSession 자동 revalidate(`NEXT_REVALIDATE_URL` — 로컬은 localhost). **로컬 수동 실행은 프로덕션 캐시가 안 비워지므로 `--revalidate-prod` 플래그로 추가 무효화**(`NEXT_REVALIDATE_PROD_URL`+`NEXT_REVALIDATE_SECRET`, 적재 성공 후 1회). `pnl_cost_structure` 포함 5종 테이블은 `lib/revalidate.py` `COLUMN_TO_TAGS`에 매핑(누락 시 무효화 no-op). **엑셀에서 행 삭제·차원(실/부문/공장/제품/거래처) 변경 시 단순 resync로는 옛 PK 행이 DB에 잔존**(sync는 8차원 충돌키 upsert-only, delete 안 함) → 해당 행 DB delete 후 resync 필수(메모리 `project_pnl_dimension_change_resync`). **거래처의 실(sil) 소속이 바뀌면 엑셀 수정을 기다리지 말고 `sync_pnl_excel.py`의 `SIL_BY_CUSTOMER`에 한 줄 추가**(현재 `UZ Auto → 2실`, 사용자 지시 2026-07-30) — `sil`이 충돌키에 포함돼 엑셀이 옛 실로 남으면 옛/새 실 양쪽에 행이 생겨 합계가 이중 계산된다. 정정은 `normalize_sil()`이 `merge_by_pk` 전에 적용되어 옛·새 실 행이 같은 PK로 합산되고, 정정 건수는 **시트당 경고 1줄**로 업로드 화면 경고 목록에 뜬다. 기존 DB 행은 마이그레이션으로 1회 UPDATE(예 `20260730000001`). 회귀 `scripts/lib/test_sync_pnl_sil.py`.
 
@@ -52,8 +61,8 @@
 1000행을 넘겨 여러 페이지로 fetch 할 때는 **반드시 `.order()`를 동반**한다(가급적 PK 전체).
 
 `.in()`/필터가 걸린 조회는 인덱스 스캔이라 **정렬이 없으면 페이지 경계에서 행이 누락·중복된다.**
-실제 사례: `lib/oem/source.ts` 의 `fetchModelRows` 가 전 국가를 fetch 하면서 정렬이 없어
-**특정 연도가 통째로 누락**됐고, 그 결과 차트가 near-zero 로 그려졌다.
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 - WHERE 없는 `fetchAll` 은 seq-scan 이라 정렬 없이도 안정적이다(그래서 더 헷갈린다).
 - **증상으로 알아보는 법**: 연간 합계는 정상인데 **차트만 특정 구간이 낮다** → 집계 버그가 아니라
@@ -70,7 +79,7 @@
 
 ### fnguide 는 도메인·구조를 자주 갈아엎는다
 
-2026-07 과 2026-08, **두 번 다 KR 상장사 재무가 0행**이 됐다. 원인은 매번 fnguide 쪽 개편이었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 - fnguide 접근은 **반드시 `scripts/lib/fnguide_client.py` 경유**(URL 을 스크립트에 직접 박지 말 것).
 - **계약이 깨졌는지는 `scripts/verify_fnguide.py` 로 먼저 확인**한다(주 1회 `verify-fnguide.yml` 자동 실행).
@@ -93,7 +102,8 @@
 
 `ANTHROPIC_API_KEY` 가 `scripts/.env` 엔 없지만 **프로젝트 루트 `.env.local` 에 있고**,
 `lib/bootstrap.py` 의 `init_script()` 가 `scripts/.env` 와 `<root>/.env.local` 을 **둘 다** 로드한다
-(2026-07-15 실측 정정 — 그 전까지 AGENTS.md 는 "로컬 실행 불가"라고 **잘못** 적고 있었다).
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 구식 스크립트가 `scripts/.env` 만 로드한다면 그건 그 스크립트의 boilerplate 문제이니
 `init_script` 로 교체할 것. GHA Secrets 에도 같은 키가 있어 워크플로 실행도 가능하다.
@@ -113,7 +123,9 @@ UzAuto IFRS 등 **스캔본**은 `pypdf`/`pdfplumber` 텍스트 추출이 0자�
 
 → `read_only=False`(`ws.cell`) 또는 sync 의 `parse_sheet()` 를 직접 호출해 **교차검증**한다.
 
-🔴 **더 심한 변형: `read_only=True`가 0행을 반환**(2026-08-13, `참고/oem 판매량/MarkLines_sales_data*.xlsx` 5개 파일 전부 재현). 시트 XML의 `<dimension ref="A1"/>` 태그가 실제 데이터 범위를 반영하지 않으면(생성 툴 버그로 추정) `read_only=True`의 `iter_rows(min_row=3, ...)` 최적화 경로가 행을 전혀 안 내놓는다 — 에러 없이 조용히 빈 리스트. `ws.max_row`도 `1`로 잘못 보고돼 증상을 숨긴다. → 이 경우도 `read_only=False`로 전체 로드하면 정상 동작한다. 가장 큰 5.8MB 파일(`MarkLines_sales_data_en.xlsx`) 단독 raw 행 수는 32,181행, 소요 약 27초 — 이 32,181은 파일 1개의 raw 행 수이고, 5개 파일을 전부 병합·중복제거해 DB에 적재한 최종 합계는 24,688행으로 **서로 다른 값**이니 혼동하지 말 것.
+→ [경위](./history/gotchas-data-collection-경위.md)
+
+🔴 **더 심한 변형: `read_only=True`가 에러 없이 0행을 반환한다.** 시트 XML의 `<dimension ref="A1"/>`이 실제 범위를 반영하지 않으면 `iter_rows(min_row=3, ...)` 최적화 경로가 빈 리스트를 내고 `ws.max_row`도 `1`로 보고한다. → `read_only=False`로 전체 로드한다.
 
 ### Excel COM 시트→이미지 렌더는 대상 시트가 뒤바뀐다
 
@@ -131,7 +143,8 @@ PrintArea 를 `UsedRange` 로만 잡으면 **셀 밖 도형(변경요약 박스 
 ### 🔴 렌더 산출물 검증은 실제로 열어볼 것
 
 이미지/PDF 는 **"픽셀 해시가 다르다"만 보면 *내용이 뒤바뀐 것*을 못 잡는다.**
-조직도 시트 swap 버그를 정확히 이 함정으로 놓쳤다.
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 → Read(vision)로 **제목·구조·매핑을 눈으로** 확인한다.
 사외비면 제목/구조만 보고 실명은 전사하지 않는다.
@@ -172,8 +185,7 @@ PrintArea 를 `UsedRange` 로만 잡으면 **셀 밖 도형(변경요약 박스 
 
 ## 2026-07-18 감사 잔여 3건을 실제로 고치며 드러난 것 (2026-09-11)
 
-ROADMAP 에 「LOW · 현 데이터에는 문제 없음」으로 3년 가까이 남아 있던 칸들이다.
-🔴 **셋 중 둘은 진단이 틀렸다.** 실측하지 않고 적어 둔 낙관이 그대로 굳어 있었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 ### 🔴 DART 보고서 선택이 「정정 공시」 앞에서 무너진다 — 3년 전 실적이 최신 연도로 적재된다
 
@@ -182,30 +194,16 @@ ROADMAP 에 「LOW · 현 데이터에는 문제 없음」으로 3년 가까이 
 정정 공시는 몇 년 뒤에 나오므로 이 추정이 무력하다. 게다가 `_score_report` 가 `[기재정정]` 에
 **+4점**을 줘서, 연도가 맞는 정답(점수 3)을 **연도가 틀린 정정본(점수 7)이 이긴다.**
 
-실측(2026-09-11):
-
-| 회사                   | 요청   | 옛 코드가 고른 것                                                        |
-| ---------------------- | ------ | ------------------------------------------------------------------------ |
-| 세진(00237093)         | FY2025 | `[기재정정]연결감사보고서 (2022.12)` ← 진짜 FY2025 보고서가 **있는데도** |
-| 동희하이테크(00575601) | FY2025 | `[기재정정]연결감사보고서 (2023.12)`                                     |
-
-피해는 세진 하나가 아니었다. 「연도만 다르고 매출·총자산·순이익이 소수점까지 같은 행」을
-전수로 세어 보니 **dart 출처 12개사 13쌍**이 살아 있었다(ROADMAP 은 「현 데이터 문제 없음」이라 적어 뒀다).
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **처방**: `_stated_fiscal_year()` 로 보고서명의 `(YYYY.MM)` 을 읽어 **그것이 있으면 그것만 믿는다**
 (다르면 후보에서 제외). 제출일 추정은 연도를 안 밝힌 보고서에만 쓴다. 정정본 «우선» 자체는
 옳으므로 같은 연도 안에서는 그대로 이긴다. 회귀 = `scripts/lib/test_dart_fiscal_year.py`(11건).
-재적재 후 13쌍 중 11개사 분이 사라졌다.
-
-⚠️ **남은 1쌍은 원인이 달랐다** — 아래 절에서 따로 고쳤다.
 
 ### 🔴 수집기가 `hidden` 회사를 거르지 않아 유령 재무가 쌓이고 있었다 (2026-09-11)
 
-위 중복쌍 검사에 마지막까지 남았던 「일진 · 일진복합소재」의 정체다. 둘이 같은
-`dart_corp_code`(00172839)를 썼는데, **매핑이 틀린 게 아니라 회사 하나가 유령이었다.**
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-- 「일진복합소재」는 **`status='hidden'`** 이고 **「일진하이솔루스」의 옛 사명**이다(홈페이지가
-  `hysolus.co.kr` 로 같고, 정본은 `271940`·fnguide 로 따로 있다).
 - 그런데 `collect_dart_audit.py` 의 수집 대상 필터에 **`status` 조건이 없었다** —
   `data_source == 'dart'` 만 봤다. 그래서 hidden 회사가 매번 수집됐고, 물려받은
   「일진」의 corp_code 로 **5년치 재무가 일진의 값 그대로 복제**됐다(소수점까지 동일).
@@ -222,11 +220,8 @@ ROADMAP 에 「LOW · 현 데이터에는 문제 없음」으로 3년 가까이 
 
 ### 🔴 fnguide 는 과거 연도를 «버린다» — 옛 파서가 남긴 값이 그 자리에 굳어 있었다 (2026-09-11)
 
-「일진하이솔루스 재무를 다시 수집해야 하지 않나」라는 사용자 질문에서 출발해 전수로 세다가
-찾았다. `financials` 의 fnguide 출처 **FY2021~2022 가 광범위하게 깨져 있었다.**
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-- 일진하이솔루스 FY2021 은 **영업이익 > 매출**(9,803 > 6,371)이었고 매출이 실제의 1/18 이었다.
-- 전수 검사(다음 해 매출 대비 3배 초과): **FY2021 37개사 · FY2022 14개사 · FY2023 이후 0건.**
 - 🔴 **재수집으로는 안 고쳐진다.** ①fnguide 화면이 **최근 3~4개 연도만** 준다(실측: 일진
   하이솔루스 FY2024~25 · 삼성SDI FY2023~25) ②`collect_financials.py` 의
   `RECENT_YEARS_KEEP=2` 가 그보다 오래된 연도를 「안정화된 과거」로 스킵한다.
@@ -239,13 +234,10 @@ DART 에서 받아 채운다. 상장사는 `dart_corp_code` 가 비어 있으므
 
 #### 🔴 그 보강이 처음에 «별도재무제표» 를 넣었다 — 같은 날 다시 고쳤다
 
-첫 실행에서 71행이 **전부 `separate`** 로 들어갔다(정책은 「연결 우선」). 원인이 셋이었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-| 원인                                                    | 실측                                                                         | 수리                                            |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
-| 「감사보고서제출」을 감사보고서로 오인                  | 상장사가 내는 **제출 알림** 공시라 연도 표기가 없고 첨부가 별도뿐            | `_get_audit_rcpt` 에서 제외 → 사업보고서로 폴백 |
-| 본문 노드를 **길이만 보고** 선택                        | 화승코퍼레이션 사업보고서의 `(첨부)재무제표`(별도) 513,993B 가 연결보다 길다 | `_pick_statement_node` 가 **연결 우선**         |
-| 「기타경영사항(자율공시)(감사보고서 제출 지연)」이 걸림 | 제목에 '감사보고서' 가 스쳐 지나간다                                         | 같은 자리에서 제외                              |
+- `_get_audit_rcpt` 는 「감사보고서제출」(상장사의 제출 알림 공시)과 「기타경영사항(자율공시)(감사보고서 제출 지연)」을 **후보에서 뺀다** → 사업보고서로 폴백.
+- `_pick_statement_node` 는 길이가 아니라 **연결 우선**으로 본문 노드를 고른다.
 
 🔴 **연결 우선에는 함정이 하나 더 있다** — 종속회사가 없는 회사는 「2.연결재무제표」를
 **「해당사항 없음」 한 줄(len=128)** 로 남긴다. 그걸 집으면 「테이블 없음」으로 수집이 통째로
@@ -254,9 +246,6 @@ DART 에서 받아 채운다. 상장사는 `dart_corp_code` 가 비어 있으므
 
 ⚠️ **`consolidation` 라벨을 보고서명으로 정하면 안 된다.** 상장사 사업보고서에는 '연결' 이라는
 말이 없어서, 연결 본문을 읽고도 `separate` 로 기록됐다. **실제로 고른 노드 제목**으로 판정한다.
-
-수리 후 실측: 화승코퍼레이션 FY2022 **1.585조**(별도 777억 → 연결) · `consolidated` 라벨 ·
-일진하이솔루스는 연결이 없어 `separate` 유지(종속회사가 없으니 그것이 맞다).
 
 🔴 **이 종류의 잘못은 「그럴듯해서」 급변 검사에 안 걸린다.** 그래서 재보강용 `--redo-dart`
 옵션을 뒀다 — **검사만 믿으면 한 번 잘못 채운 값은 영영 안 고쳐진다.**
@@ -270,9 +259,7 @@ DART 에서 받아 채운다. 상장사는 `dart_corp_code` 가 비어 있으므
 `enrich_with_marklines.py`), 넣는 하나(`enrich_products_customers_sonnet.py`)도 LLM 에
 **목록을 주지 않아**(스키마 description 에 예시 4개, enum 아님) 자유 문자열이 나왔다.
 
-결과가 **`'기타'` 1,860건(전체 4,262건의 44%)** 이고, 반대로 가전·서비스가 자동차 칸을
-받기도 했다(LG전자 TV → 구동계 · 의류관리기 → 제동 · Jabil 공급망관리 → 조향).
-트리거는 값이 목록에 **있기만 하면** 통과시키므로 이쪽은 아예 못 막는다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 🔴 **「map 을 넓히면 된다」는 처방은 틀렸다**(ROADMAP 의 옛 진단). `'기타'` 1,860건의
 제품명이 거의 전부 고유해서(최다가 「금형」 9건) 사전에 다 넣을 수 없다. 의미 판정이 필요하다.
@@ -283,13 +270,7 @@ enum 으로 주입한다(수집기에 목록을 박지 않는다 — UI 에 이�
 
 ### 🔴 재분류를 LLM 에 맡길 때 **후보를 안 가르면 맞던 값까지 망가진다**
 
-같은 작업을 세 번 재서 얻은 결론이다(전부 dry-run 이라 데이터는 안 건드렸다).
-
-| 시도                 | 「통합 드라이브 모듈(iDM)」 | 「머플러」 | 「전자식 크로스 디퍼렌셜」(원래 구동계) |
-| -------------------- | --------------------------- | ---------- | --------------------------------------- |
-| ① 이름만 22종 제시   | 제어AI칩 ✗                  | 제동 ✗     | **구동계 → 제어AI칩** ✗                 |
-| ② + raw 키 예시      | 제어AI칩 ✗                  | 엔진 ✓     | **구동계 → 제어AI칩** ✗                 |
-| ③ + 자동차/로봇 분리 | 구동계 ✓                    | 엔진 ✓     | 그대로 유지 ✓                           |
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 - **이름만으로는 범위를 못 짚는다** → `fetch_category_examples()` 가 raw 키를 예시로 붙인다.
 - 🔴 **예시를 붙여도 「후보에 있으면 고른다」** — 자동차 부품이 로봇 칸(제어AI칩·구조기구)으로
@@ -300,16 +281,9 @@ enum 으로 주입한다(수집기에 목록을 박지 않는다 — UI 에 이�
 
 ### 🔴 모델을 올리니 경계가 갈렸다 — Haiku vs Sonnet 실측 대조
 
-같은 프롬프트·같은 대상을 모델만 바꿔 돌린 결과다(사용자 판단으로 Sonnet 채택).
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-| 항목                   | Haiku                   | Sonnet                 |
-| ---------------------- | ----------------------- | ---------------------- |
-| 릴레이                 | 전장 → **구동계** ✗     | 변경 없음(전장 유지) ✓ |
-| 스위치                 | 전장 → **안전** ✗       | 구동계 → **전장** ✓    |
-| HVAC                   | 조향 → **기타** ✗       | 조향 → **공조** ✓      |
-| 일체화 지능형 새시     | 구동계 → **기타** ✗     | 구동계 → **차체** ✓    |
-| 전자식 크로스 디퍼렌셜 | 구동계 → **제어AI칩** ✗ | 변경 없음 ✓            |
-| 머플러 · 가솔린 필터   | → **제동** / **기타** ✗ | 둘 다 → **엔진** ✓     |
+분류 재작업은 **Sonnet** 을 쓴다(사용자 판단 · 같은 프롬프트에서 Haiku 는 경계 항목을 무더기로 틀렸다).
 
 🔴 **분류는 「싼 모델로 충분한 단순 작업」이 아니었다.** 항목 대부분은 Haiku 로도 맞지만,
 틀리는 자리가 하필 **경계**여서 사람이 다시 봐야 할 것이 무더기로 남는다. 전수 검토 비용이
@@ -339,13 +313,7 @@ Sonnet 으로도 갈리는 자리가 남았다 — 어느 쪽도 「틀렸다」
 HL만도에서 정반대로 작동**했다. 셋은 로봇 밸류체인이라 추적하지만 **본업이 자동차**라, 분기 실적
 리뷰가 전부 딸려 들어온다.
 
-**실측**: 6개월 소급 적재 59건 중 **36건**이 이 셋이었고 제목에 로봇 낱말이 하나도 없었다 —
-"2Q26 Review: 모난 것이 전혀 없다" · "2010년 이후 첫 A/S 영업이익률 27%대 회복" ·
-"CID 2026: It's a great time to be at Hyundai". 보유 건수도 셋이 압도한다(31·24·19건).
-**요약 대상의 3분의 1이 이것들이었다** — 헤드리스를 자동차 실적에 쓸 뻔했다.
-
-🔴 **건수만 보면 안 걸린다.** 수집은 성공하고 행도 늘어난다. 드러난 것은 사용자가 "선별된 것 맞어?
-너무 많은데?" 라고 물어서였다. `verify_news_relevance.py` 가 뉴스에서 잡는 것과 같은 계열의 사고다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **처방** — `DIVERSIFIED_TICKERS`(현대차·현대모비스·HL만도)만 제목 핵심어를 **함께** 요구한다.
 
@@ -383,16 +351,9 @@ HL만도에서 정반대로 작동**했다. 셋은 로봇 밸류체인이라 추
 `oem_sales_country_group_year` 의 China 합계는 **중국에서 팔린 대수가 아니라 중국 업체의 글로벌
 출하(내수 + 수출)** 다. 사용자 질문(「34백만대가 내수+수출인가」)에서 출발해 세 방향으로 확인했다.
 
-| 대조              | DB 값         | 외부 실측                                                          | 판정                              |
-| ----------------- | ------------- | ------------------------------------------------------------------ | --------------------------------- |
-| 2025 China 합계   | 34,352,181    | CAAM 총 판매 **34.40백만**(수출 7.098백만 포함)                    | 일치                              |
-| 2024 China 합계   | 31,428,710    | CAAM 총 판매 31.44백만                                             | 일치                              |
-| 2025 China 의 BYD | **4,602,436** | BYD **글로벌** 총 판매 **4,602,400**(해외 인도 104.96만 별도 발표) | 사실상 동일                       |
-| 2025 전 국가 합   | 98,473,177    | 글로벌 신차 91.9백만(GlobalData) · 91.69백만(S&P)                  | **약 6.6백만 과대** ≈ 중국 수출량 |
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-BYD 대조가 결정적이다 — 중국 내수는 약 355만대인데 DB 의 China 칸에 **글로벌 460만대가 통째로**
-들어 있고, 그와 **별개로** 해외 국가 행에 612,416 대가 또 잡혀 있다(러시아의 Chery 20.6만 · GWM
-19.8만 등도 같다). 즉 **국가별 값을 단순 합산하면 중국 수출분이 두 번 세어진다.**
+→ **국가별 값을 단순 합산하면 중국 수출분이 두 번 세어진다**(China 칸의 글로벌 출하 + 도착 국가 행).
 
 **처방 — 어떤 숫자를 쓸지 자리마다 다르다:**
 
@@ -446,13 +407,7 @@ NHTSA 표기에는 파생형 접미사가 붙는다: `civic sedan` · `sienna hy
 `f-150 (super crew) gas` · `model x bev` · `niro hev` · `ram 1500 crew cab`.
 리콜 API 는 이름이 틀려도 **Count 0** 을 돌려주므로 매핑 오류와 "리콜 없음"이 구분되지 않는다.
 
-2026-08-13 에 `products/vehicle/models` 끝점으로 전수 검증했더니 **기존 매핑에서 실제 누락**이 나왔다:
-
-| model_key     | 옛 매핑                  | 실제 NHTSA 이름        | 결과                                          |
-| ------------- | ------------------------ | ---------------------- | --------------------------------------------- |
-| `ram_truck`   | `['1500','2500','3500']` | `ram 1500 crew cab` 등 | **주력 1500 이 통째로 빠지고 `3500` 만** 잡힘 |
-| `niro`        | `['niro']`               | `niro hev`             | 최신 연도에서 매번 헛폴백                     |
-| `porsche_911` | `['911']`                | `911 carrera gts` 등   | 2024년형까지 밀려남                           |
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 → `_list_models()` 로 그 make·연도의 **실제 모델 목록**을 받아 접두 매칭한다(`_resolve`).
 매핑은 `(make, 접두 패턴, 제외 접두)` 3-튜플이고, 패턴이 하나도 안 잡히면 **경고를 남긴다**
@@ -503,8 +458,7 @@ Cox 는 값이 업계평균을 크게 벗어나면 **그 달을 비워 둔다.**
 사실을 만든다. 화면(`lib/oem-competition/source.ts`)은 스냅샷 대신 `cox_brand_inventory` 를 직접
 읽어 재수집 없이 최신 상태·직전 공개월 대비 증감을 반영한다.
 
-실측(2026-08-14): `202606` 에 **Dodge·Ram 이 이상치 제외**됐고, 그 시점 화면은 Ram 을 2026-05 의
-144 일로 아무 경고 없이 보여주고 있었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 🔴 **재고일수는 브랜드 단위·미국 시장**이다(차종 아님). 같은 브랜드의 두 차종에 같은 값이 쓰인다
 — 화면 문구에 반드시 남긴다. 경쟁 브랜드 매핑은 `oem_model_brand` 테이블이 정본이고
@@ -512,13 +466,9 @@ Cox 는 값이 업계평균을 크게 벗어나면 **그 달을 비워 둔다.**
 
 ### `max_tokens` 는 사고+응답 합산 상한 — 잘리면 그 차종만 조용히 빠진다
 
-**증상**: 2026-08-13 첫 GHA 실행에서 10종 중 `ram_truck` 하나만 갱신되지 않았다.
-워크플로는 `success`, 나머지 9종은 정상. 그 차종만 옛 행이 그대로 남았다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-**원인**: `max_tokens=4000` 이었는데 이 값은 **adaptive thinking 토큰과 응답을 함께** 덮는
-상한이다. 서술이 가장 긴 차종(`ram_truck` = 1500/2500/3500 합산)에서 JSON 이 문자열 중간
-(`competitive_view` 970자 지점)에서 잘려 `json.loads` 가 실패했고, `_evaluate` 가 `None` 을
-반환하자 `main` 의 `if not result: continue` 가 그 차종만 건너뛰었다.
+**원인**: `max_tokens` 는 **adaptive thinking 토큰과 응답을 함께** 덮는 상한이라, 서술이 긴 차종에서 JSON 이 중간에 잘려 `json.loads` 가 실패하고 `main` 의 `if not result: continue` 가 그 차종만 건너뛴다.
 
 **처방**: `max_tokens=16000`. 과금은 실제 사용량 기준이라 **상한만 올리는 것은 비용에 영향이
 없다.** 같은 함정이 `collect_cox_inventory.py` 에도 기록돼 있다(브랜드 ~30개 tool_use 출력).
@@ -549,16 +499,12 @@ scripts/venv/Scripts/python.exe scripts/collect_oem_model_outlook.py --only ram_
 `companies_normalize_products` 트리거가 **INSERT/UPDATE 마다** `normalize_product_category()` 를 다시 적용한다.
 즉 **정규화 결과값 자체가 raw 키로 등록돼 있지 않으면, 이미 정규화된 값을 다시 저장할 때 매핑에 실패해 `'기타'` 로 떨어진다.**
 
-로봇 11종 중 10종은 raw 와 정규화값이 같은 문자열이라(`'감속기'→'감속기'`) 우연히 왕복이 성립했고,
-`'볼스크류/리니어'` **하나만** raw 키가 `'볼스크류'`·`'LM가이드'` 뿐이라 왕복이 깨졌다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 증상은 두 갈래로 나타났고 **둘 다 조용했다**:
 
 - 11개사의 볼스크류 제품이 `'기타'` 가 되어 **제품군 필터에서 통째로 빠졌다**(에러 없음)
 - 시드의 "이미 그 카테고리가 있나" 검사가 영영 false 라 **재실행마다 항목이 늘었다**(멱등성 파괴)
-
-발견 경위: 시드를 두 번 돌려 `products` 합계가 278 → 280 으로 늘어난 것을 보고 역추적했다.
-**멱등성 시험이 없었으면 못 찾았다** — 화면에는 "필터에 안 걸리는 회사"로만 보였을 것이다.
 
 ⚠️ **앞선 검증이 이걸 놓친 이유**: 왕복을 raw 키(`'볼스크류'`)로만 시험하고 실제 저장값(`'볼스크류/리니어'`)으로 시험하지 않았다.
 **검사는 코드가 실제로 쓰는 값으로 해야 한다.**
@@ -593,34 +539,16 @@ UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매�
 
 ### 0. 🔴 2026-09-12 — 네이버 금융이 Next.js 로 개편돼 HTML 수집이 통째로 죽었다
 
-**증상이 착했다.** 수집기가 「목록 파싱 0건 = 구조 변경」을 감지해 **exit 3** 을 내고
-오케스트레이터가 텔레그램 경고까지 보냈다(로그 09-11 15:00:49). 그런데 그 경고를 아무도
-안 봐서 **09-08부터 나흘간 조용히 멈춰 있었다.** 화면에서는 「새 리포트가 없네」로만 보인다.
+→ [경위](./history/gotchas-data-collection-경위.md)
+
+**증상**: 수집기는 「목록 파싱 0건 = 구조 변경」으로 exit 3 을 냈지만, 그 경고를 아무도 안 보면 화면에선 「새 리포트가 없네」로만 보인다.
 
 ⚠️ **먼저 「안 돌았다」로 단정하지 말 것.** 스케줄(`NAVER_RESEARCH_CRON` 평일 15:00)은
 멀쩡히 돌고 있었다. 로그는 **agents 레포**(`logs/bot-*.log`)에 있고 UTF-16LE 이라
 그냥 grep 하면 0건이 나온다(전역 규칙 `warn-log-utf16-bash`).
 게다가 메시지가 한국어(「네이버 리포트 수집 종료코드=3」)라 `naver` 로 찾으면 안 걸린다.
 
-**무엇이 바뀌었나**: 같은 URL 이 HTTP 200 에 118KB 를 주는데 `<table class="type_1">` 도
-`nid=` 도 **0회**이고 `_next/static/` 이 박혀 있다. 목록이 HTML 에 없고 클라이언트가
-따로 받아 간다. 차단이 아니라 **진짜 구조 변경**이다.
-
-**개편 범위는 페이지마다 다르다**(2026-09-12 실측):
-
-| 엔드포인트                           | 쓰는 곳                        | 상태                         |
-| ------------------------------------ | ------------------------------ | ---------------------------- |
-| `m.stock.naver.com/api/news/stock/`  | `collect_news.py`(상장사)      | ✅ 그대로                    |
-| `api.finance.naver.com/siseJson`     | `collect_naver_intraday.py`    | ✅ 그대로(JS 배열 리터럴)    |
-| `search.naver.com` `#main_pack`      | 설명·제품·고객사 보강 4종      | ✅ 그대로                    |
-| `finance.naver.com/research/*_list`  | 리서치 3종                     | 🔴 개편 — JSON API 로 이전함 |
-| `finance.naver.com/item/board.naver` | `lib/naver/board.ts`(종목토론) | 🔴 개편 — JSON API 로 이전함 |
-
-**전수 확인 날짜 = 2026-09-14.** 네이버를 쓰는 경로는 위가 전부다(다섯 갈래).
-
-🔴 **종목토론은 exit 3 같은 신호가 없어 «조용히» 멈췄다** — 리서치가 나흘 만에 들킨 것도
-느렸지만, 종목토론은 그조차 없어 `naver_board_posts` 최신이 2026-09-10 에 멈춘 것을
-리서치를 고치다가 곁가지로 발견했다.
+🔴 **종목토론은 exit 3 같은 신호가 없어 «조용히» 멈췄다**(아래 0-A 에서 exit 3 을 심었다).
 
 ⚠️ **고칠 대상을 잘못 짚기 쉬웠다.** `scripts/collect_naver_board.py` 라는 파이썬 수집기가
 있었지만 **아무것도 그것을 부르지 않았다.** 실제로 도는 것은 GHA(`collect-naver-board.yml`)가
@@ -648,16 +576,14 @@ UPDATE 로 `robot_roles` 를 붙여도 발동하지 않는다 → 자동차 매�
 `is_relevant()` 로 거른다. ⚠️ **손해는 없다** — 정리본 76건으로 견줘 보니 제목 핵심어로
 72건(94%)이 걸리고 나머지 4건은 전부 종목분석이라 `itemCode` 가 추적 종목이라 잡힌다(**100%**).
 
-⚠️ **대신 상세 요청이 폭증한다.** 전체가 들어오니 처음엔 관련 없는 301건의 상세를 받느라
-**한 회차에 5분 49초**를 썼다. 목록 단계에서 `is_relevant()` 로 먼저 거르자 **2건·6초**가
-됐다(결과는 동일). 이 1차 거름이 안전한 이유는 **새 API 의 목록 제목이 안 잘리기 때문**이다
-— 옛 HTML 목록은 길면 `...` 로 잘려서 목록 제목으로 판정하면 안 됐다(↓ 2번 절).
+목록 단계에서 `is_relevant()` 로 **먼저** 거른 뒤 상세를 받는다(관련 없는 글의 상세 요청이 폭증한다). 이 1차 거름이 안전한 이유는 **새 API 의 목록 제목이 안 잘리기 때문**이다(옛 HTML 목록은 `...` 로 잘렸다 ↓ 2번 절).
 
 #### 0-A. 종목토론 — 도메인까지 옮겨졌다 (`stock.naver.com`, 2026-09-14 수리)
 
 리서치와 달리 **호스트 자체가 바뀌었다.** 옛 URL 로 가면 브라우저가
 `stock.naver.com/domestic/stock/<코드>/discussion` 으로 리다이렉트된다.
-JS 청크를 훑어도 안 나와서 **실브라우저 네트워크 로그로 잡았다**(그 방법이 제일 빨랐다).
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 ```
 목록  GET stock.naver.com/api/community/discussion/posts/by-item
@@ -705,8 +631,7 @@ JS 청크를 훑어도 안 나와서 **실브라우저 네트워크 로그로 �
 `get_text("\n").split("\n")[0]` 으로 첫 줄을 집으면 `<em>` 안의 **분류명("기타"·"조선"·"자동차")** 이 나온다.
 그것으로 목록의 진짜 제목을 덮어써서 407건 전부가 분류명이 됐다.
 
-**왜 아무도 못 잡았나**: 잘림 검사(`title LIKE '%...%'`)는 **0건**이었고, 건수도 407로 정상이었으며,
-타입·테스트도 전부 초록이었다. `SELECT title FROM research_reports` 를 눈으로 보고서야 드러났다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **처방** — `parse_detail_page(html, broker, target_name)`:
 
@@ -715,21 +640,13 @@ JS 청크를 훑어도 안 나와서 **실브라우저 네트워크 로그로 �
 3. 남은 꼬리의 증권사명을 자른다(목록에서 받은 `broker` 로, 없으면 `…증권` 폴백)
 4. 안전망 — 상세 제목이 `target_name` 과 같으면 **목록 제목을 지킨다**
 
-**파급**: 제목이 오염되면 요약 선별도 함께 무너진다. 고치기 전 요약 대상이 48건이었는데
-고친 뒤 **85건**이 됐다(산업분석 37건이 핵심어 판정에서 통째로 빠져 있었다).
-
 ### 2. 🔴 「제목 핵심어」로 거르면 산업분석이 0건이 된다 — 네이버 검색은 본문 기준이다
 
 > ⚠️ **이 절은 2026-09-12 개편으로 전제가 사라졌다**(↑ 0번 절). 이제 검색 자체가 없어서
 > 전체를 받아 제목·`itemCode` 로 거르고, 그 방식으로 정리본 76건을 **100% 재현**한다.
 > 아래는 옛 HTML 시절의 기록이다 — 되돌리려 할 때 왜 그랬는지 알기 위해 남긴다.
 
-계획서는 "산업분석 213건 중 제목 핵심어 30건"이라 적었지만, 실물에서 제목에 로봇·휴머노이드가
-든 산업분석은 **0건**이다. 검색은 제목이 아니라 **본문**을 본다.
-
-목록의 제목은 길면 잘려 오므로(`안녕하세요 위클리에요(로봇/방산/조선/항공/..`), 판정은
-**상세에서 받은 온전한 제목으로 다시** 해야 한다. 그래서 `enrich()` 가 상세를 받은 **뒤에**
-`is_summary_target` 을 재평가한다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 ### 3. 목록 `<td>` 는 6칸이다 (5칸 파서는 조용히 0건)
 
@@ -772,8 +689,7 @@ UTF-8 로 보내면 **200 OK 인데 결과가 0건**이다. 에러가 아니라 
 
 ### 8. 🔴 헤드리스 요약 턴 한도 8은 큰 리포트에서 모자란다
 
-초기 적재 85건 중 **12건이 요약 파일을 못 만들고 exit 1** 했다. 실패한 재료는 **82KB·67KB**,
-성공한 것은 22~25KB였다 — 본문 상한이 40,000자라 Read 로 나눠 읽는 데만 여러 턴이 든다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 → `REPORT_SUMMARY_MAX_TURNS` 기본값을 **20**으로 올렸다(agents `summarizeReportCmd.ts`).
 🔴 **본문을 잘라 맞추지 않는다** — 저본을 앞부분만 읽히면 뒤쪽이 통째로 빠진 채 "요약했다"고
@@ -783,8 +699,7 @@ UTF-8 로 보내면 **200 OK 인데 결과가 0건**이다. 에러가 아니라 
 
 ### 9. PDF 가 없는 리포트는 요약할 원문 자체가 없다 (코드 문제가 아니다)
 
-신한투자증권 리포트 8건이 `pdf_url IS NULL` 이었고, 상세 페이지 폴백도 실패했다.
-실제로 열어 보니 **본문이 131자짜리 한 문단뿐**이다(페이지 전체 텍스트도 1,351자).
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 즉 「본문을 얻지 못함」은 대개 **진짜로 없는 것**이다. 파서를 고쳐도 나오지 않는다.
 다만 그 페이지에도 **목표가·투자의견은 있다**(아래 10번).
@@ -797,8 +712,7 @@ UTF-8 로 보내면 **200 OK 인데 결과가 0건**이다. 에러가 아니라 
 → `목표(?:주)?가` 로 고쳤다. ⚠️ **이미 적재된 행은 갱신되지 않는다**(수집기는 알려진 `nid` 를
 건너뛴다) — 기존분 보강은 별건이다.
 
-✅ **기존분 보강 완료(2026-09-07)** — `recheck_research_target_price.py --include-null`.
-종목분석 목표가 **40.4% → 74.3%**(44 → 81건 · 107건을 훑어 37건 회수).
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 🔴 **빈 값이 전부 결함은 아니다** — 대상 107건 중 **70건은 상세 페이지에도 목표가가 없었다**
 (탐방노트·커버리지 개시·산업분석). 그래서 "회수 못 함"을 실패로 세면 종료 코드가 거짓말을 한다
@@ -808,16 +722,15 @@ UTF-8 로 보내면 **200 OK 인데 결과가 0건**이다. 에러가 아니라 
 `.or_("target_price.lt.1000,target_price.is.null")` 처럼 명시해야 한다 — 그냥 부등호만 쓰면
 **대상이 조용히 빠진다.**
 
-⚠️ 로컬 실행이라 `revalidate 404` 가 났다(위 「로컬 실행은 …」 항목과 같은 원인).
-프로덕션 반영은 `NEXT_REVALIDATE_PROD_URL` 에 `{"tags":["research_reports"]}` 로 직접
-POST 해서 마쳤다(`ok:true`).
+⚠️ 로컬 실행은 `revalidate 404` 가 난다(위 「로컬 실행은 …」 항목과 같은 원인) → 프로덕션 반영은 `NEXT_REVALIDATE_PROD_URL` 에 `{"tags":["research_reports"]}` 로 직접 POST.
 
 ## 증권사 리포트 수집 함정 (2026-08-25)
 
 ### 1. 「35.6만원」이 `35` 로 저장됐다 — 목표주가 단위
 
 옛 정규식이 `목표(?:주)?가\s*[:\s]*([0-9,]+)` 라 **소수점 앞에서 끊기고 「만원」을 버렸다.**
-목표주가가 채워진 65건 중 **26건**이 1/10000 로 저장돼 있었다. 화면엔 "목표 35"로 뜬다.
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 - 처방: `lib/naver_research.parse_target_price()` 경유. 소수점 + 만/억 단위를 함께 읽는다.
 - 기존 행 복구: `scripts/recheck_research_target_price.py`(상세 페이지 재파싱 — DB 값만으로는
@@ -861,7 +774,9 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
   충실해 864~1,177자로 제대로 정리됐다. 기준은 PDF 유무가 아니라 **요약할 재료가 있느냐**다.
 - 처방: `lib/naver_research.body_text_length()` 로 `.view_cnt` 본문 길이를 재고,
   `MIN_BODY_TEXT`(300자) 미만이면 **수집 단계에서 저장하지 않는다.**
-  실물 판정: 정리 불가 131 · 정리 가능 383.
+
+→ [경위](./history/gotchas-data-collection-경위.md)
+
 - 🔴 **수집과 요약이 같은 상수를 봐야 한다.** `summarize_naver_research.MIN_PDF_TEXT` 는
   `MIN_BODY_TEXT` 를 그대로 받는다. 두 값이 갈리면 수집이 저장한 것을 요약이 못 다뤄
   화면에 "정리 안 된 카드"가 다시 생긴다.
@@ -870,8 +785,8 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 ## 증권사 리포트 PDF 그림 추출 함정 (2026-08-25)
 
 정본 = `scripts/lib/pdf_figures.py` · 순수 함수 시험 = `scripts/lib/test_pdf_figures.py`(36건).
-배경: 요약 파이프라인이 `page.get_text()` 로 글자만 읽어 차트·표를 통째로 버리고 있었다
-(사용자 지적 "이미지 중 필요한 것은 수록하고").
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 - 🔴 **`page.get_images()` 로는 거의 0건이다.** 증권사 리포트의 차트는 래스터 이미지가 아니라
   **벡터 도형**(선·사각형)으로 그려져 있다. `page.get_drawings()` 의 bbox 를 모아 **뭉쳐야**
@@ -934,15 +849,9 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 
 ## 본문 글자가 이미지로 심긴 증권사 PDF (2026-08-25)
 
-**증상.** 미래에셋증권 리포트 3편이 요약 배치에서 계속 실패했다(`요약 파일 없음 (code=1)`).
-재시도해도 같은 자리에서 같은 방식으로 죽었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **원인.** 이 증권사 PDF 는 본문 글자를 **글리프 이미지로** 심는다. 실측(LG씨엔에스 5쪽):
-
-| 지표                | 미래에셋 | 정상 리포트 |
-| ------------------- | -------- | ----------- |
-| 1쪽당 삽입 이미지   | 462개    | 0~5개       |
-| 추출되는 글자(전체) | 576자    | 40,000자    |
 
 읽을 글이 없으니 헤드리스가 3,000~6,000자 정리본을 못 쓰고 파일을 안 만든 채 끝난다.
 
@@ -958,17 +867,13 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 - `summarize_naver_research.save_page_images()` — 렌더 결과를 `_tmp` 에 저장하고, 재료 파일에
   「이 그림들을 Read 로 열어 눈으로 읽으라」는 절을 넣는다
 
-**결과.** 3편 모두 성공(4,184 · 5,485 · 5,235자). 목표주가 11만원 · 현재가 71,200원 ·
-상승여력 54.5% 같은 수치를 정확히 읽었다.
-
 ⚠️ **렌더한 페이지는 업로드하지 않는다.** 화면에 싣는 그림은 `collect_figures` 가 따로 잘라
 올린 것이고, 페이지 렌더는 헤드리스가 읽기만 하는 임시 산출물이다. 둘을 섞으면 페이지
 통짜 이미지가 보고서 본문에 박힌다(사용자가 명시적으로 기각한 방식).
 
 ## 선별을 플래그로 두면 스케줄에서 안 걸린다 (2026-08-25)
 
-**증상.** 144편 중 의미 있는 69편만 정리하기로 하고 `--priority` 로 골라 돌렸다. 그런데
-「앞으로 새로 들어오는 리포트도 이 기준으로 걸러지나?」를 확인해 보니 **아니었다.**
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **원인 둘.**
 
@@ -983,9 +888,6 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 `ONGOING_MIN_SCORE`(5점)만 본다. 「대상별 최소 1편」은 초기 채우기 전용이라 평소에는 쓰지
 않는다(그대로 두면 점수와 무관하게 대상마다 1편씩 통과해 실적 리뷰가 계속 섞인다).
 
-⚠️ **문턱값은 실측으로 정했다.** 수집 시점 점수로 144편을 다시 매기면 4점 이하가 7편인데
-그 7편이 정확히 순수 실적 리뷰다. 유입량은 월 20~30편이라 문턱을 낮게 잡아도 부담이 없다.
-
 🔴 **점수 규칙의 구멍 하나도 여기서 드러났다** — 「감속기」·「모션제어」 같은 **부품 이름**이
 로봇 주제 낱말에 없어서, 하이젠알앤엠(「산업용 모터 및 감속기 제조 전문기업」)·에스비비테크
 (「SSS급 정밀 감속기 제조사」) 같은 로봇 부품 순수기업이 문턱 아래로 떨어졌다. 제목에
@@ -995,9 +897,7 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 
 ## 좁은 창(窓)으로 도는 수집기가 대장을 통째로 다시 쓰면 과거가 사라진다 (2026-09-01)
 
-**증상.** agents 레포의 M&A 파라미터 대장(`docs/data/ma-valuation-params.json`)이
-**5년치 2,181행 → 1년치 417행**으로 줄어 있었다. 화면엔 아무 오류도 없었고 주간 알림도
-정상이었다. 미커밋 변경으로 **일주일 넘게 아무도 몰랐다.**
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **원인.** `scan_all.py` 가 대장을 `open(LEDGER, "w")` 로 **통째로 다시 쓴다.** 그런데
 주간 cron(agents `maEvalJob.ts`)은 `--years 1` 로 부른다 — **창 밖의 과거 행이 매주 지워진다.**
@@ -1017,23 +917,11 @@ agents 레포의 헤드리스 Claude CLI 가 훅 게이트를 통과하려고 �
 
 ## 형제 함수가 이미 옳게 고쳐져 있는데 따라가지 않는다 (2026-09-08)
 
-**증상.** 2026-09-08 전수 코드리뷰에서 **같은 형태의 결함이 세 번** 나왔다. 셋 다
-**바로 옆에 올바른 구현이 있는데 그것을 따르지 않은 것**이었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-| 결함                                                                                         | 옆에 있던 올바른 구현                                                           |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `lib/oem/source.ts` 의 `fetchAll` 이 `.order()` 없이 `.range()` 페이징 (+`Promise.all` 병렬) | **같은 파일 `fetchModelRows`** 가 PK 4컬럼 정렬 + 그 이유를 주석으로 적어 뒀다  |
-| `lib/stellantis-forecast/source.ts` 가 백만원을 억원 필드에 환산 없이 담아 KPI 100배         | `lib/finance/pnl-derived.ts`·`lib/plan/aggregate.ts` 가 같은 컬럼을 `/100` 한다 |
-| `stellantis-na/aggregate.ts` 가 진행 중 연도를 전년 만년과 비교해 허위 급락 −75%             | **형제 파일 `kg-mobility/aggregate.ts`** 가 `isYtd` 로 전년 동기만 합산한다     |
+같은 일을 하는 형제 함수가 **바로 옆에 옳게 구현돼 있는데** 따르지 않은 결함이다(`.range()` 정렬 누락 · 단위 환산 누락 · 진행 중 연도 YoY).
 
-🔴 **주석으로 경고를 남겨 두는 것으로는 재발을 못 막는다.** `fetchModelRows` 의 주석은
-증상(「특정 연도가 통째로 빠진다」)까지 정확히 적고 있었는데, **바로 위 함수가 그대로
-어기고 있었다.** AGENTS.md 의 「`.range()` 다중 페이지는 `.order()` 필수」도 마찬가지였다 —
-규칙은 있었고 11곳이 어겼다.
-
-**왜 안 걸렸나.** 셋 다 **정적 검사·테스트를 통과한다.** 행 누락은 수집기가 캐시 재생성 중에
-upsert 할 때만 나는 경합이고, 100배는 YoY 비율이 분모·분자가 같이 커져 무사해서 **절대값
-카드로만** 드러나며, 허위 급락은 라벨이 평범한 `2026` 이라 눈에 안 띈다.
+🔴 **주석으로 경고를 남겨 두는 것으로는 재발을 못 막는다** — 경고 주석이 달린 함수 바로 위 함수가 그대로 어기고 있었고, AGENTS.md 규칙이 있는데도 11곳이 어겼다.
 
 **처방.**
 
@@ -1098,29 +986,23 @@ export async function POST(req: Request) {
 `humanoid_stocks_view` 가 읽는 원천 테이블(`companies`·`financials`·`exchange_rates_live`·
 `company_pages`)의 매핑에 그 태그가 없어 회사·재무를 수집해도 `/humanoid` 가 낡은 채로 남았다.
 
-**처방.** `scripts/verify_revalidate_tags.py` 신설 — (1)⊄(2) 면 「tag=all 로 안 풀리는 태그」,
-(3)⊄(2) 면 「존재하지 않는 태그를 수집기가 부른다」로 실패(exit 1). 🔴 **실측으로 route.ts
-`ALL_TAGS` 에 이미 다른 태그 다수(`stellantis-shipments`·`uzbekistan-auto-stats`·
-`cox_brand_inventory`·`org_charts`·`oem_production_model_country_month`·`oem-kia-retail` 등)가
-누락돼 있었다** — 발견 당시엔 `oem-hyundai-retail` 을 포함해 이 검사기가 잡아내는 기존
-누락을 후속 Task 로 미뤄 **당장 다 고치지 않고 알려진 미결로 남겼었다**. 이후 수정 라운드에서
-누락이 전부 메워져 **지금은 exit 0(통과)이 정상 상태다** — 「위반 0건」이 정상이고, 위반이
-나오면 그것이 회귀다.
+→ [경위](./history/gotchas-data-collection-경위.md)
+
+**처방.** `scripts/verify_revalidate_tags.py` — (1)⊄(2) 면 「tag=all 로 안 풀리는 태그」,
+(3)⊄(2) 면 「존재하지 않는 태그를 수집기가 부른다」로 실패(exit 1). **exit 0(통과)이 정상 상태다** —
+위반이 나오면 그것이 회귀다.
 
 ## 그럴듯한 숫자가 가장 오래 산다 — DART 재무 파싱 함정 4종 (2026-09-11)
 
-하루를 들여 553개사 2,890행을 전수 대조했다. 나온 오류는 **하나도 예외 없이 그럴듯한
-값**이었다 — 화면에도 안 보이고 lint·타입·테스트 어디에도 안 걸린다. 넷 다 같은 성질이라
-묶어 둔다. **기계 검사기 = `scripts/verify_financials_sanity.py`(exit 0 이 정상).**
+→ [경위](./history/gotchas-data-collection-경위.md)
+
+넷 다 **그럴듯한 값**이라 화면·lint·타입·테스트 어디에도 안 걸린다. **기계 검사기 = `scripts/verify_financials_sanity.py`(exit 0 이 정상).**
 
 ### 1. 「정정 공시」는 정정한 첨부 하나만 담고 있다 — 연결이 통째로 사라진다
 
-**증상**: 화승코퍼레이션 FY2021 매출이 **777억**(별도)으로 적재됐다. 실제 연결은 **1.40조**다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-**원인**: `_score_report` 는 `[첨부정정]사업보고서 (2021.12)` 와 원본 `사업보고서 (2021.12)`
-에 **같은 점수**를 주고, 동점이면 접수일이 늦은 정정본이 이긴다. 그런데 정정본의 문서
-트리는 노드가 **7개뿐**이고 그중 재무제표는 `(첨부)재무제표`(별도) 하나다. 원본에는
-`2.연결재무제표` 가 멀쩡히 있다(노드 52개).
+**원인**: `_score_report` 는 `[첨부정정]` 본과 원본에 같은 점수를 주고 동점이면 늦은 정정본이 이기는데, 정정본의 문서 트리에는 **정정한 첨부(별도 재무제표) 하나뿐**이고 `2.연결재무제표` 는 원본에만 있다.
 
 **처방**: `_get_audit_candidates()` 가 후보를 **목록으로** 돌려주고, `_read_year()` 가
 연결을 못 찾으면 다음 후보를 연다. ⚠️ **정정본이 아닌데 연결이 없으면 거기서 멈춘다** —
@@ -1128,12 +1010,7 @@ export async function POST(req: Request) {
 
 ### 2. 단위는 «선언» 으로 정한다 — 표 안에 스쳐 든 '천원' 에 넘어가지 말 것
 
-**증상 두 가지**, 방향이 반대다.
-
-- 진영산업 FY2023: 매출 1,488억 → **148.8조**(1,000배). 선언은 `(단위:원)` 인데 표 본문의
-  「중단사업이익(법인세효과:당기 1,339,797**천원**…)」이 잡혔다.
-- 현대위아 FY2021: 매출 7.53조 → **7.5백만원**(100만분의 1). 표 **맨 끝 주당이익 줄**의
-  `(단위:원)` 을 표 단위로 읽었다. 진짜 선언은 표 바로 위의 `(단위:백만원)` 이다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **처방**: `_UNIT_DECL_RE` 로 «단위 선언» 만 찾고, **표 머리(첫 두 행) → 표 위 sibling →
 표 본문** 순서로 본다. 선언이 아무 데도 없을 때만 옛 방식(맨 키워드)으로 폴백한다.
@@ -1141,8 +1018,7 @@ export async function POST(req: Request) {
 
 ### 3. 계정명 뒤 「작은 정수」는 주석 번호다
 
-**증상**: 현대트랜시스 FY2022 영업이익이 **34**(백만원)로 적재됐다. 실제 1,517억.
-행이 `['영업이익', '34', '151,726', '95,016']` 이고 **34 는 주석 번호**다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **원인**: `_filter_annotation_nums` 의 문턱이 «최댓값의 1/10,000» 인데 34 vs 151,726 은
 4,462배라 통과한다. 홀수 개라서 `nums[0], nums[1]` 이 당기·전기가 됐다.
@@ -1152,13 +1028,9 @@ export async function POST(req: Request) {
 
 ### 4. 🔴 「DART 와 DB 가 다르다」는 「DB 가 틀렸다」가 아니다 — 전기는 재작성된다
 
-**이번에 내가 실제로 저지른 실수다.** 급변 목록을 보고 DART 원본과 대조해
-「DB 가 틀렸다」며 6건을 덮었는데, 그중 **2건은 멀쩡한 값을 망가뜨린 것**이었다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-- 디에이치오토넥스 FY2022: **원보고서 5,367억** · **FY2023 보고서의 전기 502억**.
-  둘 다 원문 그대로다 — 종속회사가 빠지면서 다음 해 보고서가 전기를 **계속영업 기준으로
-  재작성**했다. 원보고서 값을 넣었더니 FY2022→23 에 **10배 낙차가 새로 생겼다.**
-- 디와이에이 FY2022도 같다(1.40조 vs 5,013억).
+다음 해 보고서가 전기를 **재작성**할 수 있다(종속회사가 빠져 계속영업 기준으로). 원보고서 값으로 덮으면 연도 사이에 **새 낙차**가 생긴다 — 대조 결과로 DB 를 덮기 전에 이것부터 의심한다.
 
 **처방**: 고칠 해 N 을 받을 때 **N+1 보고서도 함께** 받는다. `_dedup_rows` 가 더 최신
 보고서를 우선하므로 재작성된 전기가 이긴다(`backfill_fnguide_gap.py` 의 `request_years`).
@@ -1166,10 +1038,8 @@ export async function POST(req: Request) {
 
 ### 곁가지 — 반환형을 바꿨으면 «부르는 쪽» 을 전수로 찾을 것
 
-`_get_main_doc_url` 을 `(url, 연결여부)` **튜플**로 바꾸면서 같은 날 다른 수집기 2곳
-(`collect_dart_domestic.py` · `collect_dart_summary.py`)이 튜플을 URL 로 쓰게 됐다.
-둘 다 `try/except` 안이라 **예외가 먹히고 조용히 폴백**했다 — 「결산감사 HTML 우선」
-정책이 통째로 죽어 있었는데 아무 로그도 안 났다(`logger.debug`).
+→ [경위](./history/gotchas-data-collection-경위.md)
+
 🔴 **`except` 로 감싼 경로의 회귀는 «실패» 가 아니라 «침묵» 으로 나타난다.**
 
 **처방 (같은 날 신설)**: `scripts/verify_call_contracts.py`(exit 0 이 정상)가 정적으로 잡는다 —
@@ -1178,34 +1048,12 @@ export async function POST(req: Request) {
 코드(정렬 키·딕셔너리 키·사각형)가 24건 있어 단순히 「단일 대입」만 보면 **오탐이 24건**
 이었다. 실제 통과 후 남은 정상 사례 3건만 근거와 함께 `ALLOWED_SCALAR_TUPLE` 에 적었다.
 
-🔴 **이 검사기가 «세 번째 피해자» 를 찾아냈다** — `collect_dart_labor.py` 도 같은 함수를
-스칼라로 받고 있었다. 눈으로 두 곳을 고치고 「다 고쳤다」고 보고한 뒤였다.
 ⚠️ 만들 때 **모듈을 파일 이름(stem)으로 식별했다가 오탐 2건**이 났다(`yt_report/finalize.py`
 와 임시 사본 `_yt_report/finalize.py` 충돌). 상대 경로로 식별하고 `_` 로 시작하는 폴더는 뺀다.
 
 ## 🔴 「공시 0건인 corp_code」는 매핑이 틀렸다는 신호다 (2026-09-11)
 
-**증상**: `신원`(active · ticker 자리에 「신원자동차」) 레코드의 `dart_corp_code` 가
-`01404896` 인데, 그 법인은 **2021년 이후 공시가 0건**이다. 그런데 DB 에는
-`source='dart'` 인 FY2021~2025 재무가 5행 있다. **공시가 없는 법인에서 5년치 감사
-재무가 나올 수 없다** — 과거에 다른 corp_code 로 받은 값이 남아 있는 것이다.
-
-**왜 안 잡혔나**: `consolidation` 이 비어 있는 것(5행 전부 NULL)이 유일한 흔적이었고,
-그 컬럼을 읽는 코드가 없어 아무도 안 봤다. 급변 검사도 통과한다(값이 연도별로 매끄럽다).
-
-**같은 레코드에서 더 나온 것** — 정체가 통째로 섞여 있다:
-
-- `business_summary` 가 「섬유제품 제조… 글로벌 패션기업」 = **의류 상장사 신원(009270)**
-- `products` 도 니트·스웨터·핸드백(의류)인데 `customers` 는 기아·현대차
-- 재무 80,662(FY2024)는 의류 신원 연결 939,537 과도, 후보 법인들과도 **안 맞는다**
-  (실측: 신원 01471959 = 150억 · 01625860 = 22억 · 의류 신원 = 9,395억)
-
-**일진복합소재와 같은 계통**이다(위 절). 다만 그쪽은 「유령 회사」였고 이쪽은
-**「이름만 맞는 남의 법인을 물고 있다」** 는 점이 다르다.
-
-**처리(2026-09-11 · 사용자 승인)**: 레코드를 **삭제**했다. CASCADE 로 재무 5행 ·
-`company_pages` 1행 · **뉴스 1,076행**이 함께 지워졌는데, 지우기 전에 열어 보니
-**뉴스가 전량 무관한 기사**였다(↓ 다음 절). 남은 「신원」은 hidden 인 의류 상장사 하나뿐이다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **신호로 쓸 것**: `dart_corp_code` 가 있는데 **그 법인의 공시가 0건**이면 매핑을 의심한다.
 DART 호출이 회사당 한 번이라 상시 검사로는 비싸고, **가끔 돌리는 감사**로 적합하다.
@@ -1213,29 +1061,15 @@ DART 호출이 회사당 한 번이라 상시 검사로는 비싸고, **가끔 �
 
 ## 🔴 회사명이 «보통명사» 면 뉴스 수집이 통째로 오염된다 (2026-09-11 실측)
 
-「신원」을 지우다 드러났다. 그 회사에 붙은 뉴스 1,076건을 열어 보니 **단 한 건도 회사
-기사가 아니었다** — 「공익제보자 **신원** 공개」·「네팔 시신 **신원** 확인」·「**신원**
-미상 남성」. 회사명이 아니라 **보통명사**를 긁은 것이다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-**표본으로 확증한 다른 회사들**(전부 최근 기사 기준):
-
-- **용산**(1,789건) — 용산구·용산공원·용산어린이정원. 회사 기사 0건
-- **경신**(1,569건) — 「지지율 최저치 **경신**」. 회사 기사 0건
-- **대승**(709건) — 「뮌헨 5-0 **대승**」. 회사 기사 0건
-- 세정(691) · 신영(300) · 나전(216) · 삼송(205) · 세진(181) · 호원(142) 도 같은 모양
+회사명이 보통명사면(「신원」·「경신」·「대승」·「용산」) 그 회사 뉴스가 「신원 공개」·「지지율 경신」 같은 무관 기사로 채워진다.
 
 **🔴 그런데 더 큰 원인이 따로 있었다 — 질의에 «따옴표» 가 없었다.**
 
 `urllib.parse.quote(name)` 은 URL 인코딩일 뿐 **검색 구절을 묶어 주지 않는다.** 그래서
 구글이 사명을 토큰으로 쪼개 검색했고, 두 글자가 아닌 이름까지 오염됐다.
 
-- **광진기계**(58건) → 광진소방서·광진구시설관리공단 (「광진」+「기계」)
-- **한국캐스팅**(57건) → 「초호화 **캐스팅**」 드라마 기사 (「한국」+「캐스팅」)
-- **무등기업**(35) → 무등포레스트 · **보고에이피**(31) → 에이피알 · **풍기산업**(26) → 풍기인삼
-- **대양전장**(28) → 검은사막 「대양」 · **다이나믹오토**(26) → 다이나믹 듀오
-
-**규모(정리 전 실측)**: 한국 비상장 163곳의 뉴스 9,699건 중 **6,787건(70%)** 이 오염이었다.
-회사별로는 163곳 중 **105곳이 제목 일치율 0%** 였다.
 ⚠️ **전부가 오염은 아니다** — 「기아」(1,454건)는 진짜 회사 기사다(상장사라 네이버 종목
 큐레이션을 타서 애초에 이 경로가 아니다). **이름 길이로 일괄 삭제하면 안 되고, 회사당
 표본을 열어 보고** 가려야 한다.
@@ -1265,11 +1099,7 @@ HL클레무브 → 「HL 클레무브」(공백) · 한국지엠 → 「GM」. �
 ⚠️ **완전히는 못 막는다.** 남는 것은 **동명 타사**다 — ㈜세정(자동차 부품)과 세정그룹(의류)은
 이름만으로 가를 방법이 없다. 여기까지가 한계이고, 그 이상은 사람이 봐야 한다.
 
-**정리 결과**: 표본으로 오염을 확인한 **36곳 6,787건을 삭제**하고 고친 질의로 다시 받아
-**260건**을 채웠다(백업은 세션 scratchpad 의 `news_backup_*.json`). 유지한 곳과 근거 —
-르노코리아·한국지엠·타타대우모빌리티(완성차, 기사 진짜) · 베바스토코리아(「베바스토」 표기) ·
-현대성우쏠라이트 · 현대케피코 · 르네사스일렉트로닉스한국 · 삼보에이앤티 ·
-코렌스·씨티알·테솔로·서진캠(표본 전량 진짜).
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **재발 방지**: `scripts/verify_news_relevance.py`(**exit 0 이 정상**) — 비상장 부품사의
 뉴스가 150건을 넘거나(정리 후 실측 최대 97) 25건 이상인데 제목 일치율이 40% 미만이면
@@ -1306,12 +1136,7 @@ HL클레무브 → 「HL 클레무브」(공백) · 한국지엠 → 「GM」. �
 🔴 **(ㄱ) 처방으로 (ㄴ) 을 못 고치고 그 반대도 안 된다.** 어형만 나열하면 띄어쓰기 변이를
 놓치고, `\s*` 만 붙이면 활용형을 놓친다.
 
-### 실측 — 같은 날 두 세션이 각자 독립적으로 밟았다
-
-| 어디                                | 걸린 패턴       | 안 잡았으면                                                                       |
-| ----------------------------------- | --------------- | --------------------------------------------------------------------------------- |
-| `verify_translationese.py`(이 레포) | 6개 중 **4개**  | 「위반 0건」으로 통과 — 검사기가 태어나자마자 죽은 채로 산다                      |
-| agents 레포 「헷지 남은 노트」 목록 | 11개 중 **4개** | 목록이 **18편 → 63편**, 착수 후보 6 → 14. 여덟 묶음을 「헷지 없음」으로 지나칠 뻔 |
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 ### 그래서 무엇을 하나
 
@@ -1332,32 +1157,22 @@ literal 일 때만** 걸린다(명사 매칭은 안 걸린다). 발동 5 · 오�
 
 ## 🔴 폐지된 도메인은 404 가 아니라 HTTP 200 을 준다 — 폴백이 정본을 조용히 덮는다 (2026-09-16 실측)
 
-**증상.** 사용자가 「휴머노이드 페이지 회사 정보가 이상하다. 국내 상장사는 fnguide 의
-Business Summary 를 가져오는 것 아니냐」고 지적했다. 전수 조사했더니 국내 상장사
-**180곳 중 fnguide 원문 생존이 0곳**이었다. 전부 LLM 이 쓴 100~250자 요약으로 바뀌어
-있었고, 하이젠알앤엠은 연혁까지 달랐다(fnguide 「2007년 오티스엘리베이터코리아 모터
-사업부문 인수」 vs DB 「1963년 LG전자 모터사업부에서 출발」).
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-**수집기는 멀쩡했다.** fnguide 에 직접 접속해 보니 지금도 429~477자 원문을 정상으로
-준다. 2026-07-14 GHA 로그에도 `business_summary=OK` 가 **170건** 찍혀 있었다.
-그런데 **사흘 뒤 전부 덮였다.**
+**증상.** 국내 상장사 `business_summary` 의 fnguide 원문이 LLM 요약으로 통째로 덮여 있었다 — fnguide 수집기는 멀쩡했고, 다른 보강 스크립트의 폴백이 덮었다.
 
 ### 원인 ① — 폐지 도메인이 「내용 없음」으로 읽힌다
 
-2026-07-17 에 돈 `enrich_description_v2.py` 가 **폐지된 구 fnguide 도메인**을 보고 있었다.
-구 도메인은 404 가 아니라 **HTTP 200 + 안내 페이지**를 돌려준다(→ `fnguide-wcomp-migration.md`).
-그래서 `raise_for_status()` 류에 안 걸리고, 셀렉터가 아무것도 못 찾아 **「내용이 없다」**로
-읽힌다. 스크립트는 이것을 실패가 아니라 «1차 출처가 부실한 회사» 로 보고 **2차 LLM 폴백**
-(홈페이지+검색 요약)으로 내려가 166곳을 덮었다. 로그에는 에러가 한 줄도 없다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
-도메인은 3주 뒤 커밋 `b3ac624` 에서 고쳤지만 **덮인 값은 되돌리지 않았다.** 그리고
-`collect_kr_snapshot.py` 는 분기 1회(1·4·7·10월)라 다음 복구가 10월이었다.
+구 도메인은 404 가 아니라 **HTTP 200 + 안내 페이지**를 준다(→ `fnguide-wcomp-migration.md`). `raise_for_status()` 류에 안 걸리고 셀렉터가 빈 결과를 내 **「내용이 없다」**로 읽히면, 보강 스크립트(`enrich_description_v2.py`)가 이를 실패가 아니라 «1차 출처가 부실한 회사» 로 보고 **2차 LLM 폴백**으로 원문을 덮는다. 에러 로그는 0줄이다.
 
 ### 원인 ② — 보강 «대상» 판정과 «저장 항목» 을 묶었다
 
 `enrich_company.py` 의 `_missing_meta()` 는 **제품이나 홈페이지가 비었으면** 그 회사를
 보강 대상에 넣는데, 대상이 되면 `business_summary` 까지 새로 써서 덮었다.
-2026-08-24 휴머노이드 보강에서 이 경로로 한 번 더 덮였다(그 16곳만 평균 162자로 유독 짧다).
+
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 ### 처방
 
@@ -1383,14 +1198,10 @@ Business Summary 를 가져오는 것 아니냐」고 지적했다. 전수 조�
 
 `collect_prices_live.py` 는 시가총액을 못 받으면 **갱신 payload 에서 그 항목을 뺀다.**
 그래서 실패해도 과거 값이 그대로 남고, **주가는 정상 갱신되니 화면에서 구분되지 않는다.**
-최근 실행 로그에서 `market_cap=None` 이 **179건**인데 예외 로그는 **0건**이었다 —
-`cap_df.empty` 경로에 로그가 없었기 때문이다. 현대차 DB 값 127.8조는 계산이 틀린 게
-아니라 **주가 62만원대 시절에 멈춘 값**이었다(실제 75.1조 · 52주 최고 787,000원).
 
-**원인 확정(2026-09-16 GHA 실측).** KRX 의 **시총 계열 엔드포인트만** 깨졌다 —
-종목 단위 `get_market_cap()` 은 JSON 이 아닌 응답(`Expecting value: line 1 column 1`),
-시장 전체 `get_market_cap_by_ticker()` 는 응답에 「시가총액」 컬럼 자체가 없다.
-대조군인 주가 `get_market_ohlcv()` 는 **정상**이라 KRX 접근이 막힌 것이 아니다.
+→ [경위](./history/gotchas-data-collection-경위.md)
+
+**원인.** KRX 의 **시총 계열 엔드포인트만** 깨졌다 — `get_market_cap()` 은 JSON 이 아닌 응답, `get_market_cap_by_ticker()` 는 「시가총액」 컬럼 자체가 없다. 대조군 `get_market_ohlcv()` 는 정상이라 KRX 접근이 막힌 것이 아니다.
 
 **처방.** 빈 응답·0원에도 경고를 남기고, 전면 실패면 나머지 수집을 마친 뒤 **exit 3**
 (종전에는 이 상태가 초록불로 지나갔다). 시총 출처는 **`lib/naver_market_cap.py`** 로
@@ -1398,8 +1209,6 @@ Business Summary 를 가져오는 것 아니냐」고 지적했다. 전수 조�
 🔴 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주고(숫자 엔드포인트가 없다)
 **반환값이 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱은 조용히
 틀리므로 실측값 표본으로 **자가 시험을 내장**해 수집 시작 전에 돌린다.
-복구 결과: 국내 상장사 **180/180 시총 확보**(NULL 0건). 현대모비스는 39.2조 →
-34.5조로 교정됐다.
 
 🔴 **로컬에서 죽는다고 원격도 죽은 것은 아니다.** 로컬은 KRX 접근이 통째로 막혀
 **대조군(주가 조회)까지 함께 죽는다.** 원인을 가르려면 **대조군을 같이 돌려** 환경 문제인지
@@ -1421,8 +1230,7 @@ Business Summary 를 가져오는 것 아니냐」고 지적했다. 전수 조�
    `naver_nid` 를 건너뛴다** — 아는 행을 다시 쓰면 상세 보강분이 되레 뒤로 가기 때문에
    일부러 그렇게 만들었다. 두 결정 각각은 옳은데, 겹치면 **사람이 손대기 전까지 영영 끊겨 있다.**
 
-**실사고** — 고영(098460)을 넣었더니 기존 리포트 **3건**이 끊겨 있었고 그중 2건은
-**정리본까지 있는 것**이었다. 이어서 8곳을 넣자 같은 이유로 **16건**이 끊겼다.
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 **처방**
 
@@ -1446,11 +1254,7 @@ scripts/venv/Scripts/python.exe scripts/verify_research_company_link.py --fix  #
 **원인** — fnguide 는 **헤더에 2023 컬럼을 주면서 값만 전부 `None`** 으로 준다. 회사가
 그 해에 연결재무제표를 내지 않았기 때문이다(종속회사가 나중에 생긴 경우). 실측:
 
-| 회사                     | 연결 2023 | 별도 2023 | DB 연간   |
-| ------------------------ | --------- | --------- | --------- |
-| 큐렉소(060280)           | **0개**   | 33개      | 2024·2025 |
-| 피앤에스로보틱스(460940) | **0개**   | 29개      | 2024·2025 |
-| 씨메스로보틱스(475400)   | 29개      | 28개      | 2023~2025 |
+→ [경위](./history/gotchas-data-collection-경위.md)
 
 `collect_financials.py` 의 폴백은 **회사 단위**다 — `has_dataset_values()` 가 「VAL 이 하나라도
 있으면」 연결로 판정하므로, 2024·2025 연결이 있는 회사는 연결을 쓰고 **2023 은 빈 채로 남는다.**

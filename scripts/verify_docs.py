@@ -62,7 +62,7 @@ PADDING_WARN_RATIO = 0.10      # 표 정렬 공백이 파일의 10% 넘으면 �
 REFERENCE_DOC_LIMITS = {
   'Architecture.md': 150_975,
   'docs/gotchas-ci-deploy.md': 23_075,
-  'docs/gotchas-data-collection.md': 130_645,
+  'docs/gotchas-data-collection.md': 100_808,  # 2026-10-12 경위 분리(124,423 → 96,007) × 1.05
   'docs/gotchas-playwright-ui.md': 37_562,
   'HANDOFF.md': 40_314,
   'ROADMAP.md': 33_380,
