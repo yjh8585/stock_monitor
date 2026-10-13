@@ -480,14 +480,36 @@ function emptyKpiMetric(key: KpiMetricKey, label: string, unit: 'units' | 'eok')
 }
 
 /**
+ * 출하 최신 분기의 마지막 달(YYYYMM) — 월별 KPI(소매·매출)의 YTD 상한.
+ *
+ * 출하는 분기로만 오므로 월별 지표를 그 분기 말까지로 잘라 세 KPI의 기간을 맞춘다
+ * (사용자 지시 2026-10-14). 월별 데이터가 상한보다 짧으면 자기 최신월을 그대로 쓴다
+ * — 예: 출하 Q3(9월)·소매 8월 → 소매는 8월 누적.
+ */
+export function shipmentsYtdCapMonth(shipments: ShipmentRow[]): number | null {
+  if (shipments.length === 0) return null;
+  const latestIdx = Math.max(...shipments.map((s) => quarterIndex(s.year_period)));
+  return Math.floor(latestIdx / 4) * 100 + ((latestIdx % 4) + 1) * 3;
+}
+
+/** 상한(YYYYMM) 이하인 키 중 최신 — 상한이 없으면 전체 최신. 해당 키가 없으면 null. */
+function latestMonthUpTo(keys: Iterable<number>, capYearMonth: number | null): number | null {
+  const eligible = [...keys].filter((ym) => capYearMonth === null || ym <= capYearMonth);
+  return eligible.length ? Math.max(...eligible) : null;
+}
+
+/**
  * 소매 판매 KPI — MarkLines 북미 소매, 당해 1월~최신 완성월 누적 YoY.
  *
  * `retailByMonth`는 이미 완성월까지 잘려 있으므로(source에서 cutoff 적용) 최신 키가 곧 완성월이다.
- * 전년 동기간(1~같은 월)과 비교한다.
+ * `capYearMonth`(출하 최신 분기 말)를 넘는 달은 빼고 센다. 전년 동기간(1~같은 월)과 비교한다.
  */
-export function buildRetailKpi(retailByMonth: Map<number, number>): KpiMetric {
-  if (retailByMonth.size === 0) return emptyKpiMetric('retail', '소매 판매', 'units');
-  const latest = Math.max(...retailByMonth.keys());
+export function buildRetailKpi(
+  retailByMonth: Map<number, number>,
+  capYearMonth: number | null = null
+): KpiMetric {
+  const latest = latestMonthUpTo(retailByMonth.keys(), capYearMonth);
+  if (latest === null) return emptyKpiMetric('retail', '소매 판매', 'units');
   const year = Math.floor(latest / 100);
   const cutoff = latest % 100;
   return makeKpiMetric({
@@ -529,11 +551,14 @@ export function buildShipmentsKpi(shipments: ShipmentRow[]): KpiMetric {
   });
 }
 
-/** 스텔란티스향 매출 KPI (사외비) — 당해 1월~최신월 누적 YoY(억원). */
-export function buildRevenueKpi(revenue: RevenueMonthRow[]): KpiMetric {
-  if (revenue.length === 0) return emptyKpiMetric('revenue', '스텔란티스향 매출', 'eok');
+/** 스텔란티스향 매출 KPI (사외비) — 당해 1월~최신월(출하 분기 말 상한) 누적 YoY(억원). */
+export function buildRevenueKpi(
+  revenue: RevenueMonthRow[],
+  capYearMonth: number | null = null
+): KpiMetric {
   const byMonth = new Map(revenue.map((r) => [r.year_month, r.revenueEok]));
-  const latest = Math.max(...byMonth.keys());
+  const latest = latestMonthUpTo(byMonth.keys(), capYearMonth);
+  if (latest === null) return emptyKpiMetric('revenue', '스텔란티스향 매출', 'eok');
   const year = Math.floor(latest / 100);
   const cutoff = latest % 100;
   return makeKpiMetric({

@@ -22,6 +22,7 @@ import {
   monthsOfQuarter,
   quarterLabel,
   quarterOfYearMonth,
+  shipmentsYtdCapMonth,
 } from './aggregate';
 import { toRevenueRows } from './source';
 import type {
@@ -816,6 +817,41 @@ describe('buildRevenueKpi — 매출 YTD YoY (억원)', () => {
 
   it('빈 배열은 available false', () => {
     expect(buildRevenueKpi([]).available).toBe(false);
+  });
+
+  it('상한(출하 분기 말)을 넘는 달은 빼고 센다', () => {
+    const rows = [];
+    for (let mo = 1; mo <= 8; mo += 1) {
+      rows.push({ year_month: 202500 + mo, revenueEok: 10 });
+      rows.push({ year_month: 202600 + mo, revenueEok: 12 });
+    }
+    const k = buildRevenueKpi(rows, 202606);
+    expect(k.currentValue).toBe(72);
+    expect(k.priorValue).toBe(60);
+    expect(k.periodLabel).toContain('상반기');
+  });
+});
+
+describe('shipmentsYtdCapMonth — 월별 KPI 상한', () => {
+  it('출하 최신 분기의 마지막 달', () => {
+    expect(shipmentsYtdCapMonth([ship('2026-Q1', 1), ship('2026-Q2', 1)])).toBe(202606);
+    expect(shipmentsYtdCapMonth([ship('2026-Q3', 1)])).toBe(202609);
+    expect(shipmentsYtdCapMonth([ship('2025-Q4', 1)])).toBe(202512);
+  });
+
+  it('빈 배열은 null(상한 없음)', () => {
+    expect(shipmentsYtdCapMonth([])).toBeNull();
+  });
+
+  it('소매가 상한보다 짧으면 자기 최신월(출하 Q3·소매 8월 → 8월 누적)', () => {
+    const m = new Map<number, number>();
+    for (let mo = 1; mo <= 8; mo += 1) {
+      m.set(202500 + mo, 10);
+      m.set(202600 + mo, 10);
+    }
+    expect(buildRetailKpi(m, 202609).periodLabel).toBe('2026.1~8월 누적');
+    expect(buildRetailKpi(m, 202606).periodLabel).toContain('상반기');
+    expect(buildRetailKpi(m, 202606).currentValue).toBe(60);
   });
 });
 

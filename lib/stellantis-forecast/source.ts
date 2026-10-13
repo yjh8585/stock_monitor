@@ -27,6 +27,7 @@ import {
   buildProjectedGapQuarter,
   buildRetailKpi,
   buildRevenueKpi,
+  shipmentsYtdCapMonth,
   buildShipmentsKpi,
   CHART_START_MONTH,
   lastCompleteMonth,
@@ -265,15 +266,18 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
   // 재고 신호등은 차트 1이 보여주는 계열(실측 + 추정 최신 분기)로 판정 — 최신 신호를 반영한다.
   const gapForKpi = projected ? [...gap, projected.point] : gap;
 
+  // 출하는 분기로만 오므로 소매·매출 YTD 를 출하 최신 분기 말까지로 맞춘다(사용자 지시 2026-10-14).
+  const kpiCap = shipmentsYtdCapMonth(shipments);
+
   return {
     monthlyFlow,
     gap,
     gapProjected: projected?.point ?? null,
     projectedNote: projected?.note ?? null,
     kpiMetrics: [
-      buildRetailKpi(retailMonths),
+      buildRetailKpi(retailMonths, kpiCap),
       buildShipmentsKpi(shipments),
-      buildRevenueKpi(revenue),
+      buildRevenueKpi(revenue, kpiCap),
     ],
     kpiInventory: buildInventoryKpi(gapForKpi),
     // 공장 이벤트는 코드 상수(수동 큐레이션)이고, '재고'(딜러 재고일수)는 Cox DB에서 자동 생성한다.
