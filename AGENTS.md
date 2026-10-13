@@ -10,7 +10,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 자동차 산업 주식 모니터링 대시보드. Next.js + Supabase로 21개사 + α의 주가·환율·재무·뉴스·DART 공시 등을 수집·시각화한다.
 
-- 현재 단계는 `ROADMAP.md`(Phase 0~6 완료)와 **개인 메모리**(누적 진행) 우선 확인. 🔴 메모리는 **이 레포에 없다** — `~/.claude/projects/C--Users-junghwan-yoon-workspace-1-----stock-monitor/memory/`의 `MEMORY.md` 인덱스가 실물이다.
+- 현재 단계는 `ROADMAP.md`(Phase 0~6 완료)와 **개인 메모리**(누적 진행) 우선 확인. 메모리는 **이 레포에 없다** — `~/.claude/projects/C--Users-junghwan-yoon-workspace-1-----stock-monitor/memory/`의 `MEMORY.md` 인덱스가 실물이다.
 - 8개 페이지: 관련주식 / 비교 / 국내자동차 / OEM / 부품사 TOP100 / 휴머노이드 / 한세그룹 / 기타. `/reports`, `/management`, `/login`, `/stock-popup/[id]` 별도.
 
 ## 문서 역할 분리
@@ -19,7 +19,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`Architecture.md`](./Architecture.md)** — _시스템 구조의 단일 진실 공급원_. 테이블·뷰 컬럼/인덱스/트리거, 라우트 맵, 캐싱·배포·자동화, 폴더별 **모듈 구성**. **DB 스키마 확인·구조 변경 전.**
 - **[`report.md`](./report.md)** — _보고서(`/reports`) 작성 규칙_. 게시 절차·본문 형식·**한국어 마크다운 렌더 함정(§4)**·이미지·Mermaid·유튜브 워크플로(§7). **보고서 본문 작성·수정 전 정독.** **⚠️ 유튜브 보고서는 주요 장면·차트를 반드시 캡처·삽입(차트 누락 금지, 사용자 지시 2026-07-18) — §7-4·§7-A·§8 필수 체크.**
 - **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. **차트 신규·수정 전 정독**(콤보 이중축 영역 분리 §4-F · 스타일 토큰·글자 크기 §5). `fontSize`·축 domain·범례 순서 임의 변경 금지.
-- **[`docs/report-from-youtube.md`](./docs/report-from-youtube.md)** · **[`docs/report-from-pdf.md`](./docs/report-from-pdf.md)** — _유튜브·PDF → 보고서 규칙 정본_(2026-09-11 신설, 계속 갱신). 🔴 **게시 전 정독**(검사 2종은 「검증 명령」) — 도해가 차오르는 «도중» 캡처(리포트 117·122)와 캡션이 그림에 없는 것을 약속하는 결함을 막는다.
+- **[`docs/report-from-youtube.md`](./docs/report-from-youtube.md)** · **[`docs/report-from-pdf.md`](./docs/report-from-pdf.md)** — _유튜브·PDF → 보고서 규칙 정본_(2026-09-11 신설, 계속 갱신). **게시 전 정독**(검사 2종은 「검증 명령」) — 도해가 차오르는 «도중» 캡처(리포트 117·122)와 캡션이 그림에 없는 것을 약속하는 결함을 막는다.
 - **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** — _수집·적재·파싱 함정 정본_. **수집기 수정 전 정독.**
 - **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)** — _Playwright·UI 검증 함정_. **UI를 브라우저로 검증하기 전 정독.**
 - **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md)** — _CI·배포·플랫폼 운영 함정_(GHA 실패 판별·Vercel 배포 확인·Supabase MCP 우회·PowerShell·훅 검사기). **워크플로를 돌리거나 배포를 확인하기 전 정독.** 🔴 **넓게 훑은 검색이 0건일 때도**(§8 — 소스의 날 NUL 바이트가 Grep 도구에서 파일을 통째로 지운다). 🔴 **Supabase 보안 경고 메일을 받았을 때도**(§10 — 기준일이 발송일보다 앞서 이미 고친 것이 다시 오고, 남은 두 경고는 의도된 설계다).
@@ -50,7 +50,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 검증 명령 (작업 완료 후 반드시 실행)
 
-🔴 **명령 목록·실행 절차 정본 = [`docs/commands.md`](./docs/commands.md)** — "무슨 명령이었지" 싶으면 거기부터.
+**명령 목록·실행 절차 정본 = [`docs/commands.md`](./docs/commands.md)** — "무슨 명령이었지" 싶으면 거기부터.
 
 어기면 조용히 깨지는 것만 여기 남긴다.
 🔴 **아래 `verify_*` 는 전부 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다.
@@ -62,19 +62,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **게시 전 2종** — `verify_translationese.py`(번역투) · `verify_report_krw.py`(외화 금액에 **작성 시점 환율로 원화 환산 병기** → [`report.md §3-B`](./report.md)).
 - **`verify_summary_source.py`** · **`verify_news_relevance.py`** — 보강기·뉴스 질의를 고쳤으면 돌린다. 설명 정본은 **fnguide 기업개요**(「동사는…」)라 LLM 이 덮으면 위반이고(2026-07-17 166곳), 보통명사 사명은 남의 기사를 긁는데 **건수만 늘어 안 걸린다**(2026-09-11 70%).
 - **`verify_research_company_link.py`** — 휴머노이드에 회사를 **추가한 뒤** 돌린다. 나중에 넣은 회사의 리포트는 연결이 끊기고 **재수집으로 안 고쳐진다**(`--fix`).
-- 🔴 **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
-- 🔴 **유튜브·PDF 보고서 게시 전 검사 2종**(명령·순서 = [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)) — 안 돌리면 훅이 게시를 막는다
+- **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
+- **유튜브·PDF 보고서 게시 전 검사 2종**(명령·순서 = [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)) — 안 돌리면 훅이 게시를 막는다
 - 🔴 **`pnpm run dev` 금지**(`npm run dev`) — 뜨지도 않고 포트는 3001+ → [`gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §6-A.
 
 ## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
 
-> 🔴 **어기면 조용히 깨지는 것만** 여기 남긴다. 폴더가 무엇을 맡는지 · 라우트 목록 · 모듈 구성은
+> **어기면 조용히 깨지는 것만** 여기 남긴다. 폴더가 무엇을 맡는지 · 라우트 목록 · 모듈 구성은
 > [`Architecture.md 부록 C`](./Architecture.md)(이관 2026-08-25 · 20,029B). "이 파일 어디 있지"는 거기부터.
 
 - [`app/`] 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `lib/oem-competition/signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
-- [`app/`] 🔴 **로봇 카테고리 글은 `/humanoid` 전용**(사용자 지시 2026-09-11) — 게시판 `/reports` 목록·필터에서 감춘다. 카테고리 문자열·제목 판정 SSOT 는 **`lib/reports/robot.ts`**(페이지마다 다시 박지 말 것) · 제외는 `excludeCategory` (**`.neq()` 단독 금지** — `NULL <> '로봇'` 이 참이 아니라 카테고리 빈 글까지 지운다) · 새 글은 `isRobotTitle()` 이 LLM 분류를 건너뛰고 고정한다(안 그러면 조용히 새어 휴머노이드에 영영 안 뜬다). 목록·상세 컴포넌트의 `basePath` 를 하드코딩하지 말 것.
-- [`app/`] 🔴 Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
-- [`app/`] 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
+- [`app/`] **로봇 카테고리 글은 `/humanoid` 전용**(사용자 지시 2026-09-11) — 게시판 `/reports` 목록·필터에서 감춘다. 카테고리 문자열·제목 판정 SSOT 는 **`lib/reports/robot.ts`**(페이지마다 다시 박지 말 것) · 제외는 `excludeCategory` (**`.neq()` 단독 금지** — `NULL <> '로봇'` 이 참이 아니라 카테고리 빈 글까지 지운다) · 새 글은 `isRobotTitle()` 이 LLM 분류를 건너뛰고 고정한다(안 그러면 조용히 새어 휴머노이드에 영영 안 뜬다). 목록·상세 컴포넌트의 `basePath` 를 하드코딩하지 말 것.
+- [`app/`] Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
+- [`app/`] **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
 - [`app/`] 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`). 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
 - [`app/`] 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. 🔴 **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(2026-08-12 기준 12종 — 여기 다시 나열하지 말 것. 문서에 베껴 적었더니 9종·5종으로 갈려 있었다).
 - [`app/`] **공개는 `api/cron/*`·`api/revalidate*` 뿐이고 나머지는 세션 필수.** 새 `route.ts` 를 만들면 `proxy.ts` 의 `PUBLIC_PATH_PREFIXES` 와 [`Architecture.md §5`](./Architecture.md) 의 라우트 목록을 **함께** 갱신한다(목록 정본은 Architecture — 여기 중복하지 않는다. 두 곳에 두면 갈린다).
@@ -90,8 +90,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - [`lib/`] `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
 - [`lib/`] `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
 - [`lib/`] `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 (증권사, 대상) 묶음으로 접는다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
-- [`lib/`] 🔴 **증권사 리포트 목록에 본문(`summary`)을 싣지 말 것** — 정리본이 편당 3,000~8,000자라 144편을 담으면 캐시·payload 가 1MB 를 넘는다(ISR Write). 목록은 생성컬럼 `summary_excerpt`(앞 800자)만 쓰고 본문은 상세에서만 읽는다. 요약 규칙 정본은 **이 레포가 아니라 agents 의 `summarizeReportPrompt.ts`**(결정 11) — 분량·섹션·그림 규칙을 여기 베껴 적지 말 것.
-- [`lib/`] 🔴 **증권사 리포트 목록은 새 규격 정리본만 보여 준다**(사용자 선택 2026-08-25). 판정은 본문이 `>` 인용 블록으로 시작하는지(`CURATED_PREFIX`)이고, **파이썬 `is_current_format` 과 같은 표식이라 한쪽만 바꾸면 스크립트가 「정리됨」이라 여긴 것이 화면에서 사라진다.** 무엇을 먼저 정리할지는 `scripts/lib/research_priority.py` 가 고른다(`--priority`).
+- [`lib/`] **증권사 리포트 목록에 본문(`summary`)을 싣지 말 것** — 정리본이 편당 3,000~8,000자라 144편을 담으면 캐시·payload 가 1MB 를 넘는다(ISR Write). 목록은 생성컬럼 `summary_excerpt`(앞 800자)만 쓰고 본문은 상세에서만 읽는다. 요약 규칙 정본은 **이 레포가 아니라 agents 의 `summarizeReportPrompt.ts`**(결정 11) — 분량·섹션·그림 규칙을 여기 베껴 적지 말 것.
+- [`lib/`] **증권사 리포트 목록은 새 규격 정리본만 보여 준다**(사용자 선택 2026-08-25). 판정은 본문이 `>` 인용 블록으로 시작하는지(`CURATED_PREFIX`)이고, **파이썬 `is_current_format` 과 같은 표식이라 한쪽만 바꾸면 스크립트가 「정리됨」이라 여긴 것이 화면에서 사라진다.** 무엇을 먼저 정리할지는 `scripts/lib/research_priority.py` 가 고른다(`--priority`).
 - [`lib/`] `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
 - [`scripts/`] `collect_*.py` — 외부 → DB 수집. 🔴 **fnguide 접근은 반드시 `scripts/lib/fnguide_client.py` 경유**하고 계약 파손은 `scripts/verify_fnguide.py`로 먼저 확인(주 1회 GHA). **Stellantis 북미 출하는 수집기 2개**(IR 이 primary · EDGAR 이 보완·백필, 사용자 지시 2026-07-16). 개별 수집기 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** · `docs/oem-collection.md` · [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md).
 - [`scripts/`] **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
