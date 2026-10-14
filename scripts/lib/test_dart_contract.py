@@ -10,7 +10,8 @@
 import json
 
 from dart_eval.fetch_contracts import (
-    NEVER_FETCHED, UNKNOWN, n_missing, page_name, page_urls, renumber, sort_pages,
+    NEVER_FETCHED, UNKNOWN, deal_amount_eok, is_low_value, n_missing, page_name, page_urls,
+    rank_pool, renumber, sort_pages,
 )
 
 
@@ -251,3 +252,36 @@ def test_renumber_does_not_overwrite_measured_n_expected(tmp_path):
     assert out["n_expected"] == 5
     assert "n_expected_source" not in out
     assert [x["page"] for x in out["missing"]] == [2]
+
+
+# ── 가치 순 정렬·낮은 가치 제외 (2026-10-14 사용자 결정) ──────────────────────
+
+def _row(rcp, *, ev=None, amt=None, dt="20240101", deal=None):
+    return {"rcp": rcp, "eval_yn": ev, "dt": dt, "deal_key": deal or rcp,
+            "deal_amount_raw": f"취득금액={amt:,}" if amt is not None else None}
+
+
+def test_deal_amount_eok_parses_raw():
+    assert deal_amount_eok(_row("a", amt=25_000_000_000)) == 250
+    assert deal_amount_eok(_row("a")) == 0
+
+
+def test_is_low_value_both_directions():
+    noted = {"n"}
+    assert is_low_value(_row("x", amt=5_000_000_000), noted)            # 평가 없음·50억
+    assert not is_low_value(_row("x", ev="예", amt=1), noted)           # 외부평가 있음
+    assert not is_low_value(_row("x", amt=10_000_000_000), noted)       # 정확히 100억
+    assert not is_low_value(_row("x", amt=1, deal="n"), noted)          # 딜 노트 있음
+
+
+def test_rank_pool_orders_note_eval_amount_recency():
+    noted = {"n"}
+    rows = [
+        _row("old_small", amt=20_000_000_000, dt="20220101"),
+        _row("new_small", amt=20_000_000_000, dt="20260101"),
+        _row("big", amt=900_000_000_000),
+        _row("eval", ev="예", amt=1),
+        _row("note", amt=1, deal="n"),
+    ]
+    assert [r["rcp"] for r in rank_pool(rows, noted)] == [
+        "note", "eval", "big", "new_small", "old_small"]

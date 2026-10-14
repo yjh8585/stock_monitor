@@ -76,6 +76,46 @@ S.headers.update({
     "Referer": "https://dart.fss.or.kr/",
 })
 
+# 딜 노트를 이미 쓴 접수번호 목록(agents 레포). 노트가 있는 딜의 계약서는 노트에 바로 근거가 붙는다.
+ASSIGNED = LEDGER.parent / "ma-deal-note-assigned.json"
+# 🔴 가치 순·낮은 가치 제외(2026-10-14 사용자 결정 — 「필요없는 것은 지우라 · 하드 용량도 부족」).
+#    대장 순서(= 오래된 공시부터)로 주 5건씩 받으면 남은 321건에 64주가 걸리고 최근 딜이 뒤로 밀렸다.
+#    낮은 가치 = 외부평가 없음 + 거래금액 100억 미만 + 딜 노트 없음(실측 321건 중 124건).
+LOW_AMOUNT_EOK = 100
+AMOUNT_RE = re.compile(r"=([\d,]+)")
+
+
+def deal_amount_eok(row: dict) -> float:
+    """`deal_amount_raw`(예: `취득금액=9,500,000,000`)를 억원으로. 없으면 0."""
+    m = AMOUNT_RE.search(row.get("deal_amount_raw") or "")
+    return int(m.group(1).replace(",", "")) / 1e8 if m else 0
+
+
+def _noted(row: dict, noted_deals: set) -> bool:
+    return row.get("deal_key") in noted_deals or row["rcp"] in noted_deals
+
+
+def is_low_value(row: dict, noted_deals: set) -> bool:
+    """받지 않을 계약서인가 — 외부평가도 딜 노트도 없고 금액이 100억 미만."""
+    return (not _noted(row, noted_deals) and row.get("eval_yn") != "예"
+            and deal_amount_eok(row) < LOW_AMOUNT_EOK)
+
+
+def rank_pool(pool: list[dict], noted_deals: set) -> list[dict]:
+    """딜 노트 있음 → 외부평가 있음 → 거래금액 큰 순 → 최신 공시 순."""
+    return sorted(pool, key=lambda r: (_noted(r, noted_deals), r.get("eval_yn") == "예",
+                                       deal_amount_eok(r), r.get("dt") or ""), reverse=True)
+
+
+def load_noted_deals(rows: list[dict]) -> set:
+    """딜 노트가 있는 딜 — 배정 대장의 접수번호와, 같은 딜(`deal_key`)의 정정본까지."""
+    try:
+        assigned = set(json.loads(ASSIGNED.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return set()
+    return assigned | {r.get("deal_key") for r in rows if r["rcp"] in assigned}
+
+
 # 첨부 이름이 계약서인지 판정한다. `probe_attachments.KINDS` 의 「계약서」 갈래와 같은 어휘.
 CONTRACT_RE = re.compile(r"계약서|양수도계약|합병계약|주주간|출자계약|약정서")
 
@@ -493,6 +533,11 @@ def main() -> int:
         if before != len(pool):
             print(f"「계약서 첨부 없음」으로 이미 확인된 {before - len(pool)}건은 건너뛴다 "
                   f"(기록 = {NO_ATT.name})")
+    if not args.rcp:
+        noted = load_noted_deals(rows)
+        before = len(pool)
+        pool = rank_pool([r for r in pool if not is_low_value(r, noted)], noted)
+        print(f"낮은 가치(외부평가·딜 노트 없음·{LOW_AMOUNT_EOK}억 미만) {before - len(pool)}건은 받지 않는다")
     print(f"대장 {ledger_path.name} {len(rows)}행 · 최신본 후보 {len(pool)}건 · 간격 {GAP}초")
     print(f"출력: {OUT_DIR}\n")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
