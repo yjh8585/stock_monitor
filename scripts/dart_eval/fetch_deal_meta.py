@@ -18,6 +18,11 @@
   python -X utf8 fetch_deal_meta.py            # 88건 수집 → agents/docs/data/ma-deal-meta.json
   python -X utf8 fetch_deal_meta.py --summary  # 수집 결과 요약만 다시 본다
 """
+
+# 🔴 2026-10-14 agents 레포로 이관됨 — agents/scripts/dart_eval/fetch_deal_meta.py 를 쓴다.
+#    두 벌이 다시 갈리지 않게 여기서 직접 실행하면 멈춘다(삭제는 사용자 승인 뒤).
+if __name__ == "__main__":
+    raise SystemExit("agents 레포로 이관됨(2026-10-14) — agents 레포에서: python -X utf8 -u scripts/dart_eval/fetch_deal_meta.py")
 import argparse
 import io
 import json

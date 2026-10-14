@@ -1,5 +1,7 @@
 # dart_eval — DART 외부기관평가의견서 수집 (정찰 단계)
 
+> 🔴 **2026-10-14 agents 레포(`agents/scripts/dart_eval/`)로 이관됨** — `scan_all`·`fetch_opinion`·`fetch_contracts`·`restore_contract_pages`·`recompute_deals`·`scan_mergers`·`recon_merger`·`fetch_deal_meta`. 여기 남은 사본은 직접 실행하면 멈춘다(두 벌이 갈리지 않게). 고칠 것은 agents 쪽에서 고친다. 삭제는 사용자 승인 뒤.
+
 M&A 지식위키 보강용. **설계·결정 정본은 agents 레포**에 있다:
 `agents/docs/superpowers/specs/2026-08-25-ma-knowledge-wiki.md` 하단 「확장 갈래 — DART 외부기관평가의견서 수집」
 

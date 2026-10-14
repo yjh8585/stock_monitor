@@ -39,6 +39,11 @@ README 「반드시 지킬 것」 1(정정공시는 원공시 rcpNo 로 연다)�
         scripts/dart_eval/restore_contract_pages.py --plan plan.json --dry-run
 """
 
+# 🔴 2026-10-14 agents 레포로 이관됨 — agents/scripts/dart_eval/restore_contract_pages.py 를 쓴다.
+#    두 벌이 다시 갈리지 않게 여기서 직접 실행하면 멈춘다(삭제는 사용자 승인 뒤).
+if __name__ == "__main__":
+    raise SystemExit("agents 레포로 이관됨(2026-10-14) — agents 레포에서: python -X utf8 -u scripts/dart_eval/restore_contract_pages.py")
+
 import argparse
 import json
 import sys

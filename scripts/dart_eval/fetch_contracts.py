@@ -31,6 +31,11 @@ Step 1 실측 (2026-08-28 · 산돌→윤디자인 20240531002991 dcmNo=9974759)
     ... --renumber    이미 받은 폴더의 파일명·순서만 다시 매긴다(네트워크 0회)
 """
 
+# 🔴 2026-10-14 agents 레포로 이관됨 — agents/scripts/dart_eval/fetch_contracts.py 를 쓴다.
+#    두 벌이 다시 갈리지 않게 여기서 직접 실행하면 멈춘다(삭제는 사용자 승인 뒤).
+if __name__ == "__main__":
+    raise SystemExit("agents 레포로 이관됨(2026-10-14) — agents 레포에서: python -X utf8 -u scripts/dart_eval/fetch_contracts.py")
+
 import argparse
 import datetime as _dt
 import json

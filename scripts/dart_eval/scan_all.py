@@ -24,6 +24,11 @@ DB를 쓰지 않는다(조회 전용 · 산출은 JSON 파일). 따라서 `Write
   scan_all_raw.jsonl                          건별 파싱 결과(중단돼도 이어서 돌린다)
   agents/docs/data/ma-valuation-params.json   🔴 파라미터 대장(계획서가 지정한 산출물)
 """
+
+# 🔴 2026-10-14 agents 레포로 이관됨 — agents/scripts/dart_eval/scan_all.py 를 쓴다.
+#    두 벌이 다시 갈리지 않게 여기서 직접 실행하면 멈춘다(삭제는 사용자 승인 뒤).
+if __name__ == "__main__":
+    raise SystemExit("agents 레포로 이관됨(2026-10-14) — agents 레포에서: python -X utf8 -u scripts/dart_eval/scan_all.py")
 import argparse
 import io
 import json
