@@ -16,6 +16,7 @@ import {
   estimateCountryMonth,
   lastCompleteMonth,
   lastCompleteQuarter,
+  lastCompleteRetailMonth,
   monthFromIndex,
   monthIndex,
   monthLabel,
@@ -236,6 +237,24 @@ describe('lastCompleteMonth — 생산·소매의 지연 국가가 서로 다르
     expect(lastCompleteMonth([], [])).toBeNull();
     expect(lastCompleteMonth(fillNaProduction([202605]), [])).toBeNull();
     expect(lastCompleteMonth([], fillNa([202605]))).toBeNull();
+  });
+});
+
+describe('lastCompleteRetailMonth — 소매 KPI 는 생산 도착을 기다리지 않는다', () => {
+  it('생산이 8월에 멈춰도 소매가 9월까지 다 차면 9월 (2026-10-14 실측 구성)', () => {
+    const production = [...fillNaProduction([202608]), produce('Mexico', 202609, 100)];
+    const rows = fillNa([202608, 202609]);
+    expect(lastCompleteMonth(production, rows)).toBe(202608);
+    expect(lastCompleteRetailMonth(rows)).toBe(202609);
+  });
+
+  it('소매 한 나라가 뒤처지면 그 나라 기준으로 후퇴한다', () => {
+    const rows = [...fillNa([202608]), retail('USA', 202609, 100), retail('Mexico', 202609, 100)];
+    expect(lastCompleteRetailMonth(rows)).toBe(202608);
+  });
+
+  it('빈 입력은 null', () => {
+    expect(lastCompleteRetailMonth([])).toBeNull();
   });
 });
 

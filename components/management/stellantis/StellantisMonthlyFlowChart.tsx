@@ -20,10 +20,17 @@ const Inner = dynamic(() => import('./StellantisMonthlyFlowChartInner'), {
 export default function StellantisMonthlyFlowChart({
   points,
   lastCompleteMonth,
+  lastCompleteRetailMonth,
 }: {
   points: MonthlyFlowPoint[];
   lastCompleteMonth: number | null;
+  lastCompleteRetailMonth: number | null;
 }) {
+  // 소매가 생산보다 먼저 들어온 달은 비교할 생산이 없어 이 차트에선 뺀다 — 그 사실을 밝힌다.
+  const retailAhead =
+    lastCompleteMonth !== null &&
+    lastCompleteRetailMonth !== null &&
+    lastCompleteRetailMonth > lastCompleteMonth;
   return (
     <ChartSection title="2. 월별 북미 생산 vs 소매 · 재고 증감" unit="대">
       <p className="mb-2 text-sm text-muted-foreground">
@@ -32,8 +39,15 @@ export default function StellantisMonthlyFlowChart({
         {lastCompleteMonth !== null ? (
           <>
             {' '}
-            3개국이 모두 채워진 <b>{monthLabel(lastCompleteMonth)}</b>까지만 표시합니다 —
-            MarkLines는 국가별 도착 시점이 달라 최신 월을 그대로 합산하면 소매가 과소집계됩니다.
+            생산·소매가 3개국 모두 채워진 <b>{monthLabel(lastCompleteMonth)}</b>까지만 표시합니다 —
+            MarkLines는 국가별 도착 시점이 달라 최신 월을 그대로 합산하면 과소집계됩니다.
+            {retailAhead && lastCompleteRetailMonth !== null ? (
+              <>
+                {' '}
+                소매는 <b>{monthLabel(lastCompleteRetailMonth)}</b>까지 들어왔지만 같은 달 생산이
+                아직 다 오지 않아 이 차트에서는 뺐습니다(소매 KPI·차트 1에는 반영).
+              </>
+            ) : null}
           </>
         ) : null}
       </p>

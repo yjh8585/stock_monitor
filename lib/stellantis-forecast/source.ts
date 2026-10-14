@@ -32,6 +32,7 @@ import {
   CHART_START_MONTH,
   lastCompleteMonth,
   lastCompleteQuarter,
+  lastCompleteRetailMonth,
   NA_COUNTRIES,
   quarterIndex,
   quarterLabel,
@@ -231,8 +232,11 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
   // 소매·생산이 과소집계돼 갭이 허구가 된다(aggregate.ts lastCompleteMonth 주석 참고).
   const monthCutoff = lastCompleteMonth(productionRows, retailRows);
   const quarterCutoff = lastCompleteQuarter(retailRows);
+  // 소매 KPI 는 생산과 비교하지 않으므로 소매 자체의 완성월까지 센다(사용자 지적 2026-10-14).
+  const retailMonthCutoff = lastCompleteRetailMonth(retailRows);
 
   const retailMonths = buildNaRetailMonths(retailRows, monthCutoff);
+  const retailKpiMonths = buildNaRetailMonths(retailRows, retailMonthCutoff);
   const productionMonths = buildNaProductionMonths(productionRows, monthCutoff);
   const retailQuarters = buildNaRetailQuarters(retailRows, quarterCutoff);
 
@@ -275,7 +279,7 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
     gapProjected: projected?.point ?? null,
     projectedNote: projected?.note ?? null,
     kpiMetrics: [
-      buildRetailKpi(retailMonths, kpiCap),
+      buildRetailKpi(retailKpiMonths, kpiCap),
       buildShipmentsKpi(shipments),
       buildRevenueKpi(revenue, kpiCap),
     ],
@@ -284,6 +288,7 @@ export async function getStellantisForecastData(): Promise<StellantisForecastDat
     // 둘을 합쳐 재고 국면 컨텍스트를 붙인다(최신순 정렬은 attachEventContext가 담당).
     events: attachEventContext([...PLANT_EVENTS, ...coxInventoryEvents], monthlyFlow),
     lastCompleteMonth: monthCutoff,
+    lastCompleteRetailMonth: retailMonthCutoff,
     lastCompleteQuarter: quarterCutoff,
     partialQuarterNote: partialQuarter
       ? `${quarterLabel(partialQuarter)} 출하는 스텔란티스 반기·연간 보도자료 공시 후 반영됩니다(분기 실적 발표는 Q1·H1·Q3·FY 4회만).`

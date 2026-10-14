@@ -149,6 +149,17 @@ export function lastCompleteQuarter(rows: RetailMonthRow[]): string | null {
 }
 
 /**
+ * 소매만 놓고 **3개국 모두** 채워진 마지막 월 — 소매 KPI 의 기준월.
+ *
+ * 소매 KPI 는 생산과 비교하지 않으므로 생산 도착을 기다릴 필요가 없다. 생산 지연에 묶어 두면
+ * 소매가 9월까지 다 왔는데 카드가 「1~8월」로 나와 차트 1(분기, 소매만 판정)과 어긋난다
+ * (사용자 지적 2026-10-14).
+ */
+export function lastCompleteRetailMonth(retail: RetailMonthRow[]): number | null {
+  return commonLatestMonth(retail.filter(isNaRetailRow));
+}
+
+/**
  * 생산·소매가 **3개국 모두** 채워진 마지막 월 (차트 1의 컷오프).
  *
  * 두 계열의 도착 시점이 서로 다르다(2026-07-15 실측: 생산은 USA·Canada가 202605·Mexico가 202606,
@@ -164,7 +175,7 @@ export function lastCompleteMonth(
   retail: RetailMonthRow[]
 ): number | null {
   const prodLatest = commonLatestMonth(production);
-  const retailLatest = commonLatestMonth(retail.filter(isNaRetailRow));
+  const retailLatest = lastCompleteRetailMonth(retail);
   if (prodLatest === null || retailLatest === null) return null;
   return Math.min(prodLatest, retailLatest);
 }

@@ -30,6 +30,7 @@ export default function StellantisDashboard({ data }: { data: StellantisForecast
         <StellantisMonthlyFlowChart
           points={data.monthlyFlow}
           lastCompleteMonth={data.lastCompleteMonth}
+          lastCompleteRetailMonth={data.lastCompleteRetailMonth}
         />
       </LazyMount>
     </div>

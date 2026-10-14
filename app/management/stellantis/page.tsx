@@ -73,6 +73,7 @@ function PageHeader() {
 function Footnotes({ data }: { data: StellantisForecastData }) {
   const quarterCutoff = data.lastCompleteQuarter;
   const monthCutoff = data.lastCompleteMonth;
+  const retailMonthCutoff = data.lastCompleteRetailMonth;
   return (
     <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       <h2 className="text-sm font-semibold">데이터 제약 — 숫자와 함께 읽어야 합니다</h2>
@@ -95,12 +96,12 @@ function Footnotes({ data }: { data: StellantisForecastData }) {
         </li>
         <li>
           MarkLines는 <b>국가별 도착 시점이 다릅니다</b>(소매는 캐나다가, 생산은 미국·캐나다가 늦게
-          들어옵니다). 3개국이 모두 채워진 기간
-          {monthCutoff ? ` (월별 ${monthLabel(monthCutoff)}` : ''}
-          {monthCutoff && quarterCutoff ? ' · ' : ''}
-          {quarterCutoff ? `분기 ${quarterLabel(quarterCutoff)}` : ''}
-          {monthCutoff || quarterCutoff ? ')' : ''}까지만 집계했습니다 — 부분 기간을 섞으면 소매가
+          들어옵니다). 3개국이 모두 채워진 기간까지만 집계했습니다 — 부분 기간을 섞으면 소매가
           과소집계돼 재고 축적을 과대평가하게 됩니다.
+          {retailMonthCutoff ? ` 소매 KPI ${monthLabel(retailMonthCutoff)}` : ''}
+          {quarterCutoff ? ` · 차트 1(분기) ${quarterLabel(quarterCutoff)}` : ''}
+          {monthCutoff ? ` · 차트 2(월별 생산 대비) ${monthLabel(monthCutoff)}` : ''}
+          {retailMonthCutoff || quarterCutoff || monthCutoff ? '까지.' : ''}
         </li>
         <li>
           MarkLines는 스코프가 넓어(미분류 버킷 포함) 스텔란티스 공식 발표와 <b>±0~2% 편차</b>가

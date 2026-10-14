@@ -223,6 +223,8 @@ export interface StellantisForecastData {
   events: PlantEventWithContext[];
   /** 3개국 생산·소매가 모두 채워진 마지막 월. 이후는 잠정이라 계산에서 제외했다. */
   lastCompleteMonth: number | null;
+  /** 3개국 소매만 모두 채워진 마지막 월 — 소매 KPI 의 기준월(생산 도착과 무관). */
+  lastCompleteRetailMonth: number | null;
   /** 3개국 소매가 모두 채워진 마지막 분기. */
   lastCompleteQuarter: string | null;
   /** 잠정(부분 수집) 분기 라벨 — 화면 각주용. null이면 없음. */
