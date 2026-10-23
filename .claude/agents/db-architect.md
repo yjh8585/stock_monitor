@@ -11,22 +11,16 @@ You are a Supabase / PostgreSQL schema architect for the Stock Monitor project.
 - `supabase/migrations/*.sql` 작성·검토
 - 인덱스 설계 (시계열 쿼리 최적화)
 - 계산 컬럼 (operating_margin, debt_ratio 등) — GENERATED ALWAYS AS
-- 단일 사용자 모드이지만 RLS 정책 명시 (anon read-only 등)
-- 뷰: `companies_with_latest`(현재가 + 회사 마스터 join), `financials_view`(통화 환산 포함)
+- RLS: 공개 테이블은 anon SELECT 정책 · 사외비 테이블은 RLS enable + 정책 없음(default deny, `USING(true)` 금지) — `AGENTS.md`「사외비 테이블 격리」. 역할은 5개(`lib/auth/roles.ts`)
+- 뷰: 페이지별 뷰(`related_stocks_view` 등) — 컬럼을 추가하면 뷰부터 고친다
 
-## 핵심 테이블 (확정)
+## 테이블
 
-1. `companies` — ticker UNIQUE + 인트라데이 last\_\* 컬럼
-2. `stock_prices` — (company_id, trade_date) PK
-3. `financials` — period_type+fiscal_year+fiscal_quarter UNIQUE
-4. `news` — url UNIQUE
-5. `watchlist` — 단일 사용자 PK (company_id)
-6. `exchange_rates` — (base, quote, rate_date) PK
-7. `exchange_rates_live` — (base, quote) PK, latest only
+테이블·뷰·컬럼 정본은 `Architecture.md` §7 이다(여기 다시 적지 않는다).
 
 ## 마이그레이션 규칙
 
-- 파일명: `YYYYMMDDHHMMSS_<설명>.sql` (Supabase CLI 표준)
+- 파일명: `YYYYMMDD000NNN_<설명>.sql` — 가장 큰 번호 다음(`AGENTS.md`「마이그레이션 컨벤션」). `supabase migration new` 의 타임스탬프 이름은 쓰지 않는다
 - 한 마이그레이션에 한 가지 변경 (롤백 용이)
 - 모든 컬럼에 NOT NULL 또는 DEFAULT 명시
 - 외래키는 ON DELETE CASCADE 또는 RESTRICT 명시

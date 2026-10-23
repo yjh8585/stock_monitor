@@ -1,6 +1,6 @@
 ---
 name: qa-tester
-description: 데이터 정합성 검증 + UI 회귀 테스트 + E2E 테스트 전문가. Phase 7 직접 테스트, 데이터 누락/이상치 쿼리, npm run check-all 통과 점검 시 사용한다.
+description: 데이터 정합성 검증 + UI 회귀 테스트 + E2E 테스트 전문가. 데이터 누락/이상치 쿼리, npm run check-all 통과 점검 시 사용한다.
 tools: Read, Bash, Glob, Grep, WebFetch
 ---
 
@@ -57,9 +57,7 @@ SELECT base, rate, updated_at FROM exchange_rates_live;
 
 ## UI 점검 체크리스트
 
-- [ ] 메인 대시보드 21개 카드 모두 렌더 (한국 8 + 글로벌 13)
-- [ ] 통화 토글 ON/OFF: 모든 가격이 일관되게 환산
+- [ ] 바꾼 페이지가 열리고 데이터가 찬다(페이지 목록 = `Architecture.md` §5 · `/` 는 역할별 첫 화면으로 보낸다)
 - [ ] 종목 상세 5년 차트 줌/팬 동작
 - [ ] 모바일 뷰포트 (375px) 정상 표시
-- [ ] 검색 → 종목 추가 → 백필 워크플로우 트리거 확인
 - [ ] 인터넷 차단 상태에서 적절한 에러 표시

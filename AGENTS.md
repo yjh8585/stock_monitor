@@ -29,7 +29,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 > AGENTS.md는 "이 약속을 지켜라"만 다룬다. 구조 설명이 길어지면 Architecture.md로 옮기고 여기선 참조한다.
 >
-> 🔴 **새로 배운 함정은 AGENTS.md 본문이 아니라 `docs/gotchas-*.md`에 적는다.** 여기 쌓으면 매 세션 자동 로드 분량이 다시 불어난다(경위·실측 수치 = `scripts/verify_docs.py` docstring). 트리거가 새로우면 위 목록에 **한 줄만** 추가한다.
+> **새로 배운 함정은 AGENTS.md 본문이 아니라 `docs/gotchas-*.md`에 적는다.** 여기 쌓으면 매 세션 자동 로드 분량이 다시 불어난다(경위·실측 수치 = `scripts/verify_docs.py` docstring). 트리거가 새로우면 위 목록에 **한 줄만** 추가한다.
 >
 > ⚠️ **표 셀에 긴 서술을 넣지 말 것** — prettier가 가장 긴 셀에 맞춰 모든 행을 패딩해 정렬 공백이 폭증한다. 긴 내용은 표 아래 `#### 상세` 블록으로 빼고 표에는 한 줄 요약만 남긴다.
 
@@ -53,7 +53,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 **명령 목록·실행 절차 정본 = [`docs/commands.md`](./docs/commands.md)** — "무슨 명령이었지" 싶으면 거기부터.
 
 어기면 조용히 깨지는 것만 여기 남긴다.
-🔴 **아래 `verify_*` 는 전부 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다.
+**아래 `verify_*` 는 전부 exit 0 이 정상이다** — 위반이 나오면 그것이 회귀다.
 
 - **`verify_revalidate_tags.py`** — **새 캐시 태그는 세 곳을 함께** 고친다: `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS`의 **원천 테이블 매핑**(빠뜨리면 그 화면이 영원히 낡는다 → [`Architecture.md §9`](./Architecture.md)).
 - **`verify_report_sort_wiring.py`** — `PostList` 를 쓰는 새 화면은 정렬 `searchParams`(`sort`·`order`)를 **반드시 받아 넘긴다**(박으면 링크만 생기고 목록은 안 바뀐다 · 2026-09-11 실사고).
@@ -64,25 +64,25 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **`verify_research_company_link.py`** — 휴머노이드에 회사를 **추가한 뒤** 돌린다. 나중에 넣은 회사의 리포트는 연결이 끊기고 **재수집으로 안 고쳐진다**(`--fix`).
 - **훅 검사기는 「활성 N개」가 아니라 「실패 N건」을 보라** — 배선이 끊겨도 활성 수는 멀쩡히 나온다 → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §9.
 - **유튜브·PDF 보고서 게시 전 검사 2종**(명령·순서 = [`docs/report-from-youtube.md`](./docs/report-from-youtube.md)) — 안 돌리면 훅이 게시를 막는다
-- 🔴 **`pnpm run dev` 금지**(`npm run dev`) — 뜨지도 않고 포트는 3001+ → [`gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §6-A.
+- **`pnpm run dev` 금지**(`npm run dev`) — 뜨지도 않고 포트는 3001+ → [`gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §6-A.
 
 ## 폴더별 약속 (구조 설명 원문 = [`Architecture.md 부록 C`](./Architecture.md))
 
 > **어기면 조용히 깨지는 것만** 여기 남긴다. 폴더가 무엇을 맡는지 · 라우트 목록 · 모듈 구성은
-> [`Architecture.md 부록 C`](./Architecture.md)(이관 2026-08-25 · 20,029B). "이 파일 어디 있지"는 거기부터.
+> [`Architecture.md 부록 C`](./Architecture.md). "이 파일 어디 있지"는 거기부터.
 
 - [`app/`] 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `lib/oem-competition/signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
 - [`app/`] **로봇 카테고리 글은 `/humanoid` 전용**(사용자 지시 2026-09-11) — 게시판 `/reports` 목록·필터에서 감춘다. 카테고리 문자열·제목 판정 SSOT 는 **`lib/reports/robot.ts`**(페이지마다 다시 박지 말 것) · 제외는 `excludeCategory` (**`.neq()` 단독 금지** — `NULL <> '로봇'` 이 참이 아니라 카테고리 빈 글까지 지운다) · 새 글은 `isRobotTitle()` 이 LLM 분류를 건너뛰고 고정한다(안 그러면 조용히 새어 휴머노이드에 영영 안 뜬다). 목록·상세 컴포넌트의 `basePath` 를 하드코딩하지 말 것.
 - [`app/`] Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
-- [`app/`] **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
-- [`app/`] 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`). 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
-- [`app/`] 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. 🔴 **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(2026-08-12 기준 12종 — 여기 다시 나열하지 말 것. 문서에 베껴 적었더니 9종·5종으로 갈려 있었다).
+- [`app/`] **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다. `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
+- [`app/`] 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`).
+- [`app/`] 사외비 테이블은 **반드시 `confidentialDb.from(...)`로 조회**. **명단 정본은 `lib/supabase/confidential.ts`의 `CONFIDENTIAL_TABLES`**(여기 다시 나열하지 말 것 — 사본은 갈린다).
 - [`app/`] **공개는 `api/cron/*`·`api/revalidate*` 뿐이고 나머지는 세션 필수.** 새 `route.ts` 를 만들면 `proxy.ts` 의 `PUBLIC_PATH_PREFIXES` 와 [`Architecture.md §5`](./Architecture.md) 의 라우트 목록을 **함께** 갱신한다(목록 정본은 Architecture — 여기 중복하지 않는다. 두 곳에 두면 갈린다).
 - [`app/`] 🔴 **세션 통과 ≠ 권한** — `canAccess` 는 `/api/*` 에 `return true` 다. mutating 라우트는 핸들러 첫 줄에서 역할 판정 → **403 JSON**, 화면·버튼도 같이. 판정 함수는 `lib/auth/permissions.ts`(`canPublishReports` = 게시 · `canUseChat` = 챗봇, guest 제외). **명단이 겹쳐도 의미가 다르면 함수를 따로 둔다** → [`gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
 - [`components/`] `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - [`components/`] **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - [`lib/`] 공용 유틸·React 훅 목록 → [`Architecture.md §6`](./Architecture.md). **표 행 클릭 강조는 `useRowHighlight` 훅을 재사용**(인라인 재구현 금지 — `ROW_HIGHLIGHT_CLASS`+aria/Enter·Space. sticky 셀은 행 bg를 명시적으로 덮어야 따라온다)
-- [`lib/`] `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
+- [`lib/`] `lib/supabase/` — 클라이언트 4종(`client`·`anon`·`admin`·`confidential`) **혼용 금지** — 각각의 쓰임 = [`Architecture.md 부록 C`](./Architecture.md)
 - [`lib/`] 🔴 **연도를 코드에 박지 말 것** — 단일 출처는 `lib/currentYear.ts` 의 `currentYear()`(서울 달력 연도). 자리마다 규칙이 다르고 섞으면 값이 어긋난다: **데이터에서 파생**(적재가 화면보다 늦는 표 — `lib/pnl/periodColumns.ts`) · **`currentYear()`**(라벨 상한·YTD 판정) · **`currentYear()-1`**(`lib/oem/aggregate.ts` 의 `targetYear()`, 연 사전집계 뷰). 🔴 **`const X = currentYear()` 를 모듈 최상단에 두지 말 것**(평가 시점에 굳어 해가 바뀌어도 안 따라온다) · `new Date().getFullYear()` 금지(Vercel UTC 라 연초 9시간 밀림) · **화면 라벨과 데이터를 따로 옮기지 말 것**(반쪽 전환이 하드코딩보다 나쁘다).
 - [`lib/`] **`.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md). 🔴 조건은 「있다」가 아니라 **「유일하다」** — 키는 **PK 전체**로.
 - [`lib/`] `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT. 🔴 **역할을 추가하면 `roles.ts`·`users.ts`·`permissions.ts` 3곳을 모두 갱신**해야 한다(빠뜨리면 세션 거부 → `/login` 무한 리다이렉트). 계정 env 키·랜딩 redirect 주의 → [`Architecture.md 부록 B-2`](./Architecture.md). 새 라우트 권한은 `permissions.ts`.
@@ -118,7 +118,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 > DB 스키마 상세(테이블·뷰 컬럼/인덱스/트리거)는 [`Architecture.md §7`](./Architecture.md#7-데이터-모델-db-스키마-상세) 참고. 본 섹션은 _지켜야 할 약속·정책_ 만.
 
-**마이그레이션 컨벤션**: `supabase/migrations/YYYYMMDD000NNN_*.sql` 시간 정렬. 기존 파일 수정 금지, 신규는 가장 큰 번호 다음.
+**마이그레이션 컨벤션**: `supabase/migrations/YYYYMMDD000NNN_*.sql` 시간 정렬(`supabase migration new` 의 타임스탬프 이름 대신). 기존 파일 수정 금지, 신규는 가장 큰 번호 다음.
 
 **데이터 정책**
 
@@ -161,7 +161,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## PowerShell 환경 메모
 
 - 셸은 PowerShell 5.1. `&&` 미지원 → `;` 또는 `if ($?) { ... }`.
-- 기본 인코딩 UTF-16 LE BOM. 🔴 `-Encoding utf8` 은 PS 5.1 에서 **BOM 을 붙인다** — 파일은 Write 도구나 `[IO.File]::WriteAllText($p, $s, [Text.UTF8Encoding]::new($false))`.
+- 기본 인코딩 UTF-16 LE BOM. `-Encoding utf8` 은 PS 5.1 에서 **BOM 을 붙인다** — 파일은 Write 도구나 `[IO.File]::WriteAllText($p, $s, [Text.UTF8Encoding]::new($false))`.
 - **백업 봇 push 거부·Codex CLI stdin·`grep -a`·`PYTHONIOENCODING`** → [`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md) §4.
 - **Playwright·UI 검증 함정**(dev 서버 재기동·검증 산출물 위치·로그인 404 진단·보호 라우트 검증·recharts headless/portal·사외비 차트) → **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md) 정독**. UI를 브라우저로 검증하기 전에 반드시 읽을 것.
 
