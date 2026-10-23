@@ -318,3 +318,11 @@ alter function public.<이름>() set search_path = public, pg_temp;
 
 🔴 **검사기를 설명하면서 검사 대상을 만들지 말 것.** 첫 판 docstring 예시에 진짜 아이디를
 적었고, 과거 기록 정리 때 그 줄이 함께 치환되면서 드러났다. 예시는 늘 가짜 값으로 적는다.
+
+## 12. 문서만 바꿔도 `check-all` 이 깨진다 — `format:check` 는 `*.md` 까지 본다 (2026-10-23)
+
+HANDOFF 만 바꾸고 `check-all` 을 건너뛴 커밋이 다음 세션의 format 단계를 멈췄다. 공백만 다른 남의 실패(경위 문서 들여쓰기 · `97db338`)를 「무관」으로 두는 사이 열하루 동안 타입검사·시험이 안 돌았다.
+
+- 바꾼 `.md` 는 `node node_modules/prettier/bin/prettier.cjs --check <파일>` 로 확인한다(`npx` 는 2분을 넘긴다).
+- 「**라벨**:」 다음 줄에 목록을 붙이지 말고 빈 줄을 둔다.
+- 공백만 다른 남의 서식 실패는 따로 커밋해 고친다(`2281d08`).
