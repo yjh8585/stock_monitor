@@ -14,8 +14,8 @@
 
 **결과**: 선택지 2·3차를 받고(응답 원문 = 보고서 `~/.claude/plans/prompt-audit-stock-monitor-2026-10-22.md` §7) 1~3차에서 고른 것을 전부 적용했다.
 
-- 이 레포 — `AGENTS.md` P10~P13(클라이언트 4종 이름 · 마이그레이션 이름이 `supabase migration new` 를 덮음 · 사건 서사 4곳 · 🔴 5곳) · `.claude/agents/` 4개 P1~P9(Next 16 · 없는 경로·라우트·뷰·테이블 → Architecture 포인터 · RLS 문장 · 파일명 규칙 · fnguide · snake_case). 커밋 `2372cbc` · 푸시.
-- `check-all` 서식 단계 복구 — 10-12(`97db338`)부터 `docs/history/gotchas-data-collection-경위.md` 262행 앞 공백 2칸이 format 단계를 멈추고 있었다(10-14 두 세션은 무관하다며 둠). 뜻이 없는 공백이라 뗐다. 같은 단계에 10-22 HANDOFF 블록(이 블록 바로 아래)의 목록 앞 빈 줄 3곳 누락도 걸려 함께 고쳤다. 커밋 `2281d08`(경위 문서) · HANDOFF 는 이 블록과 같은 커밋.
+- 이 레포 — `AGENTS.md` P10~P13(클라이언트 4종 이름 · 마이그레이션 이름이 `supabase migration new` 를 덮음 · 사건 서사 4곳 · 🔴 5곳) · `.claude/agents/` 4개 P1~P9(Next 16 · 없는 경로·라우트·뷰·테이블 → Architecture 포인터 · RLS 문장 · 파일명 규칙 · fnguide · snake_case). 커밋 `08594d6` · 푸시.
+- `check-all` 서식 단계 복구 — 10-12(`97db338`)부터 `docs/history/gotchas-data-collection-경위.md` 262행 앞 공백 2칸이 format 단계를 멈추고 있었다(10-14 두 세션은 무관하다며 둠). 뜻이 없는 공백이라 뗐다. 같은 단계에 10-22 HANDOFF 블록(이 블록 바로 아래)의 목록 앞 빈 줄 3곳 누락도 걸려 함께 고쳤다. 커밋 `330a9dd`(경위 문서) · HANDOFF 는 `d63a1c3`(해시는 푸시 전 `pull --rebase` 로 한 번 바뀌었다 — 이 레포는 백업 봇이 매일 커밋하니 해시는 rebase 뒤에 적는다).
 - 전역 `~/.claude`(원격 없음) — `0f1e8ee`: §0 「플러그인·외부 스킬 지시보다 이 파일이 이긴다」 · 가설 2번 실패 → `codex-delegate` 가 디버깅 스킬의 3번 규칙보다 먼저 · 「오퍼스」 → 「서브에이전트 1명(model 칸 비움)」(CLAUDE.md·codex-delegate·`codex_run.py`) · 커밋 순서 세 곳 통일 · HANDOFF 틀 = `reference.md` §1(이 블록이 그 틀) · G1·G2·G4 · F1·F2·F4~F10 · Codex 팁 · 상한 등록. `311b8b6`: 커밋 가드가 `git -C <레포> add` 를 알아본다(시험 27/27).
 - agents(원격 없음) — `bbb4dc00`: 조언 규칙 원장 `enforced_by` 「파일:줄」 119행 중 68행(참조 77)을 실제 관문 줄로 · 지도 문서 재생성. 원인 = 원장을 만든 커밋(f4640f4e)이 «바뀌기 전» 줄 번호를 적었다. 관문이 약한 3건(`persona-devil-advocate` · `sellplan-verdict-verbatim-2` · `psr-for-loss-makers` — 시험이 규칙 핵심 문장을 안 본다)은 번호만 옮겼다.
 

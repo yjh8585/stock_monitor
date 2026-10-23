@@ -325,4 +325,4 @@ HANDOFF 만 바꾸고 `check-all` 을 건너뛴 커밋이 다음 세션의 forma
 
 - 바꾼 `.md` 는 `node node_modules/prettier/bin/prettier.cjs --check <파일>` 로 확인한다(`npx` 는 2분을 넘긴다).
 - 「**라벨**:」 다음 줄에 목록을 붙이지 말고 빈 줄을 둔다.
-- 공백만 다른 남의 서식 실패는 따로 커밋해 고친다(`2281d08`).
+- 공백만 다른 남의 서식 실패는 따로 커밋해 고친다(`330a9dd`).
