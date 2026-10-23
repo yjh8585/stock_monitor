@@ -18,23 +18,27 @@
 - `check-all` 서식 단계 복구 — 10-12(`97db338`)부터 `docs/history/gotchas-data-collection-경위.md` 262행 앞 공백 2칸이 format 단계를 멈추고 있었다(10-14 두 세션은 무관하다며 둠). 뜻이 없는 공백이라 뗐다. 같은 단계에 10-22 HANDOFF 블록(이 블록 바로 아래)의 목록 앞 빈 줄 3곳 누락도 걸려 함께 고쳤다. 커밋 `330a9dd`(경위 문서) · HANDOFF 는 `d63a1c3`(해시는 푸시 전 `pull --rebase` 로 한 번 바뀌었다 — 이 레포는 백업 봇이 매일 커밋하니 해시는 rebase 뒤에 적는다).
 - 전역 `~/.claude`(원격 없음) — `0f1e8ee`: §0 「플러그인·외부 스킬 지시보다 이 파일이 이긴다」 · 가설 2번 실패 → `codex-delegate` 가 디버깅 스킬의 3번 규칙보다 먼저 · 「오퍼스」 → 「서브에이전트 1명(model 칸 비움)」(CLAUDE.md·codex-delegate·`codex_run.py`) · 커밋 순서 세 곳 통일 · HANDOFF 틀 = `reference.md` §1(이 블록이 그 틀) · G1·G2·G4 · F1·F2·F4~F10 · Codex 팁 · 상한 등록. `311b8b6`: 커밋 가드가 `git -C <레포> add` 를 알아본다(시험 27/27).
 - agents(원격 없음) — `bbb4dc00`: 조언 규칙 원장 `enforced_by` 「파일:줄」 119행 중 68행(참조 77)을 실제 관문 줄로 · 지도 문서 재생성. 원인 = 원장을 만든 커밋(f4640f4e)이 «바뀌기 전» 줄 번호를 적었다. 관문이 약한 3건(`persona-devil-advocate` · `sellplan-verdict-verbatim-2` · `psr-for-loss-makers` — 시험이 규칙 핵심 문장을 안 본다)은 번호만 옮겼다.
+- wrap-up(같은 날 저녁) — Codex diff 검토(커밋 가드 3커밋 · diff 점검 목록 1회차)가 지적 8건을 냈고, 임시 레포에서 실제 git 으로 재현해 남의 파일이 커밋되던 셋(`..` 경로 · add·commit 레포 불일치 · 한 명령 여러 레포 커밋)을 고쳤다(`~/.claude` `21fe261` · 새 검사 E). 차단 안내문은 `--only -- <경로>` 를 권한다(`5648aba`). `revise-claude-md` 로 승인받은 두 줄 = `AGENTS.md` 트리거 구절 · 함정 §4 rebase 해시(이 레포 `e3a42b4`).
 
 **사용자 결정**: 2차 = 질문 넷 모두 추천안(+ F6~F8) · G1 은 훅 패턴이 아니라 문장만 고침(차단을 느슨하게 하지 않는 쪽) · 3차 = 할 일 넷 전부 · 커밋은 레포·주제별로 나누고 원격 있는 이 레포만 푸시.
 
 **비자명한 사실 (재조사 금지)**:
 
 - 커밋 순서(세 곳 공통) = `git add <경로>` → `git diff --cached -- <경로>` 로 hunk 읽기 → `git add <경로> && git commit --only -F <파일> -- <경로>` 한 명령. 이제 `git -C "<레포>"` 형태도 가드를 통과한다(이번 `~/.claude` 커밋 둘이 첫 실사용).
-- 커밋 가드 검사 B 는 커밋이 `--` 뒤에 «그 명령이 add 한 경로»만 적으면 남의 스테이지가 있어도 막지 않는다(`6ad4b3d` · 시험 35/35 · `-i`·`-a`·`-p` · `-- .` · `--` 없이 붙인 경로는 그대로 막는다). `-C "$A"` 처럼 셸 변수 경로면 스테이지를 못 읽어 fail open — `~/.claude/docs/history/gotchas-경위.md` §13-C 「남은 것」.
+- 커밋 가드 — B 는 커밋이 `--` 뒤에 «그 명령이 add 한 경로»만 적으면 남의 스테이지가 있어도 막지 않는다(`6ad4b3d` · `-i`·`-a`·`-p` · `.`·`..` 경로 · `--` 없이 붙인 경로는 그대로 막는다) · 커밋과 다른 폴더(`-C`·`cd`)에서 한 add 는 세지 않는다(A) · 한 명령에 레포 둘 이상 커밋은 막는다(E · `21fe261` · 시험 46/46). `-C "$A"` 처럼 셸 변수 경로면 스테이지를 못 읽어 fail open — `~/.claude/docs/history/gotchas-경위.md` §13-C 「남은 것」.
 - HANDOFF 블록에서 「**라벨**:」 바로 다음 줄에 목록을 붙이면 prettier 가 빈 줄을 요구해 `check-all` 이 format 단계에서 멈춘다 — 라벨과 목록 사이에 빈 줄.
 - `~/.claude` 상한 초과 6건(gotchas·playbook·reference·user-profile·report-review-panel·weekly-review)은 다른 세션 증가분이다. 이번 수정이 weekly-review 에 +80B 를 더했고, report-review-panel 은 F1(+15B)·F17(−295B)을 합쳐 9,756 → 9,476B 로 줄었다(초과 515B 남음). 정리는 주간 정리 ⑧ 몫(사용자 선택).
 - 선택지를 띄우기 직전엔 고칠 파일의 `git status`·최근 커밋을 본다 — 다른 세션이 진행 중인 일을 두 번 선택지로 냈다(10-22 gstack · 10-23 agents 관문 시험 3개 · 교정 원장 기록).
 
-**재개 지점**: ~~남은 것은 수정안 없는 flag 뿐 — 보고서 「사용자가 정할 것」 가 · C절 F13~F18~~ → ✅ 4차 선택지로 정리(2026-10-23): superpowers ↔ 전역 = 그대로(§0 한 줄로 충분) · F13·F16·F17 적용(`~/.claude` `50db5f2`) · F14·F15·F18 유지 · 커밋 가드 B(`6ad4b3d`) · agents 메모리 색인 두 세션 줄 함께 커밋(`fc4628f`) · agents 관문 시험 3개는 다른 세션이 진행 중. **감사 2차에 남은 일 없음.** 다음 감사 = 다음 모델 출시 때(`~/.claude/docs/prompt-audit-workflow.md`).
+**재개 지점**: ~~남은 것은 수정안 없는 flag 뿐 — 보고서 「사용자가 정할 것」 가 · C절 F13~F18~~ → ✅ 4차 선택지로 정리(2026-10-23): superpowers ↔ 전역 = 그대로(§0 한 줄로 충분) · F13·F16·F17 적용(`~/.claude` `50db5f2`) · F14·F15·F18 유지 · 커밋 가드 B(`6ad4b3d`) · agents 메모리 색인 두 세션 줄 함께 커밋(`fc4628f`) · agents 관문 시험 3개는 다른 세션이 진행 중. **감사 2차에 남은 일 없음.** 다음 감사 = 다음 모델 출시 때(`~/.claude/docs/prompt-audit-workflow.md`). 따로 남은 것 둘:
+
+1. 커밋 가드의 기존 통과 구멍 둘을 고칠지 정한다 — `git add ./` 를 검사 C 가 전체 스테이징으로 못 본다 · 스테이지가 깨끗하면 add 경로 밖 커밋(`git add mine.txt && git commit -m x -- theirs.txt`)이 검사 없이 지나간다(재현·고칠 안 = `~/.claude/docs/history/gotchas-경위.md` §13-C 「고칠지 정할 것」).
+2. 오늘 Codex 실행 기록 한 줄(diff 점검 목록 1회차)을 `~/.claude/docs/history/codex-vs-opus-경위.md` §2 에 적는다 — 다른 세션이 그 파일 §8(측정 설계)을 고치는 중이라 미뤘다. 원문 = 감사 보고서 §7 끝.
 
 **검증**:
 
-- 이 레포 — `npm run check-all` EXIT=0(lint · prettier · typecheck · 시험 파일 28 / 시험 483) · `verify_docs.py` 오류 0·경고 0 · `AGENTS.md` 35,954 / 36,600B · 커밋마다 예상 줄 수를 먼저 적고 `--cached` 와 대조(5파일 전부 일치).
-- `~/.claude` — `verify_autoload_size` 이번에 고친 파일 전부 OK(기존 초과 6건은 위) · `test_codex_run` 7/7 · `test_hook_global_rules` 전부 통과 · `test_hook_commit_guard` 27/27(고치기 전 24/27) · `verify_memory_index` 위반 0.
+- 이 레포 — `npm run check-all` EXIT=0(lint · prettier · typecheck · 시험 파일 28 / 시험 483) · `verify_docs.py` 오류 0·경고 0 · `AGENTS.md` 36,043 / 36,600B · wrap-up 때 다시 돌린 `check-all` 도 EXIT=0 · 커밋마다 예상 줄 수를 먼저 적고 `--cached` 와 대조(5파일 전부 일치).
+- `~/.claude` — `verify_autoload_size` 이번에 고친 파일 전부 OK(기존 초과 6건은 위) · `test_codex_run` 7/7 · `test_hook_global_rules` 전부 통과 · `test_hook_commit_guard` 46/46(고칠 때마다 새 시험이 먼저 빨강: 24/27 → 31/35 → 41/46 · 마지막 묶음엔 실제 git 실행 시험 포함) · `verify_memory_index` 위반 0.
 - agents — 원장·지도 모두 HEAD 대비 «숫자만» 바뀜(68·68 · 개행·BOM 그대로) · 표본 5곳 실물 대조 · `verify-advice-rules` OK · `render-advice-rules --verify` OK(규칙 415) · `pnpm check-all` EXIT=0(시험 파일 253 / 시험 3,916 · 훅 규칙 44 정탐·오탐).
 
 ## 이전 상태 · 재개 지점 (2026-10-22 오후) — 프롬프트 감사 2차(이 프로젝트에 실리는 설정) · M16 적용 · 선택지 1차까지
