@@ -95,6 +95,7 @@ Claude Code **플러그인 MCP**(OAuth · 도구 이름 `mcp__plugin_supabase_su
 
 - **`master` 에 백업 봇이 매일 커밋한다**(`chore(backup): daily JSONB snapshot`).
   push 가 거부되면 `git -c rebase.autoStash=true pull --rebase origin master` 후 재push.
+  rebase 는 아직 안 올린 내 커밋의 해시를 바꾼다 — HANDOFF·문서에 해시를 적을 거면 rebase 뒤에 적는다(2026-10-23 정정 커밋 `668ce6f`).
   🔴 **파이프(`... | tail`)는 앞 명령의 exit code 를 가린다** → `git push` 실패 후 `|| (rebase)` 분기가
   안 탄다. push 는 **파이프 없이** 실행하거나 종료 코드를 별도로 확인할 것.
 - **Bash `grep` 이 한글/ANSI 섞인 stdout 을 binary 로 처리해 결과를 숨긴다** → `grep -a` 강제.
