@@ -24,11 +24,12 @@
 **비자명한 사실 (재조사 금지)**:
 
 - 커밋 순서(세 곳 공통) = `git add <경로>` → `git diff --cached -- <경로>` 로 hunk 읽기 → `git add <경로> && git commit --only -F <파일> -- <경로>` 한 명령. 이제 `git -C "<레포>"` 형태도 가드를 통과한다(이번 `~/.claude` 커밋 둘이 첫 실사용).
-- 커밋 가드 검사 B 는 `--only` 여도 남의 스테이지가 있으면 막는다(괜히 막는 쪽 · 기존 동작) · `-C "$A"` 처럼 셸 변수 경로면 스테이지를 못 읽어 fail open — `~/.claude/docs/history/gotchas-경위.md` §13-C 「남은 것」.
+- 커밋 가드 검사 B 는 커밋이 `--` 뒤에 «그 명령이 add 한 경로»만 적으면 남의 스테이지가 있어도 막지 않는다(`6ad4b3d` · 시험 35/35 · `-i`·`-a`·`-p` · `-- .` · `--` 없이 붙인 경로는 그대로 막는다). `-C "$A"` 처럼 셸 변수 경로면 스테이지를 못 읽어 fail open — `~/.claude/docs/history/gotchas-경위.md` §13-C 「남은 것」.
 - HANDOFF 블록에서 「**라벨**:」 바로 다음 줄에 목록을 붙이면 prettier 가 빈 줄을 요구해 `check-all` 이 format 단계에서 멈춘다 — 라벨과 목록 사이에 빈 줄.
-- `~/.claude` 상한 초과 6건(gotchas·playbook·reference·user-profile·report-review-panel·weekly-review)은 다른 세션 증가분이다. 이번 수정이 report-review-panel +15B · weekly-review +80B 를 더했다(경로 정정·문장 교체라 줄이지 못함).
+- `~/.claude` 상한 초과 6건(gotchas·playbook·reference·user-profile·report-review-panel·weekly-review)은 다른 세션 증가분이다. 이번 수정이 weekly-review 에 +80B 를 더했고, report-review-panel 은 F1(+15B)·F17(−295B)을 합쳐 9,756 → 9,476B 로 줄었다(초과 515B 남음). 정리는 주간 정리 ⑧ 몫(사용자 선택).
+- 선택지를 띄우기 직전엔 고칠 파일의 `git status`·최근 커밋을 본다 — 다른 세션이 진행 중인 일을 두 번 선택지로 냈다(10-22 gstack · 10-23 agents 관문 시험 3개 · 교정 원장 기록).
 
-**재개 지점**: 감사 2차는 끝. 남은 것은 수정안 없는 flag 뿐 — 보고서 「사용자가 정할 것」 가(superpowers ↔ 전역 라우팅 정본) · C절 F13~F18. 다음 감사 = 다음 모델 출시 때(`~/.claude/docs/prompt-audit-workflow.md`).
+**재개 지점**: ~~남은 것은 수정안 없는 flag 뿐 — 보고서 「사용자가 정할 것」 가 · C절 F13~F18~~ → ✅ 4차 선택지로 정리(2026-10-23): superpowers ↔ 전역 = 그대로(§0 한 줄로 충분) · F13·F16·F17 적용(`~/.claude` `50db5f2`) · F14·F15·F18 유지 · 커밋 가드 B(`6ad4b3d`) · agents 메모리 색인 두 세션 줄 함께 커밋(`fc4628f`) · agents 관문 시험 3개는 다른 세션이 진행 중. **감사 2차에 남은 일 없음.** 다음 감사 = 다음 모델 출시 때(`~/.claude/docs/prompt-audit-workflow.md`).
 
 **검증**:
 
