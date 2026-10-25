@@ -34,5 +34,14 @@
       "fnguide-wcomp-migration.md"
     ],
     "why": "이 다섯 파일이 주석에서 이 문서를 계약 정본으로 가리킵니다(계정 코드 매핑·계약표). 트리거가 분기 1회(verify_fnguide 실패)라 자연 열람이 안 되고, 안 열면 다음 실패 때 매핑을 처음부터 다시 조사하게 됩니다."
+  },
+  {
+    "id": "collect",
+    "match": "/scripts/collect_[^/]*\\.(py|ts)$",
+    "exempt": "/test_[^/]*$",
+    "read": [
+      "gotchas-data-collection.md"
+    ],
+    "why": "AGENTS.md 가 「수집기 수정 전 정독」이라 적어 둔 수집·적재·파싱 함정 정본인데 여는 배선이 없었습니다(2026-10-25 주간 정리 W43 ⑨ W5). 문서가 크니 고칠 수집기와 관련된 절만 읽어도 됩니다."
   }
 ]
