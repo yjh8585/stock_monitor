@@ -143,7 +143,7 @@ def selftest() -> bool:
 
 def main() -> None:
   ap = argparse.ArgumentParser()
-  ap.add_argument('--run', help='게시 전 원고 파일 1개를 검사')
+  ap.add_argument('--run', help='게시 전 원고 파일 1개 또는 폴더(RUN_DIR)를 검사')
   ap.add_argument('--selftest', action='store_true', help='자가 시험만 돌린다')
   args = ap.parse_args()
 
@@ -156,8 +156,14 @@ def main() -> None:
 
   targets: list[tuple[str, str]] = []
   if args.run:
+    # 폴더를 주면 그 안의 원고 전부 — 유튜브 RUN_DIR 은 조립본(reports_final/)을 본다.
+    # 2026-10-27: verify_yt_report.py 처럼 --run <폴더> 로 불렀다가 PermissionError 로 죽었다.
     p = Path(args.run)
-    targets.append((p.name, p.read_text(encoding='utf-8')))
+    if p.is_dir():
+      d = p / 'reports_final' if (p / 'reports_final').is_dir() else p
+      targets += [(f.name, f.read_text(encoding='utf-8')) for f in sorted(d.glob('*.md'))]
+    else:
+      targets.append((p.name, p.read_text(encoding='utf-8')))
   else:
     from lib.bootstrap import init_script  # noqa: E402
     init_script(__file__)

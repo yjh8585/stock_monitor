@@ -47,19 +47,33 @@ def main() -> int:
             errs.clear()
             resp = page.goto(f"{args.base}/reports/{pid}", wait_until="networkidle", timeout=30000)
             http = resp.status if resp else None
-            for _ in range(4):
+            # 바닥까지 내린다 — 고정 4회(16,000px)는 긴 글(39장)의 아래쪽 지연 로딩 이미지를
+            # 아예 안 불러 「깨짐」으로 셌다(2026-10-27 id=132 16장 · URL 은 전부 200 이었다).
+            for _ in range(60):
                 page.mouse.wheel(0, 4000)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(700)
+                if page.evaluate("innerHeight + scrollY >= document.body.scrollHeight - 2"):
+                    break
+            # 「아직 받는 중」과 「못 받음」을 가른다 — 둘을 한데 세면 긴 글일수록 깨짐이 부풀었다.
+            # 4,000px 씩 건너뛰면 지연 로딩 감지 범위를 지나쳐 아예 요청조차 안 된 그림이 남는다.
+            # 이 검사가 묻는 것은 「모든 그림이 받아지나」라 eager 로 돌려 전부 요청시킨다.
+            page.evaluate("document.querySelectorAll('img[loading=lazy]').forEach(i => { i.loading = 'eager'; })")
+            try:
+                page.wait_for_function("[...document.images].every(i => i.complete)", timeout=30000)
+            except Exception:
+                pass
             art = page.inner_text("article") if page.locator("article").count() else page.inner_text("main")
             raw = art.count("**")
             stat = page.evaluate(
                 """(mark) => { const g=[...document.querySelectorAll('img')].filter(i=>(i.currentSrc||i.src).includes(mark));
-                    return {t:g.length,b:g.filter(i=>!i.complete||i.naturalWidth===0).length}; }""",
+                    return {t:g.length,p:g.filter(i=>!i.complete).length,
+                            b:g.filter(i=>i.complete&&i.naturalWidth===0).length}; }""",
                 img_mark,
             )
-            ok = http == 200 and raw == 0 and stat["b"] == 0 and len(errs) == 0
+            ok = http == 200 and raw == 0 and stat["b"] == 0 and stat["p"] == 0 and len(errs) == 0
             all_ok = all_ok and ok
-            print(f"[{'OK ' if ok else 'NG '}] id={pid} http={http} raw**={raw} img={stat['t']}/broken={stat['b']} err={len(errs)}")
+            print(f"[{'OK ' if ok else 'NG '}] id={pid} http={http} raw**={raw} "
+                  f"img={stat['t']}/broken={stat['b']}/pending={stat['p']} err={len(errs)}")
 
         browser.close()
         print("RESULT=" + ("ALL_OK" if all_ok else "HAS_ISSUE"))

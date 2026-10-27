@@ -17,6 +17,7 @@
   7. 캡션에 나열된 **비교 대상 수**가 2 이상인데 정착 검사 기록이 없는 프레임
      → 🔴 이것이 리포트 117·122 를 낸 결함이다(docs/report-from-youtube.md §2-A)
   8. 이미지 URL 이 공개 Storage URL 인가 (로컬 경로가 새면 깨진다)
+  9. 한국어 굵게가 안 닫히는 모양(`**65.4%**다` · `**(약 39만원)**에`) — report.md §4
 
 usage:
     python scripts/verify_yt_report.py --run scripts/_yt_report/2026-09-11
@@ -41,6 +42,56 @@ TABLE_ROW = re.compile(r"^\|.*\|\s*$", re.M)
 
 # 캡션에서 「비교 대상」을 세는 표식. 가운뎃점·쉼표·vs 로 나열되면 비교다.
 COMPARE_SPLIT = re.compile(r"[·,]|\bvs\.?\b|대비")
+
+# 9. 한국어 굵게 표시가 안 닫히는 모양 (report.md §4 · 2026-10-27 추가)
+#    닫는 `**` 앞이 부호이고 뒤가 한글이면 «닫는 기호»로 인정되지 않아 별표가 그대로 보인다.
+#    여는 `**` 도 같다 — 앞이 한글이고 뒤가 부호면 «여는 기호»가 아니다.
+#    🔴 docs/report-from-youtube.md §3 은 이 검사가 있다고 적었는데 코드엔 없었다 — 유튜브
+#       비교 표본 Codex 초안의 깨짐 7곳이 게시 뒤 verify.py 에서야 잡힐 뻔했다.
+PUNCT = "%)]}'\"」』’”`.,!?…"
+HANGUL = re.compile(r"[가-힣]")
+CJK_BOLD_MUST_HIT = [
+    "증가율 **65.4%**다",
+    "**47만 엔(약 39만원)**에 나왔다",
+    "**「A」**이 먼저다",
+    "한국은**'피지컬 AI'** 시대",
+]
+CJK_BOLD_MUST_MISS = [
+    "증가율 **65.4**%다",
+    "'**피지컬 AI**'가 온다",
+    "**47만 엔**(약 393만원)에",
+    "**2억 달러**(약 2,647억원)",
+    "**굵게**와 **또 굵게**가 있다",
+]
+
+
+def find_bad_bold(text: str) -> list[str]:
+    """줄마다 `**` 를 짝지어 여닫는 자리의 앞뒤 글자를 본다."""
+    out = []
+    for line in text.split("\n"):
+        pos = [m.start() for m in re.finditer(r"\*\*", line)]
+        for i in range(0, len(pos) - 1, 2):
+            o, c = pos[i], pos[i + 1]
+            before_o = line[o - 1] if o > 0 else " "
+            after_o = line[o + 2] if o + 2 < len(line) else " "
+            before_c = line[c - 1]
+            after_c = line[c + 2] if c + 2 < len(line) else " "
+            if (before_c in PUNCT and HANGUL.match(after_c)) or (HANGUL.match(before_o) and after_o in PUNCT):
+                out.append(line[max(0, o - 8): c + 6])
+    return out
+
+
+def bold_self_test() -> bool:
+    ok = True
+    for s in CJK_BOLD_MUST_HIT:
+        if not find_bad_bold(s):
+            print(f"[자가시험 실패] 깨지는 굵게를 놓쳤다: {s}")
+            ok = False
+    for s in CJK_BOLD_MUST_MISS:
+        if find_bad_bold(s):
+            print(f"[자가시험 실패] 정상 굵게를 잡았다: {s}")
+            ok = False
+    return ok
 
 
 class Result:
@@ -72,6 +123,8 @@ def check_body(path: Path, r: Result) -> None:
         r.err(f"{name}: 숫자 앞 백틱 …{t[s:m.end() + 10]!r}")
     if LONE_BR.search(t):
         r.err(f"{name}: 단독 줄 <br> — 빈 줄로 문단을 나눌 것")
+    for frag in find_bad_bold(t):
+        r.err(f"{name}: 굵게가 안 닫힌다(부호를 ** 밖으로) …{frag}…")
 
     # 표: 헤더 바로 아래에 구분선이 있는가
     lines = t.split("\n")
@@ -137,6 +190,10 @@ def main() -> int:
     ap.add_argument("--run", required=True, help="산출물 폴더(scripts/_yt_report/<날짜>)")
     ap.add_argument("--strict", action="store_true", help="경고도 실패로 본다")
     args = ap.parse_args()
+
+    if not bold_self_test():
+        print("[FAIL] 굵게 검사 자가 시험이 깨졌다 — 결과를 믿지 말 것")
+        return 2
 
     run = Path(args.run)
     if not run.is_dir():

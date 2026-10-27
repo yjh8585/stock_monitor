@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import glob
+import json
 import os
 import re
 import shutil
@@ -111,6 +112,35 @@ def load_env() -> dict[str, str]:
             m = re.match(r"^([A-Z0-9_]+)=(.*)$", line)
             if m:
                 out[m.group(1)] = m.group(2).strip().strip('"').strip("'")
+    return out
+
+
+def already_published(videos: list[dict]) -> dict[str, tuple[int, str]]:
+    """videos 중 이미 posts 에 있는 것 → {key: (id, title)}. YT_ALLOW_UPDATE 로 푼 key 는 뺀다.
+
+    🔴 2026-10-27: 새 회차 8편 중 1편이 9월에 게시된 리포트 132 와 같은 영상이었는데, 끝까지 작업한 뒤
+    게시 단계에서 덮어썼다. 사용자 지시 「앞으로는 이미 올라간 영상인지 확인하고 작업하도록 해」 —
+    그래서 착수 첫 단계(fetch_subs)에서 묻는다. 영상 ID 로 찾는다(youtu.be 등 주소 형태가 달라도 걸리게).
+    """
+    import urllib.parse
+    import urllib.request
+
+    allow = {k.strip() for k in os.environ.get("YT_ALLOW_UPDATE", "").split(",") if k.strip()}
+    env = load_env()
+    base = env["NEXT_PUBLIC_SUPABASE_URL"].rstrip("/")
+    key = env["SUPABASE_SERVICE_ROLE_KEY"]
+    out: dict[str, tuple[int, str]] = {}
+    for v in videos:
+        if "all" in allow or v["key"] in allow:
+            continue
+        q = urllib.parse.urlencode({"select": "id,title", "source_url": f"ilike.*{v['id']}*"})
+        req = urllib.request.Request(
+            f"{base}/rest/v1/posts?{q}", headers={"apikey": key, "Authorization": f"Bearer {key}"}
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            rows = json.loads(r.read().decode("utf-8"))
+        if rows:
+            out[v["key"]] = (rows[0]["id"], rows[0]["title"])
     return out
 
 

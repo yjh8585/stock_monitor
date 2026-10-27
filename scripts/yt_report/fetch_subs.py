@@ -15,7 +15,7 @@ import json
 import subprocess
 import sys
 
-from _common import RUN_DIR, clean_vtt, ensure_dir, run_path
+from _common import RUN_DIR, already_published, clean_vtt, ensure_dir, run_path
 
 
 def main() -> int:
@@ -27,6 +27,14 @@ def main() -> int:
     videos_path = args.videos or run_path("videos.json")
     with open(videos_path, encoding="utf-8") as f:
         videos = json.load(f)
+
+    # 이미 게시된 영상이면 작업 전에 멈춘다(2026-10-27 리포트 132 덮어쓰기 · _common.already_published)
+    dup = already_published(videos)
+    if dup:
+        for k, (pid, title) in dup.items():
+            print(f"이미 게시됨: {k} → id={pid} 「{title}」")
+        print("목록에서 빼거나, 다시 만드는 게 맞으면 YT_ALLOW_UPDATE=<key,…> 로 명시하라.")
+        return 1
 
     subs_dir = ensure_dir(run_path("subs"))
     ensure_dir(run_path("text"))

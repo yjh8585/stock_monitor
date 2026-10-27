@@ -11,7 +11,8 @@ EXIT 0 = 위반 없음 / 1 = 위반 있음 / 2 = 자가 시험 실패(검사기�
 
 🔴 **새로 쓰는 글에만 적용한다.** 기존 글은 소급하지 않기로 했으므로(사용자 결정
    2026-09-15) `--all-posts` 의 위반 건수는 게이트가 아니라 참고 수치다.
-🔴 이 검사기는 «원화가 병기됐는가»만 본다. 환율이 맞는지는 기계가 모른다 —
+🔴 이 검사기는 «원화가 병기됐는가»와 «괄호 속 원화가 본문 각주 환율로 계산한 값과
+   맞는가»(±15% · 2026-10-27 추가)를 본다. 각주 환율 자체가 시세와 맞는지는 기계가 모른다 —
    적용 환율 각주는 사람이 확인한다(report.md §3-B 체크리스트).
 """
 import argparse
@@ -43,7 +44,9 @@ PATTERNS: list[re.Pattern[str]] = [
 ]
 
 # 원화 환산으로 인정하는 표기
-KRW_MARK = re.compile(r"(?:조원|억원|만원|조 원|억 원)")
+# 🔴 「숫자+원」도 인정한다(2026-10-27) — 만원 단위 소액 병기 「약 17만 5,000원」과
+#    환율 각주 「1달러 1,324원」을 미병기로 세어, 유튜브 표본 4판이 전부 exit 1 이었다.
+KRW_MARK = re.compile(r"(?:조원|억원|만원|조 원|억 원|\d원)")
 
 FORWARD = 80   # 매치 뒤 이만큼 안에 원화가 있으면 병기된 것으로 본다
 BACKWARD = 40  # 앞에 있어도 인정(같은 괄호 안의 원문 병기값 등)
@@ -77,6 +80,9 @@ MUST_MISS = [
     "매출 3,128 로 집계됐다",
     "임직원 412,800명",
     "위안부 문제와는 무관하다",
+    "2021년 kWh당 **132달러**(약 17만 5,000원), 전기차용만 보면",
+    "_원화는 작성 시점(2026-10-27) 환율 적용 — 1달러 1,324원 · 1유로 1,478원._",
+    "_원화는 작성 시점(2026-10-27) 환율 적용 — 100엔 837원 · 1파운드 1,763원._",
 ]
 
 
@@ -98,8 +104,83 @@ def find_violations(text: str) -> list[tuple[int, str, str]]:
     return out
 
 
+# --- 환산값 검산 (2026-10-27) -------------------------------------------
+# 🔴 «병기됐나»만 보면 「47만 엔(약 39만원)」(실제 약 393만원 — 10배 오류)이 통과한다
+#    (유튜브 보고서 비교 표본 · Codex 초안). 본문 각주의 환율로 괄호 안 원화를 다시 계산한다.
+_UNIT = {"조": 10**12, "억": 10**8, "만": 10**4, "천": 10**3}
+_KO_PART = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(조|억|만|천)?")
+_RATE = re.compile(r"(\d[\d,]*)?\s*(달러|유로|엔|위안|파운드)\s*(\d[\d,]*(?:\.\d+)?)원")
+_FOREIGN = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(조|억|만|천)?\s*(달러|유로|엔|위안|파운드)")
+# 외화 표기 바로 뒤 괄호의 원화 — 「**2억 달러**(약 2,647억원)」. 범위면 마지막 값과 맞댄다
+_PAREN_KRW = re.compile(r"^\**\s*\((?:약\s*)?([^()]*?)원")
+RATE_TOLERANCE = 0.15  # 반올림(억원 정수·「약」)을 허용하는 폭
+
+
+def _ko_number(s: str) -> float | None:
+    """「6.51조」「17만 5,000」「2,647억」 → 수. 못 읽으면 None."""
+    total, found = 0.0, False
+    for num, unit in _KO_PART.findall(s):
+        total += float(num.replace(",", "")) * _UNIT.get(unit, 1)
+        found = True
+    return total if found else None
+
+
+def find_rate_mismatches(text: str) -> list[tuple[int, str, str]]:
+    """각주 환율로 다시 계산한 값과 괄호 속 원화가 RATE_TOLERANCE 넘게 어긋나는 곳."""
+    # 🔴 각주 = 「환율」과 환율 값이 «둘 다» 있는 줄. 「환율」 낱말만으로 거르면 그 낱말이 든
+    #    본문 줄의 오류가 통째로 빠진다(Codex v5 의 47만 엔 줄이 그래서 처음엔 샜다)
+    rates, rate_lines = {}, set()
+    for lineno, line in enumerate(text.splitlines(), 1):
+        found = _RATE.findall(line) if "환율" in line else []
+        for per, cur, krw in found:
+            rates[cur] = float(krw.replace(",", "")) / float((per or "1").replace(",", ""))
+        if found:
+            rate_lines.add(lineno)
+    out: list[tuple[int, str, str]] = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if lineno in rate_lines:
+            continue
+        for m in _FOREIGN.finditer(line):
+            cur = m.group(3)
+            pm = _PAREN_KRW.match(line[m.end():])
+            if cur not in rates or not pm:
+                continue
+            got = _ko_number(pm.group(1).split("~")[-1])
+            if not got:
+                continue
+            want = float(m.group(1).replace(",", "")) * _UNIT.get(m.group(2) or "", 1) * rates[cur]
+            if abs(got - want) / want > RATE_TOLERANCE:
+                out.append((lineno, f"{m.group(0)} → 적힌 {pm.group(1)}원 · 계산 {want:,.0f}원", line.strip()[:160]))
+    return out
+
+
+_FOOT = "\n_원화는 작성 시점(2026-10-27) 환율 적용 — 1달러 1,324원 · 100엔 837원._"
+RATE_MUST_HIT = [
+    "알토를 **47만 엔(약 39만원)**에 내놓았다." + _FOOT,
+    "**2억 달러**(약 26억원) 규모" + _FOOT,
+    # 「환율」 낱말이 든 본문 줄 — 각주로 오인해 건너뛰면 안 된다
+    "**47만 엔(약 39만원)**에 나왔다. 원화는 작성 시점 환율로 환산했다." + _FOOT,
+]
+RATE_MUST_MISS = [
+    "알토를 **47만 엔**(약 393만원)에 내놓았다." + _FOOT,
+    "**2억 달러**(약 2,647억원) 규모" + _FOOT,
+    "kWh당 **132달러**(약 17만 5,000원)" + _FOOT,
+    "**3만~4만 달러**(약 3,972만~5,296만원)" + _FOOT,
+    "**45.84억 달러**(약 6.07조원)다." + _FOOT,
+]
+
+
 def self_test() -> bool:
     ok = True
+    for s in RATE_MUST_HIT:
+        if not find_rate_mismatches(s):
+            print(f"[자가시험 실패] 환산 오류를 놓쳤다: {s.splitlines()[0]}")
+            ok = False
+    for s in RATE_MUST_MISS:
+        v = find_rate_mismatches(s)
+        if v:
+            print(f"[자가시험 실패] 맞는 환산을 잡았다: {s.splitlines()[0]}  <- {v[0][1]}")
+            ok = False
     for s in MUST_HIT:
         if not find_violations(s):
             print(f"[자가시험 실패] 잡혔어야 하는데 놓쳤다: {s}")
@@ -114,18 +195,21 @@ def self_test() -> bool:
 
 def _report(label: str, text: str) -> int:
     violations = find_violations(text)
-    if not violations:
-        print(f"  OK  {label} — 외화 수치 전부 원화 병기됨")
+    mismatches = find_rate_mismatches(text)
+    if not violations and not mismatches:
+        print(f"  OK  {label} — 외화 수치 전부 원화 병기됨 · 환산값이 각주 환율과 맞음")
         return 0
-    print(f"  위반 {len(violations)}건 — {label}")
+    print(f"  위반 {len(violations) + len(mismatches)}건 — {label}")
     for lineno, hit, line in violations:
-        print(f"    L{lineno}  [{hit}]  {line}")
-    return len(violations)
+        print(f"    L{lineno}  [미병기 {hit}]  {line}")
+    for lineno, hit, line in mismatches:
+        print(f"    L{lineno}  [환산 어긋남 {hit}]  {line}")
+    return len(violations) + len(mismatches)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="보고서 외화 수치의 원화 환산 병기 검사")
-    ap.add_argument("--run", type=Path, help="검사할 원고 파일(.md)")
+    ap.add_argument("--run", type=Path, help="검사할 원고 파일(.md) 또는 폴더(RUN_DIR)")
     ap.add_argument("--post", type=int, help="검사할 posts.id")
     ap.add_argument("--all-posts", action="store_true", help="게시된 글 전수 감사")
     args = ap.parse_args()
@@ -139,7 +223,14 @@ def main() -> int:
 
     total = 0
     if args.run:
-        total += _report(args.run.name, args.run.read_text(encoding="utf-8"))
+        # 폴더를 주면 그 안의 원고 전부 — 유튜브 RUN_DIR 은 조립본(reports_final/)을 본다
+        # (2026-10-27: --run <폴더> 로 불렀다가 PermissionError 로 죽었다)
+        if args.run.is_dir():
+            d = args.run / "reports_final" if (args.run / "reports_final").is_dir() else args.run
+            for f in sorted(d.glob("*.md")):
+                total += _report(f.name, f.read_text(encoding="utf-8"))
+        else:
+            total += _report(args.run.name, args.run.read_text(encoding="utf-8"))
 
     if args.post or args.all_posts:
         from lib.bootstrap import init_script
