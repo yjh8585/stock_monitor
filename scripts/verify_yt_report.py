@@ -18,6 +18,8 @@
      → 🔴 이것이 리포트 117·122 를 낸 결함이다(docs/report-from-youtube.md §2-A)
   8. 이미지 URL 이 공개 Storage URL 인가 (로컬 경로가 새면 깨진다)
   9. 한국어 굵게가 안 닫히는 모양(`**65.4%**다` · `**(약 39만원)**에`) — report.md §4
+ 10. (유튜브 회차만) 편마다 초안 사실 대조 기록 `check/codex_<key>.md`(Codex 한도면 `check/opus_<key>.md`)
+     → 2026-10-27 사용자 선택 「오퍼스 초안+Codex 점검」을 절차에서 빼먹지 않게 한다(scripts/yt_report/README.md 3단계)
 
 usage:
     python scripts/verify_yt_report.py --run scripts/_yt_report/2026-09-11
@@ -185,6 +187,24 @@ def check_frames(run: Path, r: Result) -> None:
                        f"(+{settle[slug].get('suggest_delta')}초 권장) — 눈으로 확정했는가")
 
 
+CHECK_MIN_BYTES = 300  # 빈손 결과 — Codex 는 실패해도 rc 0 으로 빈 파일을 남긴 적이 있다(codex-vs-opus §1)
+
+
+def check_review(run: Path, finals: list[Path], r: Result) -> None:
+    """유튜브 회차면 편마다 사실 대조 기록이 있어야 한다. 비교 회차의 채점 기록(score/)도 인정한다."""
+    if not (run / "videos.json").exists():
+        return  # PDF 경로는 이 절차가 아니다
+    for p in finals:
+        key = p.stem
+        found = [
+            f for who in ("codex", "opus") for f in run.rglob(f"{who}_{key}.md")
+            if f.parent.name in ("check", "score") and f.stat().st_size >= CHECK_MIN_BYTES
+        ]
+        if not found:
+            r.err(f"{key}: 사실 대조 기록이 없다 — check/codex_{key}.md "
+                  f"(scripts/yt_report/prompts/check.md · README 3단계)")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", required=True, help="산출물 폴더(scripts/_yt_report/<날짜>)")
@@ -211,6 +231,8 @@ def main() -> int:
         check_body(p, r)
     print("=== 프레임·캡션 ===")
     check_frames(run, r)
+    print("=== 사실 대조 기록 ===")
+    check_review(run, finals, r)
 
     print(f"\n오류 {len(r.errors)}건 · 경고 {len(r.warns)}건")
     if r.errors:

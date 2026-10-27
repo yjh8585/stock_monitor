@@ -17,6 +17,9 @@
 이 워크플로의 실패는 거의 전부 이 한 줄에서 갈린다. 본문 품질이나 분량이 아니라
 **그림이 캡션을 배신하는 것**이 사용자가 반복해서 지적한 결함이다.
 
+**역할 분담(2026-10-27 사용자 선택)** — 초안은 오퍼스 · 자막 사실 대조는 Codex · 그림 선별·캡션·고유명사 정정은 메인.
+자막만 보는 작성자는 그림 자리를 둘 다 못 맞힌다(적중 29~40%). 절차 = `scripts/yt_report/README.md` 3단계 · 지시서 = `scripts/yt_report/prompts/`.
+
 ---
 
 ## 2. 실제로 터진 결함과 처방
@@ -179,7 +182,7 @@ ffmpeg -start_number <n> -i scan/%04d.jpg -frames:v 1 -vf "scale=400:-1,tile=6x4
 ```bash
 R=scripts/_yt_report/<날짜>
 # 0) 이미 게시된 영상인가 — fetch_subs.py(착수)·publish.ts(게시) 두 곳이 막는다(§2-H)
-# 1) 본문 기계 검사 — 토큰·H1·백틱·CJK 강조 · 번역투 · 외화 원화 병기(폴더를 주면 reports_final/ 전부)
+# 1) 본문 기계 검사 — 토큰·H1·백틱·CJK 강조 · 편마다 사실 대조 기록(check/codex_<key>.md) · 번역투 · 외화 원화 병기
 python scripts/verify_yt_report.py --run $R
 python scripts/verify_translationese.py --run $R
 python scripts/verify_report_krw.py --run $R
@@ -204,3 +207,4 @@ YT_RUN_DIR=$R python scripts/yt_report/verify.py --ids <id들>
 | 2026-09-11 | 게시 후 발견 2건 반영. O/X 감사를 통과하고도 어긋나는 **수치 반올림·표기 갈림**(§2-B-1, 리포트 132 사후 수정) · 자막에만 있고 화면엔 없는 장면의 **드롭 판정과 복구 비용**(§2-B-2)                                                                                                                                       |
 | 2026-09-11 | 사용자 지적 _"캡쳐한 사진은 너가 직접 읽어서 본문과 맞는지 확인할 수 있지 않아?"_ 로 처방 정정. 맞다 — `Read` 가 PNG 를 그대로 띄운다. 샌 원인은 **못 봐서가 아니라 판정이 「있나」 1단이어서**였다(감사 `note` 에 이미 적혀 있었는데 `pass: true`). §2-B 판정을 **①있나 ②자릿수 ③표기 3단**으로 올리고 §3-3 절차에 명시 |
 | 2026-10-27 | 8편 회차(Codex·오퍼스 비교 후 「오퍼스 초안+Codex 점검」). 정답지 방식(§2-F `scan.py`·`capture --exact`) · settle 권장 반복 채택 금지 · 화면 글자로 고유명사 정정(§2-G) · 리포트 132 덮어쓰기 사고와 `publish.ts` 가드(§2-H) · `verify.py` 깨짐 오판 수리(§2-I) · 번역투·원화 검사기가 폴더 `--run` 을 받게 수리         |
+| 2026-10-28 | 역할 분담을 절차에 고정(§1 · README 3단계). 작업 폴더에만 있던 작성·점검 지시서를 `scripts/yt_report/prompts/` 로 옮기고, `verify_yt_report.py` 가 편마다 사실 대조 기록이 없으면 막게 했다                                                                                                                              |

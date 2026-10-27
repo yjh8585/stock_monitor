@@ -30,7 +30,12 @@
 
 1. ✍️ **영상 목록**: `videos.json` 작성(제목·채널은 oEmbed `youtube.com/oembed?url=<watch>&format=json`, 업로드일은 `yt-dlp --print upload_date`).
 2. 🔧 **자막**: `python scripts/yt_report/fetch_subs.py` → `text/<key>.txt` + 글자수·길이. 분량은 report.md §3-A 표로 산정. 🔴 **이미 게시된 영상이 있으면 자막을 받기 전에 멈춘다**(2026-10-27 사용자 지시) — 목록에서 빼거나, 다시 만드는 게 맞으면 `YT_ALLOW_UPDATE=<key,…>`.
-3. ✍️ **본문 작성**(영상당 1 에이전트 병렬 권장): 자막 정독 → report.md §3/§3-A/§4대로 `reports/<key>.md` 작성. **차트·도해·주요 장면이 나오는 지점에 `[[FRAME:slug]]` 토큰** 삽입. slug는 `<key>_이름`.
+3. ✍️ **본문 작성 — 오퍼스 초안 → Codex 대조 → 메인 검산**(2026-10-27 사용자 선택 · 근거 = `~/.claude/docs/codex-vs-opus.md` · 경위 §9). 모두 Opus 고정 — 자동 경로(`collect_yt_report.py`)의 모델 상수와는 별개다.
+   1. **초안(오퍼스)**: 영상당 서브에이전트 1명(`model` 칸 비움 · 5명씩 순차)에 [`prompts/write.md`](./prompts/write.md)를 넘긴다. `{분량표}`(report.md §3-A)·`{환율 한 줄}`(DB `exchange_rates_live`)은 메인이 채운다. 출력의 BODY → `reports/<key>.md`, SHOTS → shots·캡션 후보.
+   2. **사실 대조(Codex · 읽기 전용)**: BODY 를 `check/<key>_draft.md`로 두고, 과제문 `check/prompt_<key>.md`(대상 key · [`prompts/check.md`](./prompts/check.md)를 따르라 · 다른 파일 열지 말 것)로 `python -X utf8 ~/.claude/scripts/codex_run.py run check/prompt_<key>.md check/codex_<key>.md --cwd <RUN_DIR> --tag yt-report-check`. 30초 간격으로 띄우고 결과 크기를 본다. Codex 한도면 서브에이전트 1명이 같은 지시로 `check/opus_<key>.md`.
+   3. **메인 검산**: 지적마다 자막(과 화면)으로 확인된 것만 반영한다 — 2026-10-27 은 v7 지적 0건 · 나머지도 전부 맞지는 않았다. 고유명사는 그림 속 글자가 정답지(`docs/report-from-youtube.md` §2-G).
+   - 🔴 `verify_yt_report.py` 가 편마다 `check/(codex|opus)_<key>.md`(300B 이상)가 없으면 오류를 내고, 게시 게이트가 그 통과를 요구한다.
+   - 본문에는 **차트·도해·주요 장면이 나오는 지점에 `[[FRAME:slug]]` 토큰**. slug는 `<key>_이름`.
 4. ✍️ **shots.json / batch.json** 작성: 각 프레임의 slug·id·timecode + alt·caption(출처 포함)·public_url. 썸네일 slug 지정.
 5. 🔧 **캡처**: `python scripts/yt_report/capture.py` (좁은 창). 실패 slug은 `--force --only <slug>`로 재시도.
    - **권장(2026-10-27~) — 정답지 방식**: 먼저 `python scripts/yt_report/scan.py v1,v2,…`로 10초 간격 접촉 시트를 만들고, 차트·도해가 실제로 뜬 시각(정답지 · 칸→시각은 `sheets/<key>/index.tsv`)에 `shots.json` 타임코드를 맞춘 뒤 `capture.py --exact`(정각 1장 · `frame_times.json` 자동 기록). 자막 추정 시각의 적중률은 29~40%였다. 이때 `selected.json` 은 `{slug: 0}`이고 6·7단계(몽타주·선별)는 2×2 격자로 직접 읽는 것으로 대신한다.
