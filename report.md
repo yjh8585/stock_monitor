@@ -50,9 +50,12 @@ URL/PDF/유튜브를 입력하면 `POST /api/posts`가 메타만 즉시 INSERT(`
    - 프로덕션: `POST {NEXT_REVALIDATE_PROD_URL}` 헤더 `x-revalidate-secret: {NEXT_REVALIDATE_SECRET}`, body `{"tags":["posts","post:<id>"]}`
    - 로컬: dev 재시작 또는 `localhost:<port>/api/revalidate`
    - 무효화 안 해도 `cacheLife('hours')` TTL로 ~1시간 내 자동 반영.
+   - ⚠️ 무효화는 `revalidateTag(t, 'max')`(낡은 값을 먼저 주고 뒤에서 새로 고침)라, **이미 게시한 글을 UPDATE 한 뒤 첫 요청은 옛 본문**이 나오고 두 번째부터 새 본문이다(2026-10-29 실측). 화면 확인은 두 번 연다.
+   - 게시 뒤 본문을 고칠 땐 INSERT 스크립트를 다시 돌리지 말고 **`id`와 `title`이 함께 맞는 행만 UPDATE**(1건이 아니면 멈춤) → 같은 무효화.
    - 단, **컴포넌트 코드(렌더러) 변경은 배포(빌드)** 가 있어야 반영된다. 무효화는 데이터 변경용.
 
 > 직접 작성·적재 스크립트는 `scripts/_*` 임시로 만들고 작업 후 정리(폴더 `.gitignore`가 새 산출물 무시). DB 접근 env는 `.env.local`(`NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`).
+> ⚠️ git 에서 빠지는 `scripts/_*.ts`·`.mts` 도 **eslint 는 검사한다** — 임시 스크립트의 lint 오류로 `check-all` 이 실패한다(2026-10-29 `react/no-children-prop`). 작업이 끝나면 지우거나 lint 를 통과시킬 것.
 > ⚠️ 변환 산출 마크다운은 `.prettierignore`의 `scripts/_*.md`로 제외돼 있다 — **prettier 를 태우면 표에 패딩이 들어가 DB 적재본과 달라진다.**
 
 ### 2-C. 사외비 보고서 (`is_confidential = true`)
@@ -197,6 +200,7 @@ _원화는 작성 시점(2026-09-15) 환율 적용 — 1유로 1,602원 · 1달�
 
 - ` ```mermaid ` 코드펜스로 작성하면 `MermaidBlock`이 SVG로 렌더.
 - **한글 노드 박스 잘림은 컴포넌트에서 해결됨**(`htmlLabels:true` + 한글 글꼴 스택 + `useMaxWidth`). 노드 라벨에 한글·`<br>` 줄바꿈을 자유롭게 써도 박스가 내용에 맞춰 확장된다.
+- 🔴 **노드가 6개를 넘는 연표·단계 흐름은 `flowchart TB`(세로)로** 그린다. `LR`(가로)은 `useMaxWidth`가 본문 폭에 맞춰 통째로 줄여 글자를 읽을 수 없다(2026-10-29 실측: 노드 9개 LR → 880×50px). 렌더 뒤 SVG 높이가 100px 미만이면 의심할 것.
 - 자동 웹 요약(`report-web`)은 **원본 표/이미지 보존이 원칙이라 mermaid 재구성 금지**. 유튜브 요약·직접 작성 글에서는 흐름도/타임라인/파이 등 자유롭게 사용.
 
 ---
