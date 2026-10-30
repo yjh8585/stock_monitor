@@ -15,7 +15,7 @@
 - `source_type`: `'report'`(보고서·웹·PDF) | `'youtube'`(영상 요약)
 - `status`: `'processing'` | `'completed'` | `'failed'` — **직접 작성 시 `completed`**
 - `title`, `source_name`(발행기관/저자), `source_url`(원문), `content`(**마크다운 본문**)
-- `source_published_at`(원문 작성일, 모르면 null), `category`, `thumbnail_url`
+- `source_published_at`(원문 작성일, 모르면 null — **UTC 자정 `YYYY-MM-DDT00:00:00Z`** 로. `+09:00` 이면 하루 앞당겨 보인다 → [`docs/report-from-pdf.md`](./docs/report-from-pdf.md) §3-F), `category`, `thumbnail_url`
 - PDF 첨부형: `file_path`/`file_name`(Storage `reports` 버킷). 상세 페이지가 다운로드 링크 자동 생성.
   🔴 **단 첨부는 최후 수단이다 — 발행처 인터넷 링크를 먼저 찾아 `source_url` 로 대체한다**(사용자 지시
   2026-09-15 · 절차는 [`docs/report-from-pdf.md`](./docs/report-from-pdf.md) §2-A).
