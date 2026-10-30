@@ -34,6 +34,9 @@ const ALL_TAGS = [
   'oem_sales_type_seg_month',
   'oem_sales_model_country_month',
   'oem_production_model_country_month',
+  'oem_china_production_month',
+  'oem_china_segment_month',
+  'oem_china_export_month',
   'oem_model_outlook',
   'oem_model_brand',
   // OEM 회사별 탭 (PR2~5)

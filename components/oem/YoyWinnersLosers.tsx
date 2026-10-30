@@ -21,16 +21,18 @@ import { fmtFull, shortenOemName, sumByGroup } from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
+  /** 대상 연도 — 기본 targetYear(). 중국 탭은 데이터에서 파생한 마지막 완결 연도를 넘긴다 */
+  year?: number;
 }
 
 const TOP_N = 10;
 const MIN_PREV_SALES = 100_000; // 노이즈 제거 — 직전 연도 10만 대 이상만
 
 /** YoY 승자와 패자 — 직전 연도(targetYear()-1) → 직전 완결 연도(targetYear()) 성장률 TOP10/BOTTOM10 */
-export default function YoyWinnersLosers({ groupMonth }: Props) {
+export default function YoyWinnersLosers({ groupMonth, year }: Props) {
   const h = useChartHeight(220, 300, 360);
   const { winners, losers, prevYr } = useMemo(() => {
-    const tgt = targetYear();
+    const tgt = year ?? targetYear();
     const prevYr = tgt - 1;
     const cur = sumByGroup(groupMonth, tgt * 100 + 1, tgt * 100 + 12);
     const prev = sumByGroup(groupMonth, prevYr * 100 + 1, prevYr * 100 + 12);
@@ -68,7 +70,7 @@ export default function YoyWinnersLosers({ groupMonth }: Props) {
       tgtYr: tgt,
       prevYr,
     };
-  }, [groupMonth]);
+  }, [groupMonth, year]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

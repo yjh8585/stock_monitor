@@ -25,9 +25,9 @@ interface Props {
 
 type ViewMode = 'year' | 'month';
 
-/** 판매량 단위(만/M) 자동 변환. */
+/** 판매량 단위(만/M) 자동 변환. M = 백만 — 옛 식은 1,000만으로 나눠 10배 작게 찍었다(중국 탭 3,200만이 3.20M · 2026-10-30) */
 function fmtUnitsTick(n: number): string {
-  if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(2)}M`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 10_000) return `${(n / 10_000).toFixed(1)}만`;
   return n.toLocaleString('ko-KR');
 }

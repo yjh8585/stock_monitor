@@ -12,6 +12,7 @@ const OEM_TABS = [
   { label: '현대차', href: '/oem/hyundai' },
   { label: '기아', href: '/oem/kia' },
   { label: '우즈베키스탄', href: '/oem/uzbekistan' },
+  { label: '중국', href: '/oem/china' },
 ] as const;
 
 export default function OemLayout({ children }: { children: React.ReactNode }) {

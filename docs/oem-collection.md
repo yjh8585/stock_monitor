@@ -4,9 +4,9 @@
 
 공통 패턴: `lib/oem-companies/<slug>/`(`source.ts` `'use cache'`+`cacheTag` / `aggregate.ts` pure 함수 + `aggregate.test.ts`), 컴포넌트는 `components/oem-companies/common/` + `<slug>/`. 판매 데이터는 모두 `vehicle_powertrain_map` LEFT JOIN으로 PT(파워트레인) mix 도출.
 
-`/oem` "전체" 탭은 글로벌 MarkLines 대시보드(5개 `oem_sales_group_*` 테이블) + OEM 모델 outlook. 탭 네비는 `app/oem/layout.tsx`에서 통합 관리(6탭: 전체/Stellantis USA/KG모빌리티/현대차/기아/우즈베키스탄).
+`/oem` "전체" 탭은 글로벌 MarkLines 대시보드(5개 `oem_sales_group_*` 테이블) + OEM 모델 outlook. 탭 네비는 `app/oem/layout.tsx`에서 통합 관리(8탭: 전체/경쟁 분석/Stellantis USA/KG모빌리티/현대차/기아/우즈베키스탄/중국).
 
-> **MarkLines Excel 파이프라인은 판매·생산 2개다.** 이 문서의 MarkLines 언급은 모두 **판매**(`vehicle_sales` → `oem_sales_*`, `sync_oem_excel.py`)다. **생산**(`vehicle_production` → `oem_production_model_country_month`, `sync_oem_production_excel.py`)은 `/oem/*`이 아니라 `/management/stellantis`가 쓰며, 같은 쿠키를 쓰지만 **페이지·레이아웃·country의 의미가 모두 다르다**(생산의 `country`는 **공장 국가**, 판매는 **판매 시장**). 상세 → [`Architecture.md §7`](../Architecture.md).
+> **MarkLines Excel 파이프라인은 판매·생산 2개다**(+ 중국 전용 1개 — 아래 `/oem/china`, 다른 테이블). 이 문서의 MarkLines 언급은 모두 **판매**(`vehicle_sales` → `oem_sales_*`, `sync_oem_excel.py`)다. **생산**(`vehicle_production` → `oem_production_model_country_month`, `sync_oem_production_excel.py`)은 `/oem/*`이 아니라 `/management/stellantis`가 쓰며, 같은 쿠키를 쓰지만 **페이지·레이아웃·country의 의미가 모두 다르다**(생산의 `country`는 **공장 국가**, 판매는 **판매 시장**). 상세 → [`Architecture.md §7`](../Architecture.md).
 > 🔴 **단 판매의 「판매 시장」은 중국 브랜드에 대해선 사실이 아니다** — `country = 'China'` 는 내수 + 수출을 합한 글로벌 출하다(2026-09-11 실측) → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
 
 ---
@@ -97,6 +97,31 @@
 
 - 판매: KPI(만년 vs 만년 + 당해 YTD는 전년 동기 YoY) + 회사별 판매 월/연 stacked + 회사 점유율.
 - 생산: 차종별 연도별 표(`UzbekistanModelYearTable` — 만년 + 최신 YTD + 동기 YoY) + 차종별 연간 grouped + 차종별 월별 추이 stacked + 브랜드별 연간(엔진 제외) + Chevrolet 시계열.
+
+---
+
+## `/oem/china` — 중국 승용 생산·수출 (2026-10-29 신설)
+
+MarkLines `vehicle_production/member` 페이지의 **China 카드 엑셀 3종**(트럭·버스 링크는 제외 — 사용자 지시 2026-10-29)을 새 테이블 3개(`oem_china_*`, 스키마 → [`Architecture.md §7-E`](../Architecture.md))에 싣는다. 기존 전 세계 생산(`oem_production_model_country_month` 의 `country='China'`)과는 받은 시점 차이로 약 2% 달라 **이 탭은 새 테이블만 쓴다.** 계획·결정 = [`docs/plans/2026-10-29-oem-china-tab.md`](./plans/2026-10-29-oem-china-tab.md).
+
+| 엑셀             | 받는 법                                                            | 테이블                       |
+| ---------------- | ------------------------------------------------------------------ | ---------------------------- |
+| Displacement/NEV | `statistics/product/china_monthly_prod` 페이지의 `.xls` 링크       | `oem_china_production_month` |
+| Passenger Cars   | `vehicle_production/preset/excel/month?nationCode=CHN&fromYear=Y…` | `oem_china_segment_month`    |
+| Export Volume    | `statistics/product/china_export` 페이지의 `.xlsx` 링크            | `oem_china_export_month`     |
+
+- **수집** — `sync_oem_china_excel.py`(다운로드 · 변경 감지) → `import_oem_china.py`(적재). 파서는 순수 함수 `scripts/lib/china_excel.py`(+ `test_china_excel.py`). 쿠키 세션만 생산량 sync 의 `build_session` 을 빌리고 나머지 코드는 공유하지 않는다(페이지·레이아웃이 다 다르다). GHA `sync-oem-china-excel.yml` 월 10:20 KST — 생산량 sync 10분 뒤(같은 쿠키 동시 세션 회피).
+- 🔴 **승용차 엑셀은 303 리다이렉트를 거친다** — `requests` 자동 리다이렉트가 `Cookie` 헤더를 떼어 **로그인 화면 HTML(200)** 이 온다. `download()` 가 리다이렉트를 손으로 따라간다(2026-10-30 실측 · 처음엔 Referer 탓으로 잘못 짚었다).
+- 승용차 엑셀은 **올해·작년 두 해만** 받는다(작년 수치가 연초에 고쳐진다). 첫 적재·복구는 `--backfill`(2018~).
+- 「바뀐 파일만」은 로컬 `참고/oem 중국/` 의 지난 파일과 md5 비교다. 🔴 **승용차 엑셀만은 읽은 행으로 견준다** — 받을 때마다 zip 안 파일 시각이 바뀌어 바이트가 늘 달라서 md5 로는 매주 「바뀜」이다(2026-10-30 실측). GHA 러너는 매번 빈 디스크라 `actions/cache` 로 지난 파일을 이어받는다(캐시가 비면 전체 적재로 돌아갈 뿐 결과는 같다). 파일 교체는 적재 성공 **뒤**다.
+- ⚠️ **파서 규칙(`GROUP_ALIASES` 등)만 고치면 파일이 같아 다시 적재되지 않는다** — 로컬에서 `import_oem_china.py` 를 돌리거나 Actions 캐시를 지우고 수동 실행한다.
+- **적재 규칙** — **파일에 든 연도 범위 안에서 파일에 없는 키는 지운다**(`WriteSession` 이 캐시 무효화). 지울 키는 **upsert 앞에서** 판정하고, 기존 행의 5% 를 넘으면 아무것도 쓰지 않고 멈춘다(`STALE_ABORT_RATIO` — 시트가 통째로 빠진 파일로 한 해를 지우지 않게). 연도 시트가 없거나 최신 연도 시트가 작년보다 오래된 파일도 구조 오류(종료 코드 4)로 멈춘다. NEV·승용차 두 파일은 같은 생산을 달리 쪼갠 것이라 **전 차종 월합이 같아야 한다** — 어긋나면 경고(승용만 보면 2024-01·08·09 에 87~268대 차이가 있다. 한 모델의 승용/상용 분류가 두 파일에서 달라서이며 전 차종 합은 같다).
+- **그룹** — `cn_group` 은 **중국 모회사**(FAW-VW·FAW-Toyota → FAW)이고 해마다 바뀐 표기는 `GROUP_ALIASES` 한 곳에서 맞춘다. 모회사가 `n.a.` 이면 브랜드명(테슬라·위에다기아·MINI). 화면의 모회사/브랜드 토글이 이 두 칸이다.
+- **브랜드** — 시트에 따라 「MG (2006-)」처럼 설립 연도 꼬리가 붙어 한 브랜드가 두 줄로 갈렸다. 파서(`canonical_brand`)가 꼬리를 떼고 적재한다(생산 `maker_brand` · 수출 `brand` 둘 다 · 2026-10-30 재적재로 DB 의 꼬리 0건).
+- **차종** — 승용 4종(Sedan/Hatchback·SUV·MPV·Mini Van)만 싣고 트럭·버스·트레일러·`n.a.` 는 뺀다. 🔴 **그 밖의 처음 보는 차종 표기는 조용히 버리지 않고 파싱 오류로 멈춘다**(`is_passenger`) — 새 승용 표기가 생기면 통째로 빠지기 때문.
+- **수출 `ev_tag`** 는 모델 단위 표기(`EV/PHV/ICE` 등)라 물량이 파워트레인별로 쪼개진 게 아니다. 화면은 동력원 하나면 그 칸, 둘 이상이면 `Multi`, 빈 표기·모르는 토큰은 `Unknown` 으로 옮긴다. 2021 이전은 열이 없어(`null`) 비중에서 뺀다.
+- 'Adjusted value'(연 단위 보정) 열은 월에 나눌 수 없어 버린다.
+- **화면** — 차트를 새로 만들지 않고 「전체」 탭·회사 탭 차트를 재사용한다(짝짓기 표 = 계획서 「화면」). 「내수」는 **생산 − 수출 추정치**(재고 증감·수입차 미반영)라 화면 각주가 그렇게 밝힌다. 🔴 **연도는 데이터 앵커(생산·수출 최신월 중 이른 쪽)로 정해 차트에 `year` 로 넘긴다** — 적재가 한 달 넘게 늦어 `currentYear()` 를 쓰면 1~2월에 빈 화면이 된다.
 
 ---
 

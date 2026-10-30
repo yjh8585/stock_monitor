@@ -41,9 +41,9 @@ type AnonClient = ReturnType<typeof createSupabaseAnonClient>;
  * 테이블 전체 fetch. `.range()` 다중 페이지는 **결정적 전체 정렬**이 필수다 —
  * ORDER BY 없이는 페이지 경계에서 순서가 흔들려 행이 누락·중복된다.
  * 여기서는 페이지를 Promise.all 로 동시에 던지므로 특히 그렇다.
- * `orderColumns` 에는 그 테이블의 PK 컬럼을 순서대로 준다.
+ * `orderColumns` 에는 그 테이블의 PK 컬럼을 순서대로 준다. 중국 탭(lib/oem-companies/china)도 쓴다.
  */
-async function fetchAll<TName extends keyof Database['public']['Tables']>(
+export async function fetchAll<TName extends keyof Database['public']['Tables']>(
   supabase: AnonClient,
   table: TName,
   orderColumns: readonly string[]

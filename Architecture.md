@@ -80,6 +80,7 @@
 | `/domestic`         | 국내자동차 (421개사 + 매크로)   | `domestic_stocks_view`                                  |
 | `/oem`              | OEM 전체 (MarkLines 대시보드)   | `oem_sales_*` 7개 테이블                                |
 | `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)   | `oem_model_outlook` v2 (§7-E)                           |
+| `/oem/china`        | 중국 승용 생산·수출             | `oem_china_*` 3개 테이블 (§7-E)                         |
 | `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
 | `/humanoid`         | 휴머노이드 기업                 | `humanoid_stocks_view`                                  |
 | `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
@@ -89,7 +90,7 @@
 | `/login`            | 세션 로그인                     | Supabase Auth                                           |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts`             |
 
-`/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
+`/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄 · 중국. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
 
 - **`/oem/competition`** (신규 2026-08-13, 같은 날 차트 중심으로 재구성 · 2026-08-14 사용자 피드백 반영) — **종합 스코어보드 + 차종별 섹션 10개**(`components/oem/competition/`). 소스 `lib/oem-competition/source.ts`, 적재는 월 1회 `collect_oem_model_outlook.py`(§10).
   - **스코어보드**(`CompetitionScoreboard`) — 10종 × 5항목(판매 증감·점유율·**유통재고(미국)**·**안전성(미국)**·소비자 평가) 신호등 표. **종합 등급은 별도 열이 아니라 행 전체의 음영**(`color-mix`로 카드 배경에 섞은 불투명 색 — sticky 첫 열이 반투명이면 글자가 비친다). 색만으로 정보를 주지 않도록 차종명 앞에 신호등 점을 함께 둔다. 행 클릭 시 해당 섹션으로 앵커 이동. 다중 시장 차종은 **가장 나쁜 시장**의 등급(`worstSignal` — 평균은 한 시장의 위험을 지운다).
@@ -494,6 +495,21 @@ PK `(kind, period_type, year_period, company, brand, vehicle_model, source_type)
 - **생산**(stat.uz news-of-committee): 차종(모델)별, 텍스트 + 인포그래픽 이미지(Anthropic 비전 OCR) → month + year. 엔진(Powertrain) 제외.
 - 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md) `/oem/uzbekistan`.
 
+#### `oem_china_*` 3종 (`20261029000001`) — 중국 승용 생산·차급·수출 (`/oem/china`)
+
+MarkLines 중국 전용 엑셀 3종을 그대로 담는다(전 세계 생산 `oem_production_model_country_month` 와 별개 — 받은 시점 차이로 약 2% 다르다). 2026-10-30 실측 2018-01~2026-09.
+
+| 테이블                       | 행     | PK                                                                     | 원본 엑셀        |
+| ---------------------------- | ------ | ---------------------------------------------------------------------- | ---------------- |
+| `oem_china_production_month` | 63,312 | `(cn_group, maker_brand, vehicle_type, model, powertrain, year_month)` | Displacement/NEV |
+| `oem_china_segment_month`    | 1,850  | `(vehicle_type, segment, year_month)`                                  | Passenger Cars   |
+| `oem_china_export_month`     | 21,352 | `(cn_group, maker, brand, model, year_month)` + `ev_tag`               | Export Volume    |
+
+- 🔴 **`cn_group` 은 중국 모회사**(FAW-VW·FAW-Toyota → FAW)다 — 글로벌 그룹인 `oem_group` 과 뜻이 다르니 섞지 말 것. 해마다 바뀐 표기는 `scripts/lib/china_excel.py` 의 `GROUP_ALIASES` 가 맞추고, 모회사가 `n.a.` 이면 브랜드명을 넣는다. 브랜드 칸(`maker_brand`·`brand`)은 「MG (2006-)」 같은 설립 연도 꼬리를 뗀 값이다(`canonical_brand`).
+- 승용(Sedan/Hatchback·SUV·MPV·Mini Van)만 싣는다. `ev_tag` 는 **모델 단위 표기**(`EV/PHV/ICE` 등)라 물량이 파워트레인별로 쪼개진 값이 아니다 — 2021 이전은 열이 없어 `null`.
+- RLS = anon 읽기 공개 · service_role 쓰기. 세 테이블 모두 `trg_skip_identical_update` 부착(§7-J — 같은 값 upsert 는 0행).
+- 적재 = `sync_oem_china_excel.py`(주간, §10) → `import_oem_china.py`(파일에 든 연도 범위 안에서 파일에 없는 키는 지운다 — upsert 앞에서 판정하고, 기존의 5% 를 넘으면 아무것도 쓰지 않고 멈춘다). 화면 조립·짝짓기 표 → [`docs/plans/2026-10-29-oem-china-tab.md`](./docs/plans/2026-10-29-oem-china-tab.md).
+
 ---
 
 ### 7-F. 매크로 · 환율 · 시계열
@@ -823,7 +839,7 @@ GHA runner: sync_management_excel.py (apply)
 | 한세 종목토론 | collect-naver-board (GHA Node tsx 직접) | 30분 |
 | 한세 분봉 | collect-hansae-intraday (KIS) | 5분 |
 | OEM 차종 경쟁 분석 | collect-oem-model-outlook (**핵심 차종 경쟁 분석 수집** — 핵심 차종 10종에 대해 MarkLines 판매 + `oem_competitor_set` 경쟁군 비교 + Perplexity 웹검색 + NHTSA 리콜 + Cox 재고일수를 Claude Sonnet 5 에 넣어 `oem_model_outlook` 적재. `PERPLEXITY_API_KEY` 미설정 시 **웹검색만 조용히 스킵하고 exit 0** — 실패가 아니라 분석 품질 저하로만 나타나 놓치기 쉽다. 회당 약 $0.73 → 연 $8.8) | 매월 21일 06:30 KST (`30 21 20 * *`) — 판매(MarkLines)·재고(Cox)가 월 1회 갱신이라 주 1회는 같은 숫자에 문장만 바뀌는 노이즈였다. 21일인 이유는 전월 판매와 Cox 수집(20일)이 끝난 뒤라서 |
-| OEM MarkLines Excel | sync-oem-excel (판매량 `vehicle_sales`), sync-oem-production-excel (생산량 `vehicle_production`, 10분 뒤 — 같은 쿠키로 동시 세션을 열면 로그인이 무효화될 수 있어 순차) | 주 1회 (월 10:00 / 10:10 KST) |
+| OEM MarkLines Excel | sync-oem-excel (판매량 `vehicle_sales`), sync-oem-production-excel (생산량 `vehicle_production`, 10분 뒤 — 같은 쿠키로 동시 세션을 열면 로그인이 무효화될 수 있어 순차), sync-oem-china-excel (중국 전용 엑셀 3종 → `oem_china_*`, 다시 10분 뒤. 지난 회차 파일을 `actions/cache` 로 이어받아 바뀐 파일만 적재 — md5, 승용차는 읽은 행 비교) | 주 1회 (월 10:00 / 10:10 / 10:20 KST) |
 | OEM 우즈벡 | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일 |
 | OEM 스텔란티스 | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments-ir (**primary** — stellantis.com IR 홈페이지 분기 출하, Playwright), collect-stellantis-shipments (**보완** — SEC EDGAR 북미 도매 출하, IR 직접값 보존 가드) | IR: 1/4/7/10월 16·22·28일 · EDGAR: 2/5/8/11월 27일 |
 | 신차 재고 (Cox) | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독) | 매월 20일 |
@@ -962,7 +978,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
   필요 없다(guest·hmobility 자동 차단). 더 좁은 권한만 명시한다 —
   `/management/upload` 는 admin 전용(`ADMIN_ONLY_PATHS`), 조직도는 admin·holdings·mobility.
 
-### B-3. `_archive/` 로 보내지 않고 유지하는 정기 재실행 스크립트 12종
+### B-3. `_archive/` 로 보내지 않고 유지하는 정기 재실행 스크립트 16종
 
 `seed_*`/`import_*`/`sync_*`/`gen_*`/`normalize_*`/`migrate_*.ts` 는 원칙적으로 일회성이라 종료 후
 `scripts/_archive/` 로 옮기지만, **아래는 정기 재실행이라 유지**한다.
@@ -971,6 +987,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `sync_oem_excel.py` · `import_oem_sales.py`                                                                                                              | MarkLines 판매량                                                             |
 | `sync_oem_production_excel.py` · `import_oem_production.py`                                                                                              | MarkLines 생산량 — 판매량과 **페이지·레이아웃·파일명이 달라** 코드 복제 금지 |
+| `sync_oem_china_excel.py` · `import_oem_china.py`                                                                                                        | MarkLines 중국 엑셀 3종(`/oem/china`) — 쿠키 세션만 생산량 sync 에서 빌린다  |
 | `sync_pnl_excel.py` · `sync_pnl_plan.py` · `sync_inventory.py` · `sync_personnel.py` · `sync_pnl_fixed_variable.py` · `sync_finance.py` · `sync_loan.py` | 월별손익 사외비 sync                                                         |
 | `sync_management_excel.py`                                                                                                                               | 위 8종 오케스트레이터 (GHA `workflow_dispatch` 전용)                         |
 | `sync_org_chart.py`                                                                                                                                      | 조직도 — **로컬 전용**(Excel COM 의존, Vercel/GHA 렌더 불가)                 |
@@ -1020,7 +1037,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 | `/login`                  | 세션 로그인                                                        |
 | `/stock-popup/[id]`       | 주식 팝업 (3/4 주식 + 1/4 뉴스)                                    |
 
-`/oem` 탭 네비는 `app/oem/layout.tsx`, 차트 카탈로그는 `docs/chart-guide.md`. **`/oem/<slug>`(hyundai·kia·kg-mobility·stellantis-na·uzbekistan) 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md).** `/management`는 `confidentialDb` 필수, `/reports`는 `'use cache'`+`generateStaticParams`+`updateTag`.
+`/oem` 탭 네비는 `app/oem/layout.tsx`, 차트 카탈로그는 `docs/chart-guide.md`. **`/oem/<slug>`(hyundai·kia·kg-mobility·stellantis-na·uzbekistan·china) 수집 상세 → [`docs/oem-collection.md`](./docs/oem-collection.md).** `/management`는 `confidentialDb` 필수, `/reports`는 `'use cache'`+`generateStaticParams`+`updateTag`.
 
 #### `/oem/competition` 상세
 
@@ -1118,6 +1135,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
     🔴 목록(`getResearchData`)은 `summary` 를 select 하지 않는다 — 144편 본문을 담으면 캐시·payload 가 1MB 를 넘어 ISR Write 한도를 다시 건드린다(`docs/isr-write-optimization.md`).
 
   - `lib/oem-companies/<slug>/` — `source.ts`(`'use cache'`+`cacheTag`) + `aggregate.ts`(pure) + 테스트. 상세 → `docs/oem-collection.md`
+    - `china/` 는 차트를 새로 만들지 않고 **기존 차트가 받는 입력 모양**(`OemSalesGroupMonth`·`CompanyPtMixPoint`·`KgRegionSeriesPoint` 등)으로 줄여 내준다 — 화면은 「전체」 탭·회사 탭 차트 재사용(짝짓기 표 = `docs/plans/2026-10-29-oem-china-tab.md` 「화면」). 순위용 (묶음, 월) 행은 앵커 연도 − 2 부터만 싣는다(ISR Write).
   - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
 
 ### `scripts/` — Python 데이터 수집
@@ -1129,13 +1147,13 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
 - `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
-- `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동. **단 정기 재실행 12종은 유지**(목록 → [`Architecture.md 부록 B-3`](./Architecture.md)). ⚠️ MarkLines 판매량·생산량 sync는 **페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하지 말 것**(→ [`docs/oem-collection.md`](./docs/oem-collection.md)) · `sync_org_chart.py`는 **로컬 전용**(Excel COM).
+- `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동. **단 정기 재실행 16종은 유지**(목록 → [`Architecture.md 부록 B-3`](./Architecture.md)). ⚠️ MarkLines 판매량·생산량 sync는 **페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하지 말 것**(→ [`docs/oem-collection.md`](./docs/oem-collection.md)) · `sync_org_chart.py`는 **로컬 전용**(Excel COM).
 - **사외비 적재 정책**(월별손익 sync 8종): 입력은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. 🔴 **stdout에 금액·인원수 비노출** — dry-run 출력은 행수·연도·월·null 카운트만(합계 금지). dry-run 확인 후 본 적재. 🔴 **`sync_longterm_revenue.py`는 별개라 오케스트레이터에 등록하지 않는다**(등록하면 dry-run이 엉뚱한 파일을 읽어 통째 실패). 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)**.
 - `_*.json` / `_*.log` / `_*.py` / `_*.md` / `_*.ts(x)` — 임시 산출물. 비활성이면 `_archive/` 이동. `scripts/` **최상위의 이 확장자들**은 `.gitignore`가 패턴으로 무시한다(사외비 본문이 담긴 산출물의 커밋 방지). 새 산출물 *폴더*는 여전히 `.gitignore`에 명시 추가해야 한다.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
 
-- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `product_categories.py`(제품군 카테고리 목록을 **DB 정본**(`product_category_map`)에서 읽어 LLM enum 으로 준다. 🔴 **목록을 수집기에 박지 말 것** — UI 에 이미 사본이 3벌 있다. `split_domains()` 로 자동차/로봇을 **반드시 가를 것**: 22종을 통째로 주면 자동차 부품이 로봇 칸으로 새고 «맞던 값까지» 망가진다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `naver_market_cap.py`(시가총액 대체 출처. 🔴 **KRX 시총 계열이 죽었을 때 쓴다** — 2026-09-16 실측에서 종목 단위·시장 전체가 둘 다 죽고 주가만 살아 있었다. 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주므로 파싱이 필요하고, 🔴 **반환값은 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱 자가 시험(`self_test()`)을 수집 시작 «전에» 부를 것) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다)
+- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `product_categories.py`(제품군 카테고리 목록을 **DB 정본**(`product_category_map`)에서 읽어 LLM enum 으로 준다. 🔴 **목록을 수집기에 박지 말 것** — UI 에 이미 사본이 3벌 있다. `split_domains()` 로 자동차/로봇을 **반드시 가를 것**: 22종을 통째로 주면 자동차 부품이 로봇 칸으로 새고 «맞던 값까지» 망가진다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `china_excel.py`(MarkLines 중국 엑셀 3종 → `oem_china_*` 행. 순수 함수, `test_china_excel.py`. 🔴 **그룹 표기 정규화는 `GROUP_ALIASES` 한 곳** — 없는 이름은 원문 그대로 둬 새 그룹이 조용히 사라지지 않게 한다. NEV·승용차 두 파일의 전 차종 월합이 같다는 교차 검증을 `import_oem_china.py` 가 돌린다) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `naver_market_cap.py`(시가총액 대체 출처. 🔴 **KRX 시총 계열이 죽었을 때 쓴다** — 2026-09-16 실측에서 종목 단위·시장 전체가 둘 다 죽고 주가만 살아 있었다. 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주므로 파싱이 필요하고, 🔴 **반환값은 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱 자가 시험(`self_test()`)을 수집 시작 «전에» 부를 것) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다)
 
 ### `supabase/migrations/`
 

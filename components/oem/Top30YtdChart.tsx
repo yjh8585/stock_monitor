@@ -32,14 +32,25 @@ import {
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
+  /** 툴팁 값 이름 — 중국 탭은 '생산량'·'수출량' */
+  metricLabel?: string;
+  /** 표 머리 — 중국 탭은 '모회사'·'브랜드' */
+  entityLabel?: string;
+  /** YTD 연도 — 기본 currentYear(). 적재가 화면보다 늦는 중국 탭은 데이터 앵커 연도를 넘긴다 */
+  year?: number;
 }
 
 const TOP_N = 30;
 
 /** 진행 연도(currentYear()) YTD TOP30 — 가로 막대 + 우측 표 */
-export default function Top30YtdChart({ groupMonth }: Props) {
+export default function Top30YtdChart({
+  groupMonth,
+  metricLabel = '판매량',
+  entityLabel = 'OEM',
+  year,
+}: Props) {
   const { rows, latestMonth, curYr, prevYr } = useMemo(() => {
-    const curYr = currentYear();
+    const curYr = year ?? currentYear();
     const prevYr = curYr - 1;
     const latestYm = findLatestYm(groupMonth, curYr);
     if (!latestYm) return { rows: [], latestMonth: 0, curYr, prevYr };
@@ -47,10 +58,10 @@ export default function Top30YtdChart({ groupMonth }: Props) {
     const cur = sumByGroup(groupMonth, curYr * 100 + 1, latestYm);
     const prev = sumByGroup(groupMonth, prevYr * 100 + 1, prevYr * 100 + month);
     return { rows: buildRanking(cur, prev, TOP_N), latestMonth: month, curYr, prevYr };
-  }, [groupMonth]);
+  }, [groupMonth, year]);
 
   if (!rows.length) {
-    return <div className="text-sm text-muted-foreground">{currentYear()}년 데이터 없음</div>;
+    return <div className="text-sm text-muted-foreground">{curYr}년 데이터 없음</div>;
   }
 
   const chartData = rows.map((r, i) => ({
@@ -83,7 +94,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
               interval={0}
             />
             <Tooltip
-              formatter={(v) => [fmtFull(Number(v)) + ' 대', '판매량']}
+              formatter={(v) => [fmtFull(Number(v)) + ' 대', metricLabel]}
               cursor={{ fill: 'var(--muted)' }}
               contentStyle={TOOLTIP_CONTENT_STYLE}
             />
@@ -107,7 +118,7 @@ export default function Top30YtdChart({ groupMonth }: Props) {
           <thead className="sticky top-0 bg-card">
             <tr className="border-b border-border">
               <th className="text-left p-2 w-10">#</th>
-              <th className="text-left p-2">OEM</th>
+              <th className="text-left p-2">{entityLabel}</th>
               <th className="text-right p-2 w-24">YTD</th>
               <th className="text-right p-2 w-20">YoY</th>
             </tr>

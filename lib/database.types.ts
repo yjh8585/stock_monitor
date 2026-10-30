@@ -1246,6 +1246,87 @@ export type Database = {
           },
         ];
       };
+      oem_china_export_month: {
+        Row: {
+          brand: string;
+          cn_group: string;
+          ev_tag: string | null;
+          export_volume: number;
+          maker: string;
+          model: string;
+          year_month: number;
+        };
+        Insert: {
+          brand: string;
+          cn_group: string;
+          ev_tag?: string | null;
+          export_volume: number;
+          maker: string;
+          model: string;
+          year_month: number;
+        };
+        Update: {
+          brand?: string;
+          cn_group?: string;
+          ev_tag?: string | null;
+          export_volume?: number;
+          maker?: string;
+          model?: string;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
+      oem_china_production_month: {
+        Row: {
+          cn_group: string;
+          maker_brand: string;
+          model: string;
+          powertrain: string;
+          production: number;
+          vehicle_type: string;
+          year_month: number;
+        };
+        Insert: {
+          cn_group: string;
+          maker_brand: string;
+          model: string;
+          powertrain: string;
+          production: number;
+          vehicle_type: string;
+          year_month: number;
+        };
+        Update: {
+          cn_group?: string;
+          maker_brand?: string;
+          model?: string;
+          powertrain?: string;
+          production?: number;
+          vehicle_type?: string;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
+      oem_china_segment_month: {
+        Row: {
+          production: number;
+          segment: string;
+          vehicle_type: string;
+          year_month: number;
+        };
+        Insert: {
+          production: number;
+          segment: string;
+          vehicle_type: string;
+          year_month: number;
+        };
+        Update: {
+          production?: number;
+          segment?: string;
+          vehicle_type?: string;
+          year_month?: number;
+        };
+        Relationships: [];
+      };
       oem_competitor_set: {
         Row: {
           competitor_models: string[];

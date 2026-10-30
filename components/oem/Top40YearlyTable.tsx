@@ -8,19 +8,23 @@ import { buildRanking, fmtUnits, shortenOemName, sumByGroup } from './helpers';
 
 interface Props {
   groupMonth: OemSalesGroupMonth[];
+  /** 표 머리 — 중국 탭은 '모회사'·'브랜드' */
+  entityLabel?: string;
+  /** 대상 연도 — 기본 targetYear(). 중국 탭은 데이터에서 파생한 마지막 완결 연도를 넘긴다 */
+  year?: number;
 }
 
 const TOP_N = 40;
 
 /** 직전 완결 연도(targetYear()) TOP40 표 — 순위 등락 + YoY */
-export default function Top40YearlyTable({ groupMonth }: Props) {
+export default function Top40YearlyTable({ groupMonth, entityLabel = 'OEM', year }: Props) {
   const { rows, tgtYr, prevYr } = useMemo(() => {
-    const tgt = targetYear();
+    const tgt = year ?? targetYear();
     const prev = tgt - 1;
     const cur = sumByGroup(groupMonth, tgt * 100 + 1, tgt * 100 + 12);
     const prevSums = sumByGroup(groupMonth, prev * 100 + 1, prev * 100 + 12);
     return { rows: buildRanking(cur, prevSums, TOP_N), tgtYr: tgt, prevYr: prev };
-  }, [groupMonth]);
+  }, [groupMonth, year]);
 
   return (
     <div className="overflow-x-auto">
@@ -29,7 +33,7 @@ export default function Top40YearlyTable({ groupMonth }: Props) {
           <tr className="border-b border-border bg-muted/40">
             <th className="text-left p-2 w-12">{tgtYr} #</th>
             <th className="text-center p-2 w-16">등락</th>
-            <th className="text-left p-2">OEM</th>
+            <th className="text-left p-2">{entityLabel}</th>
             <th className="text-right p-2 w-28">{prevYr}</th>
             <th className="text-right p-2 w-28">{tgtYr}</th>
             <th className="text-right p-2 w-20">YoY</th>

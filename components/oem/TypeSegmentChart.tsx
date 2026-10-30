@@ -10,6 +10,8 @@ import { fmtFull, fmtUnits } from './helpers';
 
 interface Props {
   typeSegMonth: OemSalesTypeSegMonth[];
+  /** 대상 연도 — 기본 targetYear(). 중국 탭은 데이터에서 파생한 마지막 완결 연도를 넘긴다 */
+  year?: number;
 }
 
 const TYPE_COLORS = [
@@ -55,9 +57,9 @@ function topNWithOthers(rows: SliceRow[], n: number): SliceRow[] {
 }
 
 /** Type/Segment 구조 — 직전 완결 연도(targetYear()) 도넛 2개 */
-export default function TypeSegmentChart({ typeSegMonth }: Props) {
+export default function TypeSegmentChart({ typeSegMonth, year }: Props) {
   const { typeData, segmentData } = useMemo(() => {
-    const tgt = targetYear();
+    const tgt = year ?? targetYear();
     const yearStart = tgt * 100 + 1;
     const yearEnd = tgt * 100 + 12;
     const typeMap = new Map<string, number>();
@@ -78,7 +80,7 @@ export default function TypeSegmentChart({ typeSegMonth }: Props) {
       .map(([name, value]) => ({ name, value }));
 
     return { typeData: typeArr, segmentData: segArr };
-  }, [typeSegMonth]);
+  }, [typeSegMonth, year]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

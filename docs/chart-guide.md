@@ -35,6 +35,8 @@
 | `PT_COLORS` / `PT_ORDER`     | `components/charts/palette.ts`                        | 파워트레인(ICE/HV/PHEV/EV/FCV) 전동화 그라데이션 색                                                                                     | OEM PowerTrain 차트 |
 | `RangeToggle`                | `components/charts/RangeToggle.tsx`                   | 1D/1M/3M/YTD/1Y/5Y 토글(lightweight-charts 전용)                                                                                        | `SeriesChart` 류    |
 | `PlaceholderChart`           | `components/charts/PlaceholderChart.tsx`              | "데이터 수집 준비 중" 자리 카드                                                                                                         | 미구현 시리즈       |
+| `UzbekistanDimensionToggle`  | `components/oem-companies/uzbekistan/`                | 묶는 단위 버튼(기본 브랜드/회사 · `options` 로 선택지 교체)                                                                             | 우즈베키스탄·중국   |
+| `KgDomesticExportSplit`      | `components/oem-companies/kg-mobility/`               | 내수/수출 누적 막대 카드(연/월 토글 · `title`·`footer`)                                                                                 | KG·중국             |
 
 ---
 
@@ -101,6 +103,10 @@
 
 - **공통**(`common/`): `CompanyTimeSeriesChart`(연 막대/월 영역 토글), `CompanyPowertrainMixChart`, `ShipmentStackedHBarChart`(내수·수출·해외 가로 스택)
 - **회사별**: `hyundai/`, `kia/`, `kg-mobility/`, `stellantis-na/`, `uzbekistan/` — 각각 `Xxx.tsx`(래퍼 Card) + `XxxInner.tsx`(recharts, lazy)
+- **`china/`**(2026-10-30) — **차트 파일이 없다.** `ChinaDashboard.tsx` 가 「전체」 탭(`Top30YtdChart`·`Top40YearlyTable`·`YoyWinnersLosers`·`TypeSegmentChart`)과 회사 탭(`CompanyKpiCards`·`CompanyPowertrainMixChart`·`CompanyTopModelsTable`·KG `KgDomesticExportSplit`·우즈베키스탄 `UzbekistanDimensionToggle`) 부품을 조립만 한다 — 새로 만든 부품은 없다. 연도는 데이터 앵커로 정해 전체 탭 차트에 `year` 로 넘긴다(적재가 한 달 넘게 늦어 시계 연도를 쓰면 1~2월에 빈 화면). 짝짓기 표 = `docs/plans/2026-10-29-oem-china-tab.md` 「화면」 — 다음 국가·시장 탭의 본보기다(§7 0번).
+  - 「전체」 탭 차트의 글자 차이는 **기본값이 현행인 선택 인자**로 흡수했다 — `Top30YtdChart` 의 `metricLabel`(툴팁, 기본 `'판매량'`)·`entityLabel`(표 머리, 기본 `'OEM'`), `Top40YearlyTable` 의 `entityLabel`, 그리고 네 차트(`Top30YtdChart`·`Top40YearlyTable`·`YoyWinnersLosers`·`TypeSegmentChart`)의 `year`(기본 `currentYear()`/`targetYear()`). 부르는 쪽이 안 넘기면 화면이 그대로다.
+  - 연간 x축 라벨은 **연도만**(`'2026'`). `'2026 YTD'` 처럼 길면 recharts 가 바로 앞 해(`'2025'`) 라벨을 숨긴다(헤드리스 실측) — 누계 기간은 각주로 밝힌다(KG·현대 `aggregatePtMixAnnual` 과 같은 관례).
+  - ⚠️ **축 단위 함수 `fmtUnitsTick` 잠복 버그** — 회사 탭 Inner 16곳이 `n >= 10_000_000` 일 때 `n / 10_000_000` 에 `M` 을 붙여 **10배 작게** 찍는다(1,000만 → `1.00M`). 회사 하나는 1,000만에 안 닿아 지금은 `만` 분기로만 그려져 안 보인다. 중국 전체(3,200만)를 얹은 `KgDomesticExportSplitInner` 만 `1_000_000` 기준으로 고쳤다 — 나머지 Inner 를 1,000만 넘는 값에 재사용하면 같은 식으로 고칠 것.
 
 ### `/management` — `components/management/`
 
@@ -424,6 +430,7 @@ export const CHART_HEIGHT = {
 
 ## 7. 신규 차트 만들 때 체크리스트
 
+0. 🔴 **새로 만들기 전에 §3 카탈로그로 짝짓는다**(사용자 지시 2026-10-30 — 통일성). 새 화면의 차트마다 「같은 질문에 답하는 기존 컴포넌트」를 찾아 **그대로 / 선택 인자만 더해 / 신규** 중 하나로 적은 표를 계획서에 넣고, **신규 칸만** 만든다. 기존 컴포넌트의 글자(「판매량」·「OEM」 등)가 안 맞으면 새로 짜지 말고 **기본값이 지금과 같은 선택 인자**를 더한다. 「○○ 탭처럼」 지시면 그 탭의 컴포넌트 전부가 짝짓기 대상이다. 경위: `/oem/china` 첫 판이 「전체처럼」 지시를 받고도 전체 탭(`components/oem/`)을 안 열어 비슷한 차트 7개를 새로 만들었다 → 같은 날 전체 탭·회사 탭 공용 컴포넌트로 바꿨다.
 1. **시계열+기간토글?** → `SeriesChart`/`MultiSeriesChart` 재사용(거의 새로 안 만듦).
 2. **카테고리 축?** → §4 레시피 복사 + §5 토큰 사용.
 3. 높이는 `useChartHeight` 3-tier 중 선택(직접 px 금지).
