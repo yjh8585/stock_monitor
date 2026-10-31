@@ -8,7 +8,30 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-10-30, **KATECH PDF 2편 게시 — 리포트 147 · 148**)
+## 최신 상태 · 재개 지점 (2026-10-31, **「기타 > 경영표준」 신설 — 그룹웨어 경영표준 종합 보고서 14편(리포트 149~162) 게시**)
+
+> 이 세션의 관통 주제: 그룹웨어 경영표준 514건을 「분야별 지식노트 19편 → 회사 운영체계 보고서 12장+부록 2」 두 단계로 정리했다. 원고 → 검사기 → 검토 패널 6명(지적 약 160건) → 장별 수정자 6명이 원문 대조로 반영·기각 → 장 사이 넘김을 메인이 중계했다. Codex 는 전 장이 사외비라 원고 대조에 쓰지 않았고 코드 diff 검토에만 썼다.
+
+**결과**: `/etc/mgmt-standard`(장 목차 · 사외비 — admin·holdings·mobility 만) · `/etc/mgmt-standard/[id]`(`PostDetail` 공용). posts 149~162, category '경영표준', 전부 `is_confidential=true`, `source_published_at=2026-10-30T00:00:00Z`, `source_url`=그룹웨어 경영표준 화면. `/reports` 목록·카테고리·출처 드롭다운에서 감춘다(`HIDDEN_CATEGORIES`). 지식노트 19편 = 볼트 `20_경영/사내표준`(지식 폴더 아님 — Voyage 색인 대상 밖).
+
+**사용자 지시**: 원문 = `docs/참고/_최초지시_경영표준_2026-10-30.md`(gitignore) · 확정 결정 8개 = `docs/plans/2026-10-30-mgmt-standard.md`(이행 = `_결정이행.md`).
+
+**비자명한 사실 (재조사 금지)**:
+
+- 원고·도구는 레포 안 gitignore 폴더 `참고/경영표준/`(보고서/·도구/·묶음/·원본/) — 커밋되지 않는다. 다시 게시 = `npx tsx scripts/_mgmt_standard_publish.ts [--dry-run] 00 01 … 11 A B`(gitignore `scripts/_*.ts` · 같은 제목이면 UPDATE). 게시 전 검사 = `verify_report.py`·`verify_translationese.py`·`verify_report_krw.py`·`node 참고/경영표준/도구/verify_mermaid.mjs`·`verify_docnos.py`.
+- 검사기 둘(`verify_mermaid.mjs`·`verify_report.py`)은 CRLF 원고를 실패로 친다 — 파이썬 `write_text` 가 07장을 CRLF 로 바꿔 Mermaid 3개가 조용히 빠진 사고 뒤 넣었다(전역 gotchas §5).
+- 원문끼리 다른 값은 판정하지 않고 각 장 「확인이 필요한 곳」에 나란히 적었다(모으는 장: EPC·초기유동관리 종료·PQC·사내 R@R = 10장, PM 선정 = 07장). 경영검토 주기 = MS-A10 「정기적으로」·QM-A9.0 「최소한 매년」.
+- 07장 제목을 「일감에서 수금까지」로 바꿨다(장 경계는 그대로 · 제1원리 검토 지적). 장 번호는 사용자 결정 4로 고정.
+- 처리표(반영 177 · 기각 10 · 메인 결정 5 · 넘김 6 · 미결 0)·검토 원본은 세션 scratchpad 에만 있다 — 다음 세션엔 없다.
+- `revalidateTag(t, 'max')` 라 게시 직후 첫 요청은 옛 캐시 — 두 번 열어 확인한다.
+- 지식노트 07·11편에 고객사 이름이 남아 있다(노트 규칙엔 이름 금지가 없고 개인 볼트 사외비라 그대로 둠 — 사용자에게 알림, 답 없음).
+- 커밋 전 diff 검토(오퍼스·Codex 따로) — Critical·Important 0. 기각한 Minor(휴머노이드 상세와 같은 기존 방식이라 공용 컴포넌트를 건드려 세 화면을 함께 바꾸지 않았다): ① 상세가 카테고리를 확인하지 않는다(권한자가 남의 글 id 를 쳐도 이 경로에 보인다 — 권한 상승은 아님) ② `PostDeleteButton` 이 삭제 뒤 `/reports` 로 간다 ③ 사이드바 하위 메뉴 활성 표시가 정확 일치라 상세에서 꺼진다 ④ `/etc/mgmt-standard` 경로 문자열이 목차·상세·권한·사이드바 네 곳.
+
+**재개 지점**: 끝났다. 남은 선택지만 있다 — ① 운영 배포 뒤 운영 화면을 헤드리스로 한 번 열어 보기(로컬 3001 에서는 확인 완료) ② 노트 07·11 고객사 이름 정리 여부(사용자 판단).
+
+**검증**: `npm run check-all` EXIT 0(시험 535) · anon REST 경영표준 0행 / service 14행 전부 사외비 · 로컬 헤드리스(admin 목차 14·Mermaid SVG·별표 0·가로 넘침 0 · hmobility·guest 차단 · `/reports` 누출 0) · 원고 검사 다섯 종 EXIT 0(Mermaid 53/0).
+
+## 이전 상태 · 재개 지점 (2026-10-30, **KATECH PDF 2편 게시 — 리포트 147 · 148**)
 
 > 이 세션의 관통 주제: 88쪽 격월간지를 한 편으로 정리했다 — 꼭지별 서브에이전트 4명이 초안을 쓰고, 메인이 그림 15장을 직접 열어 캡션을 대조하고, Codex 사실 대조를 범위 둘로 나눠 돌렸다. Codex 지적 12건은 전부 맞았고 대부분 원문 단서(「~할 수 있다」)가 단정으로 바뀐 것이었다.
 
@@ -203,18 +226,3 @@
 **막힌 곳 / 안 되더라**: 3000번 포트는 여전히 **이 앱이 아니다** — `npm run dev` 는 3001로 비켜 뜬다. `TaskStop` 으로 `npm run dev` 를 꺼도 **Next 자식 `node.exe` 가 포트를 잡고 남는다** → `netstat` 으로 PID 확인 후 `taskkill //PID <번호> //T //F`. `npm run check-all` 을 9월 28일부터 실패시키던 `scripts/dart_eval/README.md` 형식 경고(표 칸 너비)는 같은 날 prettier 로 정리해 **이제 통과한다**(EXIT=0 · lint 경고 0건).
 
 **재개 지점**: 화면 실물은 사용자가 dev 서버에서 1차 확인 후 수정 지시를 줬고, **2차 수정본(순서·볼드·개별관리상세·상세 자동 전환)은 아직 눈으로 안 봤다.** `/management/pnl` 2-2 표에서 경비관리 → 개별관리상세를 눌러 확인하면 된다. 행 정의 함수(`buildRowDefs`)는 export 되지 않아 단위 시험이 없다.
-
-## 이전 상태 · 재개 지점 (2026-10-07) — 다크모드를 켰다(기본 라이트 · 사이드바 버튼)
-
-**무엇을 했나**: `next-themes`·`.dark` 색표·주가 차트의 `isDark` 분기가 **전부 이미 있었는데 `ThemeProvider` 가 없어 잠들어 있었다.** `app/layout.tsx` 에 공급자를 넣고 `components/layout/ThemeToggle.tsx` 를 사이드바·모바일 메뉴 하단(로그아웃 위)에 붙였다.
-
-**결정과 근거**(사용자 선택 2026-10-07): 기본 테마 = **라이트 고정**(`enableSystem={false}` — 윈도우가 다크여도 안 따라간다) · 범위 = **하드코딩 색 전부 한 번에**.
-
-- **Recharts 50여 개는 `app/globals.css` 한 곳에서 덮었다** — Recharts 는 격자(`#ccc`)·축 글자(`#666`)·기본 툴팁(흰 바탕)을 SVG 속성으로 박는데, **SVG 속성은 CSS 규칙에 진다.** 그래서 `.dark .recharts-cartesian-grid line { stroke: var(--border) }` 류로 파일을 안 건드리고 처리했다. 기본 툴팁만 인라인 style 이라 `!important`.
-- **덮지 않은 것(의도)**: 범례 글자(시리즈 색이 지워진다) · 데이터 라벨(막대 안 흰 글자가 회색이 된다 — 그래서 라벨 규칙은 `.recharts-cartesian-axis .recharts-label` 로 축 제목에만 한정) · 시리즈 색 · 배지(연한 바탕+진한 글자라 다크에서도 읽힌다) · 이미지 흰 바탕(조직도 PNG 등 투과 이미지).
-- **lightweight-charts 는 캔버스라 CSS 가 안 먹는다** — 한세 `IntradayCombinedChart`·`IntradayMiniChart` 의 검정 가격선은 `useTheme()` 으로 가르고 `useEffect` 의존성에 색을 넣었다(빠뜨리면 전환해도 차트가 안 바뀐다).
-- **로고는 반전 불가**(그라데이션 브랜드 색) — 다크일 때만 흰 바탕 칩(`LOGO_CLASS`, `Sidebar.tsx`). 로그인 페이지는 서버 컴포넌트라 `'use client'` 모듈의 상수를 import 하지 않고 클래스를 직접 적었다.
-
-**막힌 곳 / 안 되더라**: 3000번 포트는 **이 앱이 아니다**(다른 앱 · `/login` 404). 확인은 `npm run dev -- -p 3005` 로 띄워 `curl` 했다. `npm run check-all` 은 `scripts/dart_eval/README.md` 형식 경고로 **기존부터** 실패한다(커밋 `e1289d1` · 이번 변경 무관) — 그 뒤 단계(타입·테스트)는 따로 돌려야 한다.
-
-**재개 지점**: 화면 실물 확인은 **아직 안 했다**(이 PC 는 브라우저 자동화 금지). 사용자가 다크로 바꿔 `/oem` 회사별 차트 · `/management` 손익 산점도 · `/hansae` 주가선 · `/reports` 목록을 봐 주기로 했다. 대비가 약할 후보: 출하 차트 「내수」 `#1e3a5f`(진한 남색) · `lib/customerLogos.ts` 의 검정 배지 4종.

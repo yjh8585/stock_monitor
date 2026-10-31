@@ -9,11 +9,16 @@ import { buttonVariants } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccessConfidentialReports, canPublishReports } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
+import { MGMT_STANDARD_CATEGORY } from '@/lib/reports/mgmtStandard';
 import { ROBOT_CATEGORY } from '@/lib/reports/robot';
 import { normalizeOrder, normalizeSort, type SortKey, type SortOrder } from '@/lib/reports/sort';
 import type { PostSourceType } from '@/lib/reports/types';
 
 const PAGE_SIZE = 20;
+
+// 전용 화면이 있어 게시판에서 감추는 카테고리 — 로봇은 `/humanoid`(2026-09-11),
+// 경영표준은 `/etc/mgmt-standard`(2026-10-30). 목록과 드롭다운에 같은 배열을 넘긴다.
+const HIDDEN_CATEGORIES = [ROBOT_CATEGORY, MGMT_STANDARD_CATEGORY] as const;
 
 // 정렬 타입·정규화 정본 = `lib/reports/sort.ts` (여기 다시 정의하지 말 것).
 
@@ -69,14 +74,13 @@ async function getPostsListData(args: ListArgs) {
       order: args.order,
       sourceType: args.sourceType,
       category: args.category,
-      // 로봇 글은 휴머노이드 전용이라 게시판 목록에서 뺀다(사용자 지시 2026-09-11).
-      excludeCategory: ROBOT_CATEGORY,
+      excludeCategories: HIDDEN_CATEGORIES,
       sourceName: args.sourceName,
       search: args.search,
       includeConfidential: args.includeConfidential,
     }),
-    repo.getDistinctCategories(args.includeConfidential, ROBOT_CATEGORY),
-    repo.getDistinctSourceNames(args.includeConfidential),
+    repo.getDistinctCategories(args.includeConfidential, HIDDEN_CATEGORIES),
+    repo.getDistinctSourceNames(args.includeConfidential, HIDDEN_CATEGORIES),
   ]);
   return { rows, total, categories, sourceNames };
 }

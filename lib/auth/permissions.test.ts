@@ -26,6 +26,23 @@ describe('canAccess — 조직도(/management/org-chart)', () => {
   });
 });
 
+describe('canAccess — 기타 > 경영표준(/etc/mgmt-standard)', () => {
+  it('사외비 열람 역할(admin·holdings·mobility)만 목차·상세 허용', () => {
+    for (const path of ['/etc/mgmt-standard', '/etc/mgmt-standard/123']) {
+      expect(canAccess(path, 'admin')).toBe(true);
+      expect(canAccess(path, 'holdings')).toBe(true);
+      expect(canAccess(path, 'mobility')).toBe(true);
+      expect(canAccess(path, 'hmobility')).toBe(false);
+      expect(canAccess(path, 'guest')).toBe(false);
+    }
+  });
+
+  it('다른 기타 탭은 그대로 열려 있다', () => {
+    expect(canAccess('/etc/fx', 'guest')).toBe(true);
+    expect(canAccess('/etc/economy', 'hmobility')).toBe(true);
+  });
+});
+
 describe('canPublishReports', () => {
   it('admin·holdings·mobility 는 게시할 수 있다', () => {
     expect(canPublishReports('admin')).toBe(true);

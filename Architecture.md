@@ -1032,6 +1032,8 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 | `/humanoid/research/[id]` | 리포트 상세 (요약 마크다운)                                        |
 | `/hansae`                 | 한세그룹 대시보드 + intraday                                       |
 | `/etc`                    | 기타정보 (해운·철강·환율·매크로·두바이유)                          |
+| `/etc/mgmt-standard`      | 경영표준 장 목차 (사외비 `posts`) — **↓ 상세**                     |
+| `/etc/mgmt-standard/[id]` | 경영표준 장 본문 (`PostDetail` 공용)                               |
 | `/reports`                | 보고서 + youtube-summary — **↓ 상세**                              |
 | `/management`             | 경영관리 10탭 (사외비) — **↓ 상세**                                |
 | `/login`                  | 세션 로그인                                                        |
@@ -1063,9 +1065,18 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 (`components/reports/post-list.tsx` · `components/reports/post-detail.tsx`). 약속만:
 
 - 🔴 **로봇 글은 `/reports` 목록에서 감춘다**(사용자 지시 2026-09-11 "로봇 관련된 것은 다 휴머노이드로"). 카테고리 문자열·제목 판정의 SSOT 는 **`lib/reports/robot.ts`** — 페이지마다 다시 박으면 한쪽만 고쳐져 글이 두 곳에서 동시에 사라지거나 동시에 나타난다.
-- 🔴 제외는 `PostRepository.list({ excludeCategory })` 가 `category is null OR category <> '로봇'` 으로 편다. **`.neq()` 단독으로 바꾸지 말 것** — `NULL <> '로봇'` 은 참이 아니라 카테고리가 빈 글(실측 5건)까지 조용히 사라진다.
+- 🔴 제외는 `PostRepository.list({ excludeCategories })` 가 `category is null OR category not in (…)` 으로 편다(게시판이 넘기는 배열 = `app/reports/page.tsx` 의 `HIDDEN_CATEGORIES` — 로봇·경영표준). **`.neq()`·`not.in` 단독으로 바꾸지 말 것** — `NULL <> '로봇'` 은 참이 아니라 카테고리가 빈 글(실측 5건)까지 조용히 사라진다. 🔴 **드롭다운 둘(`getDistinctCategories`·`getDistinctSourceNames`)에도 같은 배열을 넘긴다** — 출처 쪽을 빠뜨려 감춘 경영표준 글의 출처 이름이 드롭다운에 새었다(2026-10-31 헤드리스 실측).
 - 🔴 새 글의 카테고리는 LLM 이 제목 한 줄로 고르는데(`classifyCategory`), **제목에 로봇어가 있으면 `isRobotTitle()` 이 LLM 을 건너뛰고 로봇으로 고정한다.** 분류가 새면 그 글은 휴머노이드에 영영 안 나오는데 오류도 로그도 없다.
 - 목록·상세 컴포넌트는 `basePath` 를 인자로 받는다. **하드코딩하지 말 것** — 정렬 헤더가 `/reports` 로 튄다.
+
+#### `/etc/mgmt-standard` 상세
+
+그룹웨어 경영표준(매뉴얼·규칙·기준서)을 정리한 보고서 14편(00~11장 + 부록 2). 계획 = `docs/plans/2026-10-30-mgmt-standard.md`. 약속만:
+
+- 🔴 **카테고리 SSOT 는 `lib/reports/mgmtStandard.ts`** — 게시판(`/reports`)은 이 카테고리를 감춘다(로봇과 같은 방식).
+- 목차는 `PostList` 가 아니라 장 번호 순 목록이다 — 게시판 정렬(게시일·원문 발행일)로는 장 순서를 못 세운다(`compareChapterTitle`). 제목은 `00.`~`11.`·`부록 A.` 로 시작해야 순서가 선다.
+- 🔴 **글은 전부 사외비**(`is_confidential = true`) — 라우트·사이드바 하위 메뉴가 `canAccessConfidentialReports` 역할에만 열린다(`canAccess`). 목차 조회도 `includeConfidential` 을 인자로 넘겨 역할별 캐시를 가른다.
+- 글은 게시 스크립트가 카테고리를 직접 넣는다(자동 분류기 미경유). 원문은 그룹웨어 2026-10-30 스냅샷(갱신은 수동).
 
 #### `/humanoid/research` 상세
 

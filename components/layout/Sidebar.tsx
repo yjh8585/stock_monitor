@@ -68,6 +68,7 @@ const NAV_ITEMS_ALL: readonly NavItem[] = [
       { label: '원자재', href: '/etc/commodities' },
       { label: '운임', href: '/etc/shipping' },
       { label: '경제', href: '/etc/economy' },
+      { label: '경영표준', href: '/etc/mgmt-standard' },
     ],
   },
 ];
@@ -76,7 +77,12 @@ export const NAV_ITEMS = NAV_ITEMS_ALL;
 
 function getVisibleNavItems(user: CurrentUser | null): readonly NavItem[] {
   if (!user) return NAV_ITEMS_ALL;
-  return NAV_ITEMS_ALL.filter((item) => canAccess(item.href, user.role));
+  // 하위 메뉴도 거른다 — 기타 > 경영표준처럼 하위 하나만 막힌 경우가 있다.
+  return NAV_ITEMS_ALL.filter((item) => canAccess(item.href, user.role)).map((item) =>
+    item.children
+      ? { ...item, children: item.children.filter((c) => canAccess(c.href, user.role)) }
+      : item
+  );
 }
 
 /** 모바일 Sheet 내 네비게이션 */

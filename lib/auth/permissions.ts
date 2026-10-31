@@ -78,6 +78,12 @@ export function canAccess(pathname: string, role: Role): boolean {
     return false;
   }
 
+  // 기타 > 경영표준 — 글이 전부 사외비라(계획 2026-10-30 결정 3) 사외비 열람 역할만.
+  // 막지 않으면 다른 역할은 빈 목차만 보게 된다.
+  if (matchesPath(pathname, '/etc/mgmt-standard')) {
+    return canAccessConfidentialReports(role);
+  }
+
   // 한세그룹 — holdings만 허용
   if (matchesPath(pathname, '/hansae')) {
     return role === 'holdings';

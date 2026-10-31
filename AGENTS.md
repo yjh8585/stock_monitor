@@ -72,7 +72,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 > [`Architecture.md 부록 C`](./Architecture.md). "이 파일 어디 있지"는 거기부터.
 
 - [`app/`] 🔴 **SSOT 3개를 코드에 다시 박지 말 것** — 경쟁군 `oem_competitor_set` · 모델→Cox 브랜드 `oem_model_brand`(바꾸려면 새 마이그레이션) · 신호등 임계값 `lib/oem-competition/signals.ts`의 `SIGNAL_THRESHOLDS`(판정·툴팁 문구 모두). 종합 라벨은 **AI 판단 그대로** 쓴다.
-- [`app/`] **로봇 카테고리 글은 `/humanoid` 전용**(사용자 지시 2026-09-11) — 게시판 `/reports` 목록·필터에서 감춘다. 카테고리 문자열·제목 판정 SSOT 는 **`lib/reports/robot.ts`**(페이지마다 다시 박지 말 것) · 제외는 `excludeCategory` (**`.neq()` 단독 금지** — `NULL <> '로봇'` 이 참이 아니라 카테고리 빈 글까지 지운다) · 새 글은 `isRobotTitle()` 이 LLM 분류를 건너뛰고 고정한다(안 그러면 조용히 새어 휴머노이드에 영영 안 뜬다). 목록·상세 컴포넌트의 `basePath` 를 하드코딩하지 말 것.
+- [`app/`] **로봇 카테고리 글은 `/humanoid` 전용**(사용자 지시 2026-09-11) — 게시판 `/reports` 목록·필터에서 감춘다. 카테고리 문자열·제목 판정 SSOT 는 **`lib/reports/robot.ts`**(페이지마다 다시 박지 말 것) · 제외는 `excludeCategories`(경영표준도 같은 배열) (**`.neq()` 단독 금지** — `NULL <> '로봇'` 이 참이 아니라 카테고리 빈 글까지 지운다) · 새 글은 `isRobotTitle()` 이 LLM 분류를 건너뛰고 고정한다(안 그러면 조용히 새어 휴머노이드에 영영 안 뜬다). 목록·상세 컴포넌트의 `basePath` 를 하드코딩하지 말 것.
 - [`app/`] Cox(브랜드 **유통재고**)·NHTSA는 **미국 전용** — **USA·GLOBAL 탭에만**, **GLOBAL은 등급 제외**(`usMetricsBasis`). 이상치 제외=**2배 초과 RED**. `metrics` 키를 바꾸면 차트가 조용히 비니 `types.ts`와 같이 고칠 것.
 - [`app/`] **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다. `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
 - [`app/`] 🔴 **리포트 수집·요약을 GHA 로 옮기지 말 것** — 스케줄은 agents 오케스트레이터(`NAVER_RESEARCH_CRON` 평일 15:00, `naverResearchJob.ts` 가 수집→요약을 이어 돌린다). 기준은 **요금**이다: 요약은 구독 헤드리스라 0원이고 GHA 로 옮기면 API 키 과금이 생긴다. 회사 수집·보강처럼 **요금 쟁점이 없는 것은 GHA 로 무방**(`collect-humanoid.yml`).

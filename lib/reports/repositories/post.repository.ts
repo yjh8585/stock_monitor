@@ -62,11 +62,11 @@ export class PostRepository {
       sourceType?: PostSourceType;
       category?: string;
       /**
-       * 이 카테고리는 목록에서 뺀다. `/reports` 가 로봇 글을 감출 때 쓴다
-       * (로봇은 `/humanoid` 전용 — 사용자 지시 2026-09-11).
+       * 이 카테고리들은 목록에서 뺀다. `/reports` 가 전용 화면이 있는 글을 감출 때 쓴다
+       * (로봇 = `/humanoid` 전용 · 사용자 지시 2026-09-11 / 경영표준 = `/etc/mgmt-standard` 전용 · 2026-10-30).
        * `category` 와 함께 넘어와도 제외가 이긴다 → `?category=로봇` 으로 직접 들어와도 안 보인다.
        */
-      excludeCategory?: string;
+      excludeCategories?: readonly string[];
       sourceName?: string;
       search?: string;
       includeConfidential?: boolean;
@@ -87,8 +87,10 @@ export class PostRepository {
     // 🔴 제외가 지정(`category`)보다 뒤에 온다 — 순서를 바꾸면 `?category=로봇` 이 살아난다.
     // 🔴 `.neq()` 단독으로 쓰지 말 것 — SQL 에서 `NULL <> '로봇'` 은 참이 아니라 UNKNOWN 이라
     //    카테고리가 비어 있는 글(실측 5건)까지 조용히 사라진다. `is null` 을 OR 로 함께 편다.
-    if (options?.excludeCategory) {
-      query = query.or(`category.is.null,category.neq.${options.excludeCategory}`);
+    if (options?.excludeCategories?.length) {
+      // 값에 쉼표·괄호가 없는 카테고리 상수만 들어온다(SSOT 파일) — 인용 없이 `in.(…)` 로 편다.
+      const list = options.excludeCategories.join(',');
+      query = query.or(`category.is.null,category.not.in.(${list})`);
     }
     if (options?.sourceName) query = query.eq('source_name', options.sourceName);
     // 제목 부분 일치 검색(대소문자 무시). supabase-js 가 값을 URL 인코딩하므로 특수문자 안전.
@@ -111,12 +113,12 @@ export class PostRepository {
   /**
    * 필터 드롭다운용 카테고리 목록 (NULL 제외, 가나다 정렬).
    *
-   * `excludeCategory` 를 넘기면 그 카테고리는 드롭다운에도 안 뜬다 — 목록에서만 감추고
+   * `excludeCategories` 를 넘기면 그 카테고리들은 드롭다운에도 안 뜬다 — 목록에서만 감추고
    * 드롭다운에 남겨 두면 「고를 수는 있는데 0건」이 되어 고장으로 보인다.
    */
   async getDistinctCategories(
     includeConfidential = false,
-    excludeCategory?: string
+    excludeCategories: readonly string[] = []
   ): Promise<string[]> {
     const { data, error } = await this.reader(includeConfidential)
       .from(POSTS_TABLE)
@@ -125,17 +127,28 @@ export class PostRepository {
       .order('category', { ascending: true });
     if (error) throw error;
     const set = new Set((data ?? []).map((r: { category: string | null }) => r.category as string));
-    if (excludeCategory) set.delete(excludeCategory);
+    for (const c of excludeCategories) set.delete(c);
     return [...set];
   }
 
-  /** 필터 드롭다운용 출처 목록 (NULL 제외, 가나다 정렬) */
-  async getDistinctSourceNames(includeConfidential = false): Promise<string[]> {
-    const { data, error } = await this.reader(includeConfidential)
+  /**
+   * 필터 드롭다운용 출처 목록 (NULL 제외, 가나다 정렬).
+   *
+   * `excludeCategories` 의 글이 쓴 출처는 빼고 모은다 — 빼지 않으면 목록에서 감춘 글의
+   * 출처 이름(예: 경영표준 종합 정리)이 드롭다운에 그대로 새어 나온다. 조건은 `list()` 와 같다.
+   */
+  async getDistinctSourceNames(
+    includeConfidential = false,
+    excludeCategories: readonly string[] = []
+  ): Promise<string[]> {
+    let query = this.reader(includeConfidential)
       .from(POSTS_TABLE)
       .select('source_name')
-      .not('source_name', 'is', null)
-      .order('source_name', { ascending: true });
+      .not('source_name', 'is', null);
+    if (excludeCategories.length) {
+      query = query.or(`category.is.null,category.not.in.(${excludeCategories.join(',')})`);
+    }
+    const { data, error } = await query.order('source_name', { ascending: true });
     if (error) throw error;
     const set = new Set(
       (data ?? []).map((r: { source_name: string | null }) => r.source_name as string)

@@ -910,6 +910,21 @@ GWM 19.8만도 같다). 즉 **국가별 값의 단순 합계는 시장 규모가
 별건으로 `NEXT_REVALIDATE_PROD_URL` 이 워크플로에서 참조되는데 GitHub Secrets 에 없다
 (없는 시크릿은 빈 값으로 넘어가 조용히 아무 일도 안 한다) — 미확인, 다음 회차 후보.
 
+## 이전 상태 · 재개 지점 (2026-10-07) — 다크모드를 켰다(기본 라이트 · 사이드바 버튼)
+
+**무엇을 했나**: `next-themes`·`.dark` 색표·주가 차트의 `isDark` 분기가 **전부 이미 있었는데 `ThemeProvider` 가 없어 잠들어 있었다.** `app/layout.tsx` 에 공급자를 넣고 `components/layout/ThemeToggle.tsx` 를 사이드바·모바일 메뉴 하단(로그아웃 위)에 붙였다.
+
+**결정과 근거**(사용자 선택 2026-10-07): 기본 테마 = **라이트 고정**(`enableSystem={false}` — 윈도우가 다크여도 안 따라간다) · 범위 = **하드코딩 색 전부 한 번에**.
+
+- **Recharts 50여 개는 `app/globals.css` 한 곳에서 덮었다** — Recharts 는 격자(`#ccc`)·축 글자(`#666`)·기본 툴팁(흰 바탕)을 SVG 속성으로 박는데, **SVG 속성은 CSS 규칙에 진다.** 그래서 `.dark .recharts-cartesian-grid line { stroke: var(--border) }` 류로 파일을 안 건드리고 처리했다. 기본 툴팁만 인라인 style 이라 `!important`.
+- **덮지 않은 것(의도)**: 범례 글자(시리즈 색이 지워진다) · 데이터 라벨(막대 안 흰 글자가 회색이 된다 — 그래서 라벨 규칙은 `.recharts-cartesian-axis .recharts-label` 로 축 제목에만 한정) · 시리즈 색 · 배지(연한 바탕+진한 글자라 다크에서도 읽힌다) · 이미지 흰 바탕(조직도 PNG 등 투과 이미지).
+- **lightweight-charts 는 캔버스라 CSS 가 안 먹는다** — 한세 `IntradayCombinedChart`·`IntradayMiniChart` 의 검정 가격선은 `useTheme()` 으로 가르고 `useEffect` 의존성에 색을 넣었다(빠뜨리면 전환해도 차트가 안 바뀐다).
+- **로고는 반전 불가**(그라데이션 브랜드 색) — 다크일 때만 흰 바탕 칩(`LOGO_CLASS`, `Sidebar.tsx`). 로그인 페이지는 서버 컴포넌트라 `'use client'` 모듈의 상수를 import 하지 않고 클래스를 직접 적었다.
+
+**막힌 곳 / 안 되더라**: 3000번 포트는 **이 앱이 아니다**(다른 앱 · `/login` 404). 확인은 `npm run dev -- -p 3005` 로 띄워 `curl` 했다. `npm run check-all` 은 `scripts/dart_eval/README.md` 형식 경고로 **기존부터** 실패한다(커밋 `e1289d1` · 이번 변경 무관) — 그 뒤 단계(타입·테스트)는 따로 돌려야 한다.
+
+**재개 지점**: 화면 실물 확인은 **아직 안 했다**(이 PC 는 브라우저 자동화 금지). 사용자가 다크로 바꿔 `/oem` 회사별 차트 · `/management` 손익 산점도 · `/hansae` 주가선 · `/reports` 목록을 봐 주기로 했다. 대비가 약할 후보: 출하 차트 「내수」 `#1e3a5f`(진한 남색) · `lib/customerLogos.ts` 의 검정 배지 4종.
+
 ## 이전 상태 · 재개 지점 (2026-10-02) — 손익 9-2 에 당월/누적 토글을 붙였다
 
 **무엇을 했나**: 「9-2. 월별 고객·제품 실적」(`components/management/pnl/ProductCustomerMonthly.tsx`) 우상단에
