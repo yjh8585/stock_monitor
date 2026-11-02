@@ -417,16 +417,23 @@ def _collect_global_financials(
       # annual columns의 첫 결산일로 회사 결산월 판단 → 비-12월이면 fy_offset=-1.
       # 마이그레이션 20260521000002(JP) + 20260521000003(JP 외 글로벌)과 동일 정책.
       # 9월 결산 등 비-12월 결산법인의 FY 표기를 다수파 12월 결산법인과 같은 시간축에 정렬.
-      fy_offset = 0
+      # 🔴 연간이 비면 결산월을 모른다 — 보정 없이(0) 분기를 넣으면 같은 결산일이 fiscal_year 만
+      # 1 다른 행으로 또 쌓인다(2026-11-02 9개사 29묶음). 이번 실행은 건너뛰고 다음 실행에 맡긴다
+      # (분기는 매번 최근 RECENT_QUARTERS_KEEP 개를 다시 쓰므로 빠지지 않는다).
       annual_income = t.income_stmt
-      if annual_income is not None and not annual_income.empty:
-        first_col = annual_income.columns[0]
-        first_end = first_col.date() if hasattr(first_col, 'date') else first_col
-        if first_end.month != 12:
-          fy_offset = -1
-          logger.info(
-            f"글로벌 {ticker} ({company['name_kr']}): {first_end.month}월 결산법인 → fiscal_year -1 보정"
-          )
+      if annual_income is None or annual_income.empty:
+        logger.warning(
+          f"글로벌 {ticker} ({company['name_kr']}): 연간 손익이 비어 결산월 판단 불가 → 이번 실행 스킵"
+        )
+        continue
+      fy_offset = 0
+      first_col = annual_income.columns[0]
+      first_end = first_col.date() if hasattr(first_col, 'date') else first_col
+      if first_end.month != 12:
+        fy_offset = -1
+        logger.info(
+          f"글로벌 {ticker} ({company['name_kr']}): {first_end.month}월 결산법인 → fiscal_year -1 보정"
+        )
 
       period_rows = _process_yf_frames(
         t.quarterly_income_stmt, t.quarterly_balance_sheet,

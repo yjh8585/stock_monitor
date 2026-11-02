@@ -340,9 +340,11 @@ fiscal_year, fiscal_quarter`)가 달라 upsert 가 덮지 못하고 새 행이 �
   옛 5월 결산 행 때문에 마이그레이션이 회사 «전체»를 -1 했다. 이런 회사는 정본이 반대쪽이다.
 - 키를 바꾸는 보정은 **수집기 배포 → 기존 행 보정** 순서로, 그 사이 수동 실행을 멈춘다.
 - 키 정의가 아닌 `period_end_date` 로 중복을 보는 검사 = `verify_financials_sanity.py` 5번.
-  남은 재발 경로: yfinance 가 연간 손익을 빈 값으로 주면 그 실행은 `fy_offset=0` 으로 분기 행을 넣는다.
+- 🔴 yfinance 가 연간 손익을 빈 값으로 주면 결산월을 모른다 — 예전엔 `fy_offset=0` 으로 분기 행을 넣어
+  같은 중복을 다시 만들었다. 지금은 그 회사를 그 실행에서 **건너뛴다**(분기는 매번 최근 4개를 다시 쓰니
+  빠지지 않는다). 회귀 `scripts/lib/test_yf_fiscal_offset.py`.
 - 정리 = 마이그레이션 `20261103000001`(같은 규칙을 postgrest 로 적용 — MCP `apply_migration` 은
-  삭제문을 서버 확인 단계에서 자동 거절했다).
+  삭제문을 서버 확인 단계에서 자동 거절했다 → [`gotchas-ci-deploy.md`](./gotchas-ci-deploy.md) §3).
 
 ## OEM 차종 경쟁 분석 수집 함정 (2026-08-13)
 
