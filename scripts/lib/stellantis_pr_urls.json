@@ -30,7 +30,8 @@
     "2025-Q3": "https://www.prnewswire.com/news-releases/fca-us-total-sales-rise-6-year-over-year-in-us-third-quarter-report-302573083.html",
     "2025-Q4": "https://www.prnewswire.com/news-releases/fca-us-fourth-quarter-total-sales-increase-4-year-over-year-reports-full-year-2025-us-sales-results-302652833.html",
     "2026-Q1": "https://www.prnewswire.com/news-releases/fca-us-first-quarter-sales-increase-4-year-over-year-302731747.html",
-    "2026-Q2": "https://www.prnewswire.com/news-releases/stellantis-reports-us-sales-gains-in-first-half-2026-302816096.html"
+    "2026-Q2": "https://www.prnewswire.com/news-releases/stellantis-reports-us-sales-gains-in-first-half-2026-302816096.html",
+    "2026-Q3": "https://www.prnewswire.com/news-releases/stellantis-reports-q3-sales-302896446.html"
   },
   "_quarter_caption_hint": "분기 확정은 제목이 아니라 본문 표 캡션 'Sales Summary Q<n> <YYYY>'로 한다. 제목 정규식은 2025Q3/Q4도 이미 놓쳤다(제목의 % 문자가 매칭을 끊음)."
 }

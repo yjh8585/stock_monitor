@@ -36,6 +36,10 @@ class RowKindTest(unittest.TestCase):
     """2026Q2 이관 — 미인식 시 model로 오분류돼 직전 brand에 회사 합계가 통째로 얹힌다."""
     self.assertEqual(col._row_kind('Stellantis'), 'company_total')
 
+  def test_stellantis_us_is_company_total(self):
+    """2026Q3 PR 원문 라벨 'STELLANTIS US' — 미인식으로 cross-check가 쓰기를 막았다."""
+    self.assertEqual(col._row_kind('STELLANTIS US'), 'company_total')
+
   def test_company_total_is_case_insensitive(self):
     self.assertEqual(col._row_kind('STELLANTIS'), 'company_total')
     self.assertEqual(col._row_kind('fca us llc'), 'company_total')
@@ -97,6 +101,11 @@ class CompanyTotalLabelTest(unittest.TestCase):
     # 회사 합계가 model로 새지 않아야 한다 (과거 버그: Jeep에 fallback)
     self.assertEqual([m['vehicle_model'] for m in models], ['Compass', 'Wrangler'])
     self.assertEqual(len(brand_totals), 1)
+
+  def test_stellantis_us_label_extracts_company_total(self):
+    models, _, company_total = col.normalize_rows(self._rows('STELLANTIS US'), '2026-Q3')
+    self.assertIsNotNone(company_total)
+    self.assertEqual([m['vehicle_model'] for m in models], ['Compass', 'Wrangler'])
 
   def test_legacy_fca_label_still_works(self):
     _, _, company_total = col.normalize_rows(self._rows('FCA US LLC'), '2026-Q1')

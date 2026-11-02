@@ -271,7 +271,7 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 | ------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------------- |
 | `id`                                                                                       | uuid PK |                                                                 |
 | `company_id`                                                                               | uuid FK |                                                                 |
-| `period_type`                                                                              | text    | `annual` / `quarterly`. annual은 12월 결산만 (CHECK)            |
+| `period_type`                                                                              | text    | `annual` / `quarterly`. annual 결산월 2·3·5·6·8·9·12 (CHECK)    |
 | `fiscal_year`, `fiscal_quarter`                                                            | int     | 비-12월 결산 글로벌사는 한국식 -1 보정 (20260521000002~3)       |
 | `period_end_date`                                                                          | date    | 결산일                                                          |
 | `currency`                                                                                 | text    | KRW/USD/JPY…                                                    |
@@ -730,7 +730,7 @@ UNIQUE: (source, note_date)
 ### 7-J. 핵심 트리거 · 제약 · 정책
 
 - `companies_clean_legal_form_before_iu` — name/name_kr 자동 정리: `(주)`, `㈜`, `(株)`, `주식회사`, `유한회사`, `유한책임회사` 제거 (20260520000009)
-- `financials.period` CHECK — annual은 12월만 허용
+- `financials_period_semantic_check` — annual은 `fiscal_quarter` NULL + 결산월 {2,3,5,6,8,9,12}만 허용(20260520000007 · 2월은 20261102000001 야스카와). 🔴 **새 결산월 회사를 들이면 이 목록을 넓히는 마이그레이션이 필요**하다 — 빠뜨리면 그 회사 한 행 때문에 재무 수집 전체가 중단된다(2026-10-14 GHA). 글로벌사는 `companies.fiscal_year_end_month` 가 아니라 yfinance 데이터에서 결산월을 판단하므로 그 컬럼이 12 로 남아 있어도 정상이다
 - 비-12월 결산 글로벌사 fiscal_year 한국식 -1 보정 (20260521000002 일본 / 20260521000003 일본 외)
 - `parts_top100_stocks_view` 미래 period_end_date 가드 (20260521000001)
 - `companies.status` — `active` / `hidden` / `merged_into` (구 `delisted` 명칭 변경, 20260520)

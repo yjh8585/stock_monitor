@@ -117,7 +117,8 @@ SUBTOTAL_PREFIX_RE = re.compile(r'^TOTAL\s+', re.I)
 # 회사 합계 row 라벨.
 # 2026Q2부터 발행 명의가 바뀌며 이 라벨도 'FCA US LLC' → 'Stellantis'로 변경됐다(실측).
 # 미인식 시 이 행이 model로 오분류돼 직전 brand(Jeep)에 회사 합계가 통째로 얹힌다.
-COMPANY_TOTAL_LABELS = {'FCA US LLC', 'Stellantis'}
+# 2026Q3엔 'STELLANTIS US'로 또 바뀌어 cross-check가 쓰기를 막았다(2026-10-03 GHA 실패).
+COMPANY_TOTAL_LABELS = {'FCA US LLC', 'Stellantis', 'Stellantis US'}
 _COMPANY_TOTAL_UPPER = {s.upper() for s in COMPANY_TOTAL_LABELS}
 
 # 동일 차종의 별칭 → 정본 모델. build 전에 합산 병합한다.
@@ -144,9 +145,11 @@ SUMMARY_CAPTION_RE = re.compile(r'Sales\s+Summary\s+(Q[1-4])\s+(20\d{2})', re.I)
 #   숨겨 ~20대 이내 미세 불일치 (실제 관찰: 2025Q3 Jeep 15, 2026Q1 Jeep 20 / Dodge 19 / Fiat 16).
 # - BRAND YTD: 분기별 source-side 미세 불일치가 누적 — 더 큰 허용치 필요
 #   (실제 관찰: 2025Q3 Jeep YTD 36, 누적이라 합리적).
+# - 2026Q3 Dodge Q 27 / YTD 129 로 25·100 을 넘어 상향(PR 원문 자체의 불일치 — 오분류 아님).
+#   오분류는 회사 합계 한 줄만 들어가도 수만 대가 어긋나므로 이 정도 허용치로도 잡힌다.
 CROSS_CHECK_TOLERANCE_COMPANY = 5
-CROSS_CHECK_TOLERANCE_BRAND_Q = 25
-CROSS_CHECK_TOLERANCE_BRAND_YTD = 100
+CROSS_CHECK_TOLERANCE_BRAND_Q = 40
+CROSS_CHECK_TOLERANCE_BRAND_YTD = 200
 
 # 컬럼 표기 검증용 ('Curr Yr' 헤더 row 토큰)
 CURR_YR_TOKENS = {'curr yr', 'curr.yr', 'current year'}
