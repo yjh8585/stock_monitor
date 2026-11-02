@@ -15,6 +15,9 @@
      ⚠️ 이것만 **기준선 방식**이다. 규칙(`financial_sources.py`)이 생기기 전의 seed 행이
      11개 남아 있고, 그 출처를 **지어내는 것이 비워 두는 것보다 나쁘다**. 그래서 «지금
      개수» 를 상수로 박아 두고 **늘어날 때만** 실패시킨다 — 새로 생긴 것은 수집기 회귀다.
+  5. **결산일 중복** — 같은 (회사, 기간 구분, 결산일) 이 fiscal_year 만 달리 두 번 있다.
+     분기 행까지 본다. 2026-11-02 9개사 29묶음이 위 1~4 를 전부 통과한 채 남아 있었다
+     (원인 = 비-12월 결산 -1 보정 도중 옛 수집기 실행 · 정리 = 마이그레이션 20261103000001).
 
 🔴 **급변이 허용목록에 있다고 「맞는 값」이라는 뜻이 아니다** — 「사람이 DART 원문과
    대조했고 원문이 그렇더라」는 뜻이다. 값이 바뀌면 비율이 달라져 다시 걸린다.
@@ -94,13 +97,45 @@ def _fetch_annual(client) -> tuple[dict, dict]:
   return meta, by_company
 
 
+def _find_period_end_duplicates(client, meta: dict) -> list[str]:
+  """같은 (회사, 기간 구분, 결산일) 에 fiscal_year 가 둘 이상인 묶음을 찾는다."""
+  rows: list[dict] = []
+  start = 0
+  while True:
+    batch = (
+      client.table('financials')
+      .select('id,company_id,period_type,period_end_date,fiscal_year,fiscal_quarter')
+      .order('id')
+      .range(start, start + 999).execute().data or []
+    )
+    rows.extend(batch)
+    if len(batch) < 1000:
+      break
+    start += 1000
+
+  groups: dict[tuple, list[str]] = {}
+  for r in rows:
+    if r['company_id'] not in meta:
+      continue
+    key = (r['company_id'], r['period_type'], r['period_end_date'])
+    label = f"FY{r['fiscal_year']}" + (f"Q{r['fiscal_quarter']}" if r.get('fiscal_quarter') else '')
+    groups.setdefault(key, []).append(label)
+  return [
+    f'[결산일 중복] {meta[cid]} {ptype} {end}: {" · ".join(sorted(labels))}'
+    for (cid, ptype, end), labels in sorted(groups.items(), key=lambda kv: (meta[kv[0][0]], kv[0][2]))
+    if len(labels) > 1
+  ]
+
+
 def main() -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument('--list', action='store_true', help='허용된 급변까지 전부 출력')
   args = ap.parse_args()
 
-  meta, by_company = _fetch_annual(get_client())
-  violations: list[str] = []
+  client = get_client()
+  meta, by_company = _fetch_annual(client)
+  # 5. 결산일 중복 — 분기 포함(위 docstring 참조)
+  violations: list[str] = _find_period_end_duplicates(client, meta)
   allowed: list[str] = []
   sourceless: list[str] = []
 
