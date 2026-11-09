@@ -18,6 +18,9 @@
   · 규모 — quote 의 값 숫자에 붙은 배수 낱말(조·억·만·천·billion·B·M·in thousands …)로 구한 원문 절대값 ≠ low×단위
   · text 숫자 · 비율 단위 — unit='text' 인데 숫자 / 비율 지표에 percent 가 아닌 단위
   · 통화 — 값 바로 옆에 보고 통화가 아닌 통화 표지가 있는데 currency 가 비었다
+  · 과거 연도 — year < 문서 발행 연도(과거 실적 오독) · 범위 뒤집힘 — low > high (최종 검토 P9)
+  stated 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·reaffirm·lower·withdraw·상향·유지 …)이 없으면 stated 만 지운다
+  (행은 남긴다 · 사유 'stated 근거 없음' — 방향 계산이 withdrawn 을 숫자보다 먼저 쓰므로 · 최종 검토 P2).
   단 원문 'N억' 을 billion·trillion·text 로 적은 행만은 N×100 million 으로 환산한다(fix_eok — 억은 정의상 1e8 이라 배수
   낱말이 확실히 읽힐 때만 · 모비스 IR 에서 프롬프트에 규칙을 적어도 3회 중 3회 반복된 오류라 버리면 그 문서 값을 매번 잃는다).
 - 키·본문은 출력하지 않는다(경고는 문서 id 와 글자 수만).
@@ -282,8 +285,9 @@ _CUR_MARK = {
   'KRW': re.compile(r'₩|KRW|원', re.I),
 }
 _CUR_PRE = re.compile(r'(US\$|\$|€|₩|₫|USD|EUR|VND|KRW)\s*\(?\s*$', re.I)
+# 배수 낱말과 통화 사이의 'in'·'US'·'U.S.'('36 billion US dollars'·'35 billion in US dollars')는 건너뛴다(최종 검토 P1)
 _CUR_SUF = re.compile(r'\)?\s*(?:[천백]?\s?(?:조|억|만)|(?:trillion|tn|billion|bn|million|mn|thousand|[kbm])(?![a-z]))?'
-                      r'\s*(euros?\b|dollars?\b|달러|유로|원(?![가-힣])|USD\b|EUR\b|VND\b|KRW\b|đồng|₫)', re.I)
+                      r'\s*(?:in\s+)?(?:U\.?\s?S\.?\s*)?(euros?\b|dollars?\b|달러|유로|원(?![가-힣])|USD\b|EUR\b|VND\b|KRW\b|đồng|₫)', re.I)
 
 
 def _currency_of(word: str) -> str:
@@ -330,9 +334,32 @@ def to_rows(items: list[dict]) -> list[GuidanceRow]:
                       i['unit'], i['basis'], i['quote'], i['stated'], i['currency']) for i in items]
 
 
-def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.Pattern | None = None
-           ) -> tuple[list[GuidanceRow], Counter]:
-  """LLM 행 거르기(모듈 docstring 의 목록). 반환 = (남은 행, 사유 → 건수 — '억→million 환산' 은 버림이 아니라 고침)."""
+# stated 값 → quote 에 있어야 하는 낱말 어간(최종 검토 P2). stated 는 인용 대조 밖인데 guidance_direction.decide 가
+# withdrawn 을 숫자보다 먼저 쓰므로, 근거 낱말 없는 stated 는 지운다(행은 남긴다). 영어는 \b 로 낱말 머리만
+# ('execution' 속 cut · 'flower' 속 lower 를 안 잡게) · 한국어는 활용하지 않는 명사(상향·하향·유지·철회)만.
+_STATED_WORDS = {
+  'raised': re.compile(r'\brais(?:e|ed|es|ing)\b|상향', re.I),
+  'maintained': re.compile(r'\b(?:re)?affirm|\b(?:re)?confirm|\bmaintain|\breiterat|\bunchanged\b|'
+                           r'\bcontinu(?:e|es|ed|ing) to expect|\bremains?\s+(?:in\s+line|on\s+track)|유지|재확인', re.I),
+  'lowered': re.compile(r'\blower(?:s|ed|ing)?\b|\breduc|\bcut(?:s|ting)?\b|하향', re.I),
+  'withdrawn': re.compile(r'\bwithdr[ae]w|\bwithh[eo]ld|\bsuspend|철회', re.I),
+}
+
+
+def stated_supported(g: GuidanceRow) -> bool:
+  return g.stated is None or bool(_STATED_WORDS[g.stated].search(g.quote or ''))
+
+
+REASON_PAST_YEAR = '과거 연도'
+REASON_RANGE = '범위 뒤집힘'
+STATED_CLEARED = 'stated 근거 없음'   # 버림이 아니라 고침(행은 남고 stated 만 None) — '억→million 환산' 과 같은 갈래
+NOT_DROPPED = frozenset({'억→million 환산', STATED_CLEARED})   # why 의 키 중 «버림 수»에 안 넣는 것
+
+
+def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.Pattern | None = None,
+           pub_year: int | None = None) -> tuple[list[GuidanceRow], Counter]:
+  """LLM 행 거르기(모듈 docstring 의 목록). 반환 = (남은 행, 사유 → 건수 — NOT_DROPPED 의 키는 버림이 아니라 고침).
+  pub_year = 문서 발행 연도 — 그보다 앞선 해의 행은 과거 실적 오독으로 버린다(None 이면 이 검사를 건너뛴다)."""
   out, why = [], Counter()
   for g in rows:
     reason = None
@@ -344,6 +371,10 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
       reason = '여러 해 성장률'
     elif drop is not None and (drop.search(g.quote or '') or drop.search(g.metric_label or '')):
       reason = '파서 제외'
+    elif pub_year is not None and int(g.period.removeprefix('FY')) < pub_year:
+      reason = REASON_PAST_YEAR
+    elif g.low is not None and g.high is not None and g.low > g.high:
+      reason = REASON_RANGE
     if reason is None:
       fixed = fix_eok(g)
       if fixed is not g:
@@ -357,8 +388,11 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
         reason = '통화'
     if reason:
       why[reason] += 1
-    else:
-      out.append(g)
+      continue
+    if not stated_supported(g):
+      why[STATED_CLEARED] += 1
+      g = replace(g, stated=None)
+    out.append(g)
   return out, why
 
 
@@ -379,7 +413,8 @@ def extract(client, doc, text: str, company_label: str, hint: str = '', base_cur
     print(f'    경고: 문서 {doc.id} LLM 응답 중단({msg.stop_reason}) — LLM 대기로 남긴다')
     raise Incomplete(msg.stop_reason)
   body = next((b.text for b in msg.content if b.type == 'text'), '')
-  rows, why = screen(to_rows(json.loads(body).get('items', [])), base_currency, drop)
+  pub = str(doc.published_at or '')[:4]
+  rows, why = screen(to_rows(json.loads(body).get('items', [])), base_currency, drop, int(pub) if pub.isdigit() else None)
   if why:
     print(f'    문서 {doc.id} LLM 행 거름: ' + ' · '.join(f'{k} {v}' for k, v in sorted(why.items())))
   return rows, why
@@ -486,6 +521,52 @@ CURRENCY_CASES = [
   ('billion', 35, 'Group revenue of EUR 35 to 36 billion (USD 38 to 39 billion)', None, 'EUR', False),
   ('billion', 1.85, 'Total revenues of VND47,028 billion (US$1.85 billion)', None, 'VND', True),   # 괄호 안 값은 USD
   ('billion', 38, 'Group revenue of EUR 35 to 36 billion (USD 38 to 39 billion)', None, 'EUR', True),
+  # 배수 낱말과 통화 사이에 US·U.S.·in US 가 끼는 꼴(최종 검토 P1 — 전엔 통화를 못 찾아 그대로 통과)
+  ('billion', 35, 'Revenue of 35 to 36 billion US dollars', None, 'EUR', True),
+  ('billion', 35, 'Revenue of 35 billion U.S. dollars', None, 'EUR', True),
+  ('billion', 35, 'Revenue of 35 billion in US dollars', None, 'EUR', True),
+  ('billion', 35, 'Revenue of 35 billion in euros', None, 'EUR', False),
+  ('billion', 35, 'Revenue of 35 billion US dollars', None, 'USD', False),
+]
+# (stated, quote) — stated 는 인용 대조 밖이라 quote 에 그 낱말 어간이 있어야 남는다(최종 검토 P2)
+STATED_HIT = [   # stated 가 그대로 남아야 한다
+  ('maintained', 'Stellantis confirms that its 2025 financial guidance, as communicated during the H1 Earnings Call on '
+                 'July 29, 2025, remains unchanged in all respects.'),
+  ('maintained', 'VinFast reiterates its global deliveries of at least 300,000 EVs'),
+  ('maintained', 'The Company reaffirmed its full-year 2026 guidance.'),
+  # 실물 LLM 행(2026-11-10 DB) — 확인 낱말 없이 유지를 밝힌 꼴
+  ('maintained', 'The company continues to expect group sales revenue in the region of 37 to 38 billion euros.'),
+  ('maintained', 'our current expectations for production and deliveries remain in line with our business plan'),
+  ('raised', 'GM is raising its full-year 2025 guidance: EBIT-adjusted of $12.0 billion to $13.0 billion'),
+  ('raised', 'Acme Motors raised its 2026 deliveries outlook to 70,000 vehicles'),
+  ('lowered', 'The Company lowered its 2026 sales guidance to $7.0 billion'),
+  ('lowered', 'Acme Motors cut its full-year outlook to 60,000 units'),
+  ('withdrawn', 'Due to tariff uncertainty, the Company is withdrawing its 2025 guidance.'),
+  ('withdrawn', 'Acme Motors withheld full-year guidance'),
+  ('withdrawn', 'The Company suspended its 2025 guidance'),
+  ('raised', '2026년 판매 목표 상향 조정 : 420만 대'),
+  ('lowered', '연간 영업이익률 가이던스 하향 : 5~6%'),
+  ('maintained', '2026년 투자 계획 17.8조 유지'),
+  ('withdrawn', '연간 가이던스 철회'),
+]
+STATED_MISS = [  # stated 를 지워야 한다(행은 남는다)
+  ('raised', 'The Company now expects 2026 adjusted sales to be between $7.55 billion to $7.60 billion versus prior '
+             'guidance of $7.30 billion to $7.50 billion.'),
+  ('withdrawn', 'Expect positive Industrial free cash flows (3) in 2027'),
+  ('maintained', 'Group sales revenue of between 35 and 36 billion euros.'),
+  ('lowered', 'Disciplined cost execution supports 2026 operating margin of 5%'),   # execution 속 'cut'
+  ('raised', 'The Company lowered its 2026 sales guidance to $7.0 billion'),          # 낱말이 다른 방향
+  ('lowered', 'Acme Motors raised its 2026 deliveries outlook to 70,000 vehicles'),
+]
+# (year, low, high, 발행 연도) → 버려지나(최종 검토 P9 — 과거 실적 오독 · 범위 뒤집힘)
+SHAPE_CASES = [
+  (2025, 10.0, 12.0, 2026, True),    # 발행 연도보다 앞선 해 = 과거 실적
+  (2026, 10.0, 12.0, 2026, False),
+  (2030, 10.0, 12.0, 2026, False),   # 중장기 목표
+  (2026, 12.0, 10.0, 2026, True),    # low > high
+  (2026, -10.0, -5.0, 2026, False),  # 음수 범위(€(5)~€(10) → -10~-5)
+  (2026, 10.0, None, 2026, False),   # 한쪽 끝만
+  (2025, 10.0, 12.0, None, False),   # 발행 연도 모름 → 연도 검사 안 함
 ]
 # 파서 LLM_DROP 을 screen 이 쓰는지(장치 시험 — 빈패스트 정규식 자체의 실물 시험은 vinfast.self_test)
 _DROP_PROBE = re.compile(r'scooter', re.I)
@@ -517,6 +598,21 @@ def self_test() -> list[str]:
            if screen([row('deliveries', 406498, 406498, 'units', q)], None, _DROP_PROBE)[1].get('파서 제외') != 1]
   if screen([row('other', 30, 30, 'percent', '배당성향 30%')])[1].get('숫자 other') != 1:
     errs.append('숫자 other 가 안 걸림')
+  for want_kept, cases in ((True, STATED_HIT), (False, STATED_MISS)):
+    for st, q in cases:
+      g = replace(row('other', None, None, 'text', q), value_text='x', stated=st)
+      kept, why = screen([g])
+      if len(kept) != 1:
+        errs.append(f'STATED 행이 버려짐: {st} {q[:40]}')
+      elif (kept[0].stated == st) != want_kept:
+        errs.append(f'STATED_{"HIT" if want_kept else "MISS"} 어긋남: {st} {q[:40]}')
+      elif not want_kept and why.get(STATED_CLEARED) != 1:
+        errs.append(f'STATED_MISS 건수 안 셈: {st} {q[:40]}')
+  for year, lo, hi, pub, dropped in SHAPE_CASES:
+    g = GuidanceRow('revenue', 'Revenue', f'FY{year}', lo, hi, None, 'billion', None, 'revenue of 10 to 12 billion')
+    _, why = screen([g], None, None, pub)
+    if bool(why.get(REASON_PAST_YEAR) or why.get(REASON_RANGE)) != dropped:
+      errs.append(f'SHAPE 어긋남: FY{year} {lo}~{hi} 발행 {pub}')
   item = SCHEMA['properties']['items']['items']
   if SCHEMA.get('additionalProperties') is not False or item.get('additionalProperties') is not False:
     errs.append('SCHEMA additionalProperties 가 false 가 아니다(구조화 출력 필수)')

@@ -120,6 +120,20 @@ class ExtractTests(unittest.TestCase):
     self.assertEqual(why, Counter({'규모': 3, '숫자 other': 1, '여러 해 성장률': 1, '통화': 1, '파서 제외': 1,
                                    '억→million 환산': 1}))
 
+  def test_shape_and_stated_screen(self):
+    """최종 검토 P9·P2 — 문서 발행 연도(2026)보다 앞선 해 · low > high 는 버린다 · 근거 낱말 없는 stated 는 지운다(행 유지)."""
+    c = _FakeClient([
+      _item(),
+      _item(year=2025, quote='The Company expects 2026 deliveries of 65,000 to 70,000 vehicles'),
+      _item(low=70000, high=65000),
+      _item(stated='withdrawn'),
+      _item(stated='raised', quote='Acme Motors raised its 2026 deliveries outlook to 65,000 to 70,000 vehicles'),
+    ])
+    rows, why = lg.extract(c, _DOC, _SRC, 'Acme Motors')
+    self.assertEqual([(g.period, g.low, g.stated) for g in rows],
+                     [('FY2026', 65000, None), ('FY2026', 65000, None), ('FY2026', 65000, 'raised')])
+    self.assertEqual(why, Counter({lg.REASON_PAST_YEAR: 1, lg.REASON_RANGE: 1, lg.STATED_CLEARED: 1}))
+
   def test_base_currency_normalized_to_none(self):
     """보고 통화와 같은 currency · 비금액 행의 currency 는 None(칸 뜻: None = 보고 통화)."""
     c = _FakeClient([_item(currency='EUR'),

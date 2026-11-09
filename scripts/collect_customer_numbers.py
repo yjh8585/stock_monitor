@@ -672,6 +672,7 @@ class _CompanyRun:
     상태 우선순위 parse_failed > blocked > error > ok — 일시 실패 문서는 pending 이라 매 실행 다시 시도돼
     차단(401·403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다)."""
     from collect_customer_docs import write_status
+    from lib import llm_guidance
     o = self.outcomes
     # 가이던스를 쓴 문서(parsed · LLM 재시도 대기 중 코드 행을 실은 문서)가 하나라도 있으면 다시 매긴다 — 실은
     # 가이던스가 0행이어도 선삭제가 옛 행을 지웠을 수 있고, 그러면 뒤 문서가 옛 기준으로 매긴 방향을 그대로 들고 남는다
@@ -700,7 +701,7 @@ class _CompanyRun:
           + f' · 검증 값 {self.verified["values"]} 일정 {self.verified["dates"]}'
           + (f' · 형식 밖 버림 {self.dropped}' if self.dropped else '')
           + (f' · LLM 호출 {self.llm_calls}' if self.llm_calls else '')
-          + (f' · LLM 거름 {sum(v for k, v in self.llm_screened.items() if k != "억→million 환산")}'
+          + (f' · LLM 거름 {sum(v for k, v in self.llm_screened.items() if k not in llm_guidance.NOT_DROPPED)}'
              if self.llm_screened else '') + f' · {moved_label} {moved} · {status}')
     return parse_failed + fetch_failed
 
