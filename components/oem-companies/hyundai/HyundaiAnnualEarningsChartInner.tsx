@@ -7,12 +7,14 @@ import {
   LabelList,
   Legend,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE_SM } from '@/components/charts/chartTheme';
+import { bandDomain } from '@/components/management/stellantis/gapAxis';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { CustomerEarningsPoint } from '@/lib/customers/types';
 import type { HyundaiAnnualEarningsPoint } from '@/lib/types';
@@ -32,6 +34,18 @@ interface Props {
 
 function fmtOpmTick(n: number): string {
   return `${n.toFixed(1)}%`;
+}
+
+/** 음수 마진 갈래의 막대 축 — 상한을 max×2.5 로 늘려 막대를 plot 하단 ~40% 로 압축(chart-guide §4-F). */
+const BAR_BAND_DOMAIN: [number, (max: number) => number] = [0, (max) => Math.max(max * 2.5, 1)];
+
+/** 화면에 그려지는 영업이익률 값만 — null·NaN 은 bandDomain 의 min/max 를 망가뜨려 거른다. */
+function marginValues(
+  rows: readonly (HyundaiAnnualEarningsPoint | CustomerEarningsPoint)[]
+): number[] {
+  return rows
+    .map((r) => r.operating_margin_pct)
+    .filter((v): v is number => v != null && Number.isFinite(v));
 }
 
 /** 연간 실적 ComposedChart — 분기 합산(YTD 포함) + 가중평균 opm. */
@@ -68,7 +82,8 @@ export default function HyundaiAnnualEarningsChartInner({
           tickFormatter={fmt.tick}
           className="text-sm"
           width={50}
-          domain={Y_AXIS_PADDED_DOMAIN}
+          // 음수 마진 갈래만 §4-F 하단 밴드로 압축. 기본 갈래는 기존 축 그대로.
+          domain={allowNegativeMargin ? BAR_BAND_DOMAIN : Y_AXIS_PADDED_DOMAIN}
           label={{ value: fmt.axisLabel, angle: -90, position: 'insideLeft', fontSize: 11 }}
         />
         <YAxis
@@ -77,7 +92,8 @@ export default function HyundaiAnnualEarningsChartInner({
           tickFormatter={fmtOpmTick}
           className="text-sm"
           width={50}
-          domain={allowNegativeMargin ? ['auto', 'auto'] : [0, 'auto']}
+          // 음수 마진 갈래: 0 을 품은 [min, max] 를 상단 밴드(55~95%)에 사상해 막대와 겹치지 않게 한다.
+          domain={allowNegativeMargin ? bandDomain(marginValues(rows)) : [0, 'auto']}
           label={{ value: '영업이익률(%)', angle: 90, position: 'insideRight', fontSize: 11 }}
         />
         <Tooltip
@@ -105,6 +121,10 @@ export default function HyundaiAnnualEarningsChartInner({
           wrapperStyle={{ fontSize: '14px', paddingBottom: 8 }}
           {...legendProps}
         />
+        {/* 흑자·적자 경계선. bandDomain 이 0 을 항상 품으므로 반드시 보인다. */}
+        {allowNegativeMargin && (
+          <ReferenceLine yAxisId="right" y={0} stroke="#9ca3af" strokeDasharray="4 4" />
+        )}
         <Bar
           yAxisId="left"
           dataKey={revenueKey}
