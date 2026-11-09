@@ -74,6 +74,16 @@ scripts/venv/Scripts/python.exe scripts/_prune_katech_pdfs.py --delete   # 대�
 
 UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케이스를 확인한다(콘솔·네트워크 에러 모니터링).
 
+## 고객사 수집 종료 코드 (GHA `collect-customer-docs.yml`)
+
+| 스크립트                      | 0                           | 1                               | 2                          |
+| ----------------------------- | --------------------------- | ------------------------------- | -------------------------- |
+| `collect_customer_docs.py`    | 정상 · 차단(blocked) 포함   | 출처 error 1건 이상             | 인자 오류                  |
+| `collect_customer_numbers.py` | 정상 · LLM 재시도 대기 포함 | 파싱 실패 · LLM 3회 상한 failed | 자가 시험 실패 · 인자 오류 |
+
+- 차단·`ANTHROPIC_API_KEY` 누락은 exit 0 이지만 GHA 에선 `::warning::` 으로 실행 요약에 노랗게 뜬다.
+- 정기 실행은 `--since` 를 주지 않는다(짧으면 EDGAR 0건이 error). 정본 = 두 스크립트 docstring.
+
 ## 워크플로·배포 확인
 
 ```powershell

@@ -16,9 +16,13 @@ IR 목록 중 실적 일정(VW ICS·폴라리스 이벤트)은 문서가 아니�
 🔴 「새 문서 수」는 upsert «전»에 기존 (source, source_id) 를 조회해 센다 — upsert_rows 반환값은 «보낸» 행 수이고
    skip 트리거로 같은 값은 0행이라 근거가 못 된다.
 
-종료 코드: 0 = 정상(차단 blocked 포함 — 상태 표에 사유가 남는다) · 1 = 출처 하나 이상 error · 2 = 인자 오류.
+종료 코드: 0 = 정상(차단 blocked 포함 — 상태 표에 사유가 남고 GHA 에선 ::warning:: 으로 실행 요약에 뜬다)
+         · 1 = 출처 하나 이상 error · 2 = 인자 오류.
+🔴 정기 실행(GHA collect-customer-docs.yml)은 --since 를 주지 않는다 — 짧게 주면 그 기간 공시가 0건인 EDGAR 회사가
+   require_rows 에 걸려 error(exit 1)가 된다(400일 기본값이 「0건 = 목록이 깨졌다」 판정의 전제다).
 """
 import argparse
+import os
 import re
 import sys
 from collections import Counter
@@ -299,6 +303,8 @@ def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
       kinds = ' '.join(f'{k}={v}' for k, v in sorted(Counter(r['doc_type'] for r in rows).items()))
       print(f'  {c["ticker"]:<10} {label:<5} {status:<7} 문서 {len(rows)} · 새 {n}' + (f' · {kinds}' if kinds else '')
             + dates_note + (f' · {reason}' if reason else ''))
+      if status == 'blocked' and os.environ.get('GITHUB_ACTIONS'):  # exit 0 그대로(매일 막히는 출처가 job 을 늘 빨갛게
+        print(f'::warning::{c["ticker"]} · {reason}')               # 만들지 않게) — 실행 요약에만 노랗게 띄운다
       if not dry_run:
         write_status(ws, c['id'], collector, status, reason)
   return errors

@@ -19,6 +19,7 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
    (parsed 는 pending 목록에 다시 안 끼므로 매 실행 쓰기 0 이 그대로다). LLM 안 돈 문서 전부:
    select id from customer_documents where parse_note like 'LLM 대기%'  → 문서마다 --reparse.
 🔴 LLM(Task 11 · lib.llm_guidance): 클라이언트는 실행마다 한 번 — ANTHROPIC_API_KEY 가 없으면 LLM 칸만 건너뛴다(위 「LLM 대기」).
+   exit 는 0 그대로 — GHA 에서는 대상 문서가 있으면 ::warning:: 으로 실행 요약에 띄운다(키 누락을 놓치지 않게).
    🔴 LLM 재시도(customer_documents.llm_attempts): extract 예외(API 오류·JSON·응답 중단)이거나 값 행이 전부 LLM 행인데
    전부 대조 실패면 그 문서만 pending 으로 두고 llm_attempts +1 · note 「LLM 대기 — <사유> (n/3)」 — 코드 행은 그대로 적재하고
    다음 실행이 다시 시도한다(코드 행 적재는 upsert·선삭제라 멱등). 3회째면 닫는다: 코드 값 행이 있으면 parsed + note
@@ -38,6 +39,7 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
 """
 import argparse
 import hashlib
+import os
 import sys
 from collections import Counter
 from datetime import date
@@ -408,6 +410,10 @@ def main(argv: list[str] | None = None) -> int:
     llm = llm_guidance.make_client()
     if llm is None:
       print('ANTHROPIC_API_KEY 없음 — LLM 칸 건너뜀(그 문서는 LLM 대기로 남는다)')
+      # 정기 실행에서 Secret 이 빠지면 exit 0 이라 아무도 모른다 — 대상 문서가 있으면 실행 요약에 노랗게 띄운다.
+      # (LLM 대기 문서는 pending 으로 남아 다음 실행에도 대상이라, 키가 빠진 동안 매 실행 다시 뜬다)
+      if docs and os.environ.get('GITHUB_ACTIONS'):
+        print(f'::warning::ANTHROPIC_API_KEY 없음 — 문서 {len(docs)}건의 LLM 칸을 건너뛰었다(Secret 확인)')
   session = requests.Session()
   with db.WriteSession() as ws:
     failures = _run(docs, tickers, client, session, ws, args, blob, llm)
