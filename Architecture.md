@@ -603,6 +603,12 @@ UNIQUE: (source, note_date)
 **PK**: (basis_year, basis_quarter, series, period_year)
 **RLS**: 정책 없음 (20260715000001) → service_role 전용(`confidentialDb`).
 
+#### `customer_accounts` (신규, 20261109000003) — 고객사 페이지 명단 (사외비)
+
+고객사 페이지 명단·손익 고객명 매핑. 행은 로컬 1회 INSERT(공개 레포에 명단 없음).
+**PK**: `company_id`(→ `companies.id`) · `slug` unique · 캐시 태그 `customer_accounts`
+**RLS**: 정책 없음 (20261109000003) → service_role 전용(`confidentialDb`).
+
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
 | 컬럼          | 타입        | 설명                                                                                                   |

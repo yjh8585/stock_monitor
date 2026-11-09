@@ -55,6 +55,7 @@ const ALL_TAGS = [
   'cox_brand_inventory',
   'org_charts',
   'pnl_entries',
+  'customer_accounts',
   'pnl_cost_structure',
   'pnl_fixed_variable',
   'pnl_plan',

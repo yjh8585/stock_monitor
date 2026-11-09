@@ -103,6 +103,7 @@ COLUMN_TO_TAGS = {
     'news': ['posts'],
     # 경영관리(PnL)
     'pnl_entries': ['pnl_entries'],
+    'customer_accounts': ['customer_accounts'],
     'pnl_cost_structure': ['pnl_cost_structure'],
     'pnl_fixed_variable': ['pnl_fixed_variable'],
     'pnl_plan': ['pnl_plan'],

@@ -293,6 +293,78 @@ export type Database = {
         };
         Relationships: [];
       };
+      customer_accounts: {
+        Row: {
+          company_id: string;
+          created_at: string;
+          display_order: number;
+          marklines_group: string | null;
+          note: string | null;
+          oem_tab_path: string | null;
+          pnl_customers: string[];
+          share_group: string | null;
+          slug: string;
+        };
+        Insert: {
+          company_id: string;
+          created_at?: string;
+          display_order: number;
+          marklines_group?: string | null;
+          note?: string | null;
+          oem_tab_path?: string | null;
+          pnl_customers?: string[];
+          share_group?: string | null;
+          slug: string;
+        };
+        Update: {
+          company_id?: string;
+          created_at?: string;
+          display_order?: number;
+          marklines_group?: string | null;
+          note?: string | null;
+          oem_tab_path?: string | null;
+          pnl_customers?: string[];
+          share_group?: string | null;
+          slug?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'customer_accounts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: true;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_accounts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: true;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_accounts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: true;
+            referencedRelation: 'humanoid_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_accounts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: true;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_accounts_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: true;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       exchange_rates: {
         Row: {
           base: string;

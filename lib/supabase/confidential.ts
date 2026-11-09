@@ -38,6 +38,7 @@ import { createSupabaseAdminClient } from './admin';
  * - management_uploads: 경영관리 엑셀 업로드 작업 추적 (migration 20260624000001)
  * - org_charts: 조직도 이미지 메타 (migration 20260624000002)
  * - longterm_revenue_plan: 영업본부 중장기 매출 전망 (migration 20260715000001)
+ * - customer_accounts: 고객사 페이지 명단·손익 고객명 매핑 (migration 20261109000003)
  */
 export const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -52,6 +53,7 @@ export const CONFIDENTIAL_TABLES = [
   'management_uploads',
   'org_charts',
   'longterm_revenue_plan',
+  'customer_accounts',
 ] as const;
 
 /**
