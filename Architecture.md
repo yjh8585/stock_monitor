@@ -73,22 +73,24 @@
 
 ## 5. 페이지·라우트 맵
 
-| 라우트              | 목적                            | 데이터 소스                                             |
-| ------------------- | ------------------------------- | ------------------------------------------------------- |
-| `/related-stocks`   | 21개사 메인 표                  | `related_stocks_view`                                   |
-| `/compare`          | 다중 회사 비교                  | `compareData`, `compareMetrics`                         |
-| `/domestic`         | 국내자동차 (421개사 + 매크로)   | `domestic_stocks_view`                                  |
-| `/oem`              | OEM 전체 (MarkLines 대시보드)   | `oem_sales_*` 7개 테이블                                |
-| `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)   | `oem_model_outlook` v2 (§7-E)                           |
-| `/oem/china`        | 중국 승용 생산·수출             | `oem_china_*` 3개 테이블 (§7-E)                         |
-| `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
-| `/humanoid`         | 휴머노이드 기업                 | `humanoid_stocks_view`                                  |
-| `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
-| `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`                   |
-| `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴                 |
-| `/management`       | 경영관리 (탭 구조 → §5-A)       | 사외비 테이블 (명단 정본 = `CONFIDENTIAL_TABLES`, §7-G) |
-| `/login`            | 세션 로그인                     | Supabase Auth                                           |
-| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts`             |
+| 라우트              | 목적                                              | 데이터 소스                                             |
+| ------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| `/related-stocks`   | 21개사 메인 표                                    | `related_stocks_view`                                   |
+| `/compare`          | 다중 회사 비교                                    | `compareData`, `compareMetrics`                         |
+| `/customers`        | 고객사 요약 · 사외비 역할만(`canAccessCustomers`) | `customer_accounts` + 손익 (사외비, §7-G)               |
+| `/customers/[slug]` | 고객사 개별(실적·MarkLines 판매·뉴스)             | `lib/customers/source.ts`                               |
+| `/domestic`         | 국내자동차 (421개사 + 매크로)                     | `domestic_stocks_view`                                  |
+| `/oem`              | OEM 전체 (MarkLines 대시보드)                     | `oem_sales_*` 7개 테이블                                |
+| `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)                     | `oem_model_outlook` v2 (§7-E)                           |
+| `/oem/china`        | 중국 승용 생산·수출                               | `oem_china_*` 3개 테이블 (§7-E)                         |
+| `/parts-top100`     | 부품사 TOP100                                     | `parts_top100_stocks_view`                              |
+| `/humanoid`         | 휴머노이드 기업                                   | `humanoid_stocks_view`                                  |
+| `/hansae`           | 한세그룹 (3 종목 intraday)                        | KIS 분봉 + pykrx 수급                                   |
+| `/etc`              | 해운·철강·환율·매크로·두바이유                    | `market_series_*`, `exchange_rates_*`                   |
+| `/reports`          | 보고서 + YouTube 요약                             | `posts` 테이블 + `cacheComponents` 패턴                 |
+| `/management`       | 경영관리 (탭 구조 → §5-A)                         | 사외비 테이블 (명단 정본 = `CONFIDENTIAL_TABLES`, §7-G) |
+| `/login`            | 세션 로그인                                       | Supabase Auth                                           |
+| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                   | `stock_prices`, `news`, `naver_board_posts`             |
 
 `/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄 · 중국. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
 

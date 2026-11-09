@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canAccess, canPublishReports, canUseChat } from './permissions';
+import { canAccess, canAccessCustomers, canPublishReports, canUseChat } from './permissions';
 
 describe('canAccess — 조직도(/management/org-chart)', () => {
   const page = '/management/org-chart';
@@ -40,6 +40,30 @@ describe('canAccess — 기타 > 경영표준(/etc/mgmt-standard)', () => {
   it('다른 기타 탭은 그대로 열려 있다', () => {
     expect(canAccess('/etc/fx', 'guest')).toBe(true);
     expect(canAccess('/etc/economy', 'hmobility')).toBe(true);
+  });
+});
+
+describe('고객사 페이지 접근(/customers)', () => {
+  it('사외비 역할만 들어간다', () => {
+    expect(canAccessCustomers('admin')).toBe(true);
+    expect(canAccessCustomers('holdings')).toBe(true);
+    expect(canAccessCustomers('mobility')).toBe(true);
+    expect(canAccessCustomers('hmobility')).toBe(false);
+    expect(canAccessCustomers('guest')).toBe(false);
+  });
+
+  it('canAccess 가 요약·개별 경로를 같은 기준으로 막는다', () => {
+    for (const path of ['/customers', '/customers/acme-motors']) {
+      expect(canAccess(path, 'admin')).toBe(true);
+      expect(canAccess(path, 'holdings')).toBe(true);
+      expect(canAccess(path, 'mobility')).toBe(true);
+      expect(canAccess(path, 'hmobility')).toBe(false);
+      expect(canAccess(path, 'guest')).toBe(false);
+    }
+  });
+
+  it('비슷한 접두사는 막지 않는다', () => {
+    expect(canAccess('/customersfoo', 'guest')).toBe(true);
   });
 });
 

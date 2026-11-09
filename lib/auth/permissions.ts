@@ -33,6 +33,17 @@ export function canAccessConfidentialReports(role: Role): boolean {
 }
 
 /**
+ * 고객사 페이지(`/customers`) 열람 권한.
+ *
+ * 사용자 결정(2026-11-09 결정 2): admin·holdings·mobility 만 — 우리 매출 비중(사외비)을 보여 준다.
+ * `canAccessConfidentialReports` 와 지금은 명단이 같지만 **의미가 다르므로**(보고서 열람 vs 고객 정보)
+ * 재사용하지 않는다 — 한쪽 명단 변경이 다른 쪽에 새면 안 된다.
+ */
+export function canAccessCustomers(role: Role): boolean {
+  return role === 'admin' || role === 'holdings' || role === 'mobility';
+}
+
+/**
  * 보고서 게시 권한 — `/reports/new` 화면과 게시 API 2종(`POST /api/posts`,
  * `POST /api/uploads/report`)의 공통 게이트.
  *
@@ -62,8 +73,8 @@ export function canUseChat(role: Role): boolean {
  * - admin: 전체 허용
  * - holdings: 회사관리 제외 전체(한세그룹·경영관리 포함)
  * - mobility: 한세그룹·회사관리 제외 전체(경영관리 전체 허용)
- * - hmobility: 한세그룹·회사관리 제외 + 경영관리는 재고·생산·인원만
- * - guest: 한세그룹·경영관리·비교 차단, 그 외 허용
+ * - hmobility: 한세그룹·회사관리 제외 + 경영관리는 재고·생산·인원만 · 고객사 차단
+ * - guest: 한세그룹·경영관리·비교 차단, 그 외 허용 · 고객사 차단
  */
 export function canAccess(pathname: string, role: Role): boolean {
   if (role === 'admin') return true;
@@ -76,6 +87,11 @@ export function canAccess(pathname: string, role: Role): boolean {
   // guest 전용 차단: 비교 페이지(경영관리·한세그룹은 아래 공통 분기에서 차단)
   if (role === 'guest' && matchesPath(pathname, '/compare')) {
     return false;
+  }
+
+  // 고객사 — 우리 매출 비중이 실려 사외비 역할만(2026-11-09 결정 2).
+  if (matchesPath(pathname, '/customers')) {
+    return canAccessCustomers(role);
   }
 
   // 기타 > 경영표준 — 글이 전부 사외비라(계획 2026-10-30 결정 3) 사외비 열람 역할만.

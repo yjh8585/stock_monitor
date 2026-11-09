@@ -14,6 +14,7 @@ import {
   Info,
   FileText,
   Briefcase,
+  Handshake,
   TrendingUp,
   ChevronLeft,
   ChevronRight,
@@ -51,6 +52,7 @@ function handleSamePageReload(
 const NAV_ITEMS_ALL: readonly NavItem[] = [
   { label: '경영관리', href: '/management', Icon: Briefcase },
   { label: '비교', href: '/compare', Icon: ArrowLeftRight },
+  { label: '고객사', href: '/customers', Icon: Handshake },
   { label: '관련회사', href: '/related-stocks', Icon: BarChart2 },
   { label: '국내자동차', href: '/domestic', Icon: Car },
   { label: '부품사 TOP100', href: '/parts-top100', Icon: Cog },
