@@ -18,8 +18,17 @@ DOC_URL = 'https://opendart.fss.or.kr/api/document.xml'
 GAP_S = 0.25
 
 
+class DartUnavailable(Exception):
+  """DART 가 지금 내용을 못 준다 — 키 없음 · HTTP 200 인데 zip 이 아닌 응답(JSON status: 020 요청 한도 · 800 점검 등).
+  호출부(collect_customer_numbers.fetch_failure_kind)는 일시 오류로 보고 문서를 pending 에 둔다(최종 검토 P10 —
+  전엔 KeyError·BadZipFile 이 영구 실패로 새 DART 문서를 전부 failed 로 닫았다). 문장엔 status 만(키·URL 없음)."""
+
+
 def _key() -> str:
-  return os.environ['DART_API_KEY']
+  key = os.environ.get('DART_API_KEY')
+  if not key:
+    raise DartUnavailable('DART_API_KEY 없음')
+  return key
 
 
 def _get(session: requests.Session, url: str, params: dict, timeout: int, label: str) -> requests.Response:
@@ -65,8 +74,16 @@ def document_text(session: requests.Session, rcept_no: str) -> str:
   label = f'dart document {rcept_no}'
 
   def _once():
-    return _get(session, DOC_URL, {'crtfc_key': _key(), 'rcept_no': rcept_no}, 60, label).content
-  raw = with_retry(_once, _label=label)
+    return _get(session, DOC_URL, {'crtfc_key': _key(), 'rcept_no': rcept_no}, 60, label)
+  r = with_retry(_once, _label=label)
   time.sleep(GAP_S)
+  raw = r.content
+  if raw[:2] != b'PK':
+    # 오류는 HTTP 200 + JSON status 로 온다 — zip 으로 열면 BadZipFile(영구 실패로 오인)
+    try:
+      status = (r.json() or {}).get('status')
+    except ValueError:
+      status = None
+    raise DartUnavailable(f'{label}: zip 아님 status={status or "?"}')
   with zipfile.ZipFile(io.BytesIO(raw)) as z:
     return '\n'.join(xml_to_text(z.read(n).decode('utf-8', errors='replace')) for n in sorted(z.namelist()))

@@ -142,8 +142,11 @@ def _expiring_url(doc) -> bool:
 
 def fetch_failure_note(e: Exception, doc) -> str:
   """내용 받기 실패 → parse_note. 예외 클래스·HTTP 상태만(예외 문장엔 URL·DART 키가 실릴 수 있다)."""
+  from lib.dart_api import DartUnavailable
   code = http_status(e)
   note = f'내용 받기 실패: {type(e).__name__}' + (f' HTTP {code}' if code else '')
+  if isinstance(e, DartUnavailable):
+    note += f' ({e})'   # 문장은 dart_api 가 status 만 담아 만든다(키·URL 없음)
   if _expiring_url(doc):
     note += ' · 만료 가능 URL(요청마다 바뀌는 fileId)'
   return note
@@ -157,10 +160,14 @@ def fetch_failure_kind(e: Exception, doc) -> str:
   """받기 실패 갈래 → 'blocked'(401·403) · 'retry'(일시 — pending 유지) · 'failed'(영구 — 닫는다).
   🔴 일시 실패를 failed 로 닫으면 다음 실행이 다시 안 봐 차단·오류 신호가 하루 만에 사라진다
   (회사의 다른 문서가 파싱되면 상태 표가 ok 로 덮인다). pending 으로 두면 매 실행 다시 시도돼 blocked·error 가 매번 다시 난다.
-  일시 = 408·425·429·5xx·연결 오류·시간 초과·만료 URL. 영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외)."""
+  일시 = 408·425·429·5xx·연결 오류·시간 초과·만료 URL · DART 키 없음·비-zip status 응답(DartUnavailable — 최종 검토 P10).
+  영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외)."""
+  from lib.dart_api import DartUnavailable
   code = http_status(e)
   if code in _BLOCKED_CODES:
     return 'blocked'
+  if isinstance(e, DartUnavailable):
+    return 'retry'
   if _expiring_url(doc):
     return 'retry'   # 만료 URL 의 404 도 — 목록 수집기가 새 URL 을 넣으면 다음 실행에서 받힌다
   if code is not None:

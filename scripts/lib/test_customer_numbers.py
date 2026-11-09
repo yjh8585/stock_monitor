@@ -515,6 +515,15 @@ class FetchFailureTests(unittest.TestCase):
     self.assertEqual(k(_http_error(410), _DOC), 'failed')
     self.assertEqual(k(ValueError('not a pdf'), _DOC), 'failed')
 
+  def test_dart_unavailable_is_retry(self):
+    """최종 검토 P10 — DART 키 없음·비-zip status 응답은 일시 오류(pending) · note 에 status 를 남긴다."""
+    from lib import dart_api
+    e = dart_api.DartUnavailable('dart document 20261030000002: zip 아님 status=020')
+    self.assertEqual(ccn.fetch_failure_kind(e, _DOC), 'retry')
+    self.assertEqual(ccn.fetch_failure_note(e, _DOC),
+                     '내용 받기 실패: DartUnavailable (dart document 20261030000002: zip 아님 status=020)')
+    self.assertEqual(ccn.fetch_failure_kind(dart_api.DartUnavailable('DART_API_KEY 없음'), _DOC), 'retry')
+
   def _one(self, code):
     def fetch(session, doc):
       raise _http_error(code)

@@ -100,6 +100,30 @@ class DocumentTextTest(unittest.TestCase):
     self.assertEqual(dart_api.document_text(s, '20261030000002'), '매출액 1,234\n둘째 문서')
     self.assertEqual(s.calls[0][1], {'crtfc_key': FAKE_KEY, 'rcept_no': '20261030000002'})
 
+  def test_non_zip_status_is_unavailable(self, _sleep):
+    """최종 검토 P10 — HTTP 200 인데 zip 이 아니면(JSON status — 020 요청 한도 등) 일시 오류(DartUnavailable) ·
+    문장엔 status 만(키 없음). 전엔 BadZipFile 이 영구 실패로 문서를 닫았다."""
+    s = _Session(_Resp(content=b'{"status":"020","message":"limit"}', payload={'status': '020', 'message': 'limit'}))
+    with self.assertRaises(dart_api.DartUnavailable) as cm:
+      dart_api.document_text(s, '20261030000002')
+    self.assertIn('020', str(cm.exception))
+    self.assertNotIn(FAKE_KEY, str(cm.exception))
+
+  def test_non_zip_unreadable_body_is_unavailable(self, _sleep):
+    s = _Session(_Resp(content=b'<html>maintenance</html>'))
+    s._responses[0].json = lambda: (_ for _ in ()).throw(ValueError('not json'))
+    with self.assertRaises(dart_api.DartUnavailable):
+      dart_api.document_text(s, '20261030000002')
+
+
+@patch.object(dart_api.time, 'sleep')
+class MissingKeyTest(unittest.TestCase):
+  def test_missing_key_is_unavailable(self, _sleep):
+    """DART_API_KEY 가 빠지면 일시 오류 — 키 하나 빠졌다고 새 DART 문서가 전부 failed 로 닫히지 않게(P10)."""
+    with patch.dict(os.environ, {}, clear=True):
+      with self.assertRaises(dart_api.DartUnavailable):
+        dart_api.document_text(_Session(), '20261030000002')
+
 
 if __name__ == '__main__':
   unittest.main()
