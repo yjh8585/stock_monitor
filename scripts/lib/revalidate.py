@@ -104,6 +104,12 @@ COLUMN_TO_TAGS = {
     # 경영관리(PnL)
     'pnl_entries': ['pnl_entries'],
     'customer_accounts': ['customer_accounts'],
+    'customer_documents': ['customer_documents'],
+    'customer_guidance': ['customer_guidance'],
+    'customer_volume_ir': ['customer_volume_ir'],
+    'customer_reported_results': ['customer_reported_results'],
+    'customer_earnings_dates': ['customer_earnings_dates'],
+    'customer_collect_status': ['customer_collect_status'],
     'pnl_cost_structure': ['pnl_cost_structure'],
     'pnl_fixed_variable': ['pnl_fixed_variable'],
     'pnl_plan': ['pnl_plan'],

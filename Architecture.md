@@ -247,10 +247,11 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 | `last_price`, `last_change_pct`, `last_volume`, `last_updated_at`                   | —           | 최신 가격 캐시                                                                                                           |
 | `market_cap`                                                                        | numeric     | 시총(억원). KRX 시총 API 가 죽어 **네이버 경유**(`lib/naver_market_cap.py`, 2026-09-16)                                  |
 | `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after`     | —           | DART 수집 상태 추적                                                                                                      |
+| `sec_cik`                                                                           | text        | SEC EDGAR CIK(앞 0 없이 · 숫자 1~10자리 CHECK · partial UNIQUE). 고객사 문서 목록 수집 대상 판정 (20261109000004)        |
 | `merged_into_company_id`                                                            | uuid        | 사명변경·합병 시 새 회사로 마이그레이션 후 이 컬럼에 연결                                                                |
 | `is_seed`, `summary_updated_at`, `customers_updated_at`, `created_at`, `updated_at` | —           | 메타                                                                                                                     |
 
-**인덱스**: ticker UNIQUE / status / country / company_type / group_name / dart_corp_code (partial) / dart_collection_status+retry_after (partial) / merged_into_company_id (partial)  
+**인덱스**: ticker UNIQUE / status / country / company_type / group_name / dart_corp_code (partial) / dart_collection_status+retry_after (partial) / merged_into_company_id (partial) / sec_cik UNIQUE (partial)  
 **트리거**: `companies_clean_legal_form_before_iu` — name/name_kr 한글 법인격 자동 정리
 
 #### `company_pages` (592행) — 페이지 매핑
@@ -611,6 +612,17 @@ UNIQUE: (source, note_date)
 **PK**: `company_id`(→ `companies.id`) · `slug` unique · 캐시 태그 `customer_accounts`
 **RLS**: 정책 없음 (20261109000003) → service_role 전용(`confidentialDb`).
 
+#### 고객사 2단계 6종 (신규, 20261109000004) — 회사 공식 문서와 거기서 뽑은 숫자 (사외비)
+
+전부 RLS on + 정책 없음 → service_role 전용(`confidentialDb`). 캐시 태그 = 표 이름. `customer_collect_status` 외 5개는 `trg_skip_identical_update` 부착(§7-J).
+
+- `customer_documents` — EDGAR·DART·IR 문서 목록. PK `id` · UNIQUE (`source`, `source_id`) · `parse_status` 로 추출 대기 판정
+- `customer_guidance` — 연간 가이던스(범위·문구). UNIQUE (`document_id`, `metric`, `period`) · `period` 는 `FY2026` 꼴
+- `customer_volume_ir` — 회사 공표 출하·인도·생산·도매·판매 물량. PK (`company_id`, `metric`, `region`, `period_grain`, `period`)
+- `customer_reported_results` — 회사 발표 실적(회사가 쓴 지표 이름 그대로). PK (`company_id`, `period_grain`, `period`, `metric`)
+- `customer_earnings_dates` — 다음 실적 발표일. PK (`company_id`, `period`)
+- `customer_collect_status` — 수집기별 마지막 상태·화면용 사유. PK (`company_id`, `collector`)
+
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
 | 컬럼          | 타입        | 설명                                                                                                   |
@@ -743,7 +755,7 @@ UNIQUE: (source, note_date)
 - 비-12월 결산 글로벌사 fiscal_year 한국식 -1 보정 (20260521000002 일본 / 20260521000003 일본 외)
 - `parts_top100_stocks_view` 미래 period_end_date 가드 (20260521000001)
 - `companies.status` — `active` / `hidden` / `merged_into` (구 `delisted` 명칭 변경, 20260520)
-- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`). 수집 스크립트가 매 실행마다 전체 행을 upsert해 WAL·dead tuple이 폭증하던 것을 차단한다 (20260803000002). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`.
+- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`). 수집 스크립트가 매 실행마다 전체 행을 upsert해 WAL·dead tuple이 폭증하던 것을 차단한다 (20260803000002). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개 `customer_documents`·`customer_guidance`·`customer_volume_ir`·`customer_reported_results`·`customer_earnings_dates` (20261109000004 · `checked_at` 이 매번 바뀌는 `customer_collect_status` 는 제외).
   - 실측 배경(2026-08-03): `exchange_rates` 8,165행에 누적 UPDATE 521만 회(행당 638회), `market_series_daily` 27,784행에 1,822만 회. WAL이 하루 1.65GB씩 생성돼 Supabase Free 용량 초과의 주원인이 됐다.
   - **부작용 주의**: 동일 값 upsert는 이제 **0행을 반환**한다. 반환 행 수로 성공을 판정하는 코드를 쓰지 말 것(현재 `upsert_rows`는 입력 길이를 반환해 무관).
   - `updated_at`처럼 매번 바뀌는 컬럼이 있는 테이블에는 붙이지 말 것(항상 값이 달라 무의미). 기존 BEFORE 트리거가 있는 `companies`·`financials`·`posts`는 상호작용 회피를 위해 제외했다.
@@ -882,7 +894,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
 | **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
 | **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, `customer_accounts` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, `customer_accounts`, 고객사 2단계 6종(`customer_documents` 등, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
 | **백업 테이블** | 일회성 백업(`*_dropped_*`·`*_reverted_*`)도 **만들 때 RLS를 켠다**. 2026-08-25에 남긴 2개가 RLS 없이 public 에 있어 anon 키로 읽히고 있었고 Security Advisor 가 ERROR 로 잡았다(20260907000002 로 차단) |
 | **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |
