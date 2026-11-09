@@ -11,8 +11,12 @@ KOMIS_CHART_API: Final[str] = (
 )
 # 광종 코드: 철(=Iron Ore Fines, 62%, Australian CNF China)
 KOMIS_IRON_MNRL_CODE: Final[str] = 'MNRL1011'
-# 가격기준 코드 (KOMIS가 내부적으로 사용하는 ID, 2026-05 기준 확인값)
-KOMIS_IRON_PRICE_CODE: Final[str] = '793'
+# 가격기준 코드는 KOMIS 내부 ID라 예고 없이 바뀐다(2026-11 초 793→878, 옛 코드는 HTTP 200 빈 배열).
+# 그래서 박지 않고 페이지와 같은 엔드포인트로 매 실행마다 이름(cdVal)으로 조회한다.
+KOMIS_PRICE_CRTR_API: Final[str] = (
+  'https://www.komis.or.kr/Komis/RsrcPrice/ajax/getMnrlPriceCrtr'
+)
+KOMIS_IRON_PRICE_NAME: Final[str] = 'Iron Ore Fines'
 # 메타 갱신용 라벨/단위 (KOMIS Iron Ore Fines는 USD/MT)
 STEEL_KR_LABEL: Final[str] = '철광석 (Iron Ore Fines 62%, CFR China)'
 STEEL_KR_UNIT: Final[str] = 'USD/MT'

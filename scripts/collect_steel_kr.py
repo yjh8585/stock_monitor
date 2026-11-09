@@ -26,8 +26,9 @@ from lib.series_sources import (
   BACKFILL_YEARS,
   KOMIS_CHART_API,
   KOMIS_IRON_MNRL_CODE,
-  KOMIS_IRON_PRICE_CODE,
+  KOMIS_IRON_PRICE_NAME,
   KOMIS_PAGE_URL,
+  KOMIS_PRICE_CRTR_API,
   STEEL_KR_LABEL,
   STEEL_KR_SOURCE,
   STEEL_KR_UNIT,
@@ -52,6 +53,30 @@ def _normalizeNumber(raw: str) -> float | None:
     return None
 
 
+def _resolvePriceCode(request_ctx: APIRequestContext) -> str | None:
+  """철 광종의 현재 가격기준 코드를 이름으로 찾는다(코드는 KOMIS가 예고 없이 바꾼다)."""
+  try:
+    resp = request_ctx.post(
+      KOMIS_PRICE_CRTR_API,
+      form={'HP000': 'HP003', 'mnrkndUnqCd': KOMIS_IRON_MNRL_CODE},
+      headers={'Referer': KOMIS_PAGE_URL, 'X-Requested-With': 'XMLHttpRequest'},
+      timeout=60000,
+    )
+    if not resp.ok:
+      logger.warning(f"KOMIS: 가격기준 조회 HTTP {resp.status}")
+      return None
+    entries = resp.json().get('data') or []
+  except Exception as e:
+    logger.error(f"KOMIS: 가격기준 조회 실패 — {e}")
+    return None
+
+  for entry in entries:
+    if str(entry.get('cdVal', '')).strip() == KOMIS_IRON_PRICE_NAME:
+      return str(entry.get('cdKey'))
+  logger.error(f"KOMIS: 가격기준 '{KOMIS_IRON_PRICE_NAME}' 없음 — 받은 목록: {entries}")
+  return None
+
+
 def fetchKomisIronOre(request_ctx: APIRequestContext, years: int) -> list[dict]:
   """KOMIS ajax 엔드포인트에서 철광석 일별 USD/MT 시계열을 받는다."""
   end_year = date.today().year
@@ -64,11 +89,16 @@ def fetchKomisIronOre(request_ctx: APIRequestContext, years: int) -> list[dict]:
     logger.error(f"KOMIS: 페이지 GET 실패 — {e}")
     return []
 
-  # 2) 차트 데이터 POST (form-urlencoded)
+  # 2) 가격기준 코드 조회
+  price_code = _resolvePriceCode(request_ctx)
+  if price_code is None:
+    return []
+
+  # 3) 차트 데이터 POST (form-urlencoded)
   form = {
     'mnrkndUnqRadioCd': KOMIS_IRON_MNRL_CODE,
     'srchMnrkndUnqCd': KOMIS_IRON_MNRL_CODE,
-    'srchPrcCrtr': KOMIS_IRON_PRICE_CODE,
+    'srchPrcCrtr': price_code,
     'srchAvgOpt': 'DAY',
     'srchField': 'year',
     'srchStartDate': str(start_year),
@@ -96,7 +126,10 @@ def fetchKomisIronOre(request_ctx: APIRequestContext, years: int) -> list[dict]:
     logger.error(f"KOMIS: 차트 API 실패 — {e}")
     return []
 
-  return _parseKomisPayload(body)
+  rows = _parseKomisPayload(body)
+  if not rows:
+    logger.warning(f"KOMIS: 가격기준 코드 {price_code} 로 빈 시계열")
+  return rows
 
 
 def _parseKomisPayload(body: dict) -> list[dict]:

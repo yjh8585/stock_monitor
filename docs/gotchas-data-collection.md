@@ -1284,3 +1284,17 @@ scripts/venv/Scripts/python.exe scripts/verify_research_company_link.py --fix  #
 
 ⚠️ **`PER`·`EV/EBITDA` 빈칸은 또 다른 갈래다** — 적자 기업은 애초에 정의되지 않는다
 (씨메스로보틱스·클로봇·에이럭스가 2025 순손실이라 비어 있다). 이쪽도 정상이다.
+
+## KOMIS 가격기준 코드는 예고 없이 바뀐다 — 옛 코드는 HTTP 200 빈 배열 (2026-11-09 실측)
+
+**증상** — `collect-steel-kr.yml`(STEEL_KR 철광석)이 2026-11-03부터 매일 실패. 로그는
+`KOMIS: 빈 응답 (xaxis=0, series=1)` 3회 뒤 `적재할 데이터 없음`. 로컬에서도 똑같이 재현돼
+GHA IP 문제가 아니었다.
+
+**원인** — 철(MNRL1011)의 가격기준 내부 ID 가 `793` → `878` 로 바뀌었다. 옛 ID 로 요청하면
+에러 없이 **HTTP 200 + 빈 배열**을 준다. 새 ID 의 기준은 같은 품목(Iron Ore Fines Australian
+62%min CNF China)이나 출처가 AsianMetal 로 바뀌며 과거 값도 0.5 단위로 개정됐다(최근 값은 일치).
+
+**처방** — ID 를 박지 않고 페이지와 같은 `getMnrlPriceCrtr`(`HP000=HP003&mnrkndUnqCd=…`)로
+매 실행마다 **이름(`cdVal == 'Iron Ore Fines'`)으로 조회**한다(`collect_steel_kr.py` 의
+`_resolvePriceCode`). 이름까지 사라지면 받은 목록을 로그에 찍고 실패한다.
