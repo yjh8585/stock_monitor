@@ -18,8 +18,9 @@
   · 규모 — quote 의 값 숫자에 붙은 배수 낱말(조·억·만·천·billion·B·M·in thousands …)로 구한 원문 절대값 ≠ low×단위
   · text 숫자 · 비율 단위 — unit='text' 인데 숫자 / 비율 지표에 percent 가 아닌 단위
   · 통화 — 값 바로 옆에 보고 통화가 아닌 통화 표지가 있는데 currency 가 비었다
-  · 과거 연도 — year < 문서 발행 연도(과거 실적 오독) · 범위 뒤집힘 — low > high (최종 검토 P9)
-  stated 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·reaffirm·lower·withdraw·상향·유지 …)이 없으면 stated 만 지운다
+  · 과거 연도 — year < 문서 발행 연도(과거 실적 오독 · 상태 행 other 는 제외) · 범위 뒤집힘 — low > high (최종 검토 P9)
+  stated 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·increase·reaffirm·lower·trim·withdraw·상향·올린·유지·낮춘 …)이
+  없으면 stated 만 지운다
   (행은 남긴다 · 사유 'stated 근거 없음' — 방향 계산이 withdrawn 을 숫자보다 먼저 쓰므로 · 최종 검토 P2).
   단 원문 'N억' 을 billion·trillion·text 로 적은 행만은 N×100 million 으로 환산한다(fix_eok — 억은 정의상 1e8 이라 배수
   낱말이 확실히 읽힐 때만 · 모비스 IR 에서 프롬프트에 규칙을 적어도 3회 중 3회 반복된 오류라 버리면 그 문서 값을 매번 잃는다).
@@ -336,12 +337,15 @@ def to_rows(items: list[dict]) -> list[GuidanceRow]:
 
 # stated 값 → quote 에 있어야 하는 낱말 어간(최종 검토 P2). stated 는 인용 대조 밖인데 guidance_direction.decide 가
 # withdrawn 을 숫자보다 먼저 쓰므로, 근거 낱말 없는 stated 는 지운다(행은 남긴다). 영어는 \b 로 낱말 머리만
-# ('execution' 속 cut · 'flower' 속 lower 를 안 잡게) · 한국어는 활용하지 않는 명사(상향·하향·유지·철회)만.
+# ('execution' 속 cut · 'flower' 속 lower 를 안 잡게) · 한국어는 명사(상향·하향·유지·철회)와 동사 활용형을 낱낱이
+# (올려·올린·높여·높인 / 낮춰·낮춘·내려·내린 — 어간 「올리」「낮추」는 활용하면 글자가 바뀌어 부분 일치로 안 걸린다 · 잔여 Minor 3).
 _STATED_WORDS = {
-  'raised': re.compile(r'\brais(?:e|ed|es|ing)\b|상향', re.I),
+  'raised': re.compile(r'\brais(?:e|ed|es|ing)\b|\bincreas|\bboost|\bupgrad|\blift(?:s|ed|ing)?\b|'
+                       r'상향|올려|올린|높여|높인', re.I),
   'maintained': re.compile(r'\b(?:re)?affirm|\b(?:re)?confirm|\bmaintain|\breiterat|\bunchanged\b|'
                            r'\bcontinu(?:e|es|ed|ing) to expect|\bremains?\s+(?:in\s+line|on\s+track)|유지|재확인', re.I),
-  'lowered': re.compile(r'\blower(?:s|ed|ing)?\b|\breduc|\bcut(?:s|ting)?\b|하향', re.I),
+  'lowered': re.compile(r'\blower(?:s|ed|ing)?\b|\breduc|\bcut(?:s|ting)?\b|\bdecreas|\btrim(?:s|med|ming)?\b|'
+                        r'하향|낮춰|낮춘|내려|내린', re.I),
   'withdrawn': re.compile(r'\bwithdr[ae]w|\bwithh[eo]ld|\bsuspend|철회', re.I),
 }
 
@@ -359,7 +363,8 @@ NOT_DROPPED = frozenset({'억→million 환산', STATED_CLEARED})   # why 의 �
 def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.Pattern | None = None,
            pub_year: int | None = None) -> tuple[list[GuidanceRow], Counter]:
   """LLM 행 거르기(모듈 docstring 의 목록). 반환 = (남은 행, 사유 → 건수 — NOT_DROPPED 의 키는 버림이 아니라 고침).
-  pub_year = 문서 발행 연도 — 그보다 앞선 해의 행은 과거 실적 오독으로 버린다(None 이면 이 검사를 건너뛴다)."""
+  pub_year = 문서 발행 연도 — 그보다 앞선 해의 숫자 지표 행은 과거 실적 오독으로 버린다(None 이면 이 검사를 건너뛴다 ·
+  상태 행 metric='other' 는 검사 밖)."""
   out, why = [], Counter()
   for g in rows:
     reason = None
@@ -371,7 +376,8 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
       reason = '여러 해 성장률'
     elif drop is not None and (drop.search(g.quote or '') or drop.search(g.metric_label or '')):
       reason = '파서 제외'
-    elif pub_year is not None and int(g.period.removeprefix('FY')) < pub_year:
+    elif pub_year is not None and g.metric != 'other' and int(g.period.removeprefix('FY')) < pub_year:
+      # 상태 행(other — 숫자는 위 「숫자 other」가 이미 버렸다)은 연초 문서의 「작년 전망 달성·확인」이라 남긴다(잔여 Minor 4)
       reason = REASON_PAST_YEAR
     elif g.low is not None and g.high is not None and g.low > g.high:
       reason = REASON_RANGE
@@ -548,6 +554,17 @@ STATED_HIT = [   # stated 가 그대로 남아야 한다
   ('lowered', '연간 영업이익률 가이던스 하향 : 5~6%'),
   ('maintained', '2026년 투자 계획 17.8조 유지'),
   ('withdrawn', '연간 가이던스 철회'),
+  # 잔여 Minor 3 — 같은 뜻의 다른 낱말·한국어 활용형
+  ('raised', 'The Company increased its full-year guidance for adjusted EBITDA.'),
+  ('raised', 'Acme Motors boosted its 2026 deliveries outlook to 72,000 vehicles'),
+  ('raised', 'Acme Motors upgraded its full-year margin outlook'),
+  ('raised', 'Acme Motors lifts 2026 revenue guidance'),
+  ('lowered', 'The Company decreased its full-year capital expenditure outlook.'),
+  ('lowered', 'Acme Motors trimmed its 2026 deliveries forecast to 58,000 units'),
+  ('raised', '연간 판매 목표를 430만 대로 올려 잡았다'),
+  ('raised', '영업이익률 목표를 높인 7~8%'),
+  ('lowered', '연간 판매 목표를 400만 대로 낮춰 잡았다'),
+  ('lowered', '투자 계획을 내린 15조 원'),
 ]
 STATED_MISS = [  # stated 를 지워야 한다(행은 남는다)
   ('raised', 'The Company now expects 2026 adjusted sales to be between $7.55 billion to $7.60 billion versus prior '
@@ -568,6 +585,8 @@ SHAPE_CASES = [
   (2026, 10.0, None, 2026, False),   # 한쪽 끝만
   (2025, 10.0, 12.0, None, False),   # 발행 연도 모름 → 연도 검사 안 함
 ]
+# 상태 행(metric='other' · 숫자 없음)은 과거 연도 검사 밖(잔여 Minor 4 — 연초 문서의 「작년 전망 달성·확인」)
+STATUS_PAST_KEEP = ['Stellantis confirms that it achieved its 2025 financial guidance.']
 # 파서 LLM_DROP 을 screen 이 쓰는지(장치 시험 — 빈패스트 정규식 자체의 실물 시험은 vinfast.self_test)
 _DROP_PROBE = re.compile(r'scooter', re.I)
 DROP_MISS = ['For the full year 2025, the Company delivered 406,498 e-scooters and e-bikes, representing a 473% increase.']
@@ -613,6 +632,11 @@ def self_test() -> list[str]:
     _, why = screen([g], None, None, pub)
     if bool(why.get(REASON_PAST_YEAR) or why.get(REASON_RANGE)) != dropped:
       errs.append(f'SHAPE 어긋남: FY{year} {lo}~{hi} 발행 {pub}')
+  for q in STATUS_PAST_KEEP:
+    g = GuidanceRow('other', 'Guidance', 'FY2025', None, None, 'confirms', 'text', None, q, 'maintained')
+    kept, why = screen([g], None, None, 2026)
+    if len(kept) != 1 or why.get(REASON_PAST_YEAR):
+      errs.append(f'STATUS_PAST_KEEP 버려짐: {q[:40]}')
   item = SCHEMA['properties']['items']['items']
   if SCHEMA.get('additionalProperties') is not False or item.get('additionalProperties') is not False:
     errs.append('SCHEMA additionalProperties 가 false 가 아니다(구조화 출력 필수)')
