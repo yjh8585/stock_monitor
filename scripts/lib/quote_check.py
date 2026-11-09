@@ -24,6 +24,8 @@ Task 7(2026-11-10, 국내 DART)에서 더한 것:
   실물로 정한 것이 아니라 관례로 정했다 — 실물에서 ▲ 음수가 나오면 그때 고친다).
   ⚠️ '△' 를 글머리 기호로 쓰는 보도자료('△ 매출 5조')는 양수 값이 음수로 읽혀 대조가 실패한다(거짓 음성 — 막지 않고 failed 로 드러난다).
 - 가상 한국어 표본을 DART 실물 문장으로 바꿨다(띄어쓰기 변이·활용형·한국어 날짜 「M월 D일」·「M월D일」).
+Task 8(2026-11-10, 미국 EDGAR)에서 더한 것:
+- 통화 기호가 괄호 안에 있는 음수 '($2,000) million'(리비안 2025 전망 표)도 음수 — 전엔 괄호가 수에 안 붙어 양수로 읽혀 대조 실패.
 
 한계(원리상 못 막는 것 — 파서 책임):
 - 같은 quote 안의 «다른 칸» 숫자를 고르는 실수(열 선택 오류 — 당월 대신 누계, 올해 대신 전년)는 못 막는다.
@@ -104,6 +106,8 @@ def quote_in_source(quote: str, source: str) -> bool:
 def _number_tokens(s: str) -> list[tuple[float, bool]]:
   """(값, 연도 꼴인가). 연도 꼴 = 쉼표·소수점·부호 없는 19xx·20xx(원본 curatedQuality.ts numbersIn 의 연도 제외)."""
   t = _WORD_RE.sub(lambda m: str(_WORDS[m.group(1)]), normalize(s))
+  # 통화 기호가 괄호 «안»에 있는 음수 '($2,000)'(리비안 2025 전망 표) — 기호를 빼야 괄호가 수에 붙어 음수로 읽힌다
+  t = re.sub(r'\(\s*[$€£]\s*(?=\d)', '(', t)
   out = []
   for m in re.finditer(r'\(?-?[\d,]*\.?\d+\)?', t):
     tok = m.group(0)
@@ -213,7 +217,9 @@ _SRC = ('Total | 1,028 | 977 | 2,917 | 2,862 ' 'The Company now expects 2026 adj
         # 검토 1회차 — 가상 문장(검토자 탐침): 짧은 한글 표 행 · 한글 뒤 음수 · 위첨자 각주 · 하이픈 연도 · 유럽식·기간 날짜
         '구분 승용 렉스턴 60 60 0.0% 당기 영업손실-1,234 백만원 Deliveries 1,028¹ 977 '
         'Outlook Q3-2026 deliveries 1,500 units. Annual General Meeting 12.02.2026 '
-        'Capital Markets Day Feb 11-12, 2026 12-Feb-2026 Annual General Meeting')
+        'Capital Markets Day Feb 11-12, 2026 12-Feb-2026 Annual General Meeting '
+        # Task 8 — 리비안 2025-08-05 EX-99.1 전망 표 실물(괄호 안 통화 기호)
+        'Adj. EBITDA ($2,000) million - ($2,250) million Capital Expenditures $1,800 million - $1,900 million')
 MUST_HIT = [
   _R('Total | 1,028 | 977 | 2,917 | 2,862', value=1028000),                    # 천 대 → 대
   _R('expects 2026 adjusted sales to be between $7.55 billion to $7.60 billion', low=7.55, high=7.60),
@@ -234,6 +240,7 @@ MUST_HIT = [
   _R('당기 영업손실-1,234 백만원', value=-1234),                                 # 한글 뒤 '-' 는 음수 부호
   _R('Deliveries | 1,028¹ | 977', value=1028),                                   # 위첨자 각주는 지운다
   _R('2026 deliveries 1,500 units', value=1500),                                 # 'Q3-2026' 의 '-' 는 하이픈 — 부호 아님
+  _R('Adj. EBITDA | ($2,000) million - ($2,250) million', low=-2250, high=-2000),  # Task 8 — 괄호 안 통화 기호 음수
 ]
 MUST_MISS = [
   _R('Total | 1,028 | 977 | 2,917 | 2,862', value=1029000),                    # 숫자가 quote 에 없다
@@ -257,6 +264,7 @@ MUST_MISS = [
   _R('2026년 판매목표(대수) 4,158,300', value=2.026),                           # 연도를 1/1000 값으로
   _R('당기 영업손실-1,234 백만원', value=1234),                                  # 손실을 양수로
   _R('26.2 The Company expects 2026 sales', value=26.2),                          # 원문 '-26.2' 의 부호를 떨군 조각
+  _R('Adj. EBITDA | ($2,000) million - ($2,250) million', low=2000, high=2250),   # Task 8 — 괄호 음수를 양수로
 ]
 DATE_HIT = [_R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-02-12'),
             _R('정보제공(예정)일자 2026년 1월 28일(수) 정보제공(예정)시간 14:10', event_date='2026-01-28'),  # 기아 실물

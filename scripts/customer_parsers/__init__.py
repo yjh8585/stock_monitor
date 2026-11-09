@@ -6,7 +6,12 @@ Task 6 시점엔 회사별 모듈이 없어 빈 튜플이다 — Task 7~10 이 �
 """
 import importlib
 
-MODULE_NAMES: tuple[str, ...] = ('kr_dart',)
+MODULE_NAMES: tuple[str, ...] = (
+  'kr_dart',
+  'gm',
+  'rivian',
+  'polaris',
+)
 
 
 def modules():
