@@ -7,6 +7,9 @@
   self_test() -> list[str]              MUST_HIT·MUST_MISS 어긋남 목록(빈 목록 = 통과)
   (선택) fetch(session, doc) -> Content  기본 내려받기로 안 되는 곳(Playwright·XLSX)
   (선택) llm_wants(doc, result) -> bool  코드로 못 뽑는 칸을 LLM 에 넘길 문서인지
+  (선택) llm_only(doc) -> bool           코드가 읽지 않고 LLM 만 읽는 문서(IR 발표자료 등) — LLM 이 안 도는 실행에선
+                                        내려받지 않고 LLM 대기로 둔다
+  (선택) LLM_HINT: str | (doc) -> str     LLM 프롬프트에 붙일 회사별 지시(뽑을 것·뺄 것)
 
 행 규약:
   🔴 quote 는 값·날짜가 든 원문 «연속 구간»을 통째로 싣는다. '…'·' / ' 로 떼어 값만 뒤에 붙이면
@@ -99,6 +102,10 @@ class ParseResult:
   # 본문에 코드가 못 뽑는 LLM 칸(서술형 가이던스 상자 등)의 표식이 있었나 — llm_wants(doc, result) 는 본문을 받지 않아
   # 파서가 여기에 남긴다(스텔란티스). 쓰지 않는 파서는 거짓 그대로
   llm_hint: bool = False
+  # LLM 에 넘기는 까닭이 «코드 표식(전망 머리·서식)은 있는데 코드 가이던스가 모자람(문구 미스)»인가 — 원래 서술형이라
+  # LLM 몫인 문서(빈패스트 전망·IR 발표자료)는 거짓. LLM 행이 문구 미스를 가리지 않게 오케스트레이터가 parse_note 에
+  # 「코드 문구 미스」를 남긴다(Task 11 · Task 7 carry)
+  code_miss: bool = False
 
   def count(self) -> int:
     return len(self.volume) + len(self.results) + len(self.guidance) + len(self.dates)
@@ -126,6 +133,7 @@ class ParseResult:
     self.dates += other.dates
     self.recognized = self.recognized or other.recognized
     self.llm_hint = self.llm_hint or other.llm_hint
+    self.code_miss = self.code_miss or other.code_miss
 
 
 # ---------------------------------------------------------------- 정규 어휘(파서·LLM 스키마가 이것만 쓴다)

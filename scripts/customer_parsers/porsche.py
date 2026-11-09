@@ -75,6 +75,11 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return result.llm_hint
 
 
+LLM_HINT = ('Forecast·Outlook(전망) 문단의 연간 항목만 — 그룹 매출(revenue) · 그룹 영업이익률(operating_margin) · '
+            'Automotive EBITDA margin · Automotive net cash flow margin · Automotive BEV share. '
+            '괄호 안 이전 전망(previous forecast: …)과 중장기 목표 중 연도가 없는 것은 뽑지 마세요.')
+
+
 def _period(word: str, year: str) -> tuple[str, str]:
   months = _MONTHS[word]
   if months == 3:
@@ -176,6 +181,9 @@ def parse(doc: Doc, content: Content) -> ParseResult:
     return ParseResult(recognized=True)   # 서식 표식은 있는데 늘 있는 행·칸이 빠졌다 → failed
   r.extend(dv)
   r.guidance, r.llm_hint = parse_guidance(text)
+  # 문구 미스 = 코드 표식(전망 머리 'The forecast is based on…')이 있는데 항목·연도를 다 못 읽었거나, 코드가 일부 항목은
+  # 읽었는데 변경 표식 문장이 남았다. 머리 없는 서술형 연간 판(3월 연간·2025 9M)은 원래 LLM 몫이라 문구 미스가 아니다
+  r.code_miss = r.llm_hint and (_ANCHOR.search(text) is not None or bool(r.guidance))
   # 실적 표는 있는데 전망 문단을 코드가 하나도 못 읽었다(서술형 연간 판 등) → LLM
   r.llm_hint = r.llm_hint or (bool(r.results) and not r.guidance)
   r.recognized = r.recognized or bool(r.guidance)

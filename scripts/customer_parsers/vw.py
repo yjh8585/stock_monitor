@@ -106,6 +106,11 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return result.llm_hint
 
 
+LLM_HINT = ('Outlook(전망) 문단의 연간 항목만 — 매출(금액 revenue 또는 증감률 revenue_growth) · 영업이익률(operating_margin) · '
+            'Automotive 투자 비율(investment_ratio) · Automotive 순현금흐름(automotive_net_cash_flow) · Automotive 순유동성'
+            '(automotive_net_liquidity). 괄호 안 이전 값(previously: …)·이전 전망(previous forecast)은 뽑지 마세요.')
+
+
 def _label(cell: str) -> str:
   return re.sub(r'(?:\s*\(units\))?(?:\s+\d)*$', '', norm_text(cell))
 
@@ -265,6 +270,8 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   kpi_seen = any(x.metric == 'revenue' for x in r.results)
   # 실적 표는 있는데 전망 머리가 없다 = 전망 문단 꼴이 바뀌었다(실물 5/5건에 있었다)
   r.llm_hint = hint or (kpi_seen and not any(h.search(text) for h, _ in _OUT_HEADS))
+  # 폭스바겐의 LLM 칸은 전부 «문장꼴이 바뀌어 코드가 놓친» 항목이다(원래 서술형인 문서가 없다) → 문구 미스
+  r.code_miss = r.llm_hint
   r.recognized = r.recognized or bool(r.guidance) or bool(r.results)
   return r
 

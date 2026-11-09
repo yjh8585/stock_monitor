@@ -1,4 +1,5 @@
 """국내 상장 4사 DART 공정공시 파서 — 월 판매 · 분기 잠정실적 · 연간 가이던스 서식 · IR 개최 일정.
++ LLM 만 읽는 IR PDF(llm_only — 현대·기아 가이던스 PDF·Investor Day · 모비스 IR 경영실적(수주 목표) · KGM CEO IR 설명회).
 
 출처·표본 = 참고/고객사/research/korea.md(2026-11-09 실측) + 계획서 phase2 Task 7 의 채록분.
 본문은 lib.dart_api.document_text(태그 제거·공백 한 칸) 결과를 읽는다.
@@ -25,6 +26,7 @@ from customer_parsers.base import (
 
 TICKERS = ('005380', '000270', '003620', '012330')
 KGM = '003620'
+MOBIS = '012330'
 
 # (지역 키, 공시 행 라벨) — 순서대로 찾는다(합계 라벨 「계」 가 다른 행 이름 안에 있어서).
 SALES_LABELS = {
@@ -86,8 +88,17 @@ _IR = re.compile(
 _IR_PURPOSE = re.compile(r'개최목적\s+(.{0,120}?)(?=\s\d{1,2}\.\s|$)')
 
 
+def llm_only(doc: Doc) -> bool:
+  """코드는 안 읽고 LLM 만 읽는 IR 문서(계획서 「회사별 코드/AI 표」 llm 칸 · Task 11):
+  현대·기아 가이던스 PDF(IR JSON guidanceValue → doc_type guidance) · Investor Day · 현대모비스 IR 경영실적 PDF
+  (수주 목표) · KGM CEO IR 설명회 PDF(releaseList → investor_day). 분기 경영실적 발표자료(presentation)는 대상 밖
+  — 가이던스는 DART 전망 공시를 코드가 읽는다."""
+  return doc.source == 'ir' and (doc.doc_type in ('guidance', 'investor_day')
+                                 or (doc.ticker == MOBIS and doc.doc_type == 'presentation'))
+
+
 def wants(doc: Doc) -> bool:
-  return doc.source == 'dart' and doc.doc_type in (
+  return llm_only(doc) or doc.source == 'dart' and doc.doc_type in (
     'prelim_results', 'earnings_release', 'guidance', 'ir_event')
 
 
@@ -268,8 +279,25 @@ def parse_guidance(text: str) -> tuple[list[GuidanceRow], bool]:
 
 
 def llm_wants(doc: Doc, res: ParseResult) -> bool:
-  """코드가 숫자를 못 뽑는 가이던스 문서(중장기 Investor Day 등)는 LLM 이 읽는다."""
-  return doc.doc_type == 'guidance' and not res.guidance
+  """코드가 숫자를 못 뽑는 가이던스 문서(중장기 Investor Day 등)와 LLM 만 읽는 IR 문서는 LLM 이 읽는다."""
+  return llm_only(doc) or doc.doc_type == 'guidance' and not res.guidance
+
+
+_HINT_DART = ('공시 서식의 연간 전망·목표(판매·매출·영업이익·투자 등)와 연도가 밝혀진 중장기 목표만. 분기 실적·전년 실적은 '
+              '뽑지 마세요.')
+_HINT_IR = {
+  MOBIS: '연간 수주 목표(order_intake — 핵심부품 해외 수주 등 원문 이름은 metric_label 에 그대로)와 연도가 밝혀진 중장기 '
+         '목표만. 분기·누적 수주 «실적»은 목표가 아니니 뽑지 마세요.',
+  KGM: '「20XX년 사업계획」의 판매(대수)·매출 목표만. 분기 실적은 뽑지 마세요.',
+}
+_HINT_IR_OEM = ('잉여현금흐름(FCF)·주주환원·투자 등 «DART 전망 공시에 없는» 연간 항목과 연도가 밝혀진 중장기 목표만. 연간 '
+                '판매대수·매출 성장률·영업이익률은 DART 공시를 코드가 따로 읽으니 뽑지 마세요.')
+
+
+def LLM_HINT(doc: Doc) -> str:  # noqa: N802 — 오케스트레이터가 모듈 속성 LLM_HINT 를 찾는다(문자열 또는 함수)
+  if doc.source != 'ir':
+    return _HINT_DART
+  return _HINT_IR.get(doc.ticker, _HINT_IR_OEM)
 
 
 def parse_ir_date(text: str) -> tuple[list[EarningsDate], bool]:
@@ -288,11 +316,16 @@ def parse_ir_date(text: str) -> tuple[list[EarningsDate], bool]:
 def parse(doc: Doc, content: Content) -> ParseResult:
   text = content.text
   res = ParseResult()
+  if llm_only(doc):
+    return res   # IR 발표자료 — 코드가 읽지 않는다(llm_wants 가 참 · LLM 행이 없으면 not_target)
   if doc.doc_type == 'ir_event':
     res.dates, res.recognized = parse_ir_date(text)
     return res
   if doc.doc_type == 'guidance':
     res.guidance, res.recognized = parse_guidance(text)
+    # 연간 서식 표식(G_ANNUAL)은 걸렸는데 숫자 0행 = 문구 미스(LLM 이 채워도 note 에 드러낸다). 중장기 장래사업은 표식이
+    # 없어 recognized=False — 원래 LLM 몫이라 문구 미스가 아니다
+    res.code_miss = res.recognized and not res.guidance
     return res
   kind = kgm_kind(text) if doc.ticker == KGM else None
   sales_ok = results_ok = False

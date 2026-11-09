@@ -13,6 +13,8 @@
   숫자가 아닌 전망이라 value_text 로(low·high 는 null). 'H2 2025 GUIDANCE'(반기)·'FY 2025 GUIDANCE'(2025-02 첫 발표 ·
   2025-04 유보는 옛 서식 보도자료)는 코드가 안 뽑는다 — LLM 보조 칸(계획서 「회사별 코드/AI 표」). 본문 표식(_LLM_MARK)이
   있고 코드 가이던스가 0행이면 llm_wants 가 참(예비 실적 6-K 'Preliminary 2026 Financial Guidance' 포함).
+- 가이던스 확인 6-K(2024-12-02 · 2025-09-30 — 숫자 없이 'Stellantis confirms … guidance'): metric='other' 한 행
+  (value_text 'confirms' · stated='maintained' — 폴라리스 철회 행과 같은 규칙 · 코드 우선). 상자를 읽은 문서엔 싣지 않는다.
 - 실적 일정 6-K: 'will release its Third Quarter 2026 Financial Results on Wednesday, October 28, 2026' ·
   'its Full Year 2025 Results will be released on Thursday, February 26, 2026' · 'its First Half 2025 Results …'(= Q2 발표)
   · 'its Third Quarter 2025 Shipments and Revenues will be released on …'
@@ -76,6 +78,14 @@ _DATE_MARK = re.compile(r'Stellantis to Announce .{0,80}? on ' + _MONTH)
 # 예비 실적 6-K 제목형 'Preliminary 2026 Financial Guidance'. 따옴표 안('references to "FY 2026 Financial Guidance"' —
 # Safe Harbor 문단)과 소문자 'guidance'(보수 규정·확인 문장)는 표식이 아니다
 _LLM_MARK = re.compile(r'\b(?:FY |H[12] )?20\d{2} (?:FINANCIAL )?GUIDANCE\b|(?<!")\b(?:FY )?20\d{2} Financial Guidance\b(?!")')
+# 가이던스 확인 6-K(숫자 없이 앞서 낸 연간 전망을 그대로 둔다고만 밝힌 문장 — Task 11 · 메인 판정 「받는다」):
+#   2025-09-30 'Stellantis confirms that its 2025 financial guidance, as communicated during the H1 Earnings Call on July 29,
+#   2025, remains unchanged in all respects' · 2024-12-02 'Stellantis confirms the guidance it presented to the financial
+#   community on October 31, 2024, in respect of its full year 2024 results'
+# 폴라리스 철회 행과 같은 규칙 — 원문이 지표를 안 밝혀 metric='other' · value_text = 원문 동사 · stated='maintained'.
+# 상자·전망 행이 있는 문서엔 싣지 않는다(숫자 전망이 이 문장보다 낫다)
+_CONFIRM = re.compile(r'Stellantis (confirms) (?:that )?(?:its |the )?'
+                      r'(?:(20\d{2}) financial guidance\b[^.]*|guidance\b[^.]*?\bfull year (20\d{2})\b[^.]*)')
 
 
 def wants(doc: Doc) -> bool:
@@ -87,8 +97,22 @@ def wants(doc: Doc) -> bool:
 def llm_wants(doc: Doc, result: ParseResult) -> bool:
   """서술형 가이던스가 있는데 코드가 가이던스를 못 뽑은 문서 — 옛 상자('FY 2025 GUIDANCE'·'H2 2025 GUIDANCE') 실적
   보도자료·옛 서식 분기 보도자료·예비 실적 6-K('Preliminary 2026 Financial Guidance'). 본문 표식은 parse 가
-  result.llm_hint 로 남긴다. 2026 판처럼 상자(FY 2026 FINANCIAL GUIDANCE)를 코드가 다 읽은 문서는 넘기지 않는다."""
-  return result.llm_hint and not result.guidance
+  result.llm_hint 로 남긴다. 2026 판처럼 상자(FY 2026 FINANCIAL GUIDANCE)를 코드가 다 읽은 문서는 넘기지 않는다.
+  가이던스 확인 행(metric='other' — parse_confirm)만 있는 문서는 넘긴다(확인 문장이 상자 항목을 대신하지 않는다)."""
+  return result.llm_hint and not any(g.metric != 'other' for g in result.guidance)
+
+
+LLM_HINT = ('연간(FY) 전망 상자·글머리표의 항목(Net revenues·AOI margin·Industrial free cash flows 등) — 숫자가 아닌 '
+            '전망은 원문 낱말 그대로 value_text 로. 🔴 반기(H1·H2) 전망은 연간이 아니니 뽑지 마세요.')
+
+
+def parse_confirm(text: str) -> list[GuidanceRow]:
+  """가이던스 확인 문장 → metric='other' 한 행(value_text = 원문 동사 'confirms' · stated='maintained')."""
+  m = _CONFIRM.search(norm_text(text))
+  if not m:
+    return []
+  return [GuidanceRow('other', 'Financial guidance', f'FY{m.group(2) or m.group(3)}', None, None, m.group(1), 'text',
+                      None, m.group(0).strip(), 'maintained')]
 
 
 def _cells(row):
@@ -149,6 +173,10 @@ def parse_summary(tables) -> ParseResult:
           r.volume.append(VolumeRow('shipments', 'total', ytd[0], ytd[1], round(y * 1000), SHIP_DEF, row_text(row)))
     box = _BOX.search(norm_text(head[-1]))
     if box:
+      # 새 상자 머리를 봤다 — 이 문서가 LLM 으로 가는 것(llm_wants = 코드 가이던스 0행)은 상자 항목 문구를 못 읽었을
+      # 때뿐이라 그때 문구 미스로 드러난다(항목을 다 읽은 문서는 LLM 이 안 돌아 이 표식이 쓰이지 않는다). 옛 상자
+      # ('FY 2025 GUIDANCE' — FINANCIAL 없음)는 _BOX 에 안 걸려 원래 LLM 몫이다
+      r.code_miss = True
       for rx, metric, label, basis in _BOX_ITEMS:
         bm = rx.search(box.group(2))
         if bm:
@@ -244,7 +272,9 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   r.dates, announced = parse_dates(content.text)
   if announced and not r.dates:
     return ParseResult(recognized=True)   # 일정 공지 제목은 있는데 날짜 문장 꼴이 바뀌었다
-  r.recognized = r.recognized or bool(r.dates)
+  if not r.guidance:
+    r.guidance = parse_confirm(content.text)
+  r.recognized = r.recognized or bool(r.dates) or bool(r.guidance)
   r.llm_hint = bool(_LLM_MARK.search(norm_text(content.text)))
   return r
 
@@ -343,6 +373,19 @@ LLM_WANTS = [
   ('Safe Harbor 따옴표 안', [], 'This document, in particular references to "FY 2026 Financial Guidance", contains forward', False),
   ('보수 규정 소문자 guidance', [], 'In line with the guidance provided under the Dutch Corporate Governance Code', False),
 ]
+# 가이던스 확인 6-K(EDGAR 실물 2025-09-30 · 2024-12-02 원문) → (본문, 기대 period)
+CONFIRM_HIT = [
+  ('Stellantis confirms that its 2025 financial guidance, as communicated during the H1 Earnings Call on July 29, 2025, '
+   'remains unchanged in all respects. The Company also confirms that the Q3 2025 Shipments and Revenues announcement '
+   'will be held on October 30, 2025, as planned.', 'FY2025'),
+  ('Full year 2024 financial guidance confirmed AMSTERDAM, December 1, 2024 - Stellantis N.V. Stellantis confirms the '
+   'guidance it presented to the financial community on October 31, 2024, in respect of its full year 2024 results.',
+   'FY2024'),
+]
+CONFIRM_MISS = [
+  'The Company also confirms that the Q3 2025 Shipments and Revenues announcement will be held on October 30, 2025, as planned.',
+  'Stellantis confirms the appointment of Antonio Filosa as Chief Executive Officer, effective June 23, 2025.',
+]
 # 대상 아님 — 옛 분기 '출하·매출' 서식(머리 첫 칸이 기간 · 매출 € billion)
 MUST_NOT_RECOGNIZED = [
   [['Q3 2025', 'Q3 2024', 'Change', 'H2 2025 FINANCIAL GUIDANCE Net revenues: Increased vs. H1 2025'],
@@ -400,6 +443,23 @@ def self_test() -> list[str]:
   for name, tables, text, want in LLM_WANTS:
     if llm_wants(doc, parse(doc, Content(text=text, tables=tables))) != want:
       errs.append(f'llm_wants {name}: 기대 {want}')
+  from lib.quote_check import check_row
+  for text, period in CONFIRM_HIT:
+    res = parse(doc, Content(text=text))
+    g = res.guidance[0] if len(res.guidance) == 1 else None
+    if not (g and g.metric == 'other' and g.period == period and g.stated == 'maintained' and res.recognized):
+      errs.append(f'CONFIRM_HIT {period}: {[(x.metric, x.period, x.stated) for x in res.guidance]}')
+    elif not check_row(g, text)[0] or llm_wants(doc, res):
+      errs.append(f'CONFIRM_HIT {period}: 대조 실패 또는 LLM 으로 넘김')
+  for text in CONFIRM_MISS:
+    if parse_confirm(text):
+      errs.append(f'CONFIRM_MISS 확인 행이 뽑혔다: {text[:50]}')
+  # 상자를 코드가 읽은 문서엔 확인 행을 싣지 않는다 · 옛 상자 문서는 확인 행이 있어도 LLM 으로 넘긴다
+  if any(g.metric == 'other' for g in parse(doc, Content(text=CONFIRM_HIT[0][0], tables=[[Q3_HEAD, *_Q3_ROWS]])).guidance):
+    errs.append('상자 문서에 확인 행이 붙었다')
+  old = parse(doc, Content(text='FY 2025 GUIDANCE ' + CONFIRM_HIT[0][0], tables=[MUST_HIT[3][0][0]]))
+  if not llm_wants(doc, old):
+    errs.append('옛 상자 + 확인 문장 문서를 LLM 으로 안 넘겼다')
   if _head_period('FY2025') != ('year', '2025'):
     errs.append("머리 'FY2025'(띄어쓰기 없음)를 연간으로 못 읽었다")
   for table in MUST_NOT_RECOGNIZED:

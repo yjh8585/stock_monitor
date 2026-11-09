@@ -81,6 +81,10 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return any(x.metric_name == 'Total Revenues' for x in result.results) or bool(result.dates)
 
 
+LLM_HINT = ('🔴 전기 이륜차(e-scooter·e-bike·electric motorbike·two-wheeler) 목표·수치는 뽑지 마세요. 자동차(EV)만 — '
+            '인도 목표는 metric=deliveries, unit=units. 매출·이익 전망도 회사 전체(연간)만.')
+
+
 def _n(s: str) -> int:
   return int(s.replace(',', ''))
 

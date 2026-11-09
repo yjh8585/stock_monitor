@@ -9,7 +9,9 @@
 - withdrawn 은 stated='withdrawn' 일 때만
 - 단위(unit)가 다르면(Task 8 검토 1회차): million·billion·trillion 끼리는 배수로 환산해 비교한다(리비안은 FY2025 전망을
   million, FY2026 을 billion 으로 냈다 — 같은 FY 안에서 바뀌어도 '1.7 billion' vs '1,700 million' 은 maintained).
-  환산 못 하는 단위끼리(percent vs billion 등)는 숫자 비교를 건너뛰고 원문 낱말·글자 비교로 간다.
+  환산 못 하는 단위끼리(percent vs billion 등)는 숫자 비교를 건너뛰고 원문 낱말(stated)만 본다 — 없으면 None
+  (글자 비교로 가면 value_text 가 둘 다 None 일 때 ''=='' 로 maintained 를 지어낸다 · Task 11).
+- 직전 행이 없어도 숫자 없이 「전망 확인·유지」만 밝힌 행(stated='maintained', 스텔란티스 확인 6-K)은 initiated 가 아니라 maintained.
 호출 = scripts/collect_customer_numbers.py(회사마다 verified 가이던스 전부를 다시 매긴다).
 """
 
@@ -35,11 +37,17 @@ def _scales(prev: dict, cur: dict) -> tuple[float, float] | None:
 def decide(prev: dict | None, cur: dict) -> str | None:
   if cur.get('stated') == 'withdrawn':
     return 'withdrawn'
+  b = _point(cur.get('low'), cur.get('high'))
   if prev is None:
-    return 'initiated'
-  a, b = _point(prev.get('low'), prev.get('high')), _point(cur.get('low'), cur.get('high'))
-  scales = _scales(prev, cur)
-  if a is not None and b is not None and scales is not None:
+    # 숫자 없이 「전망 확인·유지」만 밝힌 행(스텔란티스 2024-12·2025-09 6-K · metric='other')은 처음 보여도 신규가 아니다
+    return 'maintained' if b is None and cur.get('stated') == 'maintained' else 'initiated'
+  a = _point(prev.get('low'), prev.get('high'))
+  if a is not None and b is not None:
+    scales = _scales(prev, cur)
+    if scales is None:
+      # 환산 못 하는 단위끼리 — 숫자도 글자도 견줄 수 없다. 원문 낱말만 쓰고 없으면 None(Task 8 carry: value_text 가
+      # 둘 다 None 이면 아래 글자 비교가 ''=='' 로 maintained 를 지어냈다)
+      return cur['stated'] if cur.get('stated') in ('raised', 'maintained', 'lowered') else None
     a, b = a * scales[0], b * scales[1]
     if abs(b - a) <= abs(a) * 0.005:
       return 'maintained'
@@ -86,6 +94,12 @@ MUST_HIT = [  # (prev, cur, 기대)
   # 환산 못 하는 단위끼리는 숫자를 견주지 않는다 → 원문 낱말
   ({'low': 1.0, 'high': 3.0, 'unit': 'percent'}, {'low': 7.15, 'high': 7.30, 'unit': 'billion', 'stated': 'maintained'},
    'maintained'),
+  # 환산 못 하는 단위끼리 · 원문 낱말 없음 · value_text 둘 다 None → 견줄 근거가 없다(''=='' 로 maintained 를 지어내지 않는다)
+  ({'low': 1.0, 'high': 3.0, 'unit': 'percent', 'value_text': None},
+   {'low': 7.15, 'high': 7.30, 'unit': 'billion', 'value_text': None}, None),
+  # 숫자 없이 「전망 확인」만 밝힌 첫 행(metric='other') → 신규가 아니라 유지
+  (None, {'low': None, 'high': None, 'value_text': 'confirms', 'unit': 'text', 'stated': 'maintained'}, 'maintained'),
+  (None, {'low': 13.0, 'high': 15.0, 'stated': 'maintained'}, 'initiated'),   # 숫자가 있는 첫 행은 신규
 ]
 
 

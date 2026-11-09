@@ -20,7 +20,10 @@
         value_text(원문 낱말 그대로)로 싣는다. 'EPS … down approximately 65 percent'(EPS 증감률)는 맞는 metric 이 없어 뽑지 않는다.
       2025-Q1·Q2 판은 연간 전망 철회('withdrawing'·'withhold') + 분기 매출 전망만 — 분기 전망은 연간 가이던스가 아니라 뽑지 않는다.
         철회는 stated='withdrawn' 행으로 싣는다(검토 1회차 · 메인 판정). 원문이 지표를 안 밝혀 metric='other'.
-  - 전망 절은 있는데 숫자 행도 철회 낱말도 없으면 문장 꼴이 바뀐 것 — 문서를 failed 로(검토 1회차).
+  - 전망 절은 있는데 숫자 행도 철회 행도 없으면 문장 꼴이 바뀐 것 — 문서를 failed 로(검토 1회차 · 철회 낱말만 있는 것도
+    Task 11 부터 failed).
+  - IR 컨퍼런스 발표자료 PDF(investor_day)는 llm_only — 연간 Sales·Adjusted EPS 범위를 LLM 이 읽는다. 분기 전망이 FY 행으로
+    새지 않게 LLM_HINT 와 lib.llm_guidance 의 분기 표지 거르기가 막는다.
   - 하이라이트 글머리표·10-14 잠정실적 보도자료의 분기 전망은 절 밖이라 보지 않는다(MUST_MISS).
   - 「알아봄」 은 서식 표식(요약 표 머리)으로 — 머리는 있는데 매출 칸이 없으면 failed 로 드러난다(kr_dart 와 같은 규칙).
 """
@@ -44,7 +47,6 @@ _WITHDRAW = re.compile(r'The Company is (?:continuing to )?(withdrawing|withhold
                        r'full year (20\d{2}) ((?:adjusted sales|adjusted EPS|and| )*)guidance[^.]*\.')
 _WITHDRAW_METRICS = (('adjusted sales', 'adjusted_sales', 'Adjusted sales', 'adjusted'),
                      ('adjusted EPS', 'eps_adjusted', 'Adjusted EPS', 'adjusted'))
-_WITHDRAW_WORD = re.compile(r'withdraw|withhold', re.I)
 # (정규식, metric, 라벨, 단위, 꼴) — 꼴: 'range'(연도·하한·상한) · 'range_noyear'(하한·상한) · 'approx'(근사 단일값) ·
 # 'pct_up'(연도·낱말 수 범위) · 'pct_text'(연도·원문 낱말 — 감소 % 는 value_text)
 _G = (
@@ -60,8 +62,23 @@ _G = (
 )
 
 
+def llm_only(doc: Doc) -> bool:
+  """IR 컨퍼런스 발표자료 PDF(이벤트 첨부 → investor_day · 예 2026-03-03 'Full Year 2026 Guidance (Updated 3/3/26)')
+  — 연간 Sales·Adjusted EPS 범위를 LLM 이 읽는다(계획서 「회사별 코드/AI 표」 llm 칸). 분기 실적 발표자료(presentation)는
+  같은 전망을 8-K 가 먼저 내고 코드가 읽으므로 대상 밖."""
+  return doc.source == 'ir' and doc.doc_type == 'investor_day'
+
+
+def llm_wants(doc: Doc, result: ParseResult) -> bool:
+  return llm_only(doc)
+
+
+LLM_HINT = ('연간(full year) Sales·Adjusted EPS 전망 범위만. 🔴 분기(quarter) 전망은 연간이 아니니 뽑지 마세요. '
+            '이전 전망(prior·previous)과 과거 실적도 뽑지 마세요.')
+
+
 def wants(doc: Doc) -> bool:
-  return doc.source == 'edgar' and doc.doc_type == 'earnings_release'
+  return llm_only(doc) or doc.source == 'edgar' and doc.doc_type == 'earnings_release'
 
 
 def parse_results(tables) -> tuple[list[ResultRow], bool]:
@@ -162,13 +179,16 @@ def parse_guidance(text: str) -> list[GuidanceRow]:
 
 def parse(doc: Doc, content: Content) -> ParseResult:
   r = ParseResult()
+  if llm_only(doc):
+    return r   # IR 컨퍼런스 PDF — LLM 만 읽는다
   r.results, r.recognized = parse_results(content.tables)
   if r.results:
     r.results += parse_operating(content.tables, r.results[0].period)
     r.guidance = parse_guidance(content.text)
-    found = _outlook_section(content.text)
-    if found and not r.guidance and not _WITHDRAW_WORD.search(found[0]):
-      # 전망 절은 있는데 숫자도 철회도 0행 — 문장 꼴이 바뀐 것(검토 1회차). 실적이 있어도 문서를 failed 로
+    if _outlook_section(content.text) and not r.guidance:
+      # 전망 절은 있는데 숫자도 철회도 0행 — 문장 꼴이 바뀐 것(검토 1회차). 실적이 있어도 문서를 failed 로.
+      # 🔴 철회 «낱말»만 있고 철회 행이 0인 것도 여기로(Task 11 · Task 8 carry) — 예외로 두면 철회 문장 꼴이 바뀌었을 때
+      # 조용히 0행이 된다
       r.results = []
   return r
 
@@ -260,6 +280,9 @@ MUST_RECOGNIZED_EMPTY = [
   # 전망 절은 있는데 문장 꼴이 바뀌어 0행 · 철회 낱말 없음(검토 1회차)
   ('전망 문장 꼴 변경', [_SUMMARY], '2026 BUSINESS OUTLOOK The Company anticipates 2026 adjusted sales in a range of '
                                    '$7.55 billion to $7.60 billion.'),
+  # 철회 낱말은 있는데 철회 문장 꼴이 바뀌어 철회 행 0 — 예전엔 낱말 예외로 조용히 0행이었다(Task 11)
+  ('철회 문장 꼴 변경', [_SUMMARY], '2026 BUSINESS OUTLOOK Given ongoing trade uncertainty, Polaris has withdrawn its '
+                                   'outlook for 2026.'),
 ]
 
 
@@ -299,6 +322,10 @@ def self_test() -> list[str]:
     res = parse(doc, Content(text=text, tables=tables))
     if res.count() or not res.recognized:
       errs.append(f'{name}: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
+  # LLM 칸 — IR 컨퍼런스 PDF 만(8-K 실적 보도자료는 코드가 읽는다)
+  conf = Doc(0, 'test', 'PII', 'ir', 'investor_day', 'event', '', '', '', '2026-03-03')
+  if not (wants(conf) and llm_wants(conf, parse(conf, Content(text='')))) or llm_wants(doc, ParseResult()):
+    errs.append('llm_wants: IR 컨퍼런스 PDF 만 참이어야 한다')
   # 철회 행 quote 가 원문 대조를 지나는지(값 없이 value_text 만 — DB CHECK 와 check_row 둘 다)
   from lib.quote_check import check_row
   src = MUST_HIT_TEXT[3][0]
