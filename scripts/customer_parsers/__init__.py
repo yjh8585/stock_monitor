@@ -13,6 +13,8 @@ MODULE_NAMES: tuple[str, ...] = (
   'polaris',
   'vinfast',
   'stellantis',
+  'vw',
+  'porsche',
 )
 
 
