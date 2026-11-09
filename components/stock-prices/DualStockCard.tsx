@@ -113,7 +113,8 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
           series={series}
           height={320}
           initialRange="1y"
-          secondaryFor={series.length === 2 ? [1] : undefined}
+          // 첫 종목 = 왼쪽 눈금(선택기의 「좌축」과 맞춘다)
+          secondaryFor={series.length === 2 ? [0] : undefined}
         />
       ) : (
         <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
