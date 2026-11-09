@@ -16,6 +16,8 @@
   - 1분기 판 도매 표는 누계 칸이 없다(숫자 2개) → 분기 행만.
   - 2025-04-29(1분기) 판은 관세로 전망을 5월 1일 8-K 7.01 로 미뤘다 — 전망 표 없음이 정상.
   - 「알아봄」 은 서식 표식(실적 요약 머리 · 전망 표 머리)으로 — 머리는 있는데 필수 칸이 0행이면 failed 로 드러난다.
+  - 도매 표·영업이익 행은 따로 표식이 없다 → 실적 행이 있는데 도매 3지역이 다 차지 않거나 1~3분기 영업이익이 없으면
+    문서를 failed 로(_results_incomplete · 검토 1회차).
 """
 import re
 
@@ -159,13 +161,41 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   r.guidance, guidance_ok = parse_guidance(content.tables)
   # 알아봄 = 실적 요약 머리 또는 전망 표 머리(전망 표만 있는 7.01 도 대상). 머리는 있는데 0행이면 failed 로 드러난다
   r.recognized = results_ok or guidance_ok
-  if (results_ok and not r.results) or (guidance_ok and not r.guidance):
+  if (results_ok and not r.results) or (guidance_ok and not r.guidance) or (r.results and _results_incomplete(r)):
     # 한쪽이 서식은 알아봤는데 0행 — 다른 쪽 행이 있어도 문서를 failed 로(kr_dart 와 같은 규칙)
     r.volume, r.results, r.guidance = [], [], []
   return r
 
 
+def _results_incomplete(r: ParseResult) -> bool:
+  """실적 보도자료인데 늘 있던 것이 빠졌나 — 도매 3지역(분기) · 1~3분기 장부상 영업이익.
+  실측(2024-10~2026-10 9편): 도매는 9편 모두, 영업이익은 1~3분기 7편 모두 있다(4분기 판은 연결 손익이 연간뿐).
+  도매 표에는 서식 표식이 따로 없어 표가 통째로 사라지면 조용히 0행이 된다 → 여기서 failed 로 드러낸다."""
+  regions = {v.region for v in r.volume if v.period_grain == 'quarter'}
+  if regions != {'north_america', 'international', 'total'}:
+    return True
+  return not r.results[0].period.endswith('Q4') and not any(x.metric == 'operating_income' for x in r.results)
+
+
 # ---------------------------------------------------------------- 자가 시험(2026-11-09 실물 EX-99.1 원문 행)
+# 실적 표본은 도매 3지역·1~3분기 영업이익이 함께 있어야 통과한다(_results_incomplete) — 실물 표를 붙인다
+_WS_2026Q3 = [['Three Months Ended', 'Nine Months Ended'],
+              ['September 30, 2026', 'September 30, 2025', 'September 30, 2026', 'September 30, 2025'],
+              ['GMNA', '870', '840', '2,511', '2,516'], ['GMI', '159', '137', '407', '346'],
+              ['Total', '1,028', '977', '2,917', '2,862']]
+_WS_2025Q3 = [['Three Months Ended', 'Nine Months Ended'],   # 2025-10-21 실물
+              ['September 30, 2025', 'September 30, 2024', 'September 30, 2025', 'September 30, 2024'],
+              ['GMNA', '840', '893', '2,516', '2,588'], ['GMI', '137', '140', '346', '383'],
+              ['Total', '977', '1,033', '2,862', '2,971']]
+_OP_2026Q1 = [['Three Months Ended March 31, 2026', 'Three Months Ended March 31, 2025'],   # 2026-04-28 실물
+              ['Automotive', 'GM Financial', 'Reclassifications/Eliminations', 'Combined', 'Automotive', 'Cruise',
+               'GM Financial', 'Reclassifications/Eliminations', 'Combined'],
+              ['Operating income (loss)', '2,252', '675', '—', '2,926', '2,957', '(273)', '673', '(4)', '3,352']]
+_SUMMARY_2026Q3 = [['($M) except per share amounts', 'September 30, 2026', 'September 30, 2025'],
+                   ['Revenue', '$', '50,015', '$', '48,591'], ['EBIT-adjusted', '$', '4,106', '$', '3,376']]
+_OP_2026Q3 = [['Three Months Ended September 30, 2026'],
+              ['Automotive', 'GM Financial', 'Reclassifications/Eliminations', 'Combined'],
+              ['Operating income (loss)', '2,938', '660', '—', '3,598']]
 MUST_HIT = [
   ([[['Three Months Ended'],
      ['($M) except per share amounts', 'September 30, 2026', 'September 30, 2025', 'Change', '% Change'],
@@ -202,7 +232,7 @@ MUST_HIT = [
   ([[['($M) except per share amounts', 'September 30, 2026', 'September 30, 2025'],
      ['Revenue', '$', '50,015', '$', '48,591'], ['EBIT-adjusted', '$', '4,106', '$', '3,376']],
     [['Three Months Ended September 30, 2026'], ['Automotive', 'GM Financial', 'Reclassifications/Eliminations', 'Combined'],
-     ['Operating income (loss)', '—', '—', '—', '—']]],
+     ['Operating income (loss)', '—', '—', '—', '—']], _WS_2026Q3],
    {('R', 'operating_income', '2026-Q3'): 0.0}),
   # 전망 표만 있는 8-K 7.01(2025-05-01 실물 머리) — recognized 여야 not_target 으로 버려지지 않는다
   ([[['Updated 2025 Guidance', 'Previous 2025 Guidance'],
@@ -230,14 +260,17 @@ MUST_HIT = [
     [['Three Months Ended September 30, 2025', 'Three Months Ended September 30, 2024'],
      ['Automotive', 'Cruise', 'GM Financial', 'Reclassifications/Eliminations', 'Combined', 'Automotive', 'Cruise',
       'GM Financial', 'Reclassifications/Eliminations', 'Combined'],
-     ['Operating income (loss)', '281', '—', '795', '—', '1,076', '3,424', '(417)', '678', '(33)', '3,651']]],
-   {('R', 'net_income_parent', '2025-Q3'): 1327.0, ('R', 'operating_income', '2025-Q3'): 1076.0}),
+     ['Operating income (loss)', '281', '—', '795', '—', '1,076', '3,424', '(417)', '678', '(33)', '3,651']],
+    _WS_2025Q3],
+   {('R', 'net_income_parent', '2025-Q3'): 1327.0, ('R', 'operating_income', '2025-Q3'): 1076.0,
+    ('V', 'total', '2025-Q3'): 977000}),
   # 1분기 판(2026-04-28) 도매 표 — 누계 칸 없음
   ([[['($M) except per share amounts', 'March 31, 2026', 'March 31, 2025'],
      ['Revenue', '$', '43,624', '$', '44,020'], ['EBIT-adjusted', '$', '4,253', '$', '3,490']],
     [['Three Months Ended'], ['March 31, 2026', 'March 31, 2025'],
-     ['GMNA', '793', '827'], ['GMI', '106', '85'], ['Total', '899', '912']]],
-   {('V', 'total', '2026-Q1'): 899000, ('V', 'north_america', '2026-Q1'): 793000}),
+     ['GMNA', '793', '827'], ['GMI', '106', '85'], ['Total', '899', '912']], _OP_2026Q1],
+   {('V', 'total', '2026-Q1'): 899000, ('V', 'north_america', '2026-Q1'): 793000,
+    ('R', 'operating_income', '2026-Q1'): 2926.0}),
 ]
 # 「알아봤는데 0행」 이어야 하는 표본 — 라벨이 바뀐 것이 not_target 으로 조용히 닫히지 않고 failed 로 드러나는지
 MUST_RECOGNIZED_EMPTY = [
@@ -246,11 +279,18 @@ MUST_RECOGNIZED_EMPTY = [
                                   ['EBIT-adjusted', '$', '4,106', '$', '3,376']]]),
   ('전망 표: 행 라벨 변경', [[['Updated 2026 guidance', 'Previous 2026 guidance'],
                               ['EBIT-adj.', '$14.5 billion - $15.5 billion', '$14.0 billion - $16.0 billion']]]),
+  # 도매 표가 통째로 사라짐(검토 1회차) — 실적·영업이익은 있어도 문서를 failed 로
+  ('도매 표 없음', [_SUMMARY_2026Q3, _OP_2026Q3]),
+  # 1~3분기 판인데 연결 손익의 영업이익 행이 사라짐(검토 1회차)
+  ('3분기 영업이익 없음', [_SUMMARY_2026Q3, _WS_2026Q3]),
 ]
+# 실적 요약의 'GMNA EBIT-adjusted' 행은 부문 값이다 — 회사 칸 'EBIT-adjusted' 와 함께 둬서
+# ebit_adjusted 가 «정확히 1행 · 회사 값» 인지 parse_results 를 직접 불러 센다(라벨을 re.search 로 풀면 2행이 된다)
+SEGMENT_SAMPLE = [['($M) except per share amounts', 'September 30, 2026', 'September 30, 2025'],
+                  ['Revenue', '$', '50,015', '$', '48,591'],
+                  ['GMNA EBIT-adjusted', '$', '3,592', '$', '2,506', '$', '1,087', '43.4', '%'],
+                  ['EBIT-adjusted', '$', '4,106', '$', '3,376', '$', '730', '21.6', '%']]
 MUST_MISS = [
-  # 실적 요약의 'GMNA EBIT-adjusted' 행은 부문 값이라 회사 전체 칸에 들어가면 안 된다
-  ([[['($M) except per share amounts', 'September 30, 2026', 'September 30, 2025'],
-     ['GMNA EBIT-adjusted', '$', '3,592', '$', '2,506', '$', '1,087', '43.4', '%']]], ('R', 'ebit_adjusted')),
   # 'Previous' 칸만 있는 표는 전망이 아니다
   ([[['Previous 2026 guidance'], ['EBIT-adjusted', '$14.0 billion - $16.0 billion']]], ('G', 'ebit_adjusted')),
   # fleet 표(합계 라벨이 'Total fleet sales')는 도매 판매가 아니다
@@ -287,4 +327,7 @@ def self_test() -> list[str]:
     res = parse(doc, Content(text='', tables=tables))
     if res.count() or not res.recognized:
       errs.append(f'{name}: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
+  ebit = [x.value for x in parse_results([SEGMENT_SAMPLE])[0] if x.metric == 'ebit_adjusted']
+  if ebit != [4106.0]:
+    errs.append(f'부문 EBIT-adjusted 섞임: ebit_adjusted {ebit} (기대 [4106.0])')
   return errs

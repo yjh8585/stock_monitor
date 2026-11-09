@@ -243,9 +243,19 @@ MUST_HIT = [
                         ('R', 'net_income_parent', '2025-Q1'): -545.0,
                         ('G', 'adjusted_ebitda', 'FY2025'): (-1900.0, -1700.0), ('G', 'capex', 'FY2025'): (1800.0, 1900.0),
                         ('U', 'adjusted_ebitda'): 'million'}),
+  # 4분기 판(2026-02-12 실물 EX-99.1) — 머리 '2026 Annual Guidance Summary'(연도가 머리에 · 실적 분기 2025-Q4 와 다르다)
+  # + 5개 분기 표. billion 단위·적힌 순서가 거꾸로인 음수 범위
   ([[['2026 Annual Guidance Summary'], ['Vehicles Delivered', '62,000 - 67,000'],
-     ['Adj. EBITDA', '$(2.10) billion - $(1.80) billion']]],
-   '', {}),  # 실적 표가 없는 문서 조각이면 표 전망은 안 뽑는다(아래 4분기 본문 시험이 따로 있다)
+     ['Adj. EBITDA', '$(2.10) billion - $(1.80) billion'], ['Capital Expenditures', '$1.95 billion - $2.05 billion']],
+    [['Three Months Ended'],
+     ['December 31, 2024', 'March 31, 2025', 'June 30, 2025', 'September 30, 2025', 'December 31, 2025'],
+     ['Production', '12,727', '14,611', '5,979', '10,720', '10,974'],
+     ['Delivery', '14,183', '8,640', '10,661', '13,201', '9,745'],
+     ['Total revenues', '$', '1,734', '$', '1,240', '$', '1,303', '$', '1,558', '$', '1,286'],
+     ['Adjusted EBITDA (non-GAAP) 1', '$', '(277)', '$', '(329)', '$', '(667)', '$', '(602)', '$', '(465)']]],
+   '', {('G', 'adjusted_ebitda', 'FY2026'): (-2.10, -1.80), ('U', 'adjusted_ebitda'): 'billion',
+        ('G', 'deliveries', 'FY2026'): (62000.0, 67000.0), ('G', 'capex', 'FY2026'): (1.95, 2.05),
+        ('R', 'revenue', '2025-Q4'): 1286.0, ('R', 'adjusted_ebitda', '2025-Q4'): -465.0}),
   ([], 'today announced production and delivery totals for the quarter ending September 30, 2026. The company '
        'produced 19,751 vehicles at its manufacturing facility in Normal, Illinois and delivered 19,248 vehicles '
        'during the same period. Production and delivery results for the quarter are in line with Rivian\'s outlook. '

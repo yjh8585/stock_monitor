@@ -7,8 +7,13 @@
   ⚠️ 범위 좁히기(GM 14.0~16.0 → 14.5~15.5)는 가운데값이 같아 maintained 다 — 원문이 'raising' 이라 해도 숫자가 우선
 - 숫자로 비교 못 함(value_text 만): 원문 낱말(stated)이 있으면 그것 · 글자가 같으면 maintained · 아니면 None(화면 「변경」)
 - withdrawn 은 stated='withdrawn' 일 때만
+- 단위(unit)가 다르면(Task 8 검토 1회차): million·billion·trillion 끼리는 배수로 환산해 비교한다(리비안은 FY2025 전망을
+  million, FY2026 을 billion 으로 냈다 — 같은 FY 안에서 바뀌어도 '1.7 billion' vs '1,700 million' 은 maintained).
+  환산 못 하는 단위끼리(percent vs billion 등)는 숫자 비교를 건너뛰고 원문 낱말·글자 비교로 간다.
 호출 = scripts/collect_customer_numbers.py(회사마다 verified 가이던스 전부를 다시 매긴다).
 """
+
+_SCALE = {'million': 1e6, 'billion': 1e9, 'trillion': 1e12}   # base.UNITS 의 배수 단위
 
 
 def _point(low, high):
@@ -17,13 +22,25 @@ def _point(low, high):
   return low if low is not None else high
 
 
+def _scales(prev: dict, cur: dict) -> tuple[float, float] | None:
+  """두 행 값에 곱할 배수. 단위가 같거나(또는 한쪽이 비면) 1 · 둘 다 배수 단위면 환산 · 환산 못 하면 None."""
+  pu, cu = prev.get('unit'), cur.get('unit')
+  if pu == cu or pu is None or cu is None:
+    return 1.0, 1.0
+  if pu in _SCALE and cu in _SCALE:
+    return _SCALE[pu], _SCALE[cu]
+  return None
+
+
 def decide(prev: dict | None, cur: dict) -> str | None:
   if cur.get('stated') == 'withdrawn':
     return 'withdrawn'
   if prev is None:
     return 'initiated'
   a, b = _point(prev.get('low'), prev.get('high')), _point(cur.get('low'), cur.get('high'))
-  if a is not None and b is not None:
+  scales = _scales(prev, cur)
+  if a is not None and b is not None and scales is not None:
+    a, b = a * scales[0], b * scales[1]
     if abs(b - a) <= abs(a) * 0.005:
       return 'maintained'
     return 'raised' if b > a else 'lowered'
@@ -35,7 +52,7 @@ def decide(prev: dict | None, cur: dict) -> str | None:
 
 
 def assign(rows: list[dict]) -> list[tuple[int, str | None]]:
-  """rows = 한 회사의 verified 가이던스 전부(id·metric·period·published_at·document_id·low·high·value_text·stated).
+  """rows = 한 회사의 verified 가이던스 전부(id·metric·period·published_at·document_id·low·high·value_text·stated·unit).
   (metric, period) 별로 (published_at, document_id) 순 정렬 뒤, published_at 이 «엄격히 앞선» 마지막 행과 비교 → [(id, direction)].
   같은 날 행끼리는 비교하지 않는다 — 같은 날 두 공시(현대 2026-10-29 전망 정정 20261029800240 과 장래사업 정정
   20261029800231 — 둘 다 2026 판매목표 400만 대)는 선후가 아니라 같은 발표라, document_id 순으로 이으면 뒤 행이
@@ -63,6 +80,12 @@ MUST_HIT = [  # (prev, cur, 기대)
   ({'value_text': 'Low-Single Digit %'}, {'value_text': 'low-single digit %'}, 'maintained'),
   ({'value_text': 'Improved Y-o-Y'}, {'value_text': 'Positive'}, None),
   ({'low': 1.0, 'high': 2.0}, {'low': None, 'high': None, 'stated': 'withdrawn'}, 'withdrawn'),
+  # 단위가 다른 같은 값(검토 1회차) — 환산 없이 비교하면 1.7 vs 1700 이라 raised 로 찍힌다
+  ({'low': 1.7, 'high': 1.7, 'unit': 'billion'}, {'low': 1700, 'high': 1700, 'unit': 'million'}, 'maintained'),
+  ({'low': 1800, 'high': 1900, 'unit': 'million'}, {'low': 1.95, 'high': 2.05, 'unit': 'billion'}, 'raised'),
+  # 환산 못 하는 단위끼리는 숫자를 견주지 않는다 → 원문 낱말
+  ({'low': 1.0, 'high': 3.0, 'unit': 'percent'}, {'low': 7.15, 'high': 7.30, 'unit': 'billion', 'stated': 'maintained'},
+   'maintained'),
 ]
 
 

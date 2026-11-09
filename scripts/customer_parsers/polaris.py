@@ -19,6 +19,8 @@
       'down one to four percent'·'down approximately 20 percent'(감소 % 범위)는 값이 음수인데 원문 수는 양수라 대조를 못 지나므로
         value_text(원문 낱말 그대로)로 싣는다. 'EPS … down approximately 65 percent'(EPS 증감률)는 맞는 metric 이 없어 뽑지 않는다.
       2025-Q1·Q2 판은 연간 전망 철회('withdrawing'·'withhold') + 분기 매출 전망만 — 분기 전망은 연간 가이던스가 아니라 뽑지 않는다.
+        철회는 stated='withdrawn' 행으로 싣는다(검토 1회차 · 메인 판정). 원문이 지표를 안 밝혀 metric='other'.
+  - 전망 절은 있는데 숫자 행도 철회 낱말도 없으면 문장 꼴이 바뀐 것 — 문서를 failed 로(검토 1회차).
   - 하이라이트 글머리표·10-14 잠정실적 보도자료의 분기 전망은 절 밖이라 보지 않는다(MUST_MISS).
   - 「알아봄」 은 서식 표식(요약 표 머리)으로 — 머리는 있는데 매출 칸이 없으면 failed 로 드러난다(kr_dart 와 같은 규칙).
 """
@@ -36,6 +38,13 @@ _STATED = re.compile(r'The Company is (raising|reaffirming|lowering|reducing|upd
 _STATED_MAP = {'raising': 'raised', 'reaffirming': 'maintained', 'lowering': 'lowered', 'reducing': 'lowered'}
 _EPS_PREFIX = r'adjusted (?:diluted )?EPS (?:attributed to Polaris Inc\. common stockholders )?'
 _N = r'(\d+(?:\.\d+)?)'   # 🔴 '[\d.]+' 는 문장 끝 마침표까지 먹는다('$1.70.' → float 실패)
+# 연간 전망 철회(2025-Q1 'is withdrawing full year 2025 guidance' · 2025-Q2 'is continuing to withhold full year 2025
+# guidance'). 원문이 지표를 밝힌 것만 그 metric — 실물 두 문장은 지표 없이 'full year guidance' 라 'other' 한 행.
+_WITHDRAW = re.compile(r'The Company is (?:continuing to )?(withdrawing|withholding|withhold|withdraw) (?:its )?'
+                       r'full year (20\d{2}) ((?:adjusted sales|adjusted EPS|and| )*)guidance[^.]*\.')
+_WITHDRAW_METRICS = (('adjusted sales', 'adjusted_sales', 'Adjusted sales', 'adjusted'),
+                     ('adjusted EPS', 'eps_adjusted', 'Adjusted EPS', 'adjusted'))
+_WITHDRAW_WORD = re.compile(r'withdraw|withhold', re.I)
 # (정규식, metric, 라벨, 단위, 꼴) — 꼴: 'range'(연도·하한·상한) · 'range_noyear'(하한·상한) · 'approx'(근사 단일값) ·
 # 'pct_up'(연도·낱말 수 범위) · 'pct_text'(연도·원문 낱말 — 감소 % 는 value_text)
 _G = (
@@ -99,13 +108,29 @@ def parse_operating(tables, period: str) -> list[ResultRow]:
   return []
 
 
-def parse_guidance(text: str) -> list[GuidanceRow]:
+def _outlook_section(text: str) -> tuple[str, str] | None:
+  """('20XX BUSINESS OUTLOOK' 머리부터 1500자, 머리 연도). 하이라이트 줄·CEO 말·잠정실적 문장은 보지 않는다."""
   t = norm_text(text)
-  head = _OUTLOOK.search(t)  # 하이라이트 줄·CEO 말·잠정실적 문장은 보지 않는다
-  if not head:
+  head = _OUTLOOK.search(t)
+  return (t[head.start():head.start() + 1500], head.group(1)) if head else None
+
+
+def parse_withdrawals(sect: str) -> list[GuidanceRow]:
+  """철회 문장 → stated='withdrawn' · value_text = 원문 동사 낱말 · 숫자 없음(DB CHECK 는 value_text 로 채운다)."""
+  out = []
+  for m in _WITHDRAW.finditer(sect):
+    named = [x for x in _WITHDRAW_METRICS if x[0] in m.group(3)]
+    for _, metric, label, basis in named or [(None, 'other', 'Full year guidance', None)]:
+      out.append(GuidanceRow(metric, label, f'FY{m.group(2)}', None, None, m.group(1), 'text', basis, m.group(0),
+                             'withdrawn'))
+  return out
+
+
+def parse_guidance(text: str) -> list[GuidanceRow]:
+  found = _outlook_section(text)
+  if not found:
     return []
-  sect = t[head.start():head.start() + 1500]
-  default_year = head.group(1)
+  sect, default_year = found
   sm = _STATED.search(sect)
   stated = _STATED_MAP.get(sm.group(1).lower()) if sm else None
   out = []
@@ -128,7 +153,7 @@ def parse_guidance(text: str) -> list[GuidanceRow]:
                            'reported' if metric == 'revenue_growth' else 'adjusted', m.group(0), stated))
   # 같은 metric 이 두 꼴로 잡히면 처음 것(범위가 근사값보다 앞에 있다)
   seen, uniq = set(), []
-  for x in out:
+  for x in out + parse_withdrawals(sect):
     if x.metric not in seen:
       seen.add(x.metric)
       uniq.append(x)
@@ -141,6 +166,10 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   if r.results:
     r.results += parse_operating(content.tables, r.results[0].period)
     r.guidance = parse_guidance(content.text)
+    found = _outlook_section(content.text)
+    if found and not r.guidance and not _WITHDRAW_WORD.search(found[0]):
+      # 전망 절은 있는데 숫자도 철회도 0행 — 문장 꼴이 바뀐 것(검토 1회차). 실적이 있어도 문서를 failed 로
+      r.results = []
   return r
 
 
@@ -198,6 +227,18 @@ MUST_HIT_TEXT = [
   ('2024 BUSINESS OUTLOOK The Company updated its 2024 sales outlook to be down approximately 20 percent relative to '
    '2023 versus its previous outlook of down 17 to 20 percent relative to 2023.',
    {('T', 'revenue_growth', 'FY2024'): 'down approximately 20 percent'}),
+  # 2025-Q1 판(2025-04-29) 철회 — 지표를 안 밝혀 'other' 한 행 · 같은 절의 분기 매출 전망은 안 뽑는다
+  ('2025 BUSINESS OUTLOOK The Company introduced second quarter 2025 sales guidance of $1.6 billion to $1.8 billion. '
+   'The Company is withdrawing full year 2025 guidance due to trade and economic uncertainty.',
+   {('T', 'other', 'FY2025'): 'withdrawing', ('S', 'other'): 'withdrawn', ('G', 'other', 'FY2025'): (None, None),
+    ('N',): 1}),
+  # 2025-Q2 판(2025-07-29) 철회 유지
+  ('2025 BUSINESS OUTLOOK The Company introduced third quarter 2025 sales guidance of $1.6 billion to $1.8 billion. '
+   'The Company is continuing to withhold full year 2025 guidance due to trade and economic uncertainty.',
+   {('T', 'other', 'FY2025'): 'withhold', ('S', 'other'): 'withdrawn', ('N',): 1}),
+  # 지표를 밝힌 철회(가상 꼴 — 실물 미관측)는 그 metric 으로
+  ('2026 BUSINESS OUTLOOK The Company is withdrawing its full year 2026 adjusted sales and adjusted EPS guidance.',
+   {('S', 'adjusted_sales'): 'withdrawn', ('S', 'eps_adjusted'): 'withdrawn', ('N',): 2}),
 ]
 MUST_MISS = [
   # 하이라이트 줄(본문 'BUSINESS OUTLOOK' 절 밖)은 같은 값을 되풀이할 뿐 — 절 밖에서는 뽑지 않는다
@@ -205,16 +246,21 @@ MUST_MISS = [
   # 10-14 잠정실적 보도자료의 '분기' 전망 범위는 연간 가이던스가 아니다
   'we expect third quarter sales to be at the high end of our previously issued guidance range of $1.6 billion to '
   '$1.8 billion. We anticipate third quarter adjusted EPS to be in the range of $0.31 to $0.41',
-  # 2025-Q1 판 — 분기 매출 전망 + 연간 철회(연간 가이던스 행이 없어야 한다) · EPS 증감률은 metric 이 없다
-  '2025 BUSINESS OUTLOOK The Company introduced second quarter 2025 sales guidance of $1.6 billion to $1.8 billion. '
-  'The Company is withdrawing full year 2025 guidance due to trade and economic uncertainty.',
+  # 2025-Q1 판 — 분기 매출 전망은 연간 가이던스가 아니다 · EPS 증감률은 metric 이 없다
+  '2025 BUSINESS OUTLOOK The Company introduced second quarter 2025 sales guidance of $1.6 billion to $1.8 billion.',
   '2025 BUSINESS OUTLOOK The Company expects adjusted diluted EPS attributed to Polaris Inc. common stockholders to be '
   'down approximately 65 percent versus 2024.',
 ]
-# 요약 표 머리는 있는데 매출 라벨이 바뀌면 0행 · recognized(failed 로 드러난다)
-MUST_RECOGNIZED_EMPTY = [[['(in millions, except per share data)'],
-                          ['Quarter ended September 30, 2026', 'Reported', 'YOY % Chg.', 'Adjusted*', 'YOY % Chg.'],
-                          ['Net sales', '$', '2,042.6', '11%', '$', '2,041.8', '11%']]]
+_SUMMARY = [['(in millions, except per share data)'],
+            ['Quarter ended September 30, 2026', 'Reported', 'YOY % Chg.', 'Adjusted*', 'YOY % Chg.'],
+            ['Sales', '$', '2,042.6', '11%', '$', '2,041.8', '11%']]
+# 0행 · recognized 여야 하는 (이름, 표, 본문) — 꼴이 바뀐 것이 failed 로 드러나는지
+MUST_RECOGNIZED_EMPTY = [
+  ('요약 표 매출 라벨 변경', [[*_SUMMARY[:2], ['Net sales', '$', '2,042.6', '11%', '$', '2,041.8', '11%']]], ''),
+  # 전망 절은 있는데 문장 꼴이 바뀌어 0행 · 철회 낱말 없음(검토 1회차)
+  ('전망 문장 꼴 변경', [_SUMMARY], '2026 BUSINESS OUTLOOK The Company anticipates 2026 adjusted sales in a range of '
+                                   '$7.55 billion to $7.60 billion.'),
+]
 
 
 def _flatten(r: ParseResult) -> dict:
@@ -226,6 +272,7 @@ def _flatten(r: ParseResult) -> dict:
     out[('T', x.metric, x.period)] = x.value_text
     if x.stated:
       out[('S', x.metric)] = x.stated
+  out[('N',)] = len(r.guidance)
   return out
 
 
@@ -248,7 +295,15 @@ def self_test() -> list[str]:
     rows = parse_guidance(text)
     if rows:
       errs.append(f'MUST_MISS 가이던스가 뽑혔다: {[(g.metric, g.low, g.high, g.value_text) for g in rows]}')
-  res = parse(doc, Content(text='', tables=MUST_RECOGNIZED_EMPTY))
-  if res.count() or not res.recognized:
-    errs.append(f'요약 표 매출 라벨 변경: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
+  for name, tables, text in MUST_RECOGNIZED_EMPTY:
+    res = parse(doc, Content(text=text, tables=tables))
+    if res.count() or not res.recognized:
+      errs.append(f'{name}: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
+  # 철회 행 quote 가 원문 대조를 지나는지(값 없이 value_text 만 — DB CHECK 와 check_row 둘 다)
+  from lib.quote_check import check_row
+  src = MUST_HIT_TEXT[3][0]
+  for g in parse_guidance(src):
+    ok, why = check_row(g, src)
+    if not ok:
+      errs.append(f'철회 행 대조 실패: {why}')
   return errs
