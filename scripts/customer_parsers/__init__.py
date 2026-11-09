@@ -11,6 +11,8 @@ MODULE_NAMES: tuple[str, ...] = (
   'gm',
   'rivian',
   'polaris',
+  'vinfast',
+  'stellantis',
 )
 
 

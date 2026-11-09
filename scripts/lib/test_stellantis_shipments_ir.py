@@ -109,6 +109,10 @@ class ExtractNorthAmericaTest(unittest.TestCase):
         ]
         self.assertIsNone(col.extract_north_america_thousands(rows, 2, 2026))
 
+    def test_total_row_label(self):
+        # 같은 함수를 전사 합계 행 라벨로 부르면 합계(1,597) — 북미(445)가 아니다
+        self.assertEqual(col.extract_row_thousands(Q2_2026_TABLE, 2, 2026, col.TOTAL_LABEL), 1597)
+
     def test_full_thousands_conversion(self):
         # 수집기가 ×1000 하므로 파싱은 천대 단위(445)를 그대로 돌려준다
         thousands = col.extract_north_america_thousands(Q2_2026_TABLE, 2, 2026)

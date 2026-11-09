@@ -80,6 +80,7 @@ PERIOD_CELL_RE = re.compile(r'^Q([1-4])\s+(20\d{2})$', re.I)
 # 숫자 셀: '445' / '1,597' / '(4)'(음수)
 NUMERIC_CELL_RE = re.compile(r'^\(?-?[\d,]+\)?$')
 NORTH_AMERICA_LABEL = 'north america'
+TOTAL_LABEL = 'stellantis'  # 전사 합계 행 — EDGAR 실적 보도자료의 연결 출하와 대조용
 
 
 # ---------------------------------------------------------------------------
@@ -124,14 +125,15 @@ def find_current_period_column(rows: list[list[str]], quarter: int, year: int) -
     return None
 
 
-def extract_north_america_thousands(
-    rows: list[list[str]], quarter: int, year: int
+def extract_row_thousands(
+    rows: list[list[str]], quarter: int, year: int, label: str
 ) -> int | None:
-    """정규화된 표 행 → North America 당기 출하(천대).
+    """정규화된 표 행 → label 행(소문자 비교)의 당기 출하(천대). 북미 함수를 행 라벨로 일반화한 것.
 
     1) 헤더에서 'Q{quarter} {year}' 열 인덱스를 찾는다(당기 열 확정 + 릴리스 정합 검증).
-    2) 'North America' 행에서 그 열 값을 읽는다. 라벨 열 유무로 인덱스가 밀릴 수 있어,
+    2) label 행에서 그 열 값을 읽는다. 라벨 열 유무로 인덱스가 밀릴 수 있어,
        라벨을 제외한 숫자 셀만 모아 첫 숫자(=당기)를 쓰되, 헤더 정합이 실패하면 None.
+    전사 합계 행 라벨은 'Stellantis'(TOTAL_LABEL · 2026-07-16 Q2 실측 표).
     """
     period_col = find_current_period_column(rows, quarter, year)
     if period_col is None:
@@ -139,7 +141,7 @@ def extract_north_america_thousands(
     for row in rows:
         if not row:
             continue
-        if row[0].strip().lower() != NORTH_AMERICA_LABEL:
+        if row[0].strip().lower() != label:
             continue
         # 라벨 셀(첫 셀)을 뺀 숫자 셀들. 헤더 첫 기간이 당기이므로 첫 숫자가 당기 값이다.
         numerics = [parse_numeric_cell(c) for c in row[1:]]
@@ -147,6 +149,13 @@ def extract_north_america_thousands(
         if numerics:
             return numerics[0]
     return None
+
+
+def extract_north_america_thousands(
+    rows: list[list[str]], quarter: int, year: int
+) -> int | None:
+    """정규화된 표 행 → North America 당기 출하(천대)."""
+    return extract_row_thousands(rows, quarter, year, NORTH_AMERICA_LABEL)
 
 
 # ---------------------------------------------------------------------------
