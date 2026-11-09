@@ -1,15 +1,19 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import HyundaiQuarterlyEarningsChart from '@/components/oem-companies/hyundai/HyundaiQuarterlyEarningsChart';
-import CompanyKpiCards from '@/components/oem-companies/common/CompanyKpiCards';
-import CompanyTimeSeriesChart from '@/components/oem-companies/common/CompanyTimeSeriesChart';
 import PopupNewsSection from '@/components/stock-popup/PopupNewsSection';
 import CustomerEarningsTable from '@/components/customers/CustomerEarningsTable';
+import CustomerGuidanceCards from '@/components/customers/CustomerGuidanceCards';
+import CustomerDocumentList from '@/components/customers/CustomerDocumentList';
+import CustomerVolumeCompare from '@/components/customers/CustomerVolumeCompare';
+import CustomerEarningsSchedule from '@/components/customers/CustomerEarningsSchedule';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccess } from '@/lib/auth/permissions';
-import { getCustomerDetail } from '@/lib/customers/source';
+import { todaySeoul } from '@/lib/currentYear';
+import { getCustomerDetail, getCustomerIr, pickCustomerEarnings } from '@/lib/customers/source';
+import { nextEarnings } from '@/lib/customers/ir';
 import type { CustomerEarnings } from '@/lib/customers/types';
-import { pctClass, pctText } from '@/lib/customers/format';
+import { earningsFootnotes, pctClass, pctText } from '@/lib/customers/format';
 
 /** Cache Components 는 dynamic route 에 generateStaticParams 결과를 최소 1개 요구한다(app/stock-popup/[id] 와 같은 방식). */
 export async function generateStaticParams() {
@@ -26,14 +30,33 @@ function hasNegativeMargin(earnings: CustomerEarnings): boolean {
   );
 }
 
-/** 고객사 개별 페이지 — 실적(차트·표) · MarkLines 그룹 판매 · 최근 뉴스. */
+/** 점들에 실린 회사 발표 조정 영업이익 이름(중복 없이, 처음 나온 순). */
+function adjustedColumns(earnings: CustomerEarnings): { metric: string; name: string }[] {
+  const seen = new Map<string, string>();
+  for (const p of [...earnings.quarterly, ...earnings.annual])
+    for (const a of p.adjusted ?? []) if (!seen.has(a.metric)) seen.set(a.metric, a.name);
+  return [...seen].map(([metric, name]) => ({ metric, name }));
+}
+
+/** 고객사 개별 페이지 — 실적(차트·표) · 가이던스 · 물량 비교 · 자료실 · 최근 뉴스. */
 export default async function CustomerPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser();
   if (!user || !canAccess('/customers', user.role)) redirect('/');
   const { slug } = await params;
-  const d = await getCustomerDetail(slug);
+  const [d, ir] = await Promise.all([getCustomerDetail(slug), getCustomerIr(slug)]);
   if (!d) notFound();
-  const { row, earnings, volume } = d;
+  const { row, volume } = d;
+  // 해외는 칸마다 회사 공시 → 시장 데이터 순으로 고른 결과만 그린다(공시 원본 행은 화면에 뿌리지 않는다). 국내는 1단계 그대로.
+  const companyFirst = ir?.earningsRule === 'company_first';
+  const earnings =
+    ir && companyFirst ? pickCustomerEarnings(row.company_id, d.earnings, ir.reported) : d.earnings;
+  const footnotes = companyFirst
+    ? {
+        quarter: earningsFootnotes(earnings.quarterly, earnings.currency),
+        annual: earningsFootnotes(earnings.annual, earnings.currency),
+      }
+    : undefined;
+  const next = ir ? nextEarnings(ir.earningsDates, todaySeoul()) : null;
   const shareText = row.share.sharePct == null ? '해당 없음' : `${row.share.sharePct.toFixed(1)}%`;
   const shareScope = d.windowLabel
     ? ` (${d.windowLabel} · 연결${row.share_group ? ` · ${[row.name_kr, ...row.share_group_peers].join('·')} 합산` : ''})`
@@ -74,7 +97,10 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
       </div>
       <div className="flex-1 overflow-auto p-4 space-y-6">
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">실적</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">실적</h2>
+            <CustomerEarningsSchedule next={next} />
+          </div>
           {earnings.currency && (
             <HyundaiQuarterlyEarningsChart
               data={earnings.quarterly}
@@ -83,41 +109,47 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
               currency={earnings.currency}
               allowNegativeMargin={hasNegativeMargin(earnings)}
               titleLabel="실적"
-              sourceNote="financials(yfinance·DART) · 현지 통화"
+              sourceNote={
+                companyFirst
+                  ? '회사 공시 우선 · 없는 칸은 시장 데이터(yfinance) · 현지 통화'
+                  : 'financials(yfinance·DART) · 현지 통화'
+              }
               annualNote={`연간 = 회사 발표 연간 실적 · 매출 단위: ${
                 earnings.currency === 'KRW' ? '조원' : `${earnings.currency} bn`
               }, 영업이익률(%)`}
             />
           )}
-          <CustomerEarningsTable earnings={earnings} />
+          <CustomerEarningsTable
+            earnings={earnings}
+            adjustedRows={adjustedColumns(earnings)}
+            footnotes={footnotes}
+          />
         </section>
+        {ir && (
+          <section className="space-y-3">
+            <h2 className="text-base font-semibold">가이던스</h2>
+            <CustomerGuidanceCards
+              cards={ir.guidance}
+              notes={ir.guidanceNotes}
+              reported={ir.reported}
+            />
+          </section>
+        )}
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">물량 (MarkLines 판매)</h2>
-          {volume.group && volume.kpi ? (
-            <>
-              <p className="text-xs text-muted-foreground">
-                MarkLines 그룹 「{volume.group}」 전체 판매 — 그룹 단위라 계열 브랜드가 함께 잡힌다.
-              </p>
-              <CompanyKpiCards kpi={volume.kpi} />
-              <CompanyTimeSeriesChart
-                monthly={volume.monthly}
-                annual={volume.annual}
-                title="MarkLines 그룹 판매"
-              />
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {volume.group
-                ? `MarkLines 그룹 「${volume.group}」 판매 자료가 아직 없다.`
-                : 'MarkLines 에 이 회사 단독 그룹이 없다.'}
-            </p>
-          )}
+          <h2 className="text-base font-semibold">물량 (MarkLines 판매 · 회사 발표)</h2>
+          <CustomerVolumeCompare volume={volume} series={ir?.volume ?? []} />
           {d.oemTabPath && (
             <Link href={d.oemTabPath} className="text-sm text-primary hover:underline">
               회사 발표 판매·출하 상세 → OEM 탭
             </Link>
           )}
         </section>
+        {ir && (
+          <section className="space-y-3">
+            <h2 className="text-base font-semibold">자료실</h2>
+            <CustomerDocumentList documents={ir.documents} collectStatus={ir.collectStatus} />
+          </section>
+        )}
         {/* 제목은 PopupNewsSection 안의 「최신 뉴스」가 맡는다 — 여기 h2 를 두면 제목이 두 번 나온다. */}
         <section>
           <PopupNewsSection

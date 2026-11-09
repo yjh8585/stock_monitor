@@ -7,20 +7,36 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   LabelList,
+  Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import { TOOLTIP_CONTENT_STYLE } from '@/components/charts/chartTheme';
+import { OEM_COLORS } from '@/components/charts/palette';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { CompanyTimeSeriesPoint } from '@/lib/types';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY, Y_AXIS_PADDED_DOMAIN } from './chartStyle';
 
+/** 비교용 두 번째 계열(회사 발표 물량 등) — `period`('YYYY-MM' · 'YYYY')로 기본 계열 점에 붙인다. */
+export interface TimeSeriesSecondary {
+  /** 범례·툴팁 이름. */
+  label: string;
+  /** 두 번째 계열이 있을 때 기본 계열의 범례·툴팁 이름(없으면 「출하량」). */
+  primaryLabel?: string;
+  monthly?: { period: string; value: number }[];
+  annual?: { period: string; value: number }[];
+}
+
 interface Props {
   monthly: CompanyTimeSeriesPoint[];
   annual: CompanyTimeSeriesPoint[];
+  /** 없으면(기본) 지금 동작 그대로 — 지금 보는 단위에 값이 있을 때만 선 하나·범례를 더 그린다. */
+  secondary?: TimeSeriesSecondary;
 }
 
 type ViewMode = 'year' | 'month';
@@ -58,11 +74,19 @@ function fmtYoy(value: unknown): string {
  * 연간: BarChart (oem MarketTrendChart 패턴)
  * 월간: AreaChart with gradient
  */
-export default function CompanyTimeSeriesChartInner({ monthly, annual }: Props) {
+export default function CompanyTimeSeriesChartInner({ monthly, annual, secondary }: Props) {
   const [mode, setMode] = useState<ViewMode>('year');
   const height = useChartHeight(240, 280, 320);
 
   const data = mode === 'year' ? annual : monthly;
+  const secondaryPoints = mode === 'year' ? secondary?.annual : secondary?.monthly;
+  const secondaryByPeriod = new Map((secondaryPoints ?? []).map((p) => [p.period, p.value]));
+  // 기본 계열 기간에 겹치는 값이 하나도 없으면 두 번째 계열을 그리지 않는다(빈 범례 방지).
+  const merged =
+    secondary && data.some((p) => secondaryByPeriod.has(p.period))
+      ? data.map((p) => ({ ...p, secondary: secondaryByPeriod.get(p.period) ?? null }))
+      : null;
+  const primaryLabel = secondary?.primaryLabel ?? '출하량';
 
   return (
     <div>
@@ -100,7 +124,82 @@ export default function CompanyTimeSeriesChartInner({ monthly, annual }: Props) 
       </div>
 
       <ResponsiveContainer width="100%" height={height}>
-        {mode === 'year' ? (
+        {merged && secondary ? (
+          // 두 번째 계열이 있을 때만 — 같은 단위(대)라 한 Y축에 함께 그린다(이중 축 아님 → §4-F 밴드 분리 대상 아님).
+          <ComposedChart
+            data={merged}
+            margin={{ top: mode === 'year' ? 32 : 10, right: 20, bottom: 10, left: 10 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              className="stroke-border"
+              strokeOpacity={GRID_STROKE_OPACITY}
+              vertical={mode !== 'year'}
+            />
+            <XAxis
+              dataKey="period_label"
+              className="text-sm"
+              tick={{ fontSize: 14 }}
+              {...(mode === 'month'
+                ? { interval: 'preserveStartEnd' as const, minTickGap: 20 }
+                : {})}
+            />
+            <YAxis
+              tickFormatter={fmtUnitsTick}
+              className="text-sm"
+              width={60}
+              {...(mode === 'year' ? { domain: Y_AXIS_PADDED_DOMAIN } : {})}
+            />
+            <Tooltip
+              cursor={mode === 'year' ? { fill: 'var(--muted)' } : undefined}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
+              formatter={(value, name, item) => {
+                if (value == null) return ['—', String(name)];
+                if (name === secondary.label)
+                  return [`${fmtFull(Number(value))}대`, secondary.label];
+                const yoy = (item?.payload as CompanyTimeSeriesPoint | undefined)?.yoy_pct;
+                const yoyText = yoy == null ? '' : ` (YoY ${fmtYoy(yoy)})`;
+                return [`${fmtFull(Number(value))}대${yoyText}`, primaryLabel];
+              }}
+            />
+            <Legend
+              layout="horizontal"
+              verticalAlign="top"
+              align="center"
+              wrapperStyle={{ fontSize: '16px', paddingBottom: 8 }}
+            />
+            {mode === 'year' ? (
+              <Bar dataKey="sales" name={primaryLabel} fill="#2563eb" radius={[3, 3, 0, 0]}>
+                <LabelList
+                  dataKey="sales"
+                  position="top"
+                  formatter={fmtBarLabel}
+                  style={DATA_LABEL_STYLE}
+                />
+              </Bar>
+            ) : (
+              <Area
+                type="monotone"
+                dataKey="sales"
+                name={primaryLabel}
+                stroke="#2563eb"
+                strokeWidth={2}
+                fill="#2563eb"
+                fillOpacity={0.1}
+              />
+            )}
+            <Line
+              type="monotone"
+              dataKey="secondary"
+              name={secondary.label}
+              stroke={OEM_COLORS[3]}
+              strokeWidth={2}
+              dot={mode === 'year'}
+              activeDot={{ r: 4 }}
+              connectNulls={false}
+            />
+          </ComposedChart>
+        ) : mode === 'year' ? (
           <BarChart data={data} margin={{ top: 32, right: 20, bottom: 10, left: 10 }}>
             <CartesianGrid
               strokeDasharray="3 3"

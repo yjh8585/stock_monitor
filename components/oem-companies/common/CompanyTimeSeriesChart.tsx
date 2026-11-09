@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CompanyTimeSeriesPoint } from '@/lib/types';
+import type { TimeSeriesSecondary } from './CompanyTimeSeriesChartInner';
 
 interface Props {
   /** 월별 시계열 (mode='month' 시 표시). */
@@ -11,6 +12,8 @@ interface Props {
   annual: CompanyTimeSeriesPoint[];
   /** 카드 제목. 기본 "출하량 추이 (도매 wholesale)". */
   title?: string;
+  /** 비교용 두 번째 계열(고객사 페이지의 회사 발표 물량). 없으면 지금 동작 그대로. */
+  secondary?: TimeSeriesSecondary;
 }
 
 // recharts 의존을 클라이언트 번들에서만 로드 → SSR 비용 절감 + 초기 페이로드 축소.
@@ -32,6 +35,7 @@ export default function CompanyTimeSeriesChart({
   monthly,
   annual,
   title = '출하량 추이 (도매 wholesale)',
+  secondary,
 }: Props) {
   return (
     <Card size="sm" className="gap-3">
@@ -39,7 +43,7 @@ export default function CompanyTimeSeriesChart({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <TimeSeriesInner monthly={monthly} annual={annual} />
+        <TimeSeriesInner monthly={monthly} annual={annual} secondary={secondary} />
       </CardContent>
     </Card>
   );
