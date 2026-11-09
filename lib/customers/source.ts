@@ -270,13 +270,16 @@ export async function getCustomerDetail(slug: string): Promise<CustomerDetail | 
   let volume: CustomerDetail['volume'] = { group, monthly: [], annual: [], kpi: null };
   if (group) {
     const saleRows = groupMonthToSaleRows(await fetchGroupMonth(group), group);
-    volume = {
-      group,
-      monthly: aggregateMonthlySeries(saleRows),
-      annual: aggregateAnnualSeries(saleRows),
-      // 그룹 월 표엔 PT 가 없어 EV 비중을 계산하지 않는다(카드에 「—」).
-      kpi: { ...aggregateKpi(saleRows), evRatio: null },
-    };
+    // 그룹은 있는데 판매 행이 0개면 「0대」 KPI 대신 kpi null — 화면이 「자료가 아직 없다」를 띄운다.
+    if (saleRows.length > 0) {
+      volume = {
+        group,
+        monthly: aggregateMonthlySeries(saleRows),
+        annual: aggregateAnnualSeries(saleRows),
+        // 그룹 월 표엔 PT 가 없어 EV 비중을 계산하지 않는다(카드에 「—」).
+        kpi: { ...aggregateKpi(saleRows), evRatio: null },
+      };
+    }
   }
   return {
     row: hit.row,

@@ -20,6 +20,8 @@ interface Props {
   titleLabel?: string;
   /** 출처 문구 앞부분(기본 = hyundai.com IR 문구). */
   sourceNote?: string;
+  /** 연간 모드 꼬리 문구(기본 = 현대 IR 4분기 합산 설명). 고객사는 회사 발표 연간 행이라 따로 넘긴다. */
+  annualNote?: string;
 }
 
 type ViewMode = 'quarter' | 'annual';
@@ -47,6 +49,7 @@ export default function HyundaiQuarterlyEarningsChart({
   allowNegativeMargin = false,
   titleLabel = 'IR 실적',
   sourceNote = 'hyundai.com IR · 분기별 실적 발표 자료(PDF)',
+  annualNote = '연간 = 4분기 합산(불완전 연도는 YTD 표시), 영업이익률 = 영업이익 합/매출 합 가중평균',
 }: Props) {
   const [mode, setMode] = useState<ViewMode>('quarter');
   if (!data.length && !annual.length) return null;
@@ -116,7 +119,7 @@ export default function HyundaiQuarterlyEarningsChart({
             ? currency === 'KRW'
               ? '매출 단위: 조원, 영업이익률(%)'
               : `매출 단위: ${currency} bn, 영업이익률(%)`
-            : '연간 = 4분기 합산(불완전 연도는 YTD 표시), 영업이익률 = 영업이익 합/매출 합 가중평균'}
+            : annualNote}
         </p>
       </CardContent>
     </Card>

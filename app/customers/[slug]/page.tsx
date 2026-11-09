@@ -84,6 +84,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
               allowNegativeMargin={hasNegativeMargin(earnings)}
               titleLabel="실적"
               sourceNote="financials(yfinance·DART) · 현지 통화"
+              annualNote={`연간 = 회사 발표 연간 실적 · 매출 단위: ${
+                earnings.currency === 'KRW' ? '조원' : `${earnings.currency} bn`
+              }, 영업이익률(%)`}
             />
           )}
           <CustomerEarningsTable earnings={earnings} />
@@ -103,7 +106,11 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
               />
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">MarkLines 에 이 회사 단독 그룹이 없다.</p>
+            <p className="text-sm text-muted-foreground">
+              {volume.group
+                ? `MarkLines 그룹 「${volume.group}」 판매 자료가 아직 없다.`
+                : 'MarkLines 에 이 회사 단독 그룹이 없다.'}
+            </p>
           )}
           {d.oemTabPath && (
             <Link href={d.oemTabPath} className="text-sm text-primary hover:underline">

@@ -116,8 +116,8 @@ export default function HyundaiQuarterlyEarningsChartInner({
           wrapperStyle={{ fontSize: '14px', paddingBottom: 8 }}
           {...legendProps}
         />
-        {/* 흑자·적자 경계선. bandDomain 이 0 을 항상 품으므로 반드시 보인다. */}
-        {allowNegativeMargin && (
+        {/* 흑자·적자 경계선. bandDomain 이 0 을 항상 품으므로 반드시 보인다 — 범례로 영업이익률을 숨기면 같이 숨긴다. */}
+        {allowNegativeMargin && !isHidden('operating_margin_pct') && (
           <ReferenceLine yAxisId="right" y={0} stroke="#9ca3af" strokeDasharray="4 4" />
         )}
         <Bar

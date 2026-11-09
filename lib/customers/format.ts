@@ -1,4 +1,4 @@
-/** 고객사 화면 공용 표시 함수 — 요약 표('use client')와 개별 페이지(서버)가 함께 쓴다. */
+/** 고객사 화면 공용 표시 함수 — 요약 표·개별 페이지(서버)와 실적 표('use client')가 함께 쓴다. */
 
 /** 퍼센트 문자열 — 값이 없으면 「—」, signed 면 양수에 + 를 붙인다. */
 export function pctText(v: number | null, signed = true): string {

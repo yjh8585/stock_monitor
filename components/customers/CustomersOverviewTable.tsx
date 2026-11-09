@@ -1,8 +1,7 @@
-'use client';
-
+// 서버 컴포넌트 — 'use client' 면 화면에 안 쓰는 사외비 칸(share.topProducts)까지 RSC payload 로 브라우저에 실린다.
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-// server-only 모듈이라 타입만 가져온다(값 import 면 클라이언트 번들로 새어 빌드가 깨진다).
+// 타입만 쓰므로 import type — 값 import 가 아니라 조회 모듈('use cache' 함수)을 끌어오지 않는다.
 import type { CustomerOverviewRow } from '@/lib/customers/source';
 import { pctClass, pctText } from '@/lib/customers/format';
 

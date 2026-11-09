@@ -3,14 +3,11 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CustomerEarnings } from '@/lib/customers/types';
+import { pctClass, pctText } from '@/lib/customers/format';
 
 const TD = 'px-3 py-1.5 whitespace-nowrap text-right tabular-nums';
 const num = (v: number | null) =>
   v == null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: 1 });
-const pct = (v: number | null, signed = false) =>
-  v == null ? '—' : `${signed && v > 0 ? '+' : ''}${v.toFixed(1)}%`;
-const tone = (v: number | null) =>
-  v == null || v === 0 ? '' : v > 0 ? 'text-emerald-600' : 'text-rose-600';
 
 /** 고객사 실적 표 — 분기/연간 토글, 최신 기간이 위. 금액은 현지 통화 십억(bn). */
 export default function CustomerEarningsTable({ earnings }: { earnings: CustomerEarnings }) {
@@ -60,14 +57,16 @@ export default function CustomerEarningsTable({ earnings }: { earnings: Customer
               <tr key={p.period_label} className="border-t border-border">
                 <td className="px-3 py-1.5 text-left">{p.period_label}</td>
                 <td className={TD}>{num(p.revenue_bn)}</td>
-                <td className={cn(TD, tone(p.revenue_yoy_pct))}>{pct(p.revenue_yoy_pct, true)}</td>
-                <td className={cn(TD, tone(p.operating_income_bn))}>
+                <td className={cn(TD, pctClass(p.revenue_yoy_pct))}>
+                  {pctText(p.revenue_yoy_pct)}
+                </td>
+                <td className={cn(TD, pctClass(p.operating_income_bn))}>
                   {num(p.operating_income_bn)}
                 </td>
-                <td className={cn(TD, tone(p.operating_margin_pct))}>
-                  {pct(p.operating_margin_pct)}
+                <td className={cn(TD, pctClass(p.operating_margin_pct))}>
+                  {pctText(p.operating_margin_pct, false)}
                 </td>
-                <td className={cn(TD, tone(p.net_income_bn))}>{num(p.net_income_bn)}</td>
+                <td className={cn(TD, pctClass(p.net_income_bn))}>{num(p.net_income_bn)}</td>
               </tr>
             ))}
           </tbody>
