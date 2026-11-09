@@ -22,10 +22,12 @@ doc_type 에 기대지 않는다(목록 분류가 본문 낱말로 가른다) �
 import re
 
 from customer_parsers.base import Doc, Content, ParseResult, ResultRow, VolumeRow, GuidanceRow, to_number
+from customer_parsers.common import uncovered_marks
 from lib.doc_text import norm_text, row_text
 
 TICKERS = ('P911.DE',)
-DEF = '포르쉐 AG 그룹 고객 인도(누계 발표 · 분기는 누계 차이)'
+# 보도자료에 인도 정의 각주가 없다(실물 11건 확인) — 발표 방식만 적는다(1분기 외에는 누계로만 발표)
+DEF = '포르쉐 AG 그룹 고객 인도(대 단위 · 1분기 외에는 누계로만 발표)'
 _GROUP = 'Porsche AG Group'
 _HEAD = re.compile(r'(Q1|Q1-Q2|H1|Q1-Q3|9M|FY|Fiscal year) ?(20\d{2})')
 _MONTHS = {'Q1': 3, 'Q1-Q2': 6, 'H1': 6, 'Q1-Q3': 9, '9M': 9, 'FY': 12, 'Fiscal year': 12}
@@ -56,6 +58,9 @@ _G = (  # (정규식, metric, 회사 라벨, 단위, basis)
 _CHANGE = re.compile(r'(Group sales revenue|Group operating return on sales|Automotive net cash ?flow margin|'
                      r'Automotive EBITDA margin|Automotive BEV share) for (?:the )?full year (20\d{2}) is expected to '
                      r'(?:increase|decrease|rise|fall|be|change) to ' + _RNG + r' (per cent|billion euros)', re.I)
+# 전망 변경 표식(실물 2026-09-09 뉴스 문장꼴 'is expected to increase to' · '(previous forecast: …)') — 기준 문장이 없는
+# 문서에서 이 표식 문장은 뽑은 행 quote 가 덮어야 한다
+_CHANGE_MARK = re.compile(r'previous forecast|now expects|is expected to (?:increase|decrease|rise|fall)', re.I)
 # 서술형 전망 표식(LLM 칸) — 3월 연간 'Forecast for 2026 …' · 2025 9M 'Forecast for 2025 takes into account …' ·
 # 전망 변경 뉴스의 'previous forecast'
 _LLM_MARK = re.compile(r'\bForecast for 20\d{2}\b|previous forecast', re.I)
@@ -123,8 +128,9 @@ def parse_deliveries(tables) -> ParseResult | None:
     col = max(ys, key=lambda k: years[k])   # 올해 칸(전년이 앞에 온다)
     year = years[col]
     world = next((x for x in rows[i + 2:] if norm_text(x[0]) == 'Worldwide'), None)
-    v = to_number(world[col + 1]) if world and len(world) > col + 1 else None
-    if v is None:
+    # Worldwide 행 = 라벨 + 연도 행 칸 수(칸이 빠지면 올해 칸 자리가 밀린다) · 인도는 양수
+    v = to_number(world[col + 1]) if world and len(world) == len(years) + 1 else None
+    if v is None or v <= 0:
       return None
     months = _SPAN_MONTHS[sm.group(1)]
     grain, period = _period({3: 'Q1', 6: 'H1', 9: 'Q1-Q3', 12: 'FY'}[months], year)
@@ -158,7 +164,9 @@ def parse_guidance(text: str) -> tuple[list[GuidanceRow], bool]:
     if metric not in {g.metric for g in out}:
       out.append(GuidanceRow(metric, lab, f'FY{m.group(2)}', float(m.group(3)), float(m.group(4)), None, unit, basis,
                              m.group(0)))
-  return out, not out and _LLM_MARK.search(text) is not None
+  # 변경 표식 문장 중 뽑은 행이 덮지 않은 것 = 그 항목만 문장꼴이 바뀌었다 → 코드 행은 두고 LLM 으로
+  missed = uncovered_marks(text, _CHANGE_MARK, [g.quote for g in out])
+  return out, bool(missed) or (not out and _LLM_MARK.search(text) is not None)
 
 
 def parse(doc: Doc, content: Content) -> ParseResult:
@@ -257,6 +265,11 @@ MUST_MISS = [  # (표, 본문, 판정(got) → 참, 사유)
   # 기준 문장 앞의 'anAutomotive net cashflow margin of 5.5 to 7.5 per cent is expected' 가 아니라 기준 문장 뒤 값 — 1분기 판은 3~5
   ([RES_Q1_OUTER], 'anAutomotive net cashflow margin of 9 to 10 per cent is expected. ' + G_Q1,
    lambda g: g.get(('G', 'automotive_ncf_margin', 'FY2026')) == (3.0, 5.0), '기준 문장 앞 값을 읽었다'),
+  # 기준 문장 «뒤» 구간 안의 단일값 실적 비율('Operating return on sales of 6.9 per cent')은 전망이 아니다 — 범위 값만
+  ([RES_9M], G_9M.replace('following figures: ', 'following figures: Operating return on sales of 6.9 per cent in the '
+                                                 'first nine months. '),
+   lambda g: g.get(('G', 'operating_margin', 'FY2026')) == (5.5, 7.5) and sum(k[0] == 'G' for k in g) == 5,
+   '기준 문장 뒤 단일값 실적 비율을 전망으로 읽었다'),
   # 전망 변경 뉴스의 '(previous forecast: 3 to 5 per cent)' 는 이전 값
   ([], G_CHANGE, lambda g: [v for k, v in g.items() if k[0] == 'G'] == [(5.5, 7.5)], '이전 전망을 읽었다'),
   # 인도 보도자료의 전년 칸(212,509)을 올해로 읽지 않는다
@@ -268,6 +281,10 @@ MUST_RECOGNIZED_EMPTY = [
   ('실적 표에 영업이익 행 없음', [[r for r in RES_9M if r[0] != 'Operating profit']], G_9M),
   ('실적 표 금액 칸 꼴 변경(EUR 25.28 bn)', [[RES_9M[0], ['Sales revenue', 'EUR 25.28 bn', 'EUR 26.86 bn'], *RES_9M[2:]]], ''),
   ('인도 표에 Worldwide 행 없음', [[DELIV_9M[0], DELIV_9M[1], DELIV_9M[3]]], ''),
+  ('인도 표 Worldwide 칸 하나 빠짐', [[DELIV_9M[0], DELIV_9M[1], ['Worldwide', '178,532', '-16%']]], ''),
+  # 각주 칸이 끼어 한 칸씩 밀림 — 칸 수를 안 보면 올해 자리에 전년 값(212,509)이 온다
+  ('인도 표 Worldwide 칸 하나 늘어 밀림', [[DELIV_9M[0], DELIV_9M[1], ['Worldwide', '1)', '212,509', '178,532', '-16%']]], ''),
+  ('인도 표 Worldwide 음수', [[DELIV_9M[0], DELIV_9M[1], ['Worldwide', '212,509', '(178,532)', '-16%']]], ''),
   ('인도 표 기간 칸 꼴 변경', [[['Porsche Deliveries', 'Q1-Q3'], *DELIV_9M[1:]]], ''),
 ]
 LLM_WANTS = [
@@ -275,6 +292,10 @@ LLM_WANTS = [
   ('기준 문장 뒤 BEV 문장꼴 변경', [RES_9M], G_9M.replace('Automotive BEV share between', 'BEV share target of'), True),
   ('3월 연간 서술형', [RES_FY], G_FY, True),
   ('전망 변경 뉴스인데 문장꼴 변경', [], 'the margin will now be 5.5 to 7.5 per cent (previous forecast: 3 to 5 per cent)', True),
+  # 변경 문장 두 개 중 하나만 꼴이 바뀜 — 순현금흐름 마진은 코드가 뽑지만 EBITDA 문장('previous forecast')이 안 덮인다
+  ('전망 변경 문장 하나만 꼴 변경', [], G_CHANGE + ' The Automotive EBITDA margin will now land between 16 and 18 per cent '
+                                             '(previous forecast: 15 to 17 per cent).', True),
+  ('전망 변경 문장 다 뽑음', [], G_CHANGE, False),
   ('전망 없는 일반 뉴스', [], 'Porsche completes sale of its stakes in Bugatti Rimac and Rimac Group.', False),
 ]
 MUST_NOT_RECOGNIZED = [

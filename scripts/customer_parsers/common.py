@@ -58,6 +58,17 @@ def year_before(text: str, pos: int, rx: str = r'(?:expects|full year|Outlook fo
   return hits[-1] if hits else None
 
 
+# 마침표·쌍반점 뒤 공백 + 대문자·괄호·숫자 앞에서 끊는다('per cent). 09.09.2026 …' 의 날짜 줄도 끊긴다).
+# '321.9' 처럼 소수점 뒤에 바로 숫자가 오면 공백이 없어 끊지 않는다
+_SENT_SPLIT = re.compile(r'(?<=[.;])\s+(?=[A-Z(\d])')
+
+
+def uncovered_marks(text: str, mark: re.Pattern, quotes: list[str]) -> list[str]:
+  """표식(전망 변경 낱말)이 든 문장 중 뽑은 행의 quote 를 하나도 품지 않은 문장 — 문장꼴이 바뀌어 코드가 놓친 항목.
+  하나라도 있으면 파서가 llm_hint 를 세운다(코드 행은 그대로 적재 · LLM 이 빠진 항목을 메운다)."""
+  return [s for s in _SENT_SPLIT.split(text) if mark.search(s) and not any(q in s for q in quotes)]
+
+
 def dedupe_first(rows: list, key) -> list:
   """같은 문서 안 같은 칸(metric·period)이 두 번 잡히면 처음 것만(표 다음 본문 문장이 같은 값을 되풀이한다)."""
   seen, out = set(), []

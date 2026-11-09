@@ -21,17 +21,23 @@
 doc_type 에 기대지 않는다 — ad-hoc 은 목록에서 전부 guidance 로 분류되고(1건은 예비 실적·1건은 이사회 승인),
 1분기 인도 보도자료는 목록에서 빠질 수 있다(제목 누락 · 원장). 판정은 본문의 서식 표식(표 머리·전망 머리)으로 한다.
 「알아봄」인데 그 서식에 늘 있는 행·칸이 빠지면 문서를 비워 failed(조용한 0행 금지). 전망 머리는 있는데 늘 있는
-항목이 빠졌거나, 실적 표는 있는데 전망 머리가 없으면 llm_hint → llm_wants(문장꼴 변경은 LLM 이 메운다).
+항목이 빠졌거나, 전망 구간의 변경 표식 문장('now expects'·'previous forecast' 등)을 뽑은 행이 덮지 못했거나, 실적 표는
+있는데 전망 머리가 없으면 llm_hint → llm_wants(코드 행은 그대로 적재하고 문장꼴이 바뀐 항목은 LLM 이 메운다).
 """
 import re
 
 from customer_parsers.base import Doc, Content, ParseResult, ResultRow, VolumeRow, GuidanceRow, to_number
+from customer_parsers.common import uncovered_marks
 from lib.doc_text import norm_text, row_text
 
 TICKERS = ('VOW3.DE',)
-DEF = {'production': '폭스바겐 그룹 생산(천 대 단위 발표)',
-       'sales': '폭스바겐 그룹 차량 판매(vehicle sales: 매출 인식 대수 · 중국 합작사 제외 · 천 대 단위 발표)',
-       'deliveries': '폭스바겐 그룹 고객 인도(중국 합작사 포함 · 대 단위)'}
+# 정의 근거 = 실적 보도자료 표 'Volume Data 1)' 각주 원문 — 'The figures also include the equity-accounted Chinese joint
+# ventures'(2025 9M·2025 연간·2026 1분기 판) · 'Including the equity-accounted joint ventures in China'(2026 반기·9M 판).
+# 이 각주가 인도·판매·생산 세 행에 함께 걸린다. 인도 보도자료엔 각주가 없지만 World 값이 같은 분기 실적 표 인도와
+# 같다(1,885,300 ↔ 1,885천 대) — 같은 정의로 본다. 각주에 없는 서술(매출 인식 대수 등)은 적지 않는다.
+DEF = {'production': '폭스바겐 그룹 생산(중국 지분법 합작사 포함 — 회사 각주 · 천 대 단위 발표)',
+       'sales': '폭스바겐 그룹 차량 판매(중국 지분법 합작사 포함 — 회사 각주 · 천 대 단위 발표)',
+       'deliveries': '폭스바겐 그룹 고객 인도(중국 지분법 합작사 포함 — 실적 보도자료 각주 · 대 단위)'}
 _Q = re.compile(r'Q([1-4])')
 _YTD_WORD = {2: 'H1', 3: '9M', 4: 'FY'}
 _YEAR = re.compile(r'20\d{2}')
@@ -75,6 +81,10 @@ _G = (  # (정규식, metric, 회사 라벨, 단위, basis, 항목 묶음) — �
               + _RANGE_WORD + ' ' + _EUR + _BN + r'(?: (?:and|to) ' + _EUR + r'([\d.]+))? billion', re.I),
    'automotive_net_liquidity', 'Automotive net liquidity', 'billion', None, 'liquidity'),
 )
+# 전망 변경 표식(실물 문장꼴에서 뽑음) — ad-hoc 'now expects' · 'previous forecast' · 'continues to expect' ·
+# 'is still expected', 반기 판 '(previously: …)'. 전망 구간 안 이 표식 문장은 뽑은 행 quote 가 덮어야 한다
+_CHANGE_MARK = re.compile(r'now (?:expects|targets|anticipates|projects)|previous forecast|previously:|continues to expect|'
+                          r'is still expected|is expected to (?:increase|decrease|rise|fall)', re.I)
 # 문장으로만 낸 매출 전망('expects its sales revenue for 2025 to be in line with the previous year') — 숫자가 없어 value_text
 _G_TEXT = re.compile(r'expects (?:its )?(?:Group )?sales revenue (?:in|for) 20\d{2} to be (in line with the previous year)',
                      re.I)
@@ -142,6 +152,8 @@ def parse_kpi(tables) -> ParseResult | None:
       if cur is None:
         return None
       kind, metric = kind_metric
+      if metric in seen:
+        return None   # 같은 행이 두 번 = 표가 겹쳤거나 꼴이 바뀌었다(어느 쪽이 맞는지 모른다)
       seen.add(metric)
       if kind == 'V':
         r.volume.append(VolumeRow(metric, 'total', 'quarter', period, round(cur * 1000), DEF[metric], row_text(row)))
@@ -161,10 +173,16 @@ def parse_kpi(tables) -> ParseResult | None:
 
 
 # ---------------------------------------------------------------- 문장(특수항목 전 영업이익 · 전망)
-def parse_bsi(text: str) -> list[ResultRow]:
+def parse_bsi(text: str, kpi_period: str | None) -> list[ResultRow]:
+  """kpi_period = 실적 표의 이번 분기('2025-Q4'). 표가 없으면 읽지 않는다 · 연도가 표 연도와 다른 문장은 버린다 ·
+  기간 낱말 없는 문장('… in 2025' = 연간)은 표가 Q4|FY 인 문서에서만 받는다(다른 판의 '… in 2025' 는 전년 비교 문장일 수 있다)."""
   out = []
+  if kpi_period is None:
+    return out
   for m in _BSI.finditer(text):
     word, year = (m.group(2) or 'FY').upper(), m.group(3)
+    if year != kpi_period[:4] or (m.group(2) is None and not kpi_period.endswith('Q4')):
+      continue
     grain, period = ('year', year) if word == 'FY' else (_BSI_GRAIN[word][0], f'{year}-{_BSI_GRAIN[word][1]}')
     out.append(ResultRow('operating_result_bsi', 'Operating Result before special items', 'adjusted', grain, period,
                          float(m.group(1)), 'billion', 'EUR', m.group(0)))
@@ -175,12 +193,14 @@ def parse_outlook(text: str) -> tuple[list[GuidanceRow], bool]:
   """(전망 행, llm_hint). 머리가 여러 번 나오면(ad-hoc 은 쪽 제목에도 있다) 머리마다 뒤 구간을 보고 항목별 첫 값을 쓴다."""
   found: dict[str, GuidanceRow] = {}
   need = 0
+  bodies = []
   for head, n_need in _OUT_HEADS:
     for hm in head.finditer(text):
       need = max(need, n_need)
       body = text[hm.end():hm.end() + _OUT_MAX]
       end = _OUT_END.search(body)
       body = body[:end.start()] if end else body
+      bodies.append(body)
       year = hm.group(1)
       for rx, metric, label, unit, basis, group in _G:
         m = rx.search(body)
@@ -191,7 +211,11 @@ def parse_outlook(text: str) -> tuple[list[GuidanceRow], bool]:
       if tm and 'revenue' not in found:
         found['revenue'] = GuidanceRow('revenue_growth', 'Group sales revenue growth', f'FY{year}', None, None,
                                        tm.group(1), 'text', 'reported', tm.group(0))
-  hint = need > 0 and len(found) < need
+  # 늘 있는 항목 수가 모자라거나, 변경 표식 문장 중 뽑은 행이 덮지 않은 것이 있으면(ad-hoc 은 «하나 이상»만 요구해
+  # 일부 항목만 문장꼴이 바뀌면 조용히 빠진다) LLM 으로
+  quotes = [g.quote for g in found.values()]
+  missed = [s for b in bodies for s in uncovered_marks(b, _CHANGE_MARK, quotes)]
+  hint = (need > 0 and len(found) < need) or bool(missed)
   return list(found.values()), hint
 
 
@@ -235,7 +259,7 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   r, dv = parse_kpi(content.tables), parse_deliveries(content.tables)
   if r is None or dv is None:
     return ParseResult(recognized=True)   # 서식 표식은 있는데 늘 있는 행·칸이 빠졌다 → failed
-  r.results += parse_bsi(text)
+  r.results += parse_bsi(text, next((x.period for x in r.results if x.metric == 'revenue'), None))
   r.guidance, hint = parse_outlook(text)
   r.extend(dv)
   kpi_seen = any(x.metric == 'revenue' for x in r.results)
@@ -384,6 +408,11 @@ MUST_MISS = [  # (표, 본문, 판정(got) → 참이어야 함, 사유)
   ([], OUT_9M.replace('expects an investment ratio of between 11 and 12 percent and ', 'expects ')
    + ' Further information on the brand groups: the Core brand group expects an investment ratio of around 6 percent.',
    lambda g: ('G', 'investment_ratio', 'FY2026') not in g and g[('H',)] is True, '전망 문단 밖 문장을 읽었다'),
+  # 기간 낱말 없는 BSI 문장('… in 2025' = 연간)은 Q4|FY 판에서만 · 연도가 실적 표와 다른 문장은 버린다 — 9M 표 값은 그대로
+  ([KPI_Q3], '14.8 billion EUR Operating Result before special effects in 2026. 8.8 billion EUR Operating Result before '
+             'special items in 9M 2025',
+   lambda g: not any(k[:2] == ('R', 'operating_result_bsi') for k in g) and g[('R', 'revenue', '2026-Q3')] == 75277.0,
+   'Q4|FY 판이 아닌 문서의 연간 BSI·다른 연도 BSI 를 읽었다'),
   # BEV 표 World(240,200)를 전체 인도로 읽지 않는다 — 표 순서가 바뀌어도
   ([DELIV_BEV, DELIV_Q3], '', lambda g: g.get(('V', 'deliveries', '2026-Q3')) == 1885300, 'BEV 표 World 를 읽었다'),
 ]
@@ -396,6 +425,7 @@ MUST_RECOGNIZED_EMPTY = [
   ('실적 표 누계 낱말 어긋남(Q3 | H1)', [[['Q3', 'H1'], *KPI_Q3[1:]]], ''),
   ('실적 표 값 칸 하나 빠짐(위치 밀림)', [[*KPI_Q3[:8], ['Sales revenue', '75,277', '80,305', '233,378', '238,669', '-2.2'],
                                           *KPI_Q3[9:]]], ''),
+  ('실적 표에 같은 행 두 번', [[*KPI_Q3, ['Sales revenue', '75,300', '80,305', '-6.2', '233,400', '238,669', '-2.2']]], ''),
   ('인도 표에 World 행 없음', [[DELIV_HEAD, DELIV_Q3[1]]], ''),
   ('인도 표 기간 칸 꼴 변경', [[[DELIV_HEAD[0], 'Q3 2026', *DELIV_HEAD[2:]], DELIV_Q3[2]]], ''),
 ]
@@ -406,6 +436,11 @@ LLM_WANTS = [
                                                           'Net liquidity should land'), True),
   ('실적 표는 있는데 전망 머리 없음', [KPI_Q3], '', True),
   ('ad-hoc 이사회 승인(전망 없음)', [], 'Ad hoc Supervisory Board Approves Comprehensive Future Plan for the Volkswagen Group', False),
+  # ad-hoc 에서 영업이익률 문장만 꼴이 바뀜 — 나머지 3항목은 코드가 뽑지만 그 문장('previous forecast' 표식)이 안 덮인다
+  ('ad-hoc 영업이익률 문장만 꼴 변경', [], ADHOC.replace('now expects to achieve an Operating Return on Sales of up to 1 percent',
+                                                       'now targets an operating margin of at most 1 percent'), True),
+  ('ad-hoc 전망 변경 다 뽑음', [], ADHOC, False),
+  ('반기 판 previously 문장도 뽑음', [], OUT_H1, False),
   ('ad-hoc 전망 변경 머리만 있고 항목 0', [], 'Volkswagen AG is updating its forecast for fiscal year 2026 as follows: '
                                              'revenue to fall sharply.', True),
 ]
