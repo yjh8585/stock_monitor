@@ -37,8 +37,11 @@ from customer_parsers.base import (Doc, Content, ParseResult, ResultRow, VolumeR
 from lib.doc_text import norm_text, row_text
 
 TICKERS = ('VFS',)
-DEF_GLOBAL = '빈패스트 전기차(EV) 고객 인도 — 잠정치(연말 감사 후 바뀔 수 있음) · 전기 이륜차 제외'
-DEF_VN = '빈패스트 베트남 내수 EV 인도 — 잠정치 · 해외 수출 예정분 제외 · 전기 이륜차 제외'
+# EV 범위 = 회사 각주 'Includes EV models under VF, Green and Lac Hong brands, EC Van and e-buses.'(2026-06·10 실적
+# 보도자료 표 'EV Deliveries (1)' 각주). 베트남 월 문장의 '("EVs") 1' 각주는 본문 추출에 각주 글이 없어 같은 회사 정의로 둔다
+DEF_GLOBAL = ('빈패스트 전기차(EV) 고객 인도 — 승용 EV·승합 화물 전기차(EC Van)·전기버스 포함 · 잠정치(연말 감사 후 바뀔 수 있음)'
+              ' · 전기 이륜차 제외')
+DEF_VN = '빈패스트 베트남 내수 EV 인도 — 승용 EV·승합 화물 전기차(EC Van)·전기버스 포함 · 잠정치 · 해외 수출 예정분 제외 · 전기 이륜차 제외'
 _MONTH = r'(January|February|March|April|May|June|July|August|September|October|November|December)'
 _EVS = r'electric vehicles \("EVs"\)(?: \d)?'   # 각주 번호 '("EVs") 1' 꼴(2025 판)
 _Q = re.compile(r'The Company delivered ([\d,]+) ' + _EVS + r'(?: globally)? in '
@@ -73,8 +76,8 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
     ② 전망·일정 공지 6-K('ANNOUNCES 2026 GUIDANCE AND SET DATE …' 2026-02-09)·4분기 인도 6-K(2025-02-13) —
        실적 일정 문장이 잡힌 문서
   🔴 실적 표를 코드로 다 뽑아 recognized 여도 전망 문장은 LLM 칸이라 참을 돌려준다(오케스트레이터 _llm 은
-  recognized 와 무관하게 이 함수를 부른다). --no-llm 실행이면 이 문서는 parsed 로 닫혀 LLM 이 다시 안 본다 —
-  LLM 이 생긴 뒤 --reparse 로 다시 돌린다(보고서 task-9 참조)."""
+  recognized 와 무관하게 이 함수를 부른다). --no-llm 실행이면 이 문서는 parsed 로 닫히되 parse_note 맨 앞에
+  「LLM 대기」 표식이 남는다 — LLM 이 생긴 뒤 parse_note LIKE 'LLM 대기%' 로 뽑아 --reparse 한다."""
   return any(x.metric_name == 'Total Revenues' for x in result.results) or bool(result.dates)
 
 
@@ -152,14 +155,14 @@ def parse_tables(tables) -> tuple[list[VolumeRow], list[ResultRow], bool]:
       continue
     grain, period = head
     for row in rows[1:]:
-      lab = _FOOTNOTE.sub('', norm_text(row[0])).strip()
-      if lab not in ('EV Deliveries', 'Total Revenues'):
+      lab = _FOOTNOTE.sub('', norm_text(row[0])).strip().lower()
+      if lab not in ('ev deliveries', 'total revenues'):
         continue
       seen = True
       nums = numeric_cells(row)
       if not nums:
         continue
-      if lab == 'EV Deliveries':
+      if lab == 'ev deliveries':
         vol.append(VolumeRow('deliveries', 'total', grain, period, round(nums[0]), DEF_GLOBAL, row_text(row)))
       else:
         res.append(ResultRow('revenue', 'Total Revenues', 'reported', grain, period, nums[0], 'million', 'VND',
@@ -307,4 +310,15 @@ def self_test() -> list[str]:
     errs.append('llm_wants: 실적 표가 잡힌 문서를 LLM 에 안 넘긴다')
   if llm_wants(doc, parse(doc, Content(text=MUST_HIT[1][1]))):
     errs.append('llm_wants: 베트남 월 인도 6-K 를 LLM 에 넘긴다')
+  # 일정 갈래 — 실적 표 없이 일정 문장만 있는 전망·인도 6-K 도 넘긴다(매출 행 0 · 일정 1)
+  date_only = parse(doc, Content(text=MUST_HIT[9][1]))
+  if date_only.results or not date_only.dates or not llm_wants(doc, date_only):
+    errs.append('llm_wants: 실적 일정 문장만 있는 6-K 를 LLM 에 안 넘긴다')
+  # 표 라벨 대소문자('EV deliveries'·'TOTAL REVENUES')가 바뀌어도 실적 표로 알아본다
+  low = parse(doc, Content(text='', tables=[[_EV_TABLE[0], ['EV deliveries 1', *_EV_TABLE[1][1:]]],
+                                   [_REV_TABLE[0], ['TOTAL REVENUES', *_REV_TABLE[2][1:]]]]))
+  if _flatten(low) != {('deliveries', 'total', '2026-Q2'): 70085, ('R', 'revenue', '2026-Q2'): 30340852.0}:
+    errs.append(f'표 라벨 대소문자 변형을 못 읽었다: {_flatten(low)}')
+  if not all('EC Van' in d and '전기버스' in d for d in (DEF_GLOBAL, DEF_VN)):
+    errs.append('정의 문구에 EC Van·전기버스 포함이 빠졌다(회사 각주)')
   return errs

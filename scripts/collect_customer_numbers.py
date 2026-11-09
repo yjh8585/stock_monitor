@@ -14,6 +14,9 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
    그 회사 파서가 생겨도 문서를 다시 못 본다(--reparse 를 문서마다 돌려야 한다).
    같은 까닭으로 파서의 wants 가 거짓인 문서(IR 출처 등)도 pending + note 「대상 파서 없음」, LLM 이 읽을 문서(llm_wants)인데
    LLM 이 이번에 못 돈 문서도 pending + note 「LLM 대기」 — 같은 note 면 다시 쓰지 않는다(매 실행 쓰기 0).
+   코드 행은 뽑혀 parsed 로 닫는 문서도 llm_wants 가 참인데 LLM 이 안 돌았으면 note 맨 앞에 「LLM 대기 — 코드 행만 적재」
+   (parsed 는 pending 목록에 다시 안 끼므로 매 실행 쓰기 0 이 그대로다). LLM 안 돈 문서 전부:
+   select id from customer_documents where parse_note like 'LLM 대기%'  → 문서마다 --reparse.
 🔴 LLM 행이 1건 이상이면 코드 파서의 recognized=False 보다 우선한다(judge — 중장기 Investor Day 처럼 코드가 못 알아보는 서식).
 🔴 내용 받기 실패는 그 문서만 처리하고 다음 문서로 간다(note = 예외 클래스·HTTP 상태만 — 본문·URL 금지).
    일시 실패(401·403·408·425·429·5xx·연결·시간 초과·만료 URL)는 pending 그대로 note 만 → 다음 실행이 다시 시도하고 회사 상태가
@@ -34,6 +37,8 @@ import requests
 DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note'
 NOTE_NO_PARSER = '대상 파서 없음'
 NOTE_LLM_WAIT = 'LLM 대기 — 코드 파서가 못 알아보는 서식'
+# parsed 로 닫되 LLM 칸을 못 읽은 문서 — 두 표식 모두 'LLM 대기' 로 시작해 parse_note LIKE 'LLM 대기%' 한 번으로 뽑힌다
+NOTE_LLM_WAIT_PARSED = 'LLM 대기 — 코드 행만 적재(LLM 칸 미실행)'
 DOC_TYPES = ('earnings_release', 'presentation', 'shareholder_letter', 'periodic', 'current_report', 'prelim_results',
              'sales_release', 'guidance', 'ir_event', 'fact_sheet', 'investor_day', 'other')  # DB CHECK 와 같음
 _PAGE = 1000      # PostgREST 한 응답 최대 행 수 — 넘으면 .range() 로 넘긴다(.order() 필수)
@@ -483,9 +488,15 @@ class _CompanyRun:
     v_dates = sum(checks[id(d)][0] for d in res.dates)
     llm_n = sum(id(g) in llm_ids for g in res.guidance) if llm_ids else 0
     status, note = judge(res, v_values, v_dates, llm_n)
-    if status == 'not_target' and llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res):
+    llm_missed = llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res)
+    if status == 'not_target' and llm_missed:
       # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·모듈 없음) — 닫으면 LLM 이 생겨도 다시 못 본다
       return self._keep_pending(doc, NOTE_LLM_WAIT, prev_note, 'llm_wait')
+    if status == 'parsed' and llm_missed:
+      # 코드 행은 정상이라 parsed 로 닫되, LLM 칸(가이던스)을 못 읽었다는 표식을 note 맨 앞에 — 나중에 LLM 경로가
+      # 붙으면 parse_note LIKE 'LLM 대기%' 로 뽑아 --reparse 한다. 다음 --reparse 에서 LLM 이 돌면 note 가 새로 써져 사라진다
+      notes.insert(0, NOTE_LLM_WAIT_PARSED)
+      self.outcomes['llm_wait_parsed'] += 1
     if note:
       notes.insert(0, note)
     self.outcomes[status] += 1

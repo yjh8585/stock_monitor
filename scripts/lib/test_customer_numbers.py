@@ -112,6 +112,22 @@ class PendingTests(unittest.TestCase):
     run2.process(_DOC, None, ccn.NOTE_LLM_WAIT)
     ws2.table.assert_not_called()
 
+  def test_parsed_but_llm_not_run_marks_note(self):
+    """코드 행은 뽑혀 parsed 인데 llm_wants 가 참이고 LLM 이 안 돌았다 → parsed 그대로 + note 맨 앞 LLM 대기 표식.
+    llm_wants 가 거짓이면 표식이 없다."""
+    for wants, want_note in ((True, ccn.NOTE_LLM_WAIT_PARSED), (False, None)):
+      mod = _mod()
+      mod.llm_wants = lambda d, r, w=wants: w
+      run, ws = _run(mod)   # no_llm=True
+      with patch.object(ccn, 'existing_pubs', return_value={}):
+        run.process(_DOC, None, None)
+      last = _doc_patches(ws)[-1]
+      self.assertEqual(last['parse_status'], 'parsed')
+      self.assertEqual(last['parse_note'], want_note)
+      if want_note:
+        self.assertTrue(last['parse_note'].startswith('LLM 대기'))   # 두 표식이 한 LIKE 로 뽑힌다
+        self.assertTrue(ccn.NOTE_LLM_WAIT.startswith('LLM 대기'))
+
   def test_llm_module_missing_keeps_pending(self):
     """LLM 을 켜고(no_llm=False) 돌렸는데 lib.llm_guidance 가 아직 없다 → 예외 없이 note 「LLM 모듈 없음」 + pending."""
     mod = _mod(parse=lambda d, c: base.ParseResult())

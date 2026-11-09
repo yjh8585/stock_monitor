@@ -141,7 +141,7 @@ def extract_row_thousands(
     for row in rows:
         if not row:
             continue
-        if row[0].strip().lower() != label:
+        if row[0].strip().lower() != label.lower():
             continue
         # 라벨 셀(첫 셀)을 뺀 숫자 셀들. 헤더 첫 기간이 당기이므로 첫 숫자가 당기 값이다.
         numerics = [parse_numeric_cell(c) for c in row[1:]]

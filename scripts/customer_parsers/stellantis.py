@@ -11,7 +11,8 @@
   1분기 판처럼 누계 칸이 없는 표에서 자리가 밀린다.
 - 가이던스 상자: 같은 표 머리 행 마지막 칸 'FY 2026 FINANCIAL GUIDANCE Net revenues: … AOI margin % (2) : … ' —
   숫자가 아닌 전망이라 value_text 로(low·high 는 null). 'H2 2025 GUIDANCE'(반기)·'FY 2025 GUIDANCE'(2025-02 첫 발표 ·
-  2025-04 유보는 옛 서식 보도자료)는 코드가 안 뽑는다 — LLM 보조 칸(계획서 「회사별 코드/AI 표」).
+  2025-04 유보는 옛 서식 보도자료)는 코드가 안 뽑는다 — LLM 보조 칸(계획서 「회사별 코드/AI 표」). 본문 표식(_LLM_MARK)이
+  있고 코드 가이던스가 0행이면 llm_wants 가 참(예비 실적 6-K 'Preliminary 2026 Financial Guidance' 포함).
 - 실적 일정 6-K: 'will release its Third Quarter 2026 Financial Results on Wednesday, October 28, 2026' ·
   'its Full Year 2025 Results will be released on Thursday, February 26, 2026' · 'its First Half 2025 Results …'(= Q2 발표)
   · 'its Third Quarter 2025 Shipments and Revenues will be released on …'
@@ -44,7 +45,7 @@ _MONTH = r'(January|February|March|April|May|June|July|August|September|October|
 _HEAD0 = re.compile(r'€ million(?: /.*)?|\(€ million\)')
 _HEAD_PERIOD = (
   (re.compile(r'Q([1-4]) (\d{4})'), 'quarter'),
-  (re.compile(r'(?:FY )?(\d{4})'), 'year'),
+  (re.compile(r'(?:FY ?)?(\d{4})'), 'year'),
   (re.compile(r'H1 (\d{4})'), 'h1'),
 )
 _ROWS = (  # (라벨 정규식 — 각주 뗀 뒤 전체 일치, metric, basis)
@@ -71,12 +72,23 @@ _DATES = (
   re.compile(r'its ' + _WHAT + r' (?:Financial Results|Results|Shipments and Revenues) will be released on ' + _WHEN, re.I),
 )
 _DATE_MARK = re.compile(r'Stellantis to Announce .{0,80}? on ' + _MONTH)
+# 서술형 가이던스 표식(LLM 칸) — 상자 머리 'FY 2025 GUIDANCE'·'H2 2025 FINANCIAL GUIDANCE'·'FY 2024 GUIDANCE'(대문자) ·
+# 예비 실적 6-K 제목형 'Preliminary 2026 Financial Guidance'. 따옴표 안('references to "FY 2026 Financial Guidance"' —
+# Safe Harbor 문단)과 소문자 'guidance'(보수 규정·확인 문장)는 표식이 아니다
+_LLM_MARK = re.compile(r'\b(?:FY |H[12] )?20\d{2} (?:FINANCIAL )?GUIDANCE\b|(?<!")\b(?:FY )?20\d{2} Financial Guidance\b(?!")')
 
 
 def wants(doc: Doc) -> bool:
   # 정기보고 6-K(STELLANTIS N.V. <기간> 반기·분기 보고서)는 다른 파서처럼 대상 밖(pending)
   return ((doc.source == 'edgar' and doc.form == '6-K' and doc.doc_type != 'periodic')
           or (doc.source == 'ir' and doc.doc_type == 'fact_sheet'))
+
+
+def llm_wants(doc: Doc, result: ParseResult) -> bool:
+  """서술형 가이던스가 있는데 코드가 가이던스를 못 뽑은 문서 — 옛 상자('FY 2025 GUIDANCE'·'H2 2025 GUIDANCE') 실적
+  보도자료·옛 서식 분기 보도자료·예비 실적 6-K('Preliminary 2026 Financial Guidance'). 본문 표식은 parse 가
+  result.llm_hint 로 남긴다. 2026 판처럼 상자(FY 2026 FINANCIAL GUIDANCE)를 코드가 다 읽은 문서는 넘기지 않는다."""
+  return result.llm_hint and not result.guidance
 
 
 def _cells(row):
@@ -104,13 +116,15 @@ def _head_period(cell: str) -> tuple[str, str] | None:
 
 def parse_summary(tables) -> ParseResult:
   r = ParseResult()
+  seen = False
   for rows in tables:
     head = rows[0] if rows else []
     if len(head) < 3 or not _HEAD0.fullmatch(norm_text(head[0])):
       continue
+    seen = True
     hp = _head_period(head[1])
     if not hp:
-      continue   # 'H2 2024' 같은 보조 표 — 다음 표를 본다
+      continue   # 'H2 2024'·'At September 30, 2026'·'YTD 2026' 같은 보조 표 — 다음 표를 본다
     grain, period = hp
     ytd = None
     if grain == 'quarter' and len(head) > 4:
@@ -140,12 +154,16 @@ def parse_summary(tables) -> ParseResult:
         if bm:
           r.guidance.append(GuidanceRow(metric, label, f'FY{box.group(1)}', None, None, bm.group(1).strip(), 'text',
                                         basis, bm.group(0)))
-    # 이 서식에 늘 있는 행이 빠지면 꼴이 바뀐 것 — 문서를 비워 failed 로(조용한 0행·반쪽 적재 방지)
+    # 이 서식에 늘 있는 행이 빠지면 꼴이 바뀐 것 — 문서를 비워 failed 로(조용한 0행·반쪽 적재 방지).
+    # 머리에 YTD 칸이 있으면 누계 출하도 늘 있다 — None 이면 Change 칸이 쪼개져('(1)' '%') 자리가 밀린 것
     need_ship = 'units' in norm_text(head[0])
-    if not _REQUIRED <= {x.metric for x in r.results} or (need_ship and not r.volume):
+    ytd_missing = need_ship and ytd and not any((v.period_grain, v.period) == ytd for v in r.volume)
+    if not _REQUIRED <= {x.metric for x in r.results} or (need_ship and not r.volume) or ytd_missing:
       return ParseResult(recognized=True)
     return r
-  return r
+  # 요약 표 머리(€ million)는 봤는데 이번 기간 칸을 하나도 못 알아봤다 = 기간 칸 꼴이 바뀌었다 → failed.
+  # 실물 전수(2024-10~2026-11 · _HEAD0 표가 있는 6건)에서 보조 표만 있는 문서는 없었다(보조 표는 늘 본 표와 함께)
+  return ParseResult(recognized=seen)
 
 
 def parse_dates(text: str) -> tuple[list[EarningsDate], bool]:
@@ -227,6 +245,7 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   if announced and not r.dates:
     return ParseResult(recognized=True)   # 일정 공지 제목은 있는데 날짜 문장 꼴이 바뀌었다
   r.recognized = r.recognized or bool(r.dates)
+  r.llm_hint = bool(_LLM_MARK.search(norm_text(content.text)))
   return r
 
 
@@ -309,6 +328,20 @@ MUST_RECOGNIZED_EMPTY = [
   ('요약 표에 연결 출하 행 없음', [[Q3_HEAD, *_Q3_ROWS[:4]]], ''),
   ('일정 공지 문장 꼴 변경', [], 'Stellantis to Announce Third Quarter 2026 Financial Results on October 28 AMSTERDAM, '
                                  'October 15, 2026 - Stellantis N.V. will publish Q3 2026 results on October 28, 2026.'),
+  # 머리는 € million 인데 기간 칸 꼴이 바뀌었다('Q3 2026' → '3Q 2026') — 조용히 not_target 이 되면 안 된다
+  ('요약 표 기간 칸 꼴 변경', [[[Q3_HEAD[0], '3Q 2026', '3Q 2025', *Q3_HEAD[3:]], *_Q3_ROWS]], ''),
+  # 머리에 YTD 칸이 있는데 Change 칸이 '(1)' '%' 로 쪼개져 누계 출하 자리가 밀렸다
+  ('YTD 머리인데 누계 출하 없음', [[Q3_HEAD, *_Q3_ROWS[:4],
+                                   ['Consolidated shipments (6)', '1,286', '1,300', '(1)', '%', '4,244', '3,964', '+7%']]], ''),
+]
+# llm_wants (이름, 표, 본문, 기대) — 본문 표식(서술형 가이던스)이 있고 코드가 가이던스를 못 뽑았을 때만 참
+LLM_WANTS = [
+  ('옛 상자 FY 2025 GUIDANCE(FY2024 판)', [MUST_HIT[3][0][0]], 'FY 2025 GUIDANCE Net Revenue Growth: Positive', True),
+  ('옛 상자 H2 2025 GUIDANCE(H1 2025 판)', [MUST_HIT[4][0][0]], 'H2 2025 GUIDANCE Net revenues: Increased vs. H1 2025', True),
+  ('예비 실적 6-K 제목형', [], 'Initiating Preliminary 2026 Financial Guidance. In spite of the challenging industry context', True),
+  ('2026 상자를 코드가 다 읽음', [[Q3_HEAD, *_Q3_ROWS]], Q3_HEAD[-1], False),
+  ('Safe Harbor 따옴표 안', [], 'This document, in particular references to "FY 2026 Financial Guidance", contains forward', False),
+  ('보수 규정 소문자 guidance', [], 'In line with the guidance provided under the Dutch Corporate Governance Code', False),
 ]
 # 대상 아님 — 옛 분기 '출하·매출' 서식(머리 첫 칸이 기간 · 매출 € billion)
 MUST_NOT_RECOGNIZED = [
@@ -364,6 +397,11 @@ def self_test() -> list[str]:
     res = parse(doc, Content(text=text, tables=tables))
     if res.count() or not res.recognized:
       errs.append(f'{name}: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
+  for name, tables, text, want in LLM_WANTS:
+    if llm_wants(doc, parse(doc, Content(text=text, tables=tables))) != want:
+      errs.append(f'llm_wants {name}: 기대 {want}')
+  if _head_period('FY2025') != ('year', '2025'):
+    errs.append("머리 'FY2025'(띄어쓰기 없음)를 연간으로 못 읽었다")
   for table in MUST_NOT_RECOGNIZED:
     res = parse(doc, Content(text='', tables=[table]))
     if res.recognized or res.count():

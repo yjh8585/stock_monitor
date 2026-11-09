@@ -96,6 +96,9 @@ class ParseResult:
   dates: list[EarningsDate] = field(default_factory=list)
   # 대상 서식으로 «알아봤는가». True 인데 숫자가 0개면 형식 변경(파싱 실패)이다.
   recognized: bool = False
+  # 본문에 코드가 못 뽑는 LLM 칸(서술형 가이던스 상자 등)의 표식이 있었나 — llm_wants(doc, result) 는 본문을 받지 않아
+  # 파서가 여기에 남긴다(스텔란티스). 쓰지 않는 파서는 거짓 그대로
+  llm_hint: bool = False
 
   def count(self) -> int:
     return len(self.volume) + len(self.results) + len(self.guidance) + len(self.dates)
@@ -122,6 +125,7 @@ class ParseResult:
     self.guidance += other.guidance
     self.dates += other.dates
     self.recognized = self.recognized or other.recognized
+    self.llm_hint = self.llm_hint or other.llm_hint
 
 
 # ---------------------------------------------------------------- 정규 어휘(파서·LLM 스키마가 이것만 쓴다)
