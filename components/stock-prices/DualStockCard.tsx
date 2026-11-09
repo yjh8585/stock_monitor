@@ -8,7 +8,6 @@ import type { SeriesPoint } from '@/lib/series';
 
 interface Props {
   title: string;
-  unit: string;
   source: string;
   companies: readonly StockCompany[];
   /** 초기 선택 ticker. */
@@ -20,7 +19,7 @@ const SECONDARY_COLOR = '#ef4444';
 
 /** 한 카드 내에서 두 종목을 선택해 듀얼 Y축 라인 차트로 비교.
  *  시계열은 /api/stock-prices?id=... 로 클라이언트에서 받아 메모리 캐시. */
-export default function DualStockCard({ title, unit, source, companies, defaultTickers }: Props) {
+export default function DualStockCard({ title, source, companies, defaultTickers }: Props) {
   const [selection, setSelection] = useState(() => {
     const findId = (ticker: string) =>
       companies.find((c) => c.ticker === ticker)?.id ?? companies[0]?.id ?? '';
@@ -80,6 +79,7 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
         label: primaryCompany.name_kr,
         color: PRIMARY_COLOR,
         data: seriesCache[primary] ?? [],
+        unit: primaryCompany.currency || undefined,
       });
     }
     const secondaryCompany = companies.find((c) => c.id === secondary);
@@ -88,10 +88,13 @@ export default function DualStockCard({ title, unit, source, companies, defaultT
         label: secondaryCompany.name_kr,
         color: SECONDARY_COLOR,
         data: seriesCache[secondary] ?? [],
+        unit: secondaryCompany.currency || undefined,
       });
     }
     return items;
   }, [companies, primary, secondary, seriesCache]);
+  // 해외는 USD·EUR·JPY 등이 섞이므로 단위를 박지 않고 고른 종목의 통화로 만든다
+  const unit = [...new Set(series.map((s) => s.unit).filter(Boolean))].join(' / ');
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">

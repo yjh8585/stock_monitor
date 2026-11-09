@@ -361,7 +361,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 `oem_sales_group_country_month`(약 12만 행)를 앱에서 전량 fetch·집계하면 빌드 프리렌더가 statement/USE_CACHE timeout(백업 커밋 배포 간헐 ERROR) → 무거운 SUM을 DB로 이관. 순수 SUM 재집계라 값은 원본과 동일(전역 합계 항등 검증됨).
 
-🔴 **일반 뷰로는 부족했다(2026-08-03 재발).** 일반 뷰는 계산을 옮긴 게 아니라 **이름만 붙인 것**이라, 조회할 때마다 12.3만 행을 Seq Scan + 집계했다. 20260714000001이 줄인 것은 앱으로 가는 **행 수**(12.2만 → 4천)일 뿐 DB 계산 비용은 그대로였고, 문서만 고친 커밋의 배포가 같은 이유로 다시 깨졌다. → **구체화 뷰(materialized view)로 전환**해 결과를 실제로 저장한다. 실측: `.eq('year', …)` 조회가 **80ms(Seq Scan 12.3만) → 5.4ms(Bitmap Index Scan)**.
+🔴 **일반 뷰로는 부족했다** — 일반 뷰는 조회할 때마다 원본을 다시 집계한다. **구체화 뷰(materialized view)** 로 결과를 저장한다(경위·실측 = [`docs/history/Architecture-경위.md`](./docs/history/Architecture-경위.md)).
 
 | 구체화 뷰                      | 정의                                                               | 행 수  | 용도                           |
 | ------------------------------ | ------------------------------------------------------------------ | ------ | ------------------------------ |
@@ -468,7 +468,7 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 | model_key | market | market_label | display_order | model | is_target | year_month | sales |
 
 - `oem_competitor_set` × `oem_sales_model_country_month`(96.9만 행) 조인을 **경쟁군 정의로 미리 걸러** 최근 36개월만 남긴다. `/oem/competition` 판매 추이 차트가 쓴다.
-- 🔴 **일반 뷰로 만들었다가 같은 날 구체화 뷰로 갈아탔다.** 일반 뷰는 전체 조회 **4,867ms** 로 PostgREST anon statement timeout(57014)에 걸려 **판매 추이 차트가 에러 없이 전부 비었다**. 원인은 ①`MAX(year_month)` 서브쿼리(48만 행 스캔 780ms) ②`model=ANY(배열)` 조인 뒤 `country` 필터가 인덱스를 못 타 루프마다 2,413행 폐기. 구체화 후 **23ms**. `/oem` 집계 뷰(§7-E)가 2026-08-03에 겪은 것과 **같은 실패 모드**다.
+- 🔴 **일반 뷰는 anon statement timeout 에 걸려 차트가 에러 없이 비었다 → 구체화 뷰**(`/oem` 집계 뷰와 같은 실패 모드 · 원인·실측 = [`docs/history/Architecture-경위.md`](./docs/history/Architecture-경위.md)).
 - **갱신은 기존 `refresh_oem_agg_views()` 에 얹었다** — 유일한 원본 적재 스크립트 `import_oem_sales.py` 가 적재 후 이미 이 RPC를 호출하므로 새 배관이 없다. 🔴 다른 경로로 원본을 적재하면 이 RPC를 반드시 부를 것(안 부르면 옛 값을 조용히 보여준다).
 - `SUM(sales)::bigint` 캐스팅 필수(유럽처럼 한 논리 시장이 여러 국가면 합산이 일어난다). 유니크 인덱스 `(model_key, market, model, year_month)` — `REFRESH … CONCURRENTLY` 여지를 남긴 것. 구체화 뷰는 RLS가 적용되지 않아 anon/authenticated GRANT로 노출한다(공개 MarkLines 데이터, 기존 OEM 집계 뷰 2종과 같은 정책).
 - 화면은 대상 + 판매 상위 3 경쟁만 잘라 쓴다(`lib/oem-competition/source.ts::buildSeries`) — 경쟁군 전량(최대 8종)은 RSC 페이로드도 크고 차트도 읽히지 않는다.

@@ -45,7 +45,7 @@
 ### `/related-stocks`, `/compare`, `/domestic`, `/etc` — 시계열 위주
 
 - `SeriesChart` — 단일 라인 + 기간 토글 + 최근값/등락 헤더 + 단위/출처 footer
-- `MultiSeriesChart` — 다중 라인(동일 단위), `secondaryFor`로 좌측 보조축(가격대 다른 2종목) · 헤더 범례 클릭으로 선 숨김 토글(`useHiddenSeries` 재사용 · 보조축 선을 다 끄면 왼쪽 눈금도 숨김). 보조축 선은 라벨에 「· 좌축」을 붙인다(`/etc/commodities`)
+- `MultiSeriesChart` — 다중 라인(동일 단위), `secondaryFor`로 좌측 보조축(가격대 다른 2종목) · 헤더 범례 클릭으로 선 숨김 토글(`useHiddenSeries` 재사용 · 보조축 선을 다 끄면 왼쪽 눈금도 숨김). 보조축 선은 라벨에 「· 좌축」을 붙인다(`/etc/commodities`) · 선마다 통화가 다르면 항목에 `unit`(머리 현재가 단위 · 주가 비교 카드는 `companies.currency`)
 - `compare/MetricCard` — 비교 지표 카드 내 미니 차트
 
 ### `/oem` (전체 탭) — `components/oem/`

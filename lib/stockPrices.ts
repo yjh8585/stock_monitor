@@ -21,7 +21,7 @@ export async function getActiveStockCompanies(): Promise<StockCompany[]> {
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb
     .from('companies')
-    .select('id,ticker,name,name_kr,country')
+    .select('id,ticker,name,name_kr,country,currency')
     .eq('status', 'active')
     .not('market', 'is', null)
     .order('name_kr', { ascending: true });
@@ -35,6 +35,7 @@ export async function getActiveStockCompanies(): Promise<StockCompany[]> {
     name: r.name,
     name_kr: r.name_kr ?? r.name,
     country: r.country ?? '',
+    currency: r.currency ?? '',
   }));
 }
 

@@ -15,14 +15,12 @@ export default function StockPricesDashboard({ krCompanies, overseasCompanies }:
     <div className="grid grid-cols-1 gap-4">
       <DualStockCard
         title="국내 주식"
-        unit="KRW"
         source="KRX"
         companies={krCompanies}
         defaultTickers={['005380', '000270']}
       />
       <DualStockCard
         title="해외 주식"
-        unit="USD"
         source="Yahoo Finance"
         companies={overseasCompanies}
         defaultTickers={['STLA', 'VOW3.DE']}

@@ -5,6 +5,8 @@ export interface StockCompany {
   name: string;
   name_kr: string;
   country: string;
+  /** 주가 통화(companies.currency) — 카드 머리의 현재가 단위 */
+  currency: string;
 }
 
 /**

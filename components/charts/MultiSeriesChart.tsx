@@ -20,6 +20,8 @@ export interface MultiSeriesItem {
   label: string;
   color: string;
   data: SeriesPoint[];
+  /** 이 선만의 단위(통화가 다른 종목 비교 등). 없으면 차트 unit */
+  unit?: string;
 }
 
 interface MultiSeriesChartProps {
@@ -173,7 +175,7 @@ export default function MultiSeriesChart({
                   <span className="text-sm text-muted-foreground">{s.label}</span>
                   <span className="text-lg font-semibold text-foreground">
                     {v != null
-                      ? `${v.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} ${unit}`
+                      ? `${v.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} ${s.unit ?? unit}`
                       : '—'}
                   </span>
                   {changeLabel && (

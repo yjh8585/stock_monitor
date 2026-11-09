@@ -17,7 +17,7 @@ const PRIMARY_COLOR = '#2962FF';
 const SECONDARY_COLOR = '#ef4444';
 
 /** 국내×해외 듀얼 Y축 비교 카드.
- *  좌축 = 국내(KRW), 우축 = 해외(USD). */
+ *  좌축 = 국내(KRW), 우축 = 해외(그 종목의 통화). */
 export default function CrossMarketCard({
   primaryCompanies,
   secondaryCompanies,
@@ -89,6 +89,7 @@ export default function CrossMarketCard({
         label: primaryCompany.name_kr,
         color: PRIMARY_COLOR,
         data: seriesCache[primary] ?? [],
+        unit: primaryCompany.currency || undefined,
       });
     }
     const secondaryCompany = secondaryCompanies.find((c) => c.id === secondary);
@@ -97,10 +98,13 @@ export default function CrossMarketCard({
         label: secondaryCompany.name_kr,
         color: SECONDARY_COLOR,
         data: seriesCache[secondary] ?? [],
+        unit: secondaryCompany.currency || undefined,
       });
     }
     return items;
   }, [primaryCompanies, secondaryCompanies, primary, secondary, seriesCache]);
+  // 해외 종목은 USD 만이 아니다(EUR·JPY·CNY …) — 고른 종목의 통화로 만든다
+  const unit = [...new Set(series.map((s) => s.unit).filter(Boolean))].join(' / ');
 
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
@@ -118,7 +122,7 @@ export default function CrossMarketCard({
       {series.length > 0 ? (
         <MultiSeriesChart
           title=""
-          unit="KRW / USD"
+          unit={unit}
           source="KRX / Yahoo Finance"
           series={series}
           height={320}

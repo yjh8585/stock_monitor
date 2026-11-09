@@ -34,10 +34,7 @@ gh run list --workflow=<name>.yml   # 간헐 실패는 이력으로 판단
 **🔴 단발 실패도 대개는 코드가 아니라 "요청 1회 실패"다** (2026-08-17 실측, 실패 2건 모두).
 동시다발이 아니어도 곧바로 코드를 의심하지 말고 **어느 요청이 어떻게 끊겼는지**부터 본다.
 
-- `collect-market-series`: Supabase 앞단 **Cloudflare가 502를 1회** 반환 → `lib.db.upsert_rows` 가
-  재시도 없이 raise → 수집 전체 exit 1. 매시 실행이라 **다음 회차가 스스로 메꿨다**(데이터 손실 0).
-- `collect-uzauto-financials`: PDF 11개 중 마지막 1개가 **`IncompleteRead`** (2.08MB 받고 연결 끊김)
-  → `failed=1` → exit 1. 그 PDF는 **이미 처리·캐시된 것**이었다(sha256 비교용 재다운로드일 뿐).
+- 실례 2건(Cloudflare 502 1회 · PDF `IncompleteRead`) = [경위](./history/gotchas-ci-deploy-경위.md) §1
 
 → 처방은 **`scripts/lib/retry.py`** (`with_retry` · `is_transient_error`). 5xx·연결 끊김만 재시도하고
 **4xx 는 즉시 raise** 한다 — UzAuto 의 `source_link_missing`(404 skip) 경로를 재시도가 삼키면 안 된다.
@@ -224,9 +221,7 @@ Bash 인라인 한글). 넓게 훑어 0건이면 **파일을 콕 집어 다시 �
 **판별 신호는 「실패 N건 · [배선]」이다.** 플러그인이 업데이트되면 실행 명령이 `python3` 로 원복되는데,
 이 PC 의 `python3` 은 Microsoft Store 스텁이라 **규칙이 하나도 안 걸린다.**
 
-- 2026-08-18 최초 발견: 규칙 **63개가 만든 이래 한 번도 안 돌고 있었다.**
-- 2026-08-25 재발: 검사기가 **「활성 11개」로 멀쩡히 보고**했다. 그 수는 규칙 _파일_ 수일 뿐
-  배선과 무관하다. 실제 고장은 **실패 40건**에만 드러났다.
+- 활성 수는 규칙 _파일_ 수일 뿐 배선과 무관하다(발견·재발 경위 = [경위](./history/gotchas-ci-deploy-경위.md) §9).
 
 🔴 **「활성 0개」를 신호로 삼지 말 것** — 그 줄만 보면 놓친다. **「실패 N건」을 보라.**
 
