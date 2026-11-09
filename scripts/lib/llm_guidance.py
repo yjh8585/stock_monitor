@@ -123,11 +123,20 @@ def make_client():
   return Anthropic()
 
 
-def has_quarter_mark(quote: str) -> bool:
-  q = _PERIOD_REF.sub(' ', quote or '')
+def has_quarter_mark(quote: str, values: tuple = ()) -> bool:
+  """quote 에 분기·반기 표지가 있나. 연간 전망 머리 앞의 표지는 «값이 전부 머리 뒤에 있을 때만» 무시한다 —
+  값이 머리 앞이면('Fourth quarter sales … $1.9 billion, and we are reaffirming our full year guidance') 앞 표지가 그 값의
+  기간이다(수정 2회차 N1). 값을 모르면(values 비었음·원문에 없음) quote 전체를 본다."""
+  q = _PERIOD_REF.sub(lambda m: ' ' * len(m.group(0)), quote or '')   # 자리 유지 — 아래 토큰 위치와 맞춘다
   heads = list(_ANNUAL_HEAD.finditer(q))
-  if heads:
-    q = q[heads[-1].start():]
+  vals = [abs(v) for v in values if v is not None]
+  if heads and vals:
+    from lib.quote_check import _MULTS
+    h = heads[-1].start()
+    toks = [t for t in number_tokens(q) if t.start == 0 or not q[t.start - 1].isalpha()]   # 'Q3'·'H2' 의 숫자 제외
+    at = [[t.start for t in toks if any(_close(t.n * m, v) for m in _MULTS)] for v in vals]
+    if all(a and min(a) >= h for a in at):
+      q = q[h:]
   return _QUARTER.search(q) is not None
 
 
@@ -262,28 +271,57 @@ def multi_year_rate(g: GuidanceRow) -> bool:
   return False
 
 
-# 통화 표지 — 값 토큰 앞 8자·뒤 24자에서만 본다(한 quote 에 여러 통화가 섞인 표 행이 있어 quote 전체로 보면 오판 ·
-# 뒤 24자 = '35 and 36 billion euros' 의 euros 까지)
+# 통화 표지 — «그 값의» 통화만 본다: 수 바로 앞('USD 89.7억'·'VND47,028'·'€(5)'·'(US$1.85') 또는 수·배수 낱말에 바로
+# 붙은 뒤('17.8조원'·'36 billion euros'). 값 뒤 괄호 환산('VND47,028 billion (US$1.85 billion)'·'EUR 35 to 36 billion
+# (USD 38 to 39 billion)')은 괄호 안 수의 통화라 앞 값의 통화로 보지 않는다(수정 2회차 N4 — 빈패스트 보도자료 꼴).
+# 범위('35 and 36 billion euros')는 _JOIN 으로 이어진 수끼리 통화를 나눠 받는다.
 _CUR_MARK = {
-  'USD': re.compile(r'US\$|\$|USD(?![A-Za-z])|달러|\bdollars?\b', re.I),
-  'EUR': re.compile(r'€|EUR(?![A-Za-z])|\beuros?\b|유로', re.I),
-  'VND': re.compile(r'VND(?![A-Za-z])|đồng'),
-  'KRW': re.compile(r'₩|KRW(?![A-Za-z])|원(?![가-힣])'),
+  'USD': re.compile(r'US\$|\$|USD|달러|dollars?', re.I),
+  'EUR': re.compile(r'€|EUR|euros?|유로', re.I),
+  'VND': re.compile(r'VND|đồng|₫', re.I),
+  'KRW': re.compile(r'₩|KRW|원', re.I),
 }
+_CUR_PRE = re.compile(r'(US\$|\$|€|₩|₫|USD|EUR|VND|KRW)\s*\(?\s*$', re.I)
+_CUR_SUF = re.compile(r'\)?\s*(?:[천백]?\s?(?:조|억|만)|(?:trillion|tn|billion|bn|million|mn|thousand|[kbm])(?![a-z]))?'
+                      r'\s*(euros?\b|dollars?\b|달러|유로|원(?![가-힣])|USD\b|EUR\b|VND\b|KRW\b|đồng|₫)', re.I)
+
+
+def _currency_of(word: str) -> str:
+  return next(c for c, p in _CUR_MARK.items() if p.fullmatch(word))
+
+
+def _token_currencies(q: str, toks: list[_Tok]) -> list[set[str]]:
+  """토큰마다 그 수에 붙은 통화 표지(앞·바로 뒤) — 범위로 이어진 수끼리는 합친다."""
+  out = []
+  for t in toks:
+    cur = set()
+    if m := _CUR_PRE.search(q[max(0, t.start - 6):t.start]):
+      cur.add(_currency_of(m.group(1)))
+    if m := _CUR_SUF.match(q, t.end):
+      cur.add(_currency_of(m.group(1)))
+    out.append(cur)
+  for i in range(len(toks) - 1):   # 앞으로 한 번 · 뒤로 한 번 — '1 to 2 to 3 billion euros' 도 끝까지
+    if _JOIN.fullmatch(q[toks[i].end:toks[i + 1].start]):
+      out[i + 1] |= out[i]
+  for i in range(len(toks) - 2, -1, -1):
+    if _JOIN.fullmatch(q[toks[i].end:toks[i + 1].start]):
+      out[i] |= out[i + 1]
+  return out
 
 
 def foreign_currency(g: GuidanceRow, base: str | None) -> set[str]:
-  """값 바로 옆의 보고 통화 아닌 통화 표지."""
+  """값에 붙은 보고 통화 아닌 통화 표지."""
   if not base or g.unit not in MONEY_UNITS:
     return set()
   q, out = g.quote or '', set()
   toks = number_tokens(q)
+  curs = _token_currencies(q, toks)
   for v in (g.low, g.high):
     if v is None:
       continue
-    for t in [t for t in toks if _close(t.n, abs(v))] + _matches(v, g.unit, toks):
-      near = q[max(0, t.start - 8):t.end + 24]
-      out |= {c for c, p in _CUR_MARK.items() if c != base and p.search(near)}
+    hit = {i for i, t in enumerate(toks) if _close(t.n, abs(v))} | {toks.index(t) for t in _matches(v, g.unit, toks)}
+    for i in hit:
+      out |= curs[i] - {base}
   return out
 
 
@@ -300,7 +338,7 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
     reason = None
     if g.metric == 'other' and (g.low is not None or g.high is not None):
       reason = '숫자 other'
-    elif has_quarter_mark(g.quote):
+    elif has_quarter_mark(g.quote, (g.low, g.high)):
       reason = '분기·반기'
     elif multi_year_rate(g):
       reason = '여러 해 성장률'
@@ -348,6 +386,9 @@ def extract(client, doc, text: str, company_label: str, hint: str = '', base_cur
 
 
 # ---------------------------------------------------------------- 자가 시험(실물 문장꼴)
+_STLA_287 = ('Q3 2024 Q3 2023 Change FY 2024 GUIDANCE AOI margin (2) : 5.5% - 7% Industrial free cash flows (3) : '
+             '€(5) billion - €(10) billion')
+# 항목 = quote 또는 (quote, 행 값) — 값을 주면 연간 머리 규칙이 값 위치를 본다
 QUARTER_MISS = [   # 버려져야 하는 quote(분기·반기 전망)
   # 폴라리스 10월 잠정실적 8-K(분기 범위)
   'we expect third quarter sales to be at the high end of our previously issued guidance range of $1.6 billion to '
@@ -362,7 +403,11 @@ QUARTER_MISS = [   # 버려져야 하는 quote(분기·반기 전망)
   'We expect second-half deliveries to improve',
   '하반기 판매 목표 20만 대',
   # 연간 머리 «뒤»의 분기 표지는 그대로 걸린다
-  'Full Year 2026 Guidance Sales $7.15B - $7.30B. Q4 2026 sales are expected to be $1.9 billion',
+  ('Full Year 2026 Guidance Sales $7.15B - $7.30B. Q4 2026 sales are expected to be $1.9 billion', (1.9,)),
+  # 값이 연간 머리 «앞»이면 앞의 분기 표지가 그 값의 기간이다(수정 2회차 N1 · 값을 줘도 걸려야 한다)
+  ('Fourth quarter sales are expected to be $1.9 billion, and we are reaffirming our full year guidance', (1.9,)),
+  ('We expect third quarter sales of $1.6 billion to $1.8 billion. Full-year 2026 guidance is unchanged.', (1.6, 1.8)),
+  ('Q4 2026 sales are expected to be $1.9 billion. Full Year 2026 Guidance Sales $7.15B - $7.30B', (1.9,)),
 ]
 QUARTER_HIT = [    # 남아야 하는 quote(연간 전망)
   'The Company now expects 2026 adjusted sales to be between $7.55 billion to $7.60 billion versus prior guidance of '
@@ -377,9 +422,11 @@ QUARTER_HIT = [    # 남아야 하는 quote(연간 전망)
   'IFCF in 2027',
   'Stellantis confirms that its 2025 financial guidance, as communicated during the H1 Earnings Call on July 29, 2025, '
   'remains unchanged in all respects.',
-  # 스텔란티스 2024 Q3 6-K(실물 287) — 표 머리의 분기 실적 칸 뒤에 연간 전망 머리
-  'Q3 2024 Q3 2023 Change FY 2024 GUIDANCE AOI margin (2) : 5.5% - 7% Industrial free cash flows (3) : '
-  '€(5) billion - €(10) billion',
+  # 스텔란티스 2024 Q3 6-K(실물 287) — 표 머리의 분기 실적 칸 뒤에 연간 전망 머리 · 값은 전부 머리 뒤
+  (_STLA_287, (5.5, 7)),
+  (_STLA_287, (-10, -5)),
+  # 같은 문장에서 머리 뒤 연간 값은 남는다(앞의 Q4 값만 분기)
+  ('Q4 2026 sales are expected to be $1.9 billion. Full Year 2026 Guidance Sales $7.15B - $7.30B', (7.15, 7.30)),
 ]
 
 # (metric, low, high, unit, quote) — 실물 문장꼴(2026-11-10 백필) + 검토 지적 반례
@@ -434,6 +481,11 @@ CURRENCY_CASES = [
   ('billion', 35, 'between 35 and 36 billion euros', None, 'EUR', False),
   ('billion', 35, 'between 35 and 36 billion euros', None, 'USD', True),
   ('percent', 5, '영업이익률 5% (USD 기준 매출)', None, 'KRW', False),   # 비금액은 보지 않는다
+  # 값 뒤 괄호 환산은 그 값의 통화가 아니다(수정 2회차 N4 — 빈패스트 보도자료 꼴)
+  ('billion', 47028, 'Total revenues of VND47,028 billion (US$1.85 billion)', None, 'VND', False),
+  ('billion', 35, 'Group revenue of EUR 35 to 36 billion (USD 38 to 39 billion)', None, 'EUR', False),
+  ('billion', 1.85, 'Total revenues of VND47,028 billion (US$1.85 billion)', None, 'VND', True),   # 괄호 안 값은 USD
+  ('billion', 38, 'Group revenue of EUR 35 to 36 billion (USD 38 to 39 billion)', None, 'EUR', True),
 ]
 # 파서 LLM_DROP 을 screen 이 쓰는지(장치 시험 — 빈패스트 정규식 자체의 실물 시험은 vinfast.self_test)
 _DROP_PROBE = re.compile(r'scooter', re.I)
@@ -443,8 +495,9 @@ DROP_MISS = ['For the full year 2025, the Company delivered 406,498 e-scooters a
 def self_test() -> list[str]:
   row = lambda m, lo, hi, u, q, label=None, cur=None: GuidanceRow(m, label or m, 'FY2026', lo, hi, None, u, None, q,
                                                                   None, cur)
-  errs = [f'QUARTER_MISS 안 걸림: {q[:60]}' for q in QUARTER_MISS if not has_quarter_mark(q)]
-  errs += [f'QUARTER_HIT 걸림: {q[:60]}' for q in QUARTER_HIT if has_quarter_mark(q)]
+  qv = lambda c: c if isinstance(c, tuple) else (c, ())
+  errs = [f'QUARTER_MISS 안 걸림: {q[:60]} {v}' for q, v in map(qv, QUARTER_MISS) if not has_quarter_mark(q, v)]
+  errs += [f'QUARTER_HIT 걸림: {q[:60]} {v}' for q, v in map(qv, QUARTER_HIT) if has_quarter_mark(q, v)]
   errs += [f'SCALE_MISS 안 걸림: {c[0]} {c[1]} {c[3]}' for c in SCALE_MISS if not scale_mismatch(row(*c))]
   errs += [f'SCALE_HIT 걸림: {c[0]} {c[1]} {c[3]}' for c in SCALE_HIT if scale_mismatch(row(*c))]
   errs += [f'UNIT_MISS 안 걸림: {c[0]} {c[3]}' for c in UNIT_MISS if not unit_mismatch(row(*c))]

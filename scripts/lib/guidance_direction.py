@@ -14,6 +14,8 @@
 - 직전 행이 없어도 숫자 없이 「전망 확인·유지」만 밝힌 행(stated='maintained', 스텔란티스 확인 6-K)은 initiated 가 아니라 maintained.
 - 🔴 metric='other' 는 숫자·글자를 견주지 않고 stated 만 쓴다(없으면 None) — 'other' 는 서로 다른 항목이 한 칸에 모여
   (확인 6-K 'confirms' · 폴라리스 철회 · 예전 LLM 의 배당성향·EV 대수) 비교하면 방향을 지어낸다(Task 11 수정 1회차).
+- 통화(currency)가 다르면 숫자를 견주지 않고 stated 만(환산 못 하는 단위와 같은 취급). 🔴 호출부는 null 을 회사 보고
+  통화(파서 BASE_CURRENCY)로 채워 넘긴다 — null 끼리·보고 통화 명시 행끼리 같게 보이도록(Task 11 수정 2회차).
 호출 = scripts/collect_customer_numbers.py(회사마다 verified 가이던스 전부를 다시 매긴다).
 """
 
@@ -48,7 +50,7 @@ def decide(prev: dict | None, cur: dict) -> str | None:
   a = _point(prev.get('low'), prev.get('high'))
   if a is not None and b is not None:
     scales = _scales(prev, cur)
-    if scales is None:
+    if scales is None or prev.get('currency') != cur.get('currency'):
       # 환산 못 하는 단위끼리 — 숫자도 글자도 견줄 수 없다. 원문 낱말만 쓰고 없으면 None(Task 8 carry: value_text 가
       # 둘 다 None 이면 아래 글자 비교가 ''=='' 로 maintained 를 지어냈다)
       return cur['stated'] if cur.get('stated') in ('raised', 'maintained', 'lowered') else None
@@ -64,7 +66,8 @@ def decide(prev: dict | None, cur: dict) -> str | None:
 
 
 def assign(rows: list[dict]) -> list[tuple[int, str | None]]:
-  """rows = 한 회사의 verified 가이던스 전부(id·metric·period·published_at·document_id·low·high·value_text·stated·unit).
+  """rows = 한 회사의 verified 가이던스 전부(id·metric·period·published_at·document_id·low·high·value_text·stated·unit·
+  currency — null 은 호출부가 보고 통화로 채운다).
   (metric, period) 별로 (published_at, document_id) 순 정렬 뒤, published_at 이 «엄격히 앞선» 마지막 행과 비교 → [(id, direction)].
   같은 날 행끼리는 비교하지 않는다 — 같은 날 두 공시(현대 2026-10-29 전망 정정 20261029800240 과 장래사업 정정
   20261029800231 — 둘 다 2026 판매목표 400만 대)는 선후가 아니라 같은 발표라, document_id 순으로 이으면 뒤 행이
@@ -112,6 +115,11 @@ MUST_HIT = [  # (prev, cur, 기대)
   ({'metric': 'other', 'value_text': 'confirms', 'stated': 'maintained'},
    {'metric': 'other', 'value_text': 'withdrawing', 'stated': 'withdrawn'}, 'withdrawn'),
   (None, {'metric': 'other', 'low': 1e6, 'high': 1e6}, None),
+  # 통화가 다르면 숫자를 견주지 않는다(수정 2회차 N5 — 호출부가 null 을 회사 보고 통화로 채워 넘긴다)
+  ({'low': 35, 'high': 36, 'unit': 'billion', 'currency': 'EUR'},
+   {'low': 38, 'high': 39, 'unit': 'billion', 'currency': 'USD'}, None),
+  ({'low': 35, 'high': 36, 'unit': 'billion', 'currency': 'EUR'},
+   {'low': 38, 'high': 39, 'unit': 'billion', 'currency': 'USD', 'stated': 'maintained'}, 'maintained'),
 ]
 
 

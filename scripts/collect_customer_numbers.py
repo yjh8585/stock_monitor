@@ -428,7 +428,9 @@ def _run(docs: list[dict], tickers: dict[str, str], client, session, ws, args, b
       continue
     run = _CompanyRun(mod, client, session, ws, args, cid, llm)
     for r in rows:
-      run.process(_to_doc(r, ticker), blob, r.get('parse_note'), r.get('llm_attempts') or 0)
+      # --reparse = 사람이 손으로 다시 돌렸다 → 재시도 횟수를 새로 센다(note 의 n/3 도 이 값에서 이어진다 · 수정 2회차 N6)
+      attempts = 0 if args.reparse is not None else r.get('llm_attempts') or 0
+      run.process(_to_doc(r, ticker), blob, r.get('parse_note'), attempts)
     failures += run.finish(ticker, len(rows))
     calls += run.llm_calls
   if llm is not None:
@@ -498,7 +500,7 @@ class _CompanyRun:
     except _PROGRAMMING_ERRORS:
       raise   # 코드 버그 — process 가 파서 예외(failed)로 닫는다(LLM 재시도로 뭉개면 영영 안 드러난다)
     except Exception as e:  # API 오류·JSON 파싱·응답 중단 — 그 문서만(예외 문장엔 본문이 실릴 수 있어 클래스 이름만)
-      self.outcomes['llm_failed'] += 1
+      self.outcomes['llm_failed'] += 1   # 예외 건수 — finish 의 kinds 출력(llm_failed=N)에 실린다(재시도 대기와 구분)
       notes.append(f'{NOTE_LLM_FAIL}: {type(e).__name__}')
       return None
     if why:
@@ -558,7 +560,7 @@ class _CompanyRun:
     status, note = judge(res, v_values, v_dates, llm_n)
     retry = self._llm_retry_reason(res, notes, status, llm_n, v_values)
     if retry:
-      return self._llm_retry(doc, res, checks, llm_ids, notes, status, retry, llm_attempts, sha, v_values, v_dates)
+      return self._llm_retry(doc, res, checks, notes, status, note, retry, llm_attempts, sha, v_values, v_dates)
     llm_missed = llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res)
     if status == 'not_target' and llm_missed:
       # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·키 없음) — 닫으면 다시 못 본다
@@ -581,15 +583,16 @@ class _CompanyRun:
 
   @staticmethod
   def _llm_retry_reason(res, notes: list[str], status: str, llm_n: int, v_values: int) -> str | None:
-    """LLM 을 다음 실행에 다시 돌릴 사유 — (a) extract 예외(코드 행은 정상) · (b) 값 행이 전부 LLM 행인데 전부 대조 실패."""
+    """LLM 을 다음 실행에 다시 돌릴 사유 — (a) extract 예외(판정이 무엇이든 — 코드가 서식을 알아봤는데 0행이라 failed 인
+    문서도 LLM 이 채울 수 있다 · 수정 2회차 A) · (b) 값 행이 전부 LLM 행인데 전부 대조 실패."""
     fail = next((n for n in notes if n.startswith(NOTE_LLM_FAIL)), None)
-    if fail and status in ('parsed', 'not_target'):
+    if fail:
       return fail
     if status == 'failed' and llm_n and llm_n == len(value_rows(res)) and v_values == 0:
       return NOTE_LLM_UNVERIFIED
     return None
 
-  def _llm_retry(self, doc, res, checks, llm_ids, notes, status, reason, attempts, sha, v_values, v_dates) -> None:
+  def _llm_retry(self, doc, res, checks, notes, status, judged, reason, attempts, sha, v_values, v_dates) -> None:
     """재시도 대기(pending · llm_attempts+1) 또는 상한이면 닫기. 코드 값 행은 어느 쪽이든 적재한다(멱등)."""
     attempts += 1
     code_ok = status == 'parsed'   # (a) 코드 행이 있어 parsed 로 판정된 문서
@@ -598,7 +601,9 @@ class _CompanyRun:
       self._store(doc, payloads(doc, res, checks, set()), llm_ran=False)
       self.verified['values'] += v_values
       self.verified['dates'] += v_dates
-    others = [n for n in notes if not n.startswith(NOTE_LLM_FAIL)]
+    # judge 의 note('새 문서인데 숫자 0개')는 LLM 예외 때만 덧붙인다 — 대조 실패 사유는 같은 말을 이미 한다
+    keep = [judged] if judged and reason != NOTE_LLM_UNVERIFIED else []
+    others = keep + [n for n in notes if not n.startswith(NOTE_LLM_FAIL)]
     if attempts < LLM_MAX_ATTEMPTS:
       self.outcomes['llm_retry'] += 1
       note = f'{NOTE_LLM_RETRY}{reason} ({attempts}/{LLM_MAX_ATTEMPTS})'
@@ -643,8 +648,12 @@ class _CompanyRun:
     ⚠️ dry-run 은 DB 에 이미 있는 행만 본다 — 이번에 적재할 예정 행은 아직 없어 그 숫자에 안 들어간다."""
     from lib import guidance_direction
     rows = fetch_all(lambda: self.client.table('customer_guidance')
-                     .select('id,metric,period,published_at,document_id,low,high,value_text,stated,unit,direction')
+                     .select('id,metric,period,published_at,document_id,low,high,value_text,stated,unit,currency,'
+                             'direction')
                      .eq('company_id', self.cid).eq('verified', True), ('id',))
+    base = getattr(self.mod, 'BASE_CURRENCY', None)
+    for r in rows:   # null = 회사 보고 통화 — 통화가 다른 행끼리는 decide 가 숫자를 견주지 않는다(수정 2회차 N5)
+      r['currency'] = r.get('currency') or base
     cur = {r['id']: r['direction'] for r in rows}
     changed = [(i, d) for i, d in guidance_direction.assign(rows) if cur[i] != d]
     if not self.args.dry_run:
@@ -658,9 +667,9 @@ class _CompanyRun:
     차단(401·403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다)."""
     from collect_customer_docs import write_status
     o = self.outcomes
-    # parsed 문서가 하나라도 있으면 다시 매긴다 — 실은 가이던스가 0행이어도 선삭제가 옛 행을 지웠을 수 있고,
-    # 그러면 뒤 문서가 옛 기준으로 매긴 방향을 그대로 들고 남는다
-    moved = self._directions() if o['parsed'] else 0
+    # 가이던스를 쓴 문서(parsed · LLM 재시도 대기 중 코드 행을 실은 문서)가 하나라도 있으면 다시 매긴다 — 실은
+    # 가이던스가 0행이어도 선삭제가 옛 행을 지웠을 수 있고, 그러면 뒤 문서가 옛 기준으로 매긴 방향을 그대로 들고 남는다
+    moved = self._directions() if o['parsed'] or o['llm_retry'] else 0
     parse_failed, blocked = o['failed'], o['blocked']
     fetch_failed = o['fetch_failed'] + o['fetch_retry']
     llm_retry = o['llm_retry']

@@ -128,6 +128,27 @@ class ExtractTests(unittest.TestCase):
     rows, _ = lg.extract(c, _DOC, _SRC, 'Acme Motors', '', 'EUR')
     self.assertEqual([g.currency for g in rows], [None, None])
 
+  def test_parenthetical_conversion_not_value_currency(self):
+    """수정 2회차 N4 — 보고 통화 값 뒤 괄호 환산('(US$1.85 billion)')은 그 값의 통화가 아니다 → 보고 통화 행은 남는다.
+    외화 값인데 currency 가 빈 행은 여전히 「통화」로 버린다."""
+    vfs = 'VinFast targets full year 2026 revenues of VND47,028 billion (US$1.85 billion)'
+    eur = 'Group revenue of EUR 35 to 36 billion (USD 38 to 39 billion)'
+    keep = [(vfs, 'VND', 47028, 47028), (eur, 'EUR', 35, 36)]
+    for q, cur, lo, hi in keep:
+      rows, why = lg.screen([base.GuidanceRow('revenue', 'Revenue', 'FY2026', lo, hi, None, 'billion', None, q)], cur)
+      self.assertEqual((len(rows), why), (1, Counter()), q)
+    for q, cur, lo, hi in [(vfs, 'VND', 1.85, 1.85), (eur, 'EUR', 38, 39),
+                           ('revenue of USD 9.0 to 9.5 billion', 'EUR', 9.0, 9.5)]:
+      rows, why = lg.screen([base.GuidanceRow('revenue', 'Revenue', 'FY2026', lo, hi, None, 'billion', None, q)], cur)
+      self.assertEqual((rows, why), ([], Counter({'통화': 1})), q)
+
+  def test_no_multiplier_money_dropped(self):
+    """수정 2회차 N3(동작 고정) — 배수 낱말이 없는 금액 표 행은 버린다. 표 머리 단위('in € million')가 quote 밖이라
+    원문만으로 절대값을 확정할 수 없다(322,284 를 million 으로 읽을지 원으로 읽을지 quote 가 말하지 않는다)."""
+    g = base.GuidanceRow('revenue', 'Sales revenue', 'FY2026', 320000, 320000, None, 'million', None,
+                         'Sales revenue | 322,284 | 320,000')
+    self.assertEqual(lg.screen([g], 'EUR'), ([], Counter({'규모': 1})))
+
   def test_schema_strict(self):
     """④ 구조화 출력 스키마 — additionalProperties false · 항목 칸 전부 required · 어휘는 base 와 같다."""
     self.assertIs(lg.SCHEMA['additionalProperties'], False)

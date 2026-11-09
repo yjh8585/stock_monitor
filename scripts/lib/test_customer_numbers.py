@@ -276,6 +276,46 @@ class LlmPathTests(unittest.TestCase):
     self.assertEqual(last['parse_note'], f'LLM 대기 — {ccn.NOTE_LLM_FAIL}: ValueError (1/3)')
     self.assertEqual(last['llm_attempts'], 1)
 
+  def test_llm_exception_on_recognized_empty_doc_pending_retry(self):
+    """🔴 수정 2회차 A — 코드가 서식을 알아봤지만 0행이라 판정이 failed 인 문서(kr_dart 가이던스 G_ANNUAL·0행)에서
+    LLM 이 실패하면 곧바로 failed(exit 1)가 아니라 재시도 대기 · judge note 는 뒤에 남긴다."""
+    run, ws = _llm_run(_llm_mod(recognized=True, volume=False))
+    with patch('lib.llm_guidance.extract', side_effect=RuntimeError('x')), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 0)
+    last = _status_patches(ws)[-1]
+    self.assertEqual(last['parse_status'], 'pending')
+    self.assertTrue(last['parse_note'].startswith(f'LLM 대기 — {ccn.NOTE_LLM_FAIL}: RuntimeError (1/3) · '))
+    self.assertIn('숫자 0개', last['parse_note'])
+    self.assertEqual(last['llm_attempts'], 1)
+    self.assertEqual(run.outcomes['failed'], 0)
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
+      self.assertEqual(run.finish('ACME', 1), 0)
+
+  def test_directions_recomputed_after_llm_retry_with_code_rows(self):
+    """수정 2회차 C — 재시도 대기 중이라도 코드 가이던스를 실었으면 방향을 다시 매긴다(parsed 문서가 없어도)."""
+    run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))
+    with patch('lib.llm_guidance.extract', side_effect=RuntimeError('x')), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 0)
+    self.assertEqual((run.outcomes['parsed'], run.outcomes['llm_retry']), (0, 1))
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0) as d:
+      run.finish('ACME', 1)
+    d.assert_called_once()
+
+  def test_reparse_resets_attempts(self):
+    """수정 2회차 N6 — --reparse 는 사람이 다시 돌린 것이라 DB 의 llm_attempts 를 이어 세지 않는다(새로 3회)."""
+    seen = []
+    row = {**{k: v for k, v in _DOC.__dict__.items() if k != 'ticker'}, 'llm_attempts': 2,
+           'parse_note': 'LLM 대기 — LLM 실패: RuntimeError (2/3)'}
+    for reparse, want in ((None, 2), (7, 0)):
+      args = SimpleNamespace(dry_run=False, no_llm=False, reparse=reparse)
+      with patch.object(ccn._CompanyRun, 'process', side_effect=lambda *a: seen.append(a[-1])), \
+           patch.object(ccn._CompanyRun, 'finish', return_value=0), \
+           patch('customer_parsers.module_for', return_value=_mod()):
+        ccn._run([row], {'c-1': 'ACME'}, MagicMock(), None, MagicMock(), args, None)
+      self.assertEqual(seen[-1], want)
+
   def test_all_llm_rows_unverified_pending_retry(self):
     """🔴 (b) 값 행이 전부 LLM 행인데 전부 대조 실패 → failed 가 아니라 pending + llm_attempts +1(LLM 은 실행마다 다르다)."""
     run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
@@ -624,6 +664,23 @@ class DirectionTests(unittest.TestCase):
       self.assertEqual(run._directions(), 1)
     ws.table.return_value.update.assert_called_once_with({'direction': 'raised'})
     ws.table.return_value.update.return_value.eq.assert_called_once_with('id', 2)
+
+  def test_currency_differs_not_compared(self):
+    """수정 2회차 N5 — 통화가 다른 행끼리는 숫자를 견주지 않는다 · null 은 회사 보고 통화(BASE_CURRENCY)로 본다."""
+    base_row = {'metric': 'revenue', 'period': 'FY2026', 'value_text': None, 'stated': None, 'unit': 'billion',
+                'direction': None}
+    for cur2, want in (('USD', None), ('EUR', 'raised')):
+      rows = [{**base_row, 'id': 1, 'published_at': '2026-02-01', 'document_id': 1, 'low': 35, 'high': 36,
+               'currency': None},
+              {**base_row, 'id': 2, 'published_at': '2026-05-01', 'document_id': 2, 'low': 38, 'high': 39,
+               'currency': cur2}]
+      mod = _mod()
+      mod.BASE_CURRENCY = 'EUR'
+      run, ws = _run(mod)
+      with patch.object(ccn, 'fetch_all', return_value=rows):
+        run._directions()
+      got = {c.args[0]['direction'] for c in ws.table.return_value.update.call_args_list}
+      self.assertEqual(got, {'initiated', want} - {None}, cur2)
 
   def test_dry_run_does_not_write(self):
     rows = [{'id': 1, 'metric': 'm', 'period': 'FY2026', 'published_at': '2026-02-01', 'document_id': 1, 'low': 1,
