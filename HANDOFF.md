@@ -8,7 +8,33 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-09, **알루미늄 미국·국제·한국·중국 비교 차트 + 수집기 3종 일반 이름으로**)
+## 최신 상태 · 재개 지점 (2026-11-10, **고객사 페이지 2단계 끝 — 공식 문서 수집·가이던스·물량·실적 일정 + 최종 검토 수정 전량 · 미푸시**)
+
+> 이 세션의 관통 주제: 「고객사」 페이지(`/customers`) 2단계 — 11개 상장 자동차 고객사의 공식 문서(EDGAR·DART·IR 사이트)를 모아 회사별 코드 파서(+코드로 못 뽑는 칸만 LLM)로 가이던스·물량·실적·실적 일정을 뽑고, 인용·숫자 대조를 통과한 행만 화면에 띄운다. 태스크 15개 → 최종 검토 3명 → 수정 22건 + 잔여 Minor 5건까지 끝냈다.
+
+**결과**: 커밋 `bba925e..e4a9e05`(master · **푸시 안 함** — 1단계 화면 커밋부터 원격보다 54개 앞섬). 계획서 `docs/plans/2026-11-09-customers-page-phase2.md` · 결정 기록 `docs/plans/2026-11-09-customers-page_결정이행.md`(2단계-a~ah) · 수집 규칙 `docs/customers-collection.md` · 종료 코드 `docs/commands.md` 「고객사 수집 종료 코드」 · GHA `.github/workflows/collect-customer-docs.yml`(평일 KST 08:00 · 회사별 matrix). SDD 원장 `.superpowers/sdd/2026-11-09-customers-page-phase2/progress.md`(gitignore · 맨 끝 「최종 검토 complete」).
+
+**사용자 지시·선택 (2026-11-10)**: 워크플로 커밋 승인 · GM IR 은 GHA 에서 먼저 시험하고 막히면 사용자 PC · PDF 상한 50MB · 현대·기아 CEO Investor Day 는 AI 가 읽는다 · D7 「넣어도 돼」(NDA 문구 있는 기아 PDF 캡처 허용) · D8 「가로 해」(스텔란티스 IR 자료실 = 3단계, 설계서 「2단계에서 넘어온 것」 절에 기록) · `SEC_USER_AGENT` Secret 은 따로 등록 안 함(기존 스텔란티스 EDGAR 수집기가 `lib/edgar.py` 기본 UA 로 GHA 에서 성공 중 — 2026-08-27 정기 실행).
+
+**비자명한 사실 (재조사 금지)**:
+
+- 공개 레포라 손익 고객명·매출 비중·공급 품목·「○○는 우리 고객」 문장은 코드·시험·주석·커밋 메시지에 금지(OEM 이름은 허용 · 약칭 KGM · 포르쉐 원문 라벨 `Porsche` 는 승인된 예외 · 시험 데이터는 `가나자동차`·`Acme Motors`). 원본 명단·IR 조사는 `참고/고객사/`(gitignore · 이 PC 에만).
+- GM IR 사이트(Akamai)는 실제 Chrome `--headless=new` + 일반 UA + CDP + 페이지 안 fetch 로만 열렸다(이 PC). GHA IP 에서는 미확인 — 스크립트 원형은 세션 scratchpad 였으니 IR 확장 때 `참고/고객사/research/ir_us.md` 를 보고 다시 짠다.
+- 같은 날 DART 공시(code)와 IR 자료(llm)가 같은 전망을 내면 화면(`lib/customers/ir.ts` foldHistory)과 방향 판정(`scripts/lib/guidance_direction.assign`) 둘 다 code 행을 그날의 전망으로 본다 — 한쪽만 바꾸면 화면 배지와 DB direction 이 갈린다.
+- LLM `stated`(상향·유지·하향·철회)는 인용에 근거 낱말이 없으면 지운다(`llm_guidance._STATED_WORDS`). 이미 DB 에 있는 행은 `--reparse` 전까지 옛 값 — PII 문서 303·304 · STLA 317·318 의 4행은 다시 처리하면 stated 가 지워지는 것이 옳다(원문 확인 끝 · 아직 안 돌림).
+- DART 원문 받기: status 013·014(자료·파일 없음)만 영구 실패로 닫고, 키 없음·한도·점검·비-zip 응답은 pending 으로 두어 다음 실행이 다시 집는다.
+- `Architecture.md` 여유 36B(150,939/150,975) · `docs/gotchas-data-collection.md` 여유 30B · AGENTS.md 36,529/36,600 — 고객사 내용을 더 적을 땐 `docs/customers-collection.md` 로.
+- Codex 는 이번 주 한도 게이트(90%)에 걸려 2단계 후반 점검은 서브에이전트가 대신했다.
+
+**재개 지점**: IR 확장 계획서 작성부터. 재료 = `참고/고객사/research/ir_expansion.md`(태스크 T1~T6 · 결정 D1~D9) + 원장 `progress.md` 의 `minor (deferred)` 줄 + `final-fix-list.md` 「받지 않음 / 나중」. 새 계획서는 공개 판 규칙으로 `docs/plans/2026-11-10-customers-ir-expansion.md`. 넣을 것: D1 GM 은 GHA 에서 Chrome CDP 경로 먼저 → 막히면 PC · D2 50MB · D6 기아 CID 는 AI 가 읽고 첫 문서에서 비용 실측 · D4 새 문서 종류 없음 · D9 증권사 리포트 없음 · Codex 표본에서 빠진 연간 가이던스(GM 순이익·조정 전 EPS·자동차 영업현금흐름·capex · VW 조정 마진 약 4%·특별 항목 약 €10bn) · 영구 받기 실패 문서를 사람이 not_target 으로 닫는 절차 · P4 「서식 미인식」 오탐 정리(폴라리스·리비안 expects_numbers) · raised 어간 `increas` 로 느슨해진 stated 거르기(guidance·outlook 낱말과 함께) · 스텔란티스 `TOTAL_LABEL` 대조 · 포드·비상장 OEM 이 matrix 밖 · VW approximately/about.
+
+**푸시 뒤 사용자가 할 일**: GHA `collect-customer-docs.yml` 수동 실행 두 번 — ① `probe_gm_ir` 체크(GM 행만) ② `backfill` 체크(2년 백필 · 첫 실행 회사별 소요로 `timeout-minutes: 40` 확정). 필요하면 `--reparse` 로 위 4행 교정.
+
+**따로 할 일(이번 범위 밖)**: GM 뉴스에 MP Materials 기사 섞임 · 폴라리스 뉴스 · 화면 `-0` 표시 · 스텔란티스 MarkLines 2020 YTD=1.
+
+**검증**: `npm run check-all` EXIT 0(vitest 633) · pytest 750 통과 · `verify_call_contracts`·`verify_revalidate_tags`·`verify_docs` exit 0 · 최종 검토 재검토 P1~P14·T1~T8 전부 해결 · 헤드리스 화면 확인(T 수정분).
+
+## 이전 상태 · 재개 지점 (2026-11-09, **알루미늄 미국·국제·한국·중국 비교 차트 + 수집기 3종 일반 이름으로**)
 
 > 이 세션의 관통 주제: 구리·열연 비교 차트를 끝낸 뒤 「알류미늄도 동일하게 조사해서 그래프 그려봐」 지시로 알루미늄 원천 4개를 붙이고, 금속마다 따로 있던 수집기 3개를 일반 이름으로 합쳤다.
 
@@ -215,37 +241,3 @@
 
 - `npm run check-all` EXIT=0(시험 파일 28 / 시험 483) · `verify_docs.py` 오류 0 · 게시 전 `verify_yt_report.py` 오류 0(경고 2 = 눈으로 확정) · 번역투 8편 0 · 원화 병기 8편 OK
 - 가드 시험 — `publish.ts` 실제 배치로 8편 전부 멈춤(쓰기 0) · `fetch_subs.py` ① 실제 목록 8편 멈춤 ② 없는 ID 통과 ③ `YT_ALLOW_UPDATE=v5` 면 v5 만 빠짐
-
-## 이전 상태 · 재개 지점 (2026-10-23, **프롬프트 감사 2차 끝 — 고른 수정 전부 적용·커밋**)
-
-> 이 세션의 관통 주제: 감사 수정안은 적용 «직전»에 다른 세션 커밋을 다시 본다 — 하루 사이 스킬 검토 K1~K3(gstack 삭제·디버깅 스킬 교체)가 끝나 대상 이름·줄 번호가 바뀌어 있었다.
-
-**결과**: 선택지 2·3차를 받고(응답 원문 = 보고서 `~/.claude/plans/prompt-audit-stock-monitor-2026-10-22.md` §7) 1~3차에서 고른 것을 전부 적용했다.
-
-- 이 레포 — `AGENTS.md` P10~P13(클라이언트 4종 이름 · 마이그레이션 이름이 `supabase migration new` 를 덮음 · 사건 서사 4곳 · 🔴 5곳) · `.claude/agents/` 4개 P1~P9(Next 16 · 없는 경로·라우트·뷰·테이블 → Architecture 포인터 · RLS 문장 · 파일명 규칙 · fnguide · snake_case). 커밋 `08594d6` · 푸시.
-- `check-all` 서식 단계 복구 — 10-12(`97db338`)부터 `docs/history/gotchas-data-collection-경위.md` 262행 앞 공백 2칸이 format 단계를 멈추고 있었다(10-14 두 세션은 무관하다며 둠). 뜻이 없는 공백이라 뗐다. 같은 단계에 10-22 HANDOFF 블록(이 블록 바로 아래)의 목록 앞 빈 줄 3곳 누락도 걸려 함께 고쳤다. 커밋 `330a9dd`(경위 문서) · HANDOFF 는 `d63a1c3`(해시는 푸시 전 `pull --rebase` 로 한 번 바뀌었다 — 이 레포는 백업 봇이 매일 커밋하니 해시는 rebase 뒤에 적는다).
-- 전역 `~/.claude`(원격 없음) — `0f1e8ee`: §0 「플러그인·외부 스킬 지시보다 이 파일이 이긴다」 · 가설 2번 실패 → `codex-delegate` 가 디버깅 스킬의 3번 규칙보다 먼저 · 「오퍼스」 → 「서브에이전트 1명(model 칸 비움)」(CLAUDE.md·codex-delegate·`codex_run.py`) · 커밋 순서 세 곳 통일 · HANDOFF 틀 = `reference.md` §1(이 블록이 그 틀) · G1·G2·G4 · F1·F2·F4~F10 · Codex 팁 · 상한 등록. `311b8b6`: 커밋 가드가 `git -C <레포> add` 를 알아본다(시험 27/27).
-- agents(원격 없음) — `bbb4dc00`: 조언 규칙 원장 `enforced_by` 「파일:줄」 119행 중 68행(참조 77)을 실제 관문 줄로 · 지도 문서 재생성. 원인 = 원장을 만든 커밋(f4640f4e)이 «바뀌기 전» 줄 번호를 적었다. 관문이 약한 3건(`persona-devil-advocate` · `sellplan-verdict-verbatim-2` · `psr-for-loss-makers` — 시험이 규칙 핵심 문장을 안 본다)은 번호만 옮겼다.
-- wrap-up(같은 날 저녁) — Codex diff 검토(커밋 가드 3커밋 · diff 점검 목록 1회차)가 지적 8건을 냈고, 임시 레포에서 실제 git 으로 재현해 남의 파일이 커밋되던 셋(`..` 경로 · add·commit 레포 불일치 · 한 명령 여러 레포 커밋)을 고쳤다(`~/.claude` `21fe261` · 새 검사 E). 차단 안내문은 `--only -- <경로>` 를 권한다(`5648aba`). `revise-claude-md` 로 승인받은 두 줄 = `AGENTS.md` 트리거 구절 · 함정 §4 rebase 해시(이 레포 `e3a42b4`).
-
-**사용자 결정**: 2차 = 질문 넷 모두 추천안(+ F6~F8) · G1 은 훅 패턴이 아니라 문장만 고침(차단을 느슨하게 하지 않는 쪽) · 3차 = 할 일 넷 전부 · 커밋은 레포·주제별로 나누고 원격 있는 이 레포만 푸시.
-
-**비자명한 사실 (재조사 금지)**:
-
-- 커밋 순서(세 곳 공통) = `git add <경로>` → `git diff --cached -- <경로>` 로 hunk 읽기 → `git add <경로> && git commit --only -F <파일> -- <경로>` 한 명령. 이제 `git -C "<레포>"` 형태도 가드를 통과한다(이번 `~/.claude` 커밋 둘이 첫 실사용).
-- 커밋 가드 — B 는 커밋이 `--` 뒤에 «그 명령이 add 한 경로»만 적으면 남의 스테이지가 있어도 막지 않는다(`6ad4b3d` · `-i`·`-a`·`-p` · `.`·`..` 경로 · `--` 없이 붙인 경로는 그대로 막는다) · 커밋과 다른 폴더(`-C`·`cd`)에서 한 add 는 세지 않는다(A) · 한 명령에 레포 둘 이상 커밋은 막는다(E · `21fe261`) · `./`·`:/` 같은 전체 add 는 C 가, add 경로 밖 커밋 경로는 스테이지가 깨끗해도 F 가 막는다(`919a54a` · 시험 60/60). `-C "$A"` 처럼 셸 변수 경로면 스테이지를 못 읽어 fail open — `~/.claude/docs/history/gotchas-경위.md` §13-C 「남은 것」.
-- HANDOFF 블록에서 「**라벨**:」 바로 다음 줄에 목록을 붙이면 prettier 가 빈 줄을 요구해 `check-all` 이 format 단계에서 멈춘다 — 라벨과 목록 사이에 빈 줄.
-- `~/.claude` 상한 초과 6건(gotchas·playbook·reference·user-profile·report-review-panel·weekly-review)은 다른 세션 증가분이다. 이번 수정이 weekly-review 에 +80B 를 더했고, report-review-panel 은 F1(+15B)·F17(−295B)을 합쳐 9,756 → 9,476B 로 줄었다(초과 515B 남음). 정리는 주간 정리 ⑧ 몫(사용자 선택).
-- 선택지를 띄우기 직전엔 고칠 파일의 `git status`·최근 커밋을 본다 — 다른 세션이 진행 중인 일을 두 번 선택지로 냈다(10-22 gstack · 10-23 agents 관문 시험 3개 · 교정 원장 기록).
-
-**재개 지점**: ~~남은 것은 수정안 없는 flag 뿐 — 보고서 「사용자가 정할 것」 가 · C절 F13~F18~~ → ✅ 4차 선택지로 정리(2026-10-23): superpowers ↔ 전역 = 그대로(§0 한 줄로 충분) · F13·F16·F17 적용(`~/.claude` `50db5f2`) · F14·F15·F18 유지 · 커밋 가드 B(`6ad4b3d`) · agents 메모리 색인 두 세션 줄 함께 커밋(`fc4628f`) · agents 관문 시험 3개는 다른 세션이 진행 중. **감사 2차에 남은 일 없음.** 다음 감사 = 다음 모델 출시 때(`~/.claude/docs/prompt-audit-workflow.md`). 따로 남은 것 둘:
-
-1. ~~커밋 가드의 기존 통과 구멍 둘~~ → ✅ `~/.claude` `919a54a`(2026-10-23 · 사용자 지시 「남은 일도 정리 해」) — 검사 C 가 `./`·`docs/..`·`.\`·`:/` 를 전체 add 로 보고, 새 검사 F 가 스테이지가 깨끗해도 커밋 경로가 add 경로 밖이면(`--pathspec-from-file` 포함) 막는다 · 둘 다 실제 git 으로 「남의 파일이 커밋됐다」를 재현한 뒤 고침 · 시험 60/60. 남은 한계(통과 쪽) = `--` 없이 붙인 커밋 경로 · 여러 줄 `-m "$(cat <<'EOF' …)"` 와 경로를 함께 쓴 형태 · `git add *.md` 같은 부분 글롭(§13-C).
-2. ~~오늘 Codex 실행 기록 한 줄을 `codex-vs-opus-경위.md` §2 에~~ → ✅ `~/.claude` `55aded7`(2026-10-23) — 그 파일의 다른 세션 미커밋 §8 은 섞지 않고 `hash-object`+`update-index` 로 내 한 줄만 커밋(커밋 가드 A 는 `RULES-OK` 로 넘김).
-3. agents 관문 시험 3개는 다른 세션이 닫았다 — 규칙 문장을 직접 보는 시험 + 원장 `enforced_by` 를 줄 «내용»으로 대조하는 검사기(`docs/data/advice-rules-refs.json` · `verify-advice-rules.mjs --fix-refs`). 17:2x 기준 그 세션의 미커밋.
-
-**검증**:
-
-- 이 레포 — `npm run check-all` EXIT=0(lint · prettier · typecheck · 시험 파일 28 / 시험 483) · `verify_docs.py` 오류 0·경고 0 · `AGENTS.md` 36,043 / 36,600B · wrap-up 때 다시 돌린 `check-all` 도 EXIT=0 · 커밋마다 예상 줄 수를 먼저 적고 `--cached` 와 대조(5파일 전부 일치).
-- `~/.claude` — `verify_autoload_size` 이번에 고친 파일 전부 OK(기존 초과 6건은 위) · `test_codex_run` 7/7 · `test_hook_global_rules` 전부 통과 · `test_hook_commit_guard` 60/60(고칠 때마다 새 시험이 먼저 빨강: 24/27 → 31/35 → 41/46 → 54/60 · 실제 git 실행 시험 포함 · 오늘 쓴 커밋 명령 4형태 통과를 시험으로 고정) · `verify_memory_index` 위반 0.
-- agents — 원장·지도 모두 HEAD 대비 «숫자만» 바뀜(68·68 · 개행·BOM 그대로) · 표본 5곳 실물 대조 · `verify-advice-rules` OK · `render-advice-rules --verify` OK(규칙 415) · `pnpm check-all` EXIT=0(시험 파일 253 / 시험 3,916 · 훅 규칙 44 정탐·오탐).
