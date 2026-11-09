@@ -95,7 +95,7 @@ export interface CustomerIr {
   reportCurrency: string | null;
   /** 최근 40건(공시일 내림차순). */
   documents: CustomerDocumentItem[];
-  /** (metric, 통화) 별 최신 FY 카드 — 철회 플래그(withdrawn_at) 포함. */
+  /** (metric, 통화) 별 카드 — 대표 FY = 올해 이상 가장 가까운 FY(없으면 가장 늦은 FY) · 그보다 먼 FY 는 longer_term · 철회 플래그(withdrawn_at) 포함. */
   guidance: GuidanceCard[];
   /** 상태 행(철회·「가이던스 확인」) — 날짜순. */
   guidanceNotes: GuidanceRowTs[];

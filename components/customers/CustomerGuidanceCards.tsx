@@ -9,6 +9,7 @@ import {
   mergeGuidanceChains,
   periodText,
   rangeText,
+  STATED_LABEL,
   toUnit,
   type DirectionTone,
 } from '@/lib/customers/format';
@@ -21,13 +22,6 @@ const TONE: Record<DirectionTone, string> = {
   new: 'border-blue-600/40 text-blue-600',
 };
 
-const STATED: Record<string, string> = {
-  withdrawn: '철회',
-  maintained: '유지 확인',
-  raised: '상향',
-  lowered: '하향',
-};
-
 interface Props {
   cards: GuidanceCard[];
   /** 상태 행(metric='other' — 철회·「가이던스 확인」) — 날짜순. */
@@ -36,8 +30,19 @@ interface Props {
   reported: ReportedRow[];
 }
 
-function Badge({ row, notes }: { row: GuidanceRowTs; notes: GuidanceRowTs[] }) {
-  const d = guidanceDirection(row, notes);
+const AI_TITLE = '원문에서 AI 가 뽑고 검증을 통과한 값';
+
+/** chainStart = 전망 기준이 바뀐 사슬의 뒤쪽 지표 첫 행(→ 「기준 변경」 배지). */
+function Badge({
+  row,
+  notes,
+  chainStart = false,
+}: {
+  row: GuidanceRowTs;
+  notes: GuidanceRowTs[];
+  chainStart?: boolean;
+}) {
+  const d = guidanceDirection(row, notes, { chainStart });
   return (
     <span className={cn('rounded border px-1.5 text-[11px] leading-5', TONE[d.tone])}>
       {d.label}
@@ -58,30 +63,38 @@ function RowMeta({ row }: { row: GuidanceRowTs }) {
     <>
       {row.basis && <span>{row.basis === 'adjusted' ? '조정' : '장부'}</span>}
       <span>{row.published_at} 공시</span>
-      {row.extractor === 'llm' && <span title="원문에서 AI 가 뽑고 검증을 통과한 값">AI 추출</span>}
+      {row.extractor === 'llm' && <span title={AI_TITLE}>AI 추출</span>}
     </>
   );
 }
 
+/** chained = 이 이력이 사슬의 뒤쪽 지표 — 첫 행이 「기준 변경」. */
 function History({
   rows,
   currency,
   notes,
+  chained,
 }: {
   rows: GuidanceRowTs[];
   currency: string | null;
   notes: GuidanceRowTs[];
+  chained: boolean;
 }) {
   return (
     <ol className="space-y-0.5">
-      {rows.map((h) => (
+      {rows.map((h, i) => (
         <li
-          key={`${h.metric}|${h.published_at}`}
+          key={`${h.metric}|${h.published_at}|${h.extractor}|${i}`}
           className="flex flex-wrap items-center gap-x-2 tabular-nums"
         >
           <span className="text-muted-foreground">{h.published_at}</span>
-          <Badge row={h} notes={notes} />
+          <Badge row={h} notes={notes} chainStart={chained && i === 0} />
           <span>{valueText(h, currency)}</span>
+          {h.extractor === 'llm' && (
+            <span className="text-muted-foreground" title={AI_TITLE}>
+              AI 추출
+            </span>
+          )}
         </li>
       ))}
     </ol>
@@ -133,7 +146,11 @@ function Card({
             철회됨
           </span>
         ) : (
-          <Badge row={cur} notes={notes} />
+          <Badge
+            row={cur}
+            notes={notes}
+            chainStart={predecessors.length > 0 && cur === card.history[0]}
+          />
         )}
       </div>
       <p
@@ -171,13 +188,19 @@ function Card({
               <p className="text-muted-foreground">
                 {p.current.metric_label} ({p.metric})
               </p>
-              <History rows={p.history} currency={p.currency} notes={notes} />
+              <History rows={p.history} currency={p.currency} notes={notes} chained={i > 0} />
+              <LongerTerm targets={p.longer_term} currency={p.currency} />
               <p className="rounded bg-muted px-1.5 py-0.5">
                 전망 기준 변경 → {(predecessors[i + 1] ?? card).current.metric_label}
               </p>
             </div>
           ))}
-          <History rows={card.history} currency={card.currency} notes={notes} />
+          <History
+            rows={card.history}
+            currency={card.currency}
+            notes={notes}
+            chained={predecessors.length > 0}
+          />
           <blockquote className="border-l-2 border-border pl-2 text-muted-foreground whitespace-pre-line">
             {cur.quote}
           </blockquote>
@@ -241,10 +264,10 @@ export default function CustomerGuidanceCards({ cards, notes, reported }: Props)
       ))}
       {notes.length > 0 && (
         <ul className="space-y-0.5 text-xs text-muted-foreground">
-          {notes.map((n) => (
-            <li key={`${n.period}|${n.published_at}|${n.metric_label}`}>
+          {notes.map((n, i) => (
+            <li key={`${n.period}|${n.published_at}|${n.metric_label}|${n.extractor}|${i}`}>
               {n.published_at} · {n.period} {n.metric_label} —{' '}
-              {STATED[n.stated ?? ''] ?? n.stated ?? '상태 미상'}
+              {STATED_LABEL[n.stated ?? ''] ?? n.stated ?? '상태 미상'}
               {n.value_text && ` (원문 「${n.value_text}」)`}
             </li>
           ))}

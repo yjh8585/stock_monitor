@@ -211,6 +211,83 @@ describe('latestGuidance', () => {
     expect(cards[0].withdrawn_at).toBe('2025-04-30');
     expect(cards[0].longer_term).toEqual([]);
   });
+
+  // 가나자동차 꼴 — 같은 날 DART 공시(code)와 IR 자료(llm)가 같은 전망을 따로 낸다. 행은 id 순(코드가 먼저 적재)으로 온다.
+  const capex = (over: Partial<GuidanceRowTs>) =>
+    g({
+      metric: 'capex',
+      metric_label: '투자계획',
+      low: 17.8,
+      high: 17.8,
+      unit: 'trillion',
+      ...over,
+    });
+
+  it('같은 날 같은 값(code + llm)은 한 줄로 접고 코드 추출을 남긴다 — 이력 부풀림·current 가 AI 행이 되는 것 방지', () => {
+    const rows = [
+      capex({ published_at: '2026-01-29' }),
+      capex({ published_at: '2026-10-29', low: 16, high: 16, direction: 'lowered' }),
+      capex({ published_at: '2026-01-29', extractor: 'llm', metric_label: '부문 투자계획' }),
+      capex({
+        published_at: '2026-10-29',
+        low: 16,
+        high: 16,
+        direction: 'lowered',
+        extractor: 'llm',
+        metric_label: '투자계획(부문)',
+      }),
+    ];
+    const [card] = latestGuidance(rows, 2026);
+    expect(card.history.map((h) => [h.published_at, h.extractor])).toEqual([
+      ['2026-01-29', 'code'],
+      ['2026-10-29', 'code'],
+    ]);
+    expect(card.current.extractor).toBe('code');
+    expect(card.current.metric_label).toBe('투자계획');
+    // 입력 순서가 뒤집혀도(AI 행이 먼저 와도) 코드 행이 남는다
+    expect(latestGuidance([...rows].reverse(), 2026)[0].history.map((h) => h.extractor)).toEqual([
+      'code',
+      'code',
+    ]);
+  });
+
+  it('같은 날 코드 두 행이 같은 값이면 한 줄(먼저 온 행)', () => {
+    const [card] = latestGuidance(
+      [
+        g({ metric: 'sales_units', metric_label: '판매목표(대수)', published_at: '2026-10-29' }),
+        g({ metric: 'sales_units', metric_label: '판매목표', published_at: '2026-10-29' }),
+      ],
+      2026
+    );
+    expect(card.history.map((h) => h.metric_label)).toEqual(['판매목표(대수)']);
+  });
+
+  it('같은 날 값이 다르면 둘 다 남기되 코드 행이 뒤(= current) — 입력 순서와 무관', () => {
+    const code = capex({ published_at: '2026-10-29', low: 16, high: 16 });
+    const llm = capex({ published_at: '2026-10-29', low: 15.5, high: 15.5, extractor: 'llm' });
+    for (const rows of [
+      [code, llm],
+      [llm, code],
+    ]) {
+      const [card] = latestGuidance(rows, 2026);
+      expect(card.history.map((h) => [h.extractor, h.low])).toEqual([
+        ['llm', 15.5],
+        ['code', 16],
+      ]);
+      expect(card.current).toBe(code);
+    }
+  });
+
+  it('날짜가 다르면 같은 값이라도 접지 않는다(유지 확인 이력)', () => {
+    const [card] = latestGuidance(
+      [
+        capex({ published_at: '2026-01-29', extractor: 'llm' }),
+        capex({ published_at: '2026-10-29', direction: 'maintained' }),
+      ],
+      2026
+    );
+    expect(card.history.map((h) => h.published_at)).toEqual(['2026-01-29', '2026-10-29']);
+  });
 });
 
 describe('guidanceStatusNotes', () => {

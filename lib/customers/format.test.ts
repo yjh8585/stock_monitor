@@ -12,6 +12,7 @@ import {
   pctText,
   periodText,
   rangeText,
+  seoulDate,
   toUnit,
   volumeSeriesLabel,
 } from './format';
@@ -246,6 +247,32 @@ describe('guidanceDirection', () => {
     expect(
       guidanceDirection(g({ period: 'FY2025', published_at: '2025-01-28' }), [withdrawn]).label
     ).toBe('최초');
+  });
+  // 전망 지표가 바뀐 사슬(성장률 % → 매출 금액)의 뒤쪽 지표 첫 행 — 수집기는 새 지표라 initiated 로 찍는다
+  it('사슬 뒤쪽 지표의 첫 행은 「최초」 대신 「기준 변경」 · 행의 stated 를 함께', () => {
+    expect(guidanceDirection(g({}), [], { chainStart: true }).label).toBe('기준 변경');
+    expect(guidanceDirection(g({ stated: 'raised' }), [], { chainStart: true }).label).toBe(
+      '기준 변경 · 상향'
+    );
+    expect(guidanceDirection(g({ stated: 'maintained' }), [], { chainStart: true }).label).toBe(
+      '기준 변경 · 유지 확인'
+    );
+    // 사슬 첫 행이 아니면 그대로 최초 · initiated 가 아니면 숫자 방향 그대로
+    expect(guidanceDirection(g({ stated: 'raised' }), []).label).toBe('최초');
+    expect(guidanceDirection(g({ direction: 'raised' }), [], { chainStart: true }).label).toBe(
+      '상향'
+    );
+  });
+  it('철회 뒤 재개는 기준 변경보다 앞선다', () => {
+    const again = g({ period: 'FY2025', published_at: '2025-10-28' });
+    expect(guidanceDirection(again, [withdrawn], { chainStart: true }).label).toBe('재개');
+  });
+});
+
+describe('seoulDate', () => {
+  it('UTC 시각을 서울 날짜로 — UTC 15시 이후는 다음 날', () => {
+    expect(seoulDate('2026-11-09T20:05:00+00:00')).toBe('2026-11-10');
+    expect(seoulDate('2026-11-09T14:59:59.123+00:00')).toBe('2026-11-09');
   });
 });
 

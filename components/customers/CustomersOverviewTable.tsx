@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import type { CustomerOverviewIr, CustomerOverviewRow } from '@/lib/customers/source';
 // 지시어 없는 lib — 서버 컴포넌트가 값으로 불러도 된다('use client' 파일의 함수는 안 된다).
 import { nextEarnings } from '@/lib/customers/ir';
-import { pctClass, pctText } from '@/lib/customers/format';
+import { pctClass, pctText, periodText } from '@/lib/customers/format';
 
 const TD = 'px-3 py-2 whitespace-nowrap';
 const NUM = `${TD} text-right tabular-nums`;
@@ -113,7 +113,7 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
                 <td className={cn(TD, 'tabular-nums', next?.estimated && 'text-muted-foreground')}>
                   {next ? (
                     <span title={next.estimated ? '추정 — 작년 같은 분기 발표일 + 1년' : undefined}>
-                      {next.date} <span className="text-xs">{next.period}</span>
+                      {next.date} <span className="text-xs">{periodText(next.period)}</span>
                       {next.estimated && <span className="ml-1 text-xs">(추정)</span>}
                     </span>
                   ) : (

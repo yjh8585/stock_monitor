@@ -105,6 +105,11 @@ export function periodText(period: string): string {
   return period;
 }
 
+/** 시각(timestamptz 문자열) → 서울 날짜 YYYY-MM-DD. `slice(0, 10)` 은 UTC 날짜라 서울 오전 9시 전 기록이 전날로 찍힌다. */
+export function seoulDate(timestamp: string): string {
+  return new Date(timestamp).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}
+
 // ---------------------------------------------------------------- 실적 칸 각주
 const DERIVED_NOTE = '회사 발표 누계 차이로 계산';
 
@@ -183,13 +188,24 @@ export function earningsFootnotes(
 // ---------------------------------------------------------------- 가이던스
 export type DirectionTone = 'up' | 'down' | 'flat' | 'new';
 
+/** 회사가 문장으로 밝힌 방향(행의 stated) — 상태 메모·「기준 변경」 배지가 함께 쓴다. */
+export const STATED_LABEL: Record<string, string> = {
+  withdrawn: '철회',
+  maintained: '유지 확인',
+  raised: '상향',
+  lowered: '하향',
+};
+
 /**
  * 방향 배지 — 상향(초록)·하향(빨강)·유지(회색)·최초(파랑). 같은 FY 의 철회(상태 행) «뒤에» 처음 낸 전망은
  * 수집기가 initiated 로 찍지만 실제로는 재개라 「재개」로 바꿔 보인다(폴라리스 FY2025 형).
+ * chainStart = 전망 기준이 바뀐 사슬(mergeGuidanceChains)의 뒤쪽 지표 첫 행 — 새 지표라 initiated 지만 처음 낸 전망이
+ * 아니라 「기준 변경」(행의 stated 가 있으면 「기준 변경 · 상향」처럼 함께 · 폴라리스 FY2026 형). 재개가 먼저다.
  */
 export function guidanceDirection(
   row: GuidanceRowTs,
-  statusNotes: GuidanceRowTs[]
+  statusNotes: GuidanceRowTs[],
+  opts: { chainStart?: boolean } = {}
 ): { label: string; tone: DirectionTone } {
   switch (row.direction) {
     case 'raised':
@@ -205,7 +221,12 @@ export function guidanceDirection(
         (s) =>
           s.stated === 'withdrawn' && s.period === row.period && s.published_at < row.published_at
       );
-      return { label: resumed ? '재개' : '최초', tone: 'new' };
+      if (resumed) return { label: '재개', tone: 'new' };
+      if (opts.chainStart) {
+        const stated = row.stated ? (STATED_LABEL[row.stated] ?? row.stated) : null;
+        return { label: stated ? `기준 변경 · ${stated}` : '기준 변경', tone: 'new' };
+      }
+      return { label: '최초', tone: 'new' };
     }
     default:
       return { label: row.direction ?? '—', tone: 'flat' };

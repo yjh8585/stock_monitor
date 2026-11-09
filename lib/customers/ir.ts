@@ -116,6 +116,24 @@ function withdrawnAt(rows: GuidanceRowTs[], period: string, since: string): stri
 
 const fyNum = (period: string) => Number(period.slice(2));
 
+const extractorRank = (r: GuidanceRowTs) => (r.extractor === 'code' ? 1 : 0);
+
+/**
+ * 한 FY 의 이력 — 같은 날 같은 값(DART 공시 code + IR 자료 llm 처럼 같은 전망을 두 문서가 낸 것)은 한 줄로 접고
+ * 코드 추출을 남긴다(코드 우선). 값이 다르면 둘 다 두되 같은 날이면 코드 행을 뒤(= current)로. 그 밖은 입력 순서.
+ */
+function foldHistory(rows: GuidanceRowTs[]): GuidanceRowTs[] {
+  const byKey = new Map<string, GuidanceRowTs>();
+  for (const r of rows) {
+    const k = JSON.stringify([r.published_at, r.low, r.high, r.value_text, r.unit, r.currency]);
+    const kept = byKey.get(k);
+    if (!kept || extractorRank(r) > extractorRank(kept)) byKey.set(k, r);
+  }
+  return [...byKey.values()].sort(
+    (a, b) => a.published_at.localeCompare(b.published_at) || extractorRank(a) - extractorRank(b)
+  );
+}
+
 /**
  * 검증된 행만 · (metric, 통화) 별 카드 하나. 대표 FY = `year`(서울 달력 연도 — 호출부가 currentYear() 로 넘긴다)
  * 이상인 FY 중 가장 가까운 것, 없으면 가장 늦은 FY(작년 전망만 남은 경우). 대표 FY 보다 먼 FY 는 longer_term 으로 —
@@ -135,9 +153,7 @@ export function latestGuidance(
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
   const target = (list: GuidanceRowTs[], period: string): GuidanceTarget => {
-    const history = list
-      .filter((r) => r.period === period)
-      .sort((a, b) => a.published_at.localeCompare(b.published_at));
+    const history = foldHistory(list.filter((r) => r.period === period));
     const current = history.at(-1)!;
     return {
       period,

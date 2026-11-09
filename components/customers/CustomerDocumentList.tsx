@@ -1,9 +1,13 @@
 // 서버 컴포넌트 — 링크 목록뿐이라 클라이언트 코드가 필요 없다.
 import type { CollectStatusItem, CustomerDocumentItem } from '@/lib/customers/source';
-import { docTypeLabel } from '@/lib/customers/format';
+import { docTypeLabel, seoulDate } from '@/lib/customers/format';
 
 const SOURCE: Record<string, string> = { dart: 'DART', edgar: 'SEC EDGAR', ir: '회사 IR' };
-const PROBLEM: Record<string, string> = { blocked: '차단', parse_failed: '읽기 실패' };
+const PROBLEM: Record<string, string> = {
+  blocked: '차단',
+  parse_failed: '읽기 실패',
+  error: '오류',
+};
 
 interface Props {
   documents: CustomerDocumentItem[];
@@ -18,7 +22,7 @@ export function CollectProblems({ items }: { items: CollectStatusItem[] }) {
     <ul className="space-y-0.5 text-xs text-rose-600">
       {bad.map((s) => (
         <li key={s.collector}>
-          수집 {PROBLEM[s.status]}({s.collector} · {s.checked_at.slice(0, 10)} 확인) —{' '}
+          수집 {PROBLEM[s.status]}({s.collector} · {seoulDate(s.checked_at)} 확인) —{' '}
           {s.reason ?? '사유 미기록'}
         </li>
       ))}
