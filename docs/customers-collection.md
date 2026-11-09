@@ -27,7 +27,7 @@
 - `customer_volume_ir` — 회사 공표 출하·인도·생산·도매·판매 물량. PK (`company_id`, `metric`, `region`, `period_grain`, `period`) · `definition`(정의 문구)
 - `customer_reported_results` — 회사 발표 실적(회사가 쓴 지표 이름 그대로 · `basis` 장부상/조정). PK (`company_id`, `period_grain`, `period`, `metric`)
 - `customer_earnings_dates` — 다음 실적 발표일. PK (`company_id`, `period`) · 기간은 `YYYY-Qn`·연간 `YYYY-FY`
-- `customer_collect_status` — 수집기별 마지막 상태·화면용 사유(`blocked` 면 「접근 차단으로 미수집」을 화면에 보인다). PK (`company_id`, `collector`)
+- `customer_collect_status` — 수집기별 마지막 상태·화면용 사유(`blocked`「차단」·`parse_failed`「읽기 실패」·`error`「오류」 면 라벨과 사유를 화면에 보인다 — `ok`·`no_new` 만 조용하다). PK (`company_id`, `collector`)
 
 마이그레이션 = `20261109000003`(명단) · `20261109000004`(6종 + `companies.sec_cik`) · `20261109000005`(`currency`·`llm_attempts`).
 
@@ -58,7 +58,10 @@
 
 - 🔴 **숫자는 `customer_parsers` 코드 우선 · LLM 은 파서의 `llm_wants` 칸만 · 화면은 `verified=true` 만.** 코드 행도 LLM 행도 `quote_check` 를 지나야 참이다. 가이던스 방향은 LLM 이 아니라 `guidance_direction` 이 직전 verified 행과 숫자로 비교해 정한다.
 - 🔴 **「새 문서인데 숫자 0개」는 exit 1**(파싱 실패). 「대상 아님」·LLM 재시도 대기·접근 차단(401·403)은 실패가 아니다(상태 표에 사유가 남는다). 종료 코드 표 = [`commands.md`](./commands.md).
-- **LLM 안 돈 문서 찾기** — `parse_note like 'LLM 대기%'`(키 없음·`--no-llm`·재시도 대기) → 문서마다 `--reparse`. 코드 문구가 빠져 LLM 이 메운 문서 = `parse_note like '%코드 문구 미스%'`.
+- 🔴 **회사 상태 `parse_failed` 는 DB 의 닫힌 failed 문서로도 매긴다**(사유 「닫힌 실패 문서 N건 — --reparse 필요」) — 이번 실행의 실패만 보면 다음 날 다른 문서가 파싱돼 `ok` 로 덮인다. exit 1 은 그대로 «이번 실행에서 새로 생긴» 실패만.
+- 🔴 **LLM 이 읽을 문서(`llm_wants`)인데 LLM 이 못 돈 실행(키 없음·`--no-llm`)은 문서를 닫지 않는다** — 판정과 무관하게 `pending` + note 「LLM 대기」(코드 행은 그때 싣는다 · 멱등) → 다음 실행이 다시 집는다. 상태 사유 「LLM 키 없음 n건」. 예전의 「parsed 인데 note 맨 앞 『LLM 대기 — 코드 행만 적재』」 표식은 없어졌다.
+- **서식 미인식** — 숫자가 반드시 있어야 하는 문서(EDGAR 8-K Item 2.02 · 파서 `expects_numbers` — `kr_dart` 는 잠정실적)인데 코드가 서식을 못 알아봐 `not_target` 이면 note 「서식 미인식」 · 상태 사유 · GHA `::warning::`(exit 0). 분기 잠정 «범위»만 낸 2.02(폴라리스 2025-10-14 · 리비안 2026-07-06)는 일부러 안 읽는 문서라 새로 오면 한 번 뜬다.
+- **LLM 안 돈 문서 찾기** — `parse_note like 'LLM 대기%'`(키 없음·`--no-llm`·재시도 대기 — 전부 `pending` 이라 다음 실행이 다시 집는다). 코드 문구가 빠져 LLM 이 메운 문서 = `parse_note like '%코드 문구 미스%'`. 서식 미인식 = `parse_note = '서식 미인식'`.
 
 ### `scripts/customer_parsers/`
 
@@ -71,7 +74,7 @@
 - `ir_lists.py`(고객사 IR 사이트 «문서 목록» 어댑터 — 폭스바겐·포르쉐·폴라리스·현대차·기아·현대모비스·KGM. 회사마다 받기 `fetch_*` 와 순수 `parse_*` 를 가르고 `test_ir_lists.py` 가 `fixtures/ir_lists/`(2026-11 실물을 자른 응답)로 본다. `source_id` 는 `ir_source_id()` 한 곳에서만 만든다(호스트+경로 · 쿼리 제외 · 모비스만 서버 파일명 — 다운로드 쿼리가 요청마다 바뀐다). 🔴 **날짜 칸 없는 목록(현대차·모비스)은 `_quarter` 로 내고 수집기가 같은 분기 DART «연결» 잠정실적 공시일로 채운다** — 월 판매 공시도 이름이 「영업(잠정)실적」이라 섞으면 날짜가 틀린다. KGM 발표자료는 같은 분기 보도자료 날짜(파일 올린 날은 재업로드면 한 달 늦어 안 쓴다). 못 찾으면 보류로 세고 지어내지 않는다. 하위 목록 하나가 0건이면 그 이름을 실은 `EmptyListError`. 실적 일정 기간은 `YYYY-Qn`·연간 `YYYY-FY`. GM IR 은 403 이라 어댑터 없이 `probe_gm()` 만)
 - `quote_check.py`(인용·숫자 대조기 — 순수 함수, agents 규칙 이식. 고객사 파서가 뽑은 행의 quote 가 원문에 있고 값이 그 quote 안에 있는지 본다 → `check_row`·일정은 `check_date_row`. 🔴 **코드 행도 LLM 행도 이걸 지나야 `verified=true`** · 자가 시험 `self_test()`(MUST_HIT·MUST_MISS·DATE_HIT·DATE_MISS — 한국어 띄어쓰기 변이는 통과·활용형은 실패로 고정)를 본 실행 «전에» 부를 것)
 - `guidance_direction.py`(가이던스 방향 raised·maintained·lowered·initiated·withdrawn — 같은 회사·metric·period 의 직전 «verified» 행과 숫자로 비교하는 순수 함수, `test_guidance_direction.py`. 🔴 **LLM 이 방향을 정하지 않는다** · 가운데값 상대 차 0.5% 이내는 maintained(범위 좁히기도 maintained — 원문 낱말보다 숫자가 우선) · 호출은 `collect_customer_numbers.py` 가 회사마다 전부 다시 매긴다)
-- `llm_guidance.py`(고객사 가이던스 LLM 추출 — 코드 파서가 못 뽑는 칸(파서의 `llm_wants`)만. 모델 상수 `MODEL`(env `CUSTOMER_GUIDANCE_MODEL`, 기본 `claude-sonnet-5-5`) 한곳 · 구조화 출력 `SCHEMA` · `test_llm_guidance.py`. 🔴 **코드 우선**(같은 문서·metric·period 의 코드 행이 있으면 LLM 행을 버린다) · LLM 행도 `quote_check` 를 지나야 verified · 응답 중단(max_tokens·refusal)은 빈 목록이 아니라 예외(문서는 LLM 대기로 남는다) · 🔴 `quote_check` 는 배수 아무것으로나 수를 맞춰 보므로 규모·통화·기간이 틀린 행도 통과한다 → `screen` 이 돌려주기 전에 거른다(분기·반기 표지 · 원문 배수 낱말로 구한 절대값 ≠ low×단위 · 값에 붙은 외화 표지인데 `currency` 빈칸(값 뒤 괄호 환산은 그 값의 통화가 아니다) · CAGR · 숫자 `other` · 파서 `LLM_DROP`) — 원문 'N억' 을 billion 으로 적은 행만 million 으로 환산. 거른 수는 문서 note 「LLM 거름」)
+- `llm_guidance.py`(고객사 가이던스 LLM 추출 — 코드 파서가 못 뽑는 칸(파서의 `llm_wants`)만. 모델 상수 `MODEL`(env `CUSTOMER_GUIDANCE_MODEL`, 기본 `claude-sonnet-5-5`) 한곳 · 구조화 출력 `SCHEMA` · `test_llm_guidance.py`. 🔴 **코드 우선**(같은 문서·metric·period 의 코드 행이 있으면 LLM 행을 버린다) · LLM 행도 `quote_check` 를 지나야 verified · 응답 중단(max_tokens·refusal)은 빈 목록이 아니라 예외(문서는 LLM 대기로 남는다) · 🔴 `quote_check` 는 배수 아무것으로나 수를 맞춰 보므로 규모·통화·기간이 틀린 행도 통과한다 → `screen` 이 돌려주기 전에 거른다(분기·반기 표지 · 원문 배수 낱말로 구한 절대값 ≠ low×단위 · 값에 붙은 외화 표지인데 `currency` 빈칸(값 뒤 괄호 환산은 그 값의 통화가 아니다) · CAGR · 숫자 `other` · 파서 `LLM_DROP` · 문서 발행 연도보다 앞선 해 · low > high) — 원문 'N억' 을 billion 으로 적은 행만 million 으로 환산. 🔴 `stated` 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·reaffirm·lower·withdraw·상향·유지 …)이 없으면 `stated` 만 지운다(방향 계산이 `withdrawn` 을 숫자보다 먼저 쓴다). 거른 수는 문서 note 「LLM 거름」)
 
 ## 수집 함정 (2026-11-09~10 실측)
 

@@ -4,6 +4,8 @@
   PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe -m pytest scripts/lib/test_customer_numbers.py -q
 """
 import importlib.util
+import io
+import os
 import pathlib
 import re
 import sys
@@ -114,21 +116,37 @@ class PendingTests(unittest.TestCase):
     run2.process(_DOC, None, ccn.NOTE_LLM_WAIT)
     ws2.table.assert_not_called()
 
-  def test_parsed_but_llm_not_run_marks_note(self):
-    """코드 행은 뽑혀 parsed 인데 llm_wants 가 참이고 LLM 이 안 돌았다 → parsed 그대로 + note 맨 앞 LLM 대기 표식.
-    llm_wants 가 거짓이면 표식이 없다."""
-    for wants, want_note in ((True, ccn.NOTE_LLM_WAIT_PARSED), (False, None)):
+  def test_parsed_but_llm_not_run_keeps_pending(self):
+    """최종 검토 P8 — 코드 행은 뽑혀 parsed 감인데 llm_wants 가 참이고 LLM 이 안 돌았다 → 코드 행은 싣되 문서는 pending +
+    NOTE_LLM_WAIT(다음 실행이 다시 집는다 · 전엔 parsed 로 닫혀 사람이 --reparse 해야 했다). llm_wants 거짓이면 parsed."""
+    for wants, want in ((True, ('pending', ccn.NOTE_LLM_WAIT)), (False, ('parsed', None))):
       mod = _mod()
       mod.llm_wants = lambda d, r, w=wants: w
       run, ws = _run(mod)   # no_llm=True
       with patch.object(ccn, 'existing_pubs', return_value={}):
         run.process(_DOC, None, None)
       last = _doc_patches(ws)[-1]
-      self.assertEqual(last['parse_status'], 'parsed')
-      self.assertEqual(last['parse_note'], want_note)
-      if want_note:
-        self.assertTrue(last['parse_note'].startswith('LLM 대기'))   # 두 표식이 한 LIKE 로 뽑힌다
-        self.assertTrue(ccn.NOTE_LLM_WAIT.startswith('LLM 대기'))
+      self.assertEqual((last['parse_status'], last['parse_note']), want)
+      self.assertTrue(ws.table.return_value.upsert.called)   # 코드 행은 어느 쪽이든 실린다
+      if wants:
+        self.assertEqual(run.outcomes['parsed'], 0)
+        self.assertEqual(run.outcomes['llm_wait_parsed'], 1)   # finish 가 방향을 다시 매기는 근거
+    # 같은 note 면 문서 행은 다시 쓰지 않는다(코드 행 upsert 는 멱등)
+    mod = _mod()
+    mod.llm_wants = lambda d, r: True
+    run, ws = _run(mod)
+    with patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, ccn.NOTE_LLM_WAIT)
+    self.assertEqual(_doc_patches(ws), [])
+
+  def test_failed_but_llm_not_run_keeps_pending(self):
+    """최종 검토 P8(검토 M1) — 코드가 서식은 알아봤는데 0행(failed 감)이고 LLM 이 읽을 문서인데 안 돌았다 → pending."""
+    mod = _mod(parse=lambda d, c: base.ParseResult(recognized=True))
+    mod.llm_wants = lambda d, r: True
+    run, ws = _run(mod)
+    run.process(_DOC, None, None)
+    self.assertEqual(_doc_patches(ws), [{'parse_status': 'pending', 'parse_note': ccn.NOTE_LLM_WAIT}])
+    self.assertEqual(run.outcomes['failed'], 0)
 
   def test_llm_no_key_keeps_pending(self):
     """LLM 을 켜고(no_llm=False) 돌렸는데 키가 없다(클라이언트 None) → 예외 없이 pending + LLM 대기 · extract 안 부른다."""
@@ -684,6 +702,84 @@ class StoreTests(unittest.TestCase):
       run.process(_DOC, None, ccn.NOTE_NO_PARSER)
       run.finish('ACME', 1)
     d.assert_not_called()
+
+
+class FinishStatusTests(unittest.TestCase):
+  """finish 의 상태 행·경고 — P3 닫힌 실패 · P4 서식 미인식 · P6 차단 경고 · P8 LLM 키 없음."""
+
+  def _finish(self, run, gha=False):
+    env = {'GITHUB_ACTIONS': 'true'} if gha else {}
+    with patch('collect_customer_docs.write_status') as st, patch.dict(os.environ, env), \
+         patch('sys.stdout', new_callable=io.StringIO) as out:
+      if not gha:
+        os.environ.pop('GITHUB_ACTIONS', None)
+      fails = run.finish('ACME', 1)
+    return st.call_args.args[3], st.call_args.args[4] or '', fails, out.getvalue()
+
+  def test_closed_failures_make_parse_failed(self):
+    """P3 — 이번 실행엔 실패가 없어도 DB 에 닫힌 failed 문서가 있으면 parse_failed(다음 날 ok 로 덮이지 않게) ·
+    exit 사유엔 안 넣는다(새로 생긴 실패만 exit 1)."""
+    run, _ = _run(_mod())
+    docs = run.client.table.return_value.select.return_value.eq.return_value.eq.return_value
+    docs.execute.return_value.data = [{'id': 1}, {'id': 2}]
+    status, reason, fails, _ = self._finish(run)
+    self.assertEqual(status, 'parse_failed')
+    self.assertIn('닫힌 실패 문서 2건 — --reparse 필요', reason)
+    self.assertEqual(fails, 0)
+    run.client.table.assert_any_call('customer_documents')
+    run.client.table.return_value.select.return_value.eq.return_value.eq.assert_any_call('parse_status', 'failed')
+
+  def test_no_closed_failures_ok(self):
+    run, _ = _run(_mod())
+    run.client.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+    status, reason, fails, _ = self._finish(run)
+    self.assertEqual((status, reason, fails), ('ok', '', 0))
+
+  def test_unrecognized_note_reason_warning(self):
+    """P4 — 숫자가 반드시 있어야 하는 문서(EDGAR 8-K Item 2.02 · 파서 expects_numbers)가 not_target 이면 note 「서식 미인식」 ·
+    상태 사유 · GHA 경고(exit 0). Item 2.02 가 없는 8-K 는 그대로 조용한 not_target."""
+    mod = _mod(parse=lambda d, c: base.ParseResult())
+    run, ws = _run(mod)
+    run.process(_doc(source='edgar', doc_type='earnings_release', form='8-K', items='2.02,9.01'), None, None)
+    last = _doc_patches(ws)[-1]
+    self.assertEqual((last['parse_status'], last['parse_note']), ('not_target', ccn.NOTE_UNRECOGNIZED))
+    status, reason, fails, out = self._finish(run, gha=True)
+    self.assertEqual((status, fails), ('ok', 0))
+    self.assertIn('서식 미인식 1건', reason)
+    self.assertIn('::warning::ACME', out)
+    # Item 2.02 없음 → note 없음
+    run2, ws2 = _run(mod)
+    run2.process(_doc(source='edgar', doc_type='current_report', form='8-K', items='5.02,9.01'), None, None)
+    last2 = _doc_patches(ws2)[-1]
+    self.assertEqual((last2['parse_status'], last2['parse_note']), ('not_target', None))
+    # 파서가 판정을 정하면(kr_dart 잠정실적 등) 그것을 쓴다
+    mod3 = _mod(parse=lambda d, c: base.ParseResult())
+    mod3.expects_numbers = lambda d: True
+    run3, ws3 = _run(mod3)
+    run3.process(_DOC, None, None)
+    self.assertEqual(_doc_patches(ws3)[-1]['parse_note'], ccn.NOTE_UNRECOGNIZED)
+
+  def test_blocked_warning_in_gha(self):
+    """P6 — 숫자 수집기의 내용 접근 차단도 목록 수집기처럼 GHA 경고(exit 0)."""
+    def fetch(session, doc):
+      raise _http_error(403)
+    run, _ = _run(_mod(fetch=fetch))
+    run.process(_DOC, None)
+    status, _, fails, out = self._finish(run, gha=True)
+    self.assertEqual((status, fails), ('blocked', 0))
+    self.assertIn('::warning::ACME', out)
+    self.assertIn('접근 차단', out)
+
+  def test_llm_no_key_reason(self):
+    """P8 — 키가 없어 LLM 칸을 못 돌린 문서 수를 상태 사유에(pending 으로 남아 다음 실행이 다시 집는다)."""
+    mod = _mod(parse=lambda d, c: base.ParseResult())
+    mod.llm_wants = lambda d, r: True
+    ws = MagicMock()
+    run = ccn._CompanyRun(mod, MagicMock(), None, ws, SimpleNamespace(dry_run=False, no_llm=False), 'c-1', None)
+    run.process(_DOC, None, None)
+    _, reason, fails, _ = self._finish(run)
+    self.assertIn('LLM 키 없음 1건', reason)
+    self.assertEqual(fails, 0)
 
 
 class DirectionTests(unittest.TestCase):

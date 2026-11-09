@@ -1,8 +1,9 @@
 """고객사 문서 «내용» → 숫자. 순서: 자가 시험(exit 2) → pending 문서(오래된 것부터) → 내용 1회 받기 →
 회사 파서 → (llm 칸만) LLM → 어휘·기간 형식 거르기 → 인용·숫자 대조 → 적재 → 가이던스 방향 재계산 → 상태 기록.
 
-exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사유가 남는다)
-     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외·LLM 재시도 상한) 또는 내용 받기 실패(401·403 밖) 1건 이상
+exit 0 정상(내용 접근 차단 401·403 · 서식 미인식 포함 — 상태 표에 사유가 남고 GHA 에선 ::warning:: 으로 노랗게 뜬다)
+     1 이번 실행에서 새로 생긴 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외·LLM 재시도 상한) 또는 내용 받기
+       실패(401·403 밖) 1건 이상 — 이미 닫힌 failed 문서는 상태(parse_failed)로만 드러나고 exit 엔 안 들어간다
        (LLM 재시도 대기 = pending 은 exit 1 이 아니다 — LLM 은 실행마다 결과가 달라 한 번 실패로 GHA 를 빨갛게 하지 않는다)
      2 자가 시험 실패 · 인자 오류 · --add-file 대상 회사에 파서 없음
 사용: collect_customer_numbers.py [--company TICKER] [--no-llm] [--reparse DOC_ID] [--dry-run]
@@ -14,12 +15,16 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
 🔴 등록부(customer_parsers.MODULE_NAMES)에 파서가 없는 회사의 문서는 pending 그대로 둔다. not_target 으로 닫으면 나중에
    그 회사 파서가 생겨도 문서를 다시 못 본다(--reparse 를 문서마다 돌려야 한다).
    같은 까닭으로 파서의 wants 가 거짓인 문서(IR 출처 등)도 pending + note 「대상 파서 없음」, LLM 이 읽을 문서(llm_wants)인데
-   LLM 이 이번에 못 돈 문서도 pending + note 「LLM 대기」 — 같은 note 면 다시 쓰지 않는다(매 실행 쓰기 0).
-   코드 행은 뽑혀 parsed 로 닫는 문서도 llm_wants 가 참인데 LLM 이 안 돌았으면 note 맨 앞에 「LLM 대기 — 코드 행만 적재」
-   (parsed 는 pending 목록에 다시 안 끼므로 매 실행 쓰기 0 이 그대로다). LLM 안 돈 문서 전부:
-   select id from customer_documents where parse_note like 'LLM 대기%'  → 문서마다 --reparse.
+   LLM 이 이번에 못 돈 문서(키 없음·--no-llm)도 판정(not_target·failed·parsed)과 무관하게 pending + note 「LLM 대기」 —
+   코드 행이 parsed 감이면 지금 싣고(멱등) 다음 실행이 다시 집는다(최종 검토 P8 — 전엔 parsed·failed 로 닫혀 --reparse 가
+   필요했다). 같은 note 면 문서 행은 다시 쓰지 않는다. 상태 사유에 「LLM 키 없음 n건」.
+🔴 숫자가 반드시 있어야 하는 문서(_expects_numbers — EDGAR 8-K Item 2.02 · 파서 expects_numbers)인데 코드가 서식을 못
+   알아봐 not_target 이면 note 「서식 미인식」 · 상태 사유 · GHA ::warning::(exit 0 · 최종 검토 P4).
+🔴 회사 상태 parse_failed 는 DB 의 닫힌 failed 문서 수(closed_failures)로도 매긴다 — 사유 「닫힌 실패 문서 N건 — --reparse 필요」
+   (최종 검토 P3 — 실패 다음 날 다른 문서가 파싱돼 ok 로 덮이지 않게).
 🔴 LLM(Task 11 · lib.llm_guidance): 클라이언트는 실행마다 한 번 — ANTHROPIC_API_KEY 가 없으면 LLM 칸만 건너뛴다(위 「LLM 대기」).
    exit 는 0 그대로 — GHA 에서는 대상 문서가 있으면 ::warning:: 으로 실행 요약에 띄운다(키 누락을 놓치지 않게).
+   LLM 안 돈·재시도 대기 문서 찾기 = parse_note like 'LLM 대기%'(전부 pending 이라 다음 실행이 다시 집는다).
    🔴 LLM 재시도(customer_documents.llm_attempts): extract 예외(API 오류·JSON·응답 중단)이거나 값 행이 전부 LLM 행인데
    전부 대조 실패면 그 문서만 pending 으로 두고 llm_attempts +1 · note 「LLM 대기 — <사유> (n/3)」 — 코드 행은 그대로 적재하고
    다음 실행이 다시 시도한다(코드 행 적재는 upsert·선삭제라 멱등). 3회째면 닫는다: 코드 값 행이 있으면 parsed + note
@@ -31,8 +36,8 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
    LLM 행이 파서 문구 미스를 가리지 않게(Task 7 carry). 찾기 = parse_note like '%코드 문구 미스%'.
 🔴 LLM 행이 1건 이상이면 코드 파서의 recognized=False 보다 우선한다(judge — 중장기 Investor Day 처럼 코드가 못 알아보는 서식).
 🔴 내용 받기 실패는 그 문서만 처리하고 다음 문서로 간다(note = 예외 클래스·HTTP 상태만 — 본문·URL 금지).
-   일시 실패(401·403·408·425·429·5xx·연결·시간 초과·만료 URL)는 pending 그대로 note 만 → 다음 실행이 다시 시도하고 회사 상태가
-   blocked·error 로 매번 다시 난다. 영구 실패(404·410·그 밖 4xx·내용 형식 오류)만 failed 로 닫는다.
+   일시 실패(401·403·408·425·429·5xx·연결·시간 초과·만료 URL·DART 키 없음·DART 비-zip 응답)는 pending 그대로 note 만 →
+   다음 실행이 다시 시도하고 회사 상태가 blocked·error 로 매번 다시 난다(blocked 는 GHA ::warning:: · 최종 검토 P6). 영구 실패(404·410·그 밖 4xx·내용 형식 오류)만 failed 로 닫는다.
    현대모비스 IR URL 의 fileId 는 요청마다 바뀌어 저장된 URL 이 만료될 수 있다 → note 에 「만료 가능 URL」.
 🔴 파서 예외(parse · 파서 모듈 fetch 의 AttributeError·TypeError 등)는 그 문서만 failed('파서 예외: <클래스>').
 출력은 회사·문서 건수·행수만(금액 금지 — 공개 수치여도 습관을 지킨다).
@@ -51,10 +56,11 @@ from lib.ir_lists import BLOCKED_HTTP
 
 DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note,llm_attempts'
 NOTE_NO_PARSER = '대상 파서 없음'
+# LLM 이 읽을 문서(llm_wants)인데 이번에 LLM 이 안 돌았다(키 없음·--no-llm) — 판정과 무관하게 pending 으로 둔다(P8)
 NOTE_LLM_WAIT = 'LLM 대기 — 코드 파서가 못 알아보는 서식'
-# parsed 로 닫되 LLM 칸을 못 읽은 문서 — 두 표식 모두 'LLM 대기' 로 시작해 parse_note LIKE 'LLM 대기%' 한 번으로 뽑힌다
-NOTE_LLM_WAIT_PARSED = 'LLM 대기 — 코드 행만 적재(LLM 칸 미실행)'
 NOTE_NO_KEY = 'LLM 키 없음'
+# 숫자가 반드시 있어야 하는 문서(_expects_numbers)인데 코드가 서식을 못 알아봤다 — not_target 이지만 흔적을 남긴다(P4)
+NOTE_UNRECOGNIZED = '서식 미인식'
 NOTE_LLM_FAIL = 'LLM 실패'
 NOTE_CODE_MISS_ONLY = '코드 문구 미스 — LLM 행만'          # 코드 표식은 있는데 코드 가이던스 0행 → LLM 이 전부 채움
 NOTE_CODE_MISS_FILL = '코드 문구 미스 — LLM 이 빠진 항목 메움'  # 코드 가이던스 일부 + LLM 이 나머지
@@ -204,6 +210,24 @@ def judge(res, verified_values: int, verified_dates: int, llm_rows: int = 0) -> 
   if verified_values == 0:
     return 'failed', '대조 통과 0'
   return 'parsed', None
+
+
+def _expects_numbers(mod, doc) -> bool:
+  """숫자가 반드시 있어야 하는 문서인가(최종 검토 P4) — 파서 모듈의 expects_numbers(doc)가 있으면 그것(kr_dart: 잠정실적·
+  월 판매), 없으면 EDGAR 8-K Item 2.02(실적 발표) 문서. 거짓인 not_target(NDR·임원 변경 8-K 등)은 그대로 조용하다.
+  ⚠️ 2.02 라도 분기 잠정 «범위»만 낸 8-K(폴라리스 2025-10-14 · 리비안 2026-07-06)는 코드가 일부러 안 읽는다 — 그런
+  문서가 새로 오면 이 표식이 한 번 뜬다(사람이 보고 넘기면 된다 · 닫힌 문서라 다음 실행엔 안 뜬다)."""
+  hook = getattr(mod, 'expects_numbers', None)
+  if hook is not None:
+    return bool(hook(doc))
+  return doc.source == 'edgar' and '2.02' in (doc.items or '').split(',')
+
+
+def closed_failures(client, company_id: str) -> int:
+  """그 회사의 닫힌 실패 문서(parse_status='failed') 수 — 이번 실행 밖에서 생긴 것까지(P3).
+  SHORTCUT: 한 응답(최대 1,000행)만 센다 — 회사당 failed 는 0~수 건(2026-11-10 전체 0건) → 넘으면 count='exact'."""
+  return len(client.table('customer_documents').select('id').eq('company_id', company_id)
+             .eq('parse_status', 'failed').execute().data)
 
 
 def verify(res, text: str) -> dict:
@@ -581,14 +605,20 @@ class _CompanyRun:
     if retry:
       return self._llm_retry(doc, res, checks, notes, status, note, retry, llm_attempts, sha, v_values, v_dates)
     llm_missed = llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res)
-    if status == 'not_target' and llm_missed:
-      # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·키 없음) — 닫으면 다시 못 본다
+    if llm_missed:
+      # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·키 없음) — 판정이 무엇이든(not_target·failed·parsed) 닫지 않고
+      # pending + NOTE_LLM_WAIT(다음 실행이 다시 집는다 · 최종 검토 P8). 코드 행이 parsed 감이면 지금 싣는다(upsert·선삭제라
+      # 다음 실행이 다시 실어도 멱등 · llm_ran=False 라 옛 LLM 행은 남는다)
+      if status == 'parsed':
+        self._store(doc, payloads(doc, res, checks, set()), llm_ran=False)
+        self.verified['values'] += v_values
+        self.verified['dates'] += v_dates
+        self.outcomes['llm_wait_parsed'] += 1   # finish 가 방향을 다시 매기는 근거
       return self._keep_pending(doc, NOTE_LLM_WAIT, prev_note, 'llm_wait')
-    if status == 'parsed' and llm_missed:
-      # 코드 행은 정상이라 parsed 로 닫되, LLM 칸(가이던스)을 못 읽었다는 표식을 note 맨 앞에 — 나중에 LLM 경로가
-      # 붙으면 parse_note LIKE 'LLM 대기%' 로 뽑아 --reparse 한다. 다음 --reparse 에서 LLM 이 돌면 note 가 새로 써져 사라진다
-      notes.insert(0, NOTE_LLM_WAIT_PARSED)
-      self.outcomes['llm_wait_parsed'] += 1
+    if status == 'not_target' and _expects_numbers(self.mod, doc):
+      # 숫자가 반드시 있어야 하는 문서인데 코드가 서식을 못 알아봤다 — 조용한 not_target 이 아니라 흔적을 남긴다(P4)
+      note = NOTE_UNRECOGNIZED
+      self.outcomes['unrecognized'] += 1
     if note:
       notes.insert(0, note)
     self.outcomes[status] += 1
@@ -682,32 +712,48 @@ class _CompanyRun:
     return len(changed)
 
   def finish(self, ticker: str, n_docs: int) -> int:
-    """방향 재계산 · 상태 행 · 한 줄 출력. 반환 = exit 1 사유 건수(파싱 실패 + 401·403 밖 받기 실패).
+    """방향 재계산 · 상태 행 · 한 줄 출력. 반환 = exit 1 사유 건수(이번 실행에서 새로 생긴 파싱 실패 + 401·403 밖 받기 실패).
     상태 우선순위 parse_failed > blocked > error > ok — 일시 실패 문서는 pending 이라 매 실행 다시 시도돼
-    차단(401·403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다)."""
+    차단(401·403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다).
+    🔴 parse_failed 는 이번 실행의 실패만이 아니라 DB 의 닫힌 failed 문서(closed_failures)로도 매긴다 — 안 그러면 실패한
+    다음 날 다른 문서가 파싱돼 ok 로 덮인다(최종 검토 P3). exit 는 그대로 «새로 생긴» 실패만(매일 빨갛게 하지 않게).
+    차단·서식 미인식은 exit 0 이고 GHA 에선 ::warning:: 으로 실행 요약에 노랗게 띄운다(목록 수집기와 같은 규약 · P4·P6)."""
     from collect_customer_docs import write_status
     from lib import llm_guidance
     o = self.outcomes
-    # 가이던스를 쓴 문서(parsed · LLM 재시도 대기 중 코드 행을 실은 문서)가 하나라도 있으면 다시 매긴다 — 실은
+    # 가이던스를 쓴 문서(parsed · LLM 재시도·LLM 대기 중 코드 행을 실은 문서)가 하나라도 있으면 다시 매긴다 — 실은
     # 가이던스가 0행이어도 선삭제가 옛 행을 지웠을 수 있고, 그러면 뒤 문서가 옛 기준으로 매긴 방향을 그대로 들고 남는다
-    moved = self._directions() if o['parsed'] or o['llm_retry'] else 0
+    moved = self._directions() if o['parsed'] or o['llm_retry'] or o['llm_wait_parsed'] else 0
     parse_failed, blocked = o['failed'], o['blocked']
     fetch_failed = o['fetch_failed'] + o['fetch_retry']
+    closed = closed_failures(self.client, self.cid)
     llm_retry = o['llm_retry']
-    reasons = []
+    reasons, warn = [], []
     if parse_failed:
       reasons.append(f'새 문서 {parse_failed}건에서 숫자를 못 뽑음(파서 점검 필요)')
+    if closed:
+      reasons.append(f'닫힌 실패 문서 {closed}건 — --reparse 필요')
     if blocked:
-      reasons.append(f'문서 {blocked}건 내용 접근 차단(HTTP 401·403)')
+      warn.append(f'문서 {blocked}건 내용 접근 차단(HTTP 401·403)')
     if fetch_failed:
       reasons.append(f'문서 {fetch_failed}건 내용 받기 실패')
+    if o['unrecognized']:
+      warn.append(f'{NOTE_UNRECOGNIZED} {o["unrecognized"]}건(숫자가 있어야 할 문서를 코드가 못 알아봄 — 파서 점검)')
+    if o['llm_wait']:
+      why = 'LLM 건너뜀(--no-llm)' if self.args.no_llm else NOTE_NO_KEY
+      reasons.append(f'{why} {o["llm_wait"]}건(pending · 다음 실행이 다시 읽는다)')
     if llm_retry:
       reasons.append(f'문서 {llm_retry}건 LLM 재시도 대기(pending · 다음 실행이 다시 시도)')
     if o['llm_gave_up']:
       reasons.append(f'문서 {o["llm_gave_up"]}건 LLM {LLM_MAX_ATTEMPTS}회 실패로 닫음')
-    status = ('parse_failed' if parse_failed else 'blocked' if blocked else 'error' if fetch_failed else 'ok')
+    reasons += warn
+    status = ('parse_failed' if parse_failed or closed else 'blocked' if blocked else 'error' if fetch_failed
+              else 'ok')
     if not self.args.dry_run:
       write_status(self.ws, self.cid, 'parse', status, ' · '.join(reasons) or None)
+    if warn and os.environ.get('GITHUB_ACTIONS'):
+      for w in warn:
+        print(f'::warning::{ticker} · {w}')
     kinds = ' '.join(f'{k}={v}' for k, v in sorted(o.items()))
     tabs = ' '.join(f'{t.removeprefix("customer_")}={n}' for t, n in sorted(self.rows.items()))
     moved_label = '방향 바뀜(기존 행만 · 적재 예정 미반영)' if self.args.dry_run else '방향 바뀜'

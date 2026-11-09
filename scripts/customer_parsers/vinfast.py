@@ -76,8 +76,8 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
     ② 전망·일정 공지 6-K('ANNOUNCES 2026 GUIDANCE AND SET DATE …' 2026-02-09)·4분기 인도 6-K(2025-02-13) —
        실적 일정 문장이 잡힌 문서
   🔴 실적 표를 코드로 다 뽑아 recognized 여도 전망 문장은 LLM 칸이라 참을 돌려준다(오케스트레이터 _llm 은
-  recognized 와 무관하게 이 함수를 부른다). --no-llm 실행이면 이 문서는 parsed 로 닫히되 parse_note 맨 앞에
-  「LLM 대기」 표식이 남는다 — LLM 이 생긴 뒤 parse_note LIKE 'LLM 대기%' 로 뽑아 --reparse 한다."""
+  recognized 와 무관하게 이 함수를 부른다). --no-llm·키 없는 실행이면 코드 행만 싣고 문서는 pending + 「LLM 대기」 로
+  남아 다음 실행이 다시 집는다(최종 검토 P8 — 전엔 parsed 로 닫혀 사람이 --reparse 해야 했다)."""
   return any(x.metric_name == 'Total Revenues' for x in result.results) or bool(result.dates)
 
 

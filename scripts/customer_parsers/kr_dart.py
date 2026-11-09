@@ -102,6 +102,13 @@ def wants(doc: Doc) -> bool:
     'prelim_results', 'earnings_release', 'guidance', 'ir_event')
 
 
+def expects_numbers(doc: Doc) -> bool:
+  """숫자가 반드시 있어야 하는 문서(오케스트레이터가 not_target 이면 「서식 미인식」 으로 드러낸다 · 최종 검토 P4) —
+  DART 영업(잠정)실적 공정공시(분기 잠정실적·월 판매 · doc_type prelim_results/earnings_release). IR 개최 공고(NDR 등)·
+  가이던스(중장기는 LLM 몫)는 숫자 없는 not_target 이 정상이라 빠진다. 실측(2026-11-10): prelim_results 110건 전부 parsed."""
+  return doc.source == 'dart' and doc.doc_type in ('prelim_results', 'earnings_release')
+
+
 def _int(s: str) -> int:
   """'1,234' → 1234 · '-298' → -298 · '△89'·'△ 89' → -89."""
   s = s.replace(',', '').replace(' ', '')
@@ -489,7 +496,10 @@ def _parse_doc_test() -> list[str]:
   res = parse(doc, Content(text=broken + ' ' + _HMC_3Q26))
   if not res.recognized or res.count():
     return [f'kr_dart 판매 검산 실패가 실적 행에 가려짐: recognized={res.recognized} 행={res.count()}']
-  return []
+  # expects_numbers(P4) — 잠정실적은 참 · IR 개최 공고·가이던스는 거짓
+  want = {'prelim_results': True, 'earnings_release': True, 'ir_event': False, 'guidance': False}
+  bad = [t for t, w in want.items() if expects_numbers(Doc(**{**doc.__dict__, 'doc_type': t})) != w]
+  return [f'kr_dart expects_numbers 어긋남: {bad}'] if bad else []
 
 
 def self_test() -> list[str]:
