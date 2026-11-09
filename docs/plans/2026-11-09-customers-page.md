@@ -225,6 +225,11 @@
 - 1단계 범위: 라우트·권한·사이드바 · 미등록 1곳 등록(`onboard_company.py`) · `customer_accounts` · 매출 비중 · 실적 표·차트 · 물량(기존 MarkLines 표 + 기존 OEM 회사 탭의 판매·출하 표) · 뉴스. 완료 = `check-all` 통과 + guest·hmobility 차단을 시험으로 + 헤드리스 화면 확인.
 - 2단계 범위: `sec_cik` · `customer_documents` · 수집기 3종 · GHA · 자료실 · 동향 피드 · 실적 일정 · **`customer_guidance`(Sonnet 추출 + 인용·숫자 대조) · `customer_volume_ir`(회사별 전용 수집기)**(선택 4차). 빠진 회사는 화면에 사유 표시. 완료에 더함 = 가이던스 표본 3사 Codex 원문 대조 통과 · 수집기마다 MUST_HIT 자가 시험 통과.
 - 3단계 범위: `customer_signals`·`customer_ir_slides` · Sonnet 파이프라인(2단계 호출에 항목 추가) · 기계 검사 나머지 2종 · 요약 신호등. 완료 = 표본 3사 Codex 원문 대조 통과 · 같은 입력 2회 실행 판정 일치 · 실측 비용으로 위 표 갱신.
+  - 2단계에서 넘어온 것(사용자 결정 2026-11-10 · 빠뜨리지 말 것):
+    - 스텔란티스 IR 자료실(D8 「가」) — Playwright 로 목록화 · 실적 슬라이드·녹취록·팩트시트·Investor Day 세션 자료를 자료실과 신호 재료로. curl 403 · Playwright 200(같은 사이트를 `collect_stellantis_shipments_ir.py` 가 이미 Playwright 로 긁는다).
+    - 세그먼트·중기 목표 수치(D5) — 기아 EV 대수 목표·원가절감 %·BOM 절감·현지화율 등은 `METRICS` 가 아니라 신호의 «근거 수치»로.
+    - 그림 PDF(D3) — GM Investor Day·컨퍼런스 덱 · 모비스 CEO Investor Day 는 숫자를 뽑지 않고 슬라이드 캡처로만.
+    - 기아 IR PDF 의 「비밀유지계약」 문구 파일도 캡처 대상(D7 — 사용자 허용).
 
 ## 검증 (단계 공통)
 
