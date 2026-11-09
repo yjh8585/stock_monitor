@@ -66,9 +66,11 @@ def decide(prev: dict | None, cur: dict) -> str | None:
 
 
 def assign(rows: list[dict]) -> list[tuple[int, str | None]]:
-  """rows = 한 회사의 verified 가이던스 전부(id·metric·period·published_at·document_id·low·high·value_text·stated·unit·
-  currency — null 은 호출부가 보고 통화로 채운다).
-  (metric, period) 별로 (published_at, document_id) 순 정렬 뒤, published_at 이 «엄격히 앞선» 마지막 행과 비교 → [(id, direction)].
+  """rows = 한 회사의 verified 가이던스 전부(id·metric·period·published_at·document_id·extractor·low·high·value_text·stated·
+  unit·currency — null 은 호출부가 보고 통화로 채운다).
+  (metric, period) 별로 (published_at, extractor=='code', document_id) 순 정렬 뒤, published_at 이 «엄격히 앞선» 마지막 행과
+  비교 → [(id, direction)]. 같은 날이면 code 행이 뒤 = 다음 날짜의 비교 기준(화면 lib/customers/ir.ts foldHistory 와 같은
+  규칙 — 같은 날 DART 공시 code 와 IR 자료 llm 의 값이 다르면 코드 값을 그날의 전망으로 본다 · 잔여 Minor 2).
   같은 날 행끼리는 비교하지 않는다 — 같은 날 두 공시(현대 2026-10-29 전망 정정 20261029800240 과 장래사업 정정
   20261029800231 — 둘 다 2026 판매목표 400만 대)는 선후가 아니라 같은 발표라, document_id 순으로 이으면 뒤 행이
   앞 행 대비 「유지」로 찍혀 직전 날짜(416만 대) 대비 「하향」을 잃는다."""
@@ -76,7 +78,7 @@ def assign(rows: list[dict]) -> list[tuple[int, str | None]]:
   for r in rows:
     groups.setdefault((r['metric'], r['period']), []).append(r)
   for items in groups.values():
-    items.sort(key=lambda r: (r['published_at'], r['document_id']))
+    items.sort(key=lambda r: (r['published_at'], r.get('extractor') == 'code', r['document_id']))
     prev = last = None   # prev = 직전 «날짜»의 마지막 행 · last = 지금까지 본 마지막 행
     for r in items:
       if last is not None and last['published_at'] != r['published_at']:

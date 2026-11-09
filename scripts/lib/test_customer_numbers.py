@@ -707,6 +707,15 @@ class StoreTests(unittest.TestCase):
     self.assertEqual(run.rows['customer_guidance'], 0)
     d.assert_called_once()
 
+  def test_directions_select_carries_extractor(self):
+    """잔여 Minor 2 — assign 이 같은 날 code 행을 뒤로 두려면 extractor 칸이 실려야 한다."""
+    run, _ = _run(_mod())
+    with patch.object(ccn, 'fetch_all', return_value=[]) as fa:
+      run._directions()
+    fa.call_args.args[0]()
+    cols = run.client.table.return_value.select.call_args.args[0].split(',')
+    self.assertIn('extractor', cols)
+
   def test_directions_skipped_without_parsed(self):
     mod = _mod()
     mod.wants = lambda d: False

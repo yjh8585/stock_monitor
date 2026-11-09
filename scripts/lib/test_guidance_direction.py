@@ -50,6 +50,17 @@ class GuidanceDirectionTests(unittest.TestCase):
     ]
     self.assertEqual(dict(gd.assign(rows)), {1: 'initiated', 2: 'initiated'})
 
+  def test_assign_same_day_code_row_is_next_baseline(self):
+    """잔여 Minor 2 — 같은 날 code 16 · llm 15.5 면 code 가 뒤(= 다음 비교 기준 · 화면 foldHistory 와 같은 규칙).
+    document_id 만으로 정렬하면 llm 행(문서 번호가 뒤)이 기준이 돼 다음 공시 16 이 「상향」으로 찍힌다."""
+    base = {'metric': 'revenue', 'period': 'FY2026', 'value_text': None, 'stated': None}
+    rows = [
+      {**base, 'id': 1, 'published_at': '2026-02-01', 'document_id': 10, 'extractor': 'code', 'low': 16.0, 'high': 16.0},
+      {**base, 'id': 2, 'published_at': '2026-02-01', 'document_id': 20, 'extractor': 'llm', 'low': 15.5, 'high': 15.5},
+      {**base, 'id': 3, 'published_at': '2026-05-01', 'document_id': 30, 'extractor': 'code', 'low': 16.0, 'high': 16.0},
+    ]
+    self.assertEqual(dict(gd.assign(rows))[3], 'maintained')
+
   def test_assign_groups_by_metric_and_period(self):
     rows = [
       {'id': 1, 'metric': 'revenue', 'period': 'FY2026', 'published_at': '2026-02-01', 'document_id': 1,

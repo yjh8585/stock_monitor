@@ -701,8 +701,8 @@ class _CompanyRun:
     ⚠️ dry-run 은 DB 에 이미 있는 행만 본다 — 이번에 적재할 예정 행은 아직 없어 그 숫자에 안 들어간다."""
     from lib import guidance_direction
     rows = fetch_all(lambda: self.client.table('customer_guidance')
-                     .select('id,metric,period,published_at,document_id,low,high,value_text,stated,unit,currency,'
-                             'direction')
+                     .select('id,metric,period,published_at,document_id,extractor,low,high,value_text,stated,unit,'
+                             'currency,direction')
                      .eq('company_id', self.cid).eq('verified', True), ('id',))
     base = getattr(self.mod, 'BASE_CURRENCY', None)
     for r in rows:   # null = 회사 보고 통화 — 통화가 다른 행끼리는 decide 가 숫자를 견주지 않는다(수정 2회차 N5)
