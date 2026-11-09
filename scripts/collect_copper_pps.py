@@ -79,6 +79,15 @@ def parseCopperPrice(html: str) -> tuple[str, float] | None:
   return f"{y}-{mo}-{d}", float(price.replace(',', ''))
 
 
+def isNoCopperSale(html: str) -> bool:
+  """가격표는 있는데 구리가 아예 없는 글 = 그날 구리를 팔지 않았다(형식 변경이 아니다).
+
+  2021-11~2026-11 백필에서 17일(2023-05·2023-11~2024-01·2026-02 묶음)이 이랬다 — 알루미늄·요소 등만 있었다.
+  이것까지 실패로 치면 판매 중단 기간마다 GHA 실패 메일이 간다. 「구리」가 있는데 행을 못 읽으면 형식 변경이다.
+  """
+  return '판매가격' in html and '기준일자' in html and '구리' not in html
+
+
 def _selfTest() -> None:
   html, expected = _MUST_HIT
   got_date, got_krw = parseCopperPrice(html) or (None, None)
@@ -87,6 +96,11 @@ def _selfTest() -> None:
     sys.exit(2)
   if parseCopperPrice(_MUST_MISS) is not None:
     logger.error("COPPER_KR 파서 자가 시험 실패 — 납 행을 구리로 읽었다")
+    sys.exit(2)
+  # 판매 중단 판정 — 구리 없는 가격표만 참, 구리 행이 있거나(형식 변경 포함) 표 자체가 없으면 거짓
+  header = '<th>판매가격 (부가세 포함)</th><th>기준일자</th>'
+  if not isNoCopperSale(header + _MUST_MISS) or isNoCopperSale(header + html) or isNoCopperSale('점검 중'):
+    logger.error("COPPER_KR 판매 중단 판정 자가 시험 실패")
     sys.exit(2)
   list_html, list_expected = _LIST_SAMPLE
   list_got = parseListRows(list_html)
@@ -115,11 +129,10 @@ def listPosts(page: int) -> list[tuple[str, str]]:
   return parseListRows(html)
 
 
-def fetchCopper(bbs_sn: str) -> tuple[str, float] | None:
-  html = with_retry(
+def fetchPost(bbs_sn: str) -> str:
+  return with_retry(
     _get, PPS_VIEW_URL, {'key': PPS_PRICE_BOARD_KEY, 'bbsSn': bbs_sn}, _label=f'조달청 글 {bbs_sn}'
   )
-  return parseCopperPrice(html)
 
 
 def collect(backfill_years: int) -> None:
@@ -133,7 +146,7 @@ def collect(backfill_years: int) -> None:
 
   by_date: dict[str, float] = {}
   flushed: set[str] = set()
-  opened = parse_fail = errors = 0
+  opened = parse_fail = errors = no_sale = 0
 
   def flush() -> None:
     """백필은 수십 분 걸려 끝에 한 번만 쓰면 도중 실패에 전부 잃는다 — 쪽마다 새 날짜만 적재."""
@@ -166,11 +179,16 @@ def collect(backfill_years: int) -> None:
       time.sleep(REQUEST_SLEEP_SEC)
       opened += 1
       try:
-        parsed = fetchCopper(bbs_sn)
+        html = fetchPost(bbs_sn)
       except Exception as e:
         # 글 하나의 오류로 이미 읽은 값을 버리지 않는다 — 끝에서 실패로 드러낸다
         errors += 1
         logger.warning(f"COPPER_KR: 글 {bbs_sn}({title_date}) 조회 실패 — {e}")
+        continue
+      parsed = parseCopperPrice(html)
+      if parsed is None and isNoCopperSale(html):
+        no_sale += 1
+        logger.info(f"COPPER_KR: 글 {bbs_sn}({title_date})에 구리 없음 — 그날 판매 안 함")
         continue
       if parsed is None:
         parse_fail += 1
@@ -189,7 +207,8 @@ def collect(backfill_years: int) -> None:
 
   flush()
   logger.info(
-    f"COPPER_KR: 상세 {opened}건 열람 · 조회 실패 {errors}건 · 파싱 실패 {parse_fail}건 · 신규 {len(by_date)}일 적재"
+    f"COPPER_KR: 상세 {opened}건 열람 · 조회 실패 {errors}건 · 파싱 실패 {parse_fail}건 · "
+    f"판매 안 함 {no_sale}건 · 신규 {len(by_date)}일 적재"
   )
   # 받은 것은 저장한 «뒤에» 실패를 드러낸다 — 최신 글 하나의 형식 변경을 옛 글의 성공이 가리지 않게
   # (2026-11-09 Codex·오퍼스 검토). 빠진 날은 --backfill-years 로 메운다.

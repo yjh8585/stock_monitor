@@ -57,7 +57,8 @@ export default async function CommoditiesPage() {
       color: COLOR.COPPER, // 아래 단일 COMEX 구리 차트와 같은 색
       data: comexCopperToUsdPerMt(dataByCode.COPPER ?? []),
     },
-    { label: '국제 LME', color: OEM_COLORS[1], data: dataByCode.COPPER_LME ?? [] },
+    // 빨강(OEM_COLORS[1])은 COMEX 갈색과 붙어 보여 파랑으로 둔다(2026-11-09 캡처 확인)
+    { label: '국제 LME', color: OEM_COLORS[0], data: dataByCode.COPPER_LME ?? [] },
     {
       label: '한국 조달청 (부가세 제외)',
       color: OEM_COLORS[2],
