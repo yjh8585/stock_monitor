@@ -60,6 +60,23 @@ describe('computeShares', () => {
     expect(r.byCompany.c1.topProducts).toEqual(['P2', 'P3', 'P4']);
   });
 
+  it('창 안에 매핑 고객 행이 하나도 없으면 0% 가 아니라 null', () => {
+    const r = computeShares(
+      [row('기타사', 'B', 2026, 1, 50)],
+      [{ company_id: 'c1', pnl_customers: ['가나자동차'] }]
+    );
+    expect(r.byCompany.c1.sharePct).toBeNull();
+    expect(r.byCompany.c1.topProducts).toEqual([]);
+  });
+
+  it('창 안 총매출이 0 이면 null(0 나눗셈 보호)', () => {
+    const r = computeShares(
+      [row('가나자동차', 'A', 2026, 1, 0), row('기타사', 'B', 2026, 1, 0)],
+      [{ company_id: 'c1', pnl_customers: ['가나자동차'] }]
+    );
+    expect(r.byCompany.c1.sharePct).toBeNull();
+  });
+
   it('null 매출은 건너뛴다 · 값 있는 행이 없으면 빈 결과', () => {
     const r = computeShares(
       [row('가나자동차', 'A', 2026, 1, null)],

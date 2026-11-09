@@ -24,6 +24,15 @@ describe('priceReturns', () => {
     expect(r.return1mPct).toBeCloseTo(10);
   });
 
+  it('기준 종가가 0 이하면 수익률 null(0 나눗셈 보호)', () => {
+    const r = priceReturns([
+      { trade_date: '2025-12-31', close: 0 },
+      { trade_date: '2026-11-08', close: 50 },
+    ]);
+    expect(r.returnYtdPct).toBeNull();
+    expect(r.return1mPct).toBeNull();
+  });
+
   it('기준 종가가 없으면 null · 빈 입력', () => {
     expect(priceReturns([{ trade_date: '2026-11-08', close: 1 }]).returnYtdPct).toBeNull();
     expect(priceReturns([])).toEqual({

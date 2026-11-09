@@ -32,6 +32,11 @@ export function computeShares(rows: PnlRevenueRow[], accounts: ShareAccount[]): 
     }
     const names = new Set(a.pnl_customers);
     const mine = inWindow.filter((r) => names.has(r.customer));
+    // 창 안에 고객 행이 없으면 0% 가 아니라 「해당 없음」(types.ts 약속).
+    if (mine.length === 0) {
+      byCompany[a.company_id] = empty();
+      continue;
+    }
     const sum = mine.reduce((s, r) => s + r.revenue, 0);
     const byProduct = new Map<string, number>();
     for (const r of mine) byProduct.set(r.product, (byProduct.get(r.product) ?? 0) + r.revenue);

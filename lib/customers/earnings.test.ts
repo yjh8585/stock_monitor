@@ -80,6 +80,19 @@ describe('buildEarnings', () => {
     });
   });
 
+  it('전년 같은 분기 매출이 0 이면 YoY null(0 나눗셈 보호)', () => {
+    const r = buildEarnings([q(2025, 1, 0), q(2026, 1, 1100)]);
+    expect(r.quarterly[1].revenue_yoy_pct).toBeNull();
+  });
+
+  it('매출이 전부 null 이어도 영업이익이 있으면 그 통화로 점을 만든다', () => {
+    const r = buildEarnings([q(2026, 1, null, { operating_income: 50 })]);
+    expect(r.currency).toBe('USD');
+    expect(r.quarterly).toHaveLength(1);
+    expect(r.quarterly[0].revenue_bn).toBeNull();
+    expect(r.quarterly[0].operating_income_bn).toBe(0.05);
+  });
+
   it('행이 없으면 통화 null·빈 배열', () => {
     expect(buildEarnings([])).toEqual({ currency: null, quarterly: [], annual: [] });
   });

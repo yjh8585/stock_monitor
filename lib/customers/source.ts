@@ -149,7 +149,13 @@ async function computeShareResult(accounts: AccountRow[]) {
   const pnl = await fetchPnlEntries();
   const rows = pnl
     .filter(
-      (r) => r.basis === 'consolidated' && !r.is_plan && r.period_month >= 1 && r.period_month <= 12
+      // 실적만(사용자 결정) — 계획 (P)·추정 (E) 행은 뺀다.
+      (r) =>
+        r.basis === 'consolidated' &&
+        !r.is_plan &&
+        !r.is_estimate &&
+        r.period_month >= 1 &&
+        r.period_month <= 12
     )
     .map((r) => ({
       customer: r.customer,

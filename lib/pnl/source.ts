@@ -38,10 +38,14 @@ export async function fetchPnlEntries(): Promise<PnlEntry[]> {
       .select('*')
       .order('basis', { ascending: true })
       .order('period_year', { ascending: true })
+      // PK 는 period_year 가 아니라 year_label 이다 — '2025'·'2025(E)' 처럼 같은 연도에 라벨이 둘이면 동률이 되므로
+      // 기존 순서를 바꾸지 않고 동률 정렬로만 더한다.
+      .order('year_label', { ascending: true })
       .order('period_month', { ascending: true })
       // 같은 (basis, 연, 월) 안에서도 sil·division·factory·product·customer 5차원으로
       // 행이 갈린다 — 여기까지 정렬하지 않으면 동률이 페이지 경계에서 흔들려 행이
-      // 누락·중복된다(PK 5컬럼, `20260515000001_create_pnl_entries.sql` 순서와 동일).
+      // 누락·중복된다(PK 8컬럼 basis·year_label·period_month·sil·division·factory·product·customer
+      // 전부를 정렬에 담는다, `20260515000001_create_pnl_entries.sql`).
       .order('sil', { ascending: true })
       .order('division', { ascending: true })
       .order('factory', { ascending: true })

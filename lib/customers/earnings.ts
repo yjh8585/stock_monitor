@@ -40,11 +40,16 @@ function toPoints(rows: FinancialPeriodRow[], quarterly: boolean): CustomerEarni
 /**
  * financials → 실적 표·차트 점(현지 통화 십억).
  * 통화가 섞인 회사가 있어(분기 1건만 다른 통화) 매출이 있는 최신 행의 통화만 남긴다.
+ * 매출이 전부 비면 영업이익·순이익이 있는 최신 행의 통화로 대신한다(이익 수치까지 「데이터 없음」이 되지 않게).
  */
 export function buildEarnings(rows: FinancialPeriodRow[]): CustomerEarnings {
   const withRevenue = rows.filter((r) => r.revenue != null);
-  if (withRevenue.length === 0) return { currency: null, quarterly: [], annual: [] };
-  const latest = withRevenue.reduce((best, r) => (order(r) > order(best) ? r : best));
+  const candidates =
+    withRevenue.length > 0
+      ? withRevenue
+      : rows.filter((r) => r.operating_income != null || r.net_income != null);
+  if (candidates.length === 0) return { currency: null, quarterly: [], annual: [] };
+  const latest = candidates.reduce((best, r) => (order(r) > order(best) ? r : best));
   const same = dedupe(rows.filter((r) => r.currency === latest.currency));
   return {
     currency: latest.currency,
