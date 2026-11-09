@@ -1,0 +1,127 @@
+name: 고객사 공식 문서·숫자 수집 (평일 1회 · 회사별 격리)
+
+# 순서 = 문서 목록(collect_customer_docs.py) → 숫자(collect_customer_numbers.py).
+#   만료된 URL(현대모비스 fileId 등)은 목록 수집이 갱신하므로 숫자 수집이 반드시 그 뒤에 돈다.
+# 회사마다 job 하나(matrix · fail-fast: false) — 한 회사의 실패가 다른 회사를 막지 않는다.
+#
+# 🔴 정기 실행은 --since 를 주지 않는다(기본 = 오늘 − 400일 · backfill 이면 − 760일).
+#    --since 를 짧게 주면 그 기간 공시 0건이 정상인 EDGAR 회사도 「EDGAR 목록 0건」 error(exit 1)가 된다.
+#
+# 종료 코드 — job 색이 아니라 step 단위로 본다:
+#   수집 step 빨강 = 「돌았는데 못 뽑았다」 · 수집 step 회색 + 의존성 설치 step 빨강 = 「안 돌았다」 · 노란 경고 = 차단·키 누락
+#   collect_customer_docs.py    0 정상(차단 blocked 포함 — 실행 요약에 ::warning:: 로 노랗게 뜬다) · 1 출처 error · 2 인자 오류
+#   collect_customer_numbers.py 0 정상(LLM 재시도 대기 포함) · 1 파싱 실패(LLM 3회 상한 failed 포함) · 2 자가 시험 실패·인자 오류
+#   probe_gm()                  0 ok·blocked(알려진 상태) · 1 error(접근 실패·GM 행 없음)
+# 정본 = 각 스크립트 docstring · docs/commands.md 「고객사 수집 종료 코드」.
+
+on:
+  schedule:
+    - cron: '0 23 * * 0-4' # KST 평일 08:00 — 미국·유럽 전날 공시 · 국내 전날 장후 공시
+  workflow_dispatch:
+    inputs:
+      company:
+        description: '한 회사만(ticker) — 비우면 전체'
+        required: false
+        default: ''
+        # choice — 오타 ticker 가 11개 job 을 전부 건너뛰고 초록으로 끝나는 것을 막는다
+        type: choice
+        options:
+          [
+            '',
+            'GM',
+            'RIVN',
+            'PII',
+            'VFS',
+            'STLA',
+            'VOW3.DE',
+            'P911.DE',
+            '005380',
+            '000270',
+            '012330',
+            '003620',
+          ]
+      backfill:
+        description: '2년 백필'
+        type: boolean
+        default: false
+      probe_gm_ir:
+        description: 'GM IR 사이트 접근 시험(Akamai)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    # SHORTCUT: 백필(760일)+LLM 소요 미실측 → 첫 backfill 실행 로그의 회사별 소요로 확정
+    timeout-minutes: 40
+    # 정기·수동 실행이 겹치면 같은 문서에 LLM 을 두 번 부르고 llm_attempts 가 꼬인다 — 회사별 직렬화
+    concurrency:
+      group: collect-customer-docs-${{ matrix.ticker }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        ticker:
+          [
+            'GM',
+            'RIVN',
+            'PII',
+            'VFS',
+            'STLA',
+            'VOW3.DE',
+            'P911.DE',
+            '005380',
+            '000270',
+            '012330',
+            '003620',
+          ]
+    defaults:
+      run:
+        working-directory: scripts
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+      NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+      DART_API_KEY: ${{ secrets.DART_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # 없으면 lib/edgar.py 기본값(연락처 자리표시자)으로 돈다 — SEC 는 연락처 있는 UA 를 요구하므로 등록 권장.
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+
+    steps:
+      # company 입력이 다른 회사면 아래 step 이 전부 skipped(job 은 초록) — 정기 실행은 inputs 가 비어 전부 돈다.
+      - name: 저장소 체크아웃
+        if: ${{ inputs.company == '' || inputs.company == matrix.ticker }}
+        uses: actions/checkout@v7
+
+      - name: Python 3.13 설정
+        if: ${{ inputs.company == '' || inputs.company == matrix.ticker }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: 의존성 설치
+        id: deps
+        if: ${{ inputs.company == '' || inputs.company == matrix.ticker }}
+        run: pip install -r requirements.txt
+
+      # 수동 입력일 때만. requests(브라우저 UA) → 실패 시 Playwright 1회 → HTTP 상태만 찍고 상태 표에 ok/blocked.
+      - name: GM IR 접근 시험
+        if: ${{ inputs.probe_gm_ir && matrix.ticker == 'GM' && steps.deps.outcome == 'success' }}
+        run: |
+          python -m playwright install --with-deps chromium
+          python -c "import sys; from lib.ir_lists import probe_gm; sys.exit(probe_gm())"
+
+      # 아래 두 step 은 앞 step 이 실패해도 돈다(!cancelled) — 시험 실패가 수집을, 목록 실패가 이미 쌓인 문서의 숫자를 막지 않게.
+      - name: 문서 목록
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: python collect_customer_docs.py --company "${{ matrix.ticker }}" ${{ inputs.backfill && '--backfill' || '' }}
+
+      - name: 숫자
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: python collect_customer_numbers.py --company "${{ matrix.ticker }}"

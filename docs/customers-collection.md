@@ -15,7 +15,7 @@
 1. **목록** `scripts/collect_customer_docs.py` — EDGAR·DART·IR 사이트의 문서 목록 → `customer_documents`(본문은 받지 않는다 · 새 문서는 `pending`). IR 목록 중 실적 일정은 `customer_earnings_dates` 로 간다. 결과는 `customer_collect_status`.
 2. **내용** `scripts/collect_customer_numbers.py` — `pending` 문서를 오래된 것부터: 자가 시험 → 내용 1회 받기 → 회사 파서 → (`llm_wants` 칸만) LLM → 어휘·기간 거르기 → 인용·숫자 대조 → 적재 → 가이던스 방향 재계산 → 상태.
 3. **화면** `lib/customers/`(`source.ts` 서버 조회 · `ir.ts`·`earnings.ts`·`volume.ts` 순수 계산) → `components/customers/`. **`verified=true` 행만** 나간다. 해외 실적은 `pickCustomerEarnings` 가 칸마다 출처를 고른다(아래 「실적 화면 규칙」).
-4. **정기 실행** GHA `collect-customer-docs.yml`(평일 1회 · 회사별 matrix job · 목록 → 숫자 순서). ⚠️ 2026-11-10 현재 **미커밋** — 워크플로 파일은 사용자 승인(파일명 명시) 뒤에 들어간다(Task 12). 그 전까지는 로컬 실행만.
+4. **정기 실행** GHA `collect-customer-docs.yml`(평일 1회 · 회사별 matrix job · 목록 → 숫자 순서). 2026-11-10 사용자 승인으로 커밋. 첫 실행 전 GitHub Secret `SEC_USER_AGENT`(연락처 있는 UA) 등록. 종료 코드 규약 = 파일 머리 주석 · `docs/commands.md`.
 
 ## 표 7개 — 전부 사외비
 
