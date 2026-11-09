@@ -309,7 +309,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 #### `stock_quotes_5min` (약 4만행) — 분봉 (KIS)
 
-**보존 30일** — 화면(`/hansae`)은 당일치만 조회한다. `collect_kis_intraday.py`가 매 실행 끝에 `purge_older_than()`으로 정리(`QUOTES_RETENTION_DAYS`). 2026-08-03 이전엔 삭제 로직이 없어 2.5개월에 10.9만 행(26MB)까지 누적됐다. `stock_supply_demand_intraday`도 동일 정책(`INTRADAY_RETENTION_DAYS`, `collect_kis_supply.py`).
+**보존 30일** — 화면(`/hansae`)은 당일치만 조회한다. `collect_kis_intraday.py`가 매 실행 끝에 `purge_older_than()`으로 정리(`QUOTES_RETENTION_DAYS` · 없던 때의 누적 = [경위](./docs/history/Architecture-경위.md)). `stock_supply_demand_intraday`도 동일 정책(`INTRADAY_RETENTION_DAYS`, `collect_kis_supply.py`).
 
 | company_id | ts(timestamptz) | price | change_pct | volume |
 
@@ -688,8 +688,8 @@ UNIQUE: (source, note_date)
 
 - 🔴 **HTML 프록시와 달리 바이트를 직접 흘리지 않는다** — 영상은 100MB 안팎이고 브라우저가 탐색할 때마다 Range 요청을 새로 던진다. 서버리스로 중계하면 실행시간·대역폭을 태우고 `blob.stream()` 은 Range 를 해석하지 않아 **구간 탐색이 아예 안 된다**. 서명 URL 로 넘기면 Storage 가 Range 를 직접 처리한다.
 - 🔴 **`-movflags +faststart` 는 필수**다. 빠뜨리면 moov atom 이 파일 끝에 남아 **전체를 받기 전까지 재생이 시작되지 않는다**(오류 없이 멈춰 보인다). 원본을 그대로 쓸 때도 `ffmpeg -c copy -movflags +faststart` remux 한 번은 거친다.
-- 🔴 **파일당 상한은 버킷의 `file_size_limit` 이 아니라 프로젝트 전역 `fileSizeLimit` 이 결정한다** — 버킷에 512MB 를 걸어도 전역이 50MB 면 업로드가 **413 EntityTooLarge** 로 거부된다(2026-08-28 실측). 전역값은 Management API `GET/PATCH /v1/projects/<ref>/config/storage` 로만 보이고 SQL 로는 안 보인다. 2026-08-28 에 50MB → **512MB** 로 올렸다(조직 플랜은 Pro).
-- ⚠️ 용량이 문제되면 `-preset fast -crf 28` 로 재인코딩한다. 단 **움직임 많은 실사는 crf 24 로도 절반밖에 안 줄어든다**(실측 328MB → crf24 약 190MB / crf28 129MB) — 화질 손실 대비 이득이 작으니 제약이 실제로 있을 때만.
+- 🔴 **파일당 상한은 버킷의 `file_size_limit` 이 아니라 프로젝트 전역 `fileSizeLimit` 이 결정한다**(넘으면 413 · 전역값은 Management API `GET/PATCH /v1/projects/<ref>/config/storage` 로만 보인다 · 현재 512MB · 실측·변경 경위 = [경위](./docs/history/Architecture-경위.md)).
+- ⚠️ 용량이 문제되면 `-preset fast -crf 28` 로 재인코딩한다. 움직임 많은 실사는 줄어드는 폭이 작으니 제약이 실제로 있을 때만(실측 = 같은 경위).
 - ⚠️ 플레이어는 `preload="metadata"` — `auto` 로 두면 페이지를 열기만 해도 파일을 통째로 받아 대역폭을 태운다.
 - ⚠️ 서명 URL 은 **만료 전까지 인증 없이 열리는 링크**다. 응답에 `Cache-Control: private, no-store` 를 걸어 캐시에 남기지 않는다.
 - 업로드 UI 는 없다. 스크립트로 객체를 올리고 `posts.video_path` 를 채운 뒤 **반드시** 캐시를 무효화한다(`posts`·`post:<id>`).
@@ -931,14 +931,7 @@ runner Python venv → postgrest-py → Supabase
 
 ## 부록 A. 최근 주요 변경 (2026-05-20 ~ 2026-05-23)
 
-- **status='hidden'** 도입 (`delisted` → `hidden`)
-- 일본 회계연도 한국식 -1 보정 (20260521000002, 20260521000003)
-- 부품사 TOP100 뷰 미래 가드 (20260521000001)
-- DART corp_code 자동/수동 매핑 24개
-- 6차 워크플로 stable (`os._exit(0)` + yfinance 미래 period_end 가드)
-- 그룹 분류 50개 정리 (사람인 NICE 기반)
-- **homepage_url** enrich_company에 수집 추가 + onboard_company.py 도입
-- **챗봇 PnL 외부 전송 차단** (2026-05-23): `query_pnl` 도구 + system-prompt PnL 카탈로그(고객사·공장·제품 명단) 완전 제거. `pnl_entries`·`pnl_cost_structure` RLS 정책 삭제(anon 차단) + admin client 전용 전환 (20260523000002). `chat_audit_log` 신규 — 모든 챗봇 도구 호출 1년 보존 (20260523000003). 챗봇 입력창에 외부 전송 경고 배너 추가.
+변경 기록 원문 = [경위](./docs/history/Architecture-경위.md) 「부록 A」.
 
 ---
 
@@ -1064,7 +1057,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 
 - 🔴 **역할은 `robot_roles text[]`(`humanoid`/`parts`) 다중 태그** — 겸업사는 양쪽 버튼에 뜬다. 제품군 필터의 "부품 공급사" 판정도 `company_type` 이 아니라 `robot_roles` 로 한다.
 - 🔴 **고객사는 수집하지 않는다**(사용자 결정 · 상위 계획서 확정 결정 12). 뷰가 `customers` 를 빈 배열로 내보내 매퍼만 호환시키고, 표는 그 자리에 비상장 기업가치를 그린다.
-  🔴 **화면에 안 보이므로 위반이 조용히 일어난다** — 2026-08-25 에 `enrich_company.py --page humanoid` 가 16사의 고객사를 채웠고 DB 를 직접 세기 전까지 아무도 몰랐다. 판정은 `enrich_company.py` 의 **`_skips_customers()`**(로봇 역할 + **다른 페이지에 없음**)가 맡는다. ⚠️ **겸업사는 제외** — 현대차·현대모비스는 관련주·국내자동차에서 고객사를 쓴다.
+  🔴 **화면에 안 보이므로 위반이 조용히 일어난다**(실례 = [경위](./docs/history/Architecture-경위.md)). 판정은 `enrich_company.py` 의 **`_skips_customers()`**(로봇 역할 + **다른 페이지에 없음**)가 맡는다. ⚠️ **겸업사는 제외** — 현대차·현대모비스는 관련주·국내자동차에서 고객사를 쓴다.
 - 🔴 **제품군 11종의 정본은 `product_category_map`**(`lib/types.ts` 의 `ROBOT_PRODUCT_CATEGORIES` 는 UI 사본). **카테고리를 늘릴 때 정규화 결과값을 raw 키로도 넣을 것** — 함정 4종(왕복 뭉갬·자동 페이지 매핑·`data_source` NOT NULL·트랜잭션 롤백) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「휴머노이드 기업 데이터 함정」.
 - 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
 
