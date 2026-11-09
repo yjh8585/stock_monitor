@@ -12,6 +12,8 @@
   환산 못 하는 단위끼리(percent vs billion 등)는 숫자 비교를 건너뛰고 원문 낱말(stated)만 본다 — 없으면 None
   (글자 비교로 가면 value_text 가 둘 다 None 일 때 ''=='' 로 maintained 를 지어낸다 · Task 11).
 - 직전 행이 없어도 숫자 없이 「전망 확인·유지」만 밝힌 행(stated='maintained', 스텔란티스 확인 6-K)은 initiated 가 아니라 maintained.
+- 🔴 metric='other' 는 숫자·글자를 견주지 않고 stated 만 쓴다(없으면 None) — 'other' 는 서로 다른 항목이 한 칸에 모여
+  (확인 6-K 'confirms' · 폴라리스 철회 · 예전 LLM 의 배당성향·EV 대수) 비교하면 방향을 지어낸다(Task 11 수정 1회차).
 호출 = scripts/collect_customer_numbers.py(회사마다 verified 가이던스 전부를 다시 매긴다).
 """
 
@@ -37,6 +39,8 @@ def _scales(prev: dict, cur: dict) -> tuple[float, float] | None:
 def decide(prev: dict | None, cur: dict) -> str | None:
   if cur.get('stated') == 'withdrawn':
     return 'withdrawn'
+  if cur.get('metric') == 'other':
+    return cur['stated'] if cur.get('stated') in ('raised', 'maintained', 'lowered') else None
   b = _point(cur.get('low'), cur.get('high'))
   if prev is None:
     # 숫자 없이 「전망 확인·유지」만 밝힌 행(스텔란티스 2024-12·2025-09 6-K · metric='other')은 처음 보여도 신규가 아니다
@@ -100,6 +104,14 @@ MUST_HIT = [  # (prev, cur, 기대)
   # 숫자 없이 「전망 확인」만 밝힌 첫 행(metric='other') → 신규가 아니라 유지
   (None, {'low': None, 'high': None, 'value_text': 'confirms', 'unit': 'text', 'stated': 'maintained'}, 'maintained'),
   (None, {'low': 13.0, 'high': 15.0, 'stated': 'maintained'}, 'initiated'),   # 숫자가 있는 첫 행은 신규
+  # metric='other' — stated 만(숫자·글자 비교 안 함 · 처음 보여도 initiated 아님)
+  ({'metric': 'other', 'value_text': None}, {'metric': 'other', 'value_text': None}, None),   # ''=='' 로 maintained 금지
+  ({'metric': 'other', 'low': 30, 'high': 30}, {'metric': 'other', 'low': 1e6, 'high': 1e6}, None),   # 다른 항목 숫자
+  ({'metric': 'other', 'value_text': 'confirms', 'stated': 'maintained'},
+   {'metric': 'other', 'value_text': 'confirms', 'stated': 'maintained'}, 'maintained'),
+  ({'metric': 'other', 'value_text': 'confirms', 'stated': 'maintained'},
+   {'metric': 'other', 'value_text': 'withdrawing', 'stated': 'withdrawn'}, 'withdrawn'),
+  (None, {'metric': 'other', 'low': 1e6, 'high': 1e6}, None),
 ]
 
 

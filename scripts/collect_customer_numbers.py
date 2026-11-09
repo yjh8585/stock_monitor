@@ -2,7 +2,8 @@
 회사 파서 → (llm 칸만) LLM → 어휘·기간 형식 거르기 → 인용·숫자 대조 → 적재 → 가이던스 방향 재계산 → 상태 기록.
 
 exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사유가 남는다)
-     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외) 또는 내용 받기 실패(401·403 밖) 또는 LLM 실패 1건 이상
+     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외·LLM 재시도 상한) 또는 내용 받기 실패(401·403 밖) 1건 이상
+       (LLM 재시도 대기 = pending 은 exit 1 이 아니다 — LLM 은 실행마다 결과가 달라 한 번 실패로 GHA 를 빨갛게 하지 않는다)
      2 자가 시험 실패 · 인자 오류 · --add-file 대상 회사에 파서 없음
 사용: collect_customer_numbers.py [--company TICKER] [--no-llm] [--reparse DOC_ID] [--dry-run]
      collect_customer_numbers.py --company TICKER --add-file PDF --url URL --doc-type fact_sheet --title T --published YYYY-MM-DD
@@ -18,9 +19,13 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
    (parsed 는 pending 목록에 다시 안 끼므로 매 실행 쓰기 0 이 그대로다). LLM 안 돈 문서 전부:
    select id from customer_documents where parse_note like 'LLM 대기%'  → 문서마다 --reparse.
 🔴 LLM(Task 11 · lib.llm_guidance): 클라이언트는 실행마다 한 번 — ANTHROPIC_API_KEY 가 없으면 LLM 칸만 건너뛴다(위 「LLM 대기」).
-   extract 예외(API 오류·JSON·응답 중단)는 그 문서만 note 「LLM 실패: <클래스>」 + LLM 대기로 남기고(코드 행은 그대로 적재)
-   다음 문서로 간다 — 회사 상태 error · exit 1(다음 실행이 다시 시도). 파서의 llm_only 가 참인 문서(LLM 만 읽는 IR
-   발표자료)는 LLM 이 안 도는 실행에서 내려받지도 않는다.
+   🔴 LLM 재시도(customer_documents.llm_attempts): extract 예외(API 오류·JSON·응답 중단)이거나 값 행이 전부 LLM 행인데
+   전부 대조 실패면 그 문서만 pending 으로 두고 llm_attempts +1 · note 「LLM 대기 — <사유> (n/3)」 — 코드 행은 그대로 적재하고
+   다음 실행이 다시 시도한다(코드 행 적재는 upsert·선삭제라 멱등). 3회째면 닫는다: 코드 값 행이 있으면 parsed + note
+   「LLM 3회 실패」, 없으면 failed(이것만 exit 1). LLM 이 제대로 돌면 llm_attempts 를 0 으로 되돌린다.
+   extract 안의 프로그래밍 오류(KeyError·TypeError 등 _PROGRAMMING_ERRORS)는 LLM 실패로 뭉개지 않고 파서 예외(failed)로.
+   LLM 행 거르기(lib.llm_guidance.screen — 분기·규모·통화·CAGR·숫자 other·파서 LLM_DROP)로 버린 수는 note 「LLM 거름 …」.
+   파서의 llm_only 가 참인 문서(LLM 만 읽는 IR 발표자료)는 LLM 이 안 도는 실행에서 내려받지도 않는다.
    코드 표식은 있는데 코드 가이던스가 모자라 LLM 이 채운 문서(ParseResult.code_miss)는 note 에 「코드 문구 미스」 —
    LLM 행이 파서 문구 미스를 가리지 않게(Task 7 carry). 찾기 = parse_note like '%코드 문구 미스%'.
 🔴 LLM 행이 1건 이상이면 코드 파서의 recognized=False 보다 우선한다(judge — 중장기 Investor Day 처럼 코드가 못 알아보는 서식).
@@ -40,7 +45,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import requests
 
-DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note'
+DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note,llm_attempts'
 NOTE_NO_PARSER = '대상 파서 없음'
 NOTE_LLM_WAIT = 'LLM 대기 — 코드 파서가 못 알아보는 서식'
 # parsed 로 닫되 LLM 칸을 못 읽은 문서 — 두 표식 모두 'LLM 대기' 로 시작해 parse_note LIKE 'LLM 대기%' 한 번으로 뽑힌다
@@ -49,6 +54,10 @@ NOTE_NO_KEY = 'LLM 키 없음'
 NOTE_LLM_FAIL = 'LLM 실패'
 NOTE_CODE_MISS_ONLY = '코드 문구 미스 — LLM 행만'          # 코드 표식은 있는데 코드 가이던스 0행 → LLM 이 전부 채움
 NOTE_CODE_MISS_FILL = '코드 문구 미스 — LLM 이 빠진 항목 메움'  # 코드 가이던스 일부 + LLM 이 나머지
+LLM_MAX_ATTEMPTS = 3                    # 이 횟수째 실패하면 닫는다(코드 행 있으면 parsed · 없으면 failed)
+NOTE_LLM_RETRY = 'LLM 대기 — '          # + 사유 (n/3) — 'LLM 대기%' 로 같이 뽑힌다
+NOTE_LLM_GAVE_UP = f'LLM {LLM_MAX_ATTEMPTS}회 실패'
+NOTE_LLM_UNVERIFIED = 'LLM 행 대조 통과 0'
 DOC_TYPES = ('earnings_release', 'presentation', 'shareholder_letter', 'periodic', 'current_report', 'prelim_results',
              'sales_release', 'guidance', 'ir_event', 'fact_sheet', 'investor_day', 'other')  # DB CHECK 와 같음
 _PAGE = 1000      # PostgREST 한 응답 최대 행 수 — 넘으면 .range() 로 넘긴다(.order() 필수)
@@ -66,6 +75,8 @@ def self_tests() -> list[str]:
   errs += [f'customer_parsers.base: {e}' for e in base.self_test()]
   for m in customer_parsers.modules():
     errs += [f'{m.__name__}: {e}' for e in m.self_test()]
+    if hasattr(m, 'llm_wants') and getattr(m, 'BASE_CURRENCY', None) not in base.CURRENCIES:
+      errs.append(f'{m.__name__}: llm_wants 가 있는데 BASE_CURRENCY 가 없다(LLM 행 통화 검사 기준)')
   return errs
 
 
@@ -204,7 +215,7 @@ def payloads(doc, res, checks: dict, llm_ids: set[int]) -> dict[str, list[dict]]
          'verified': checks[id(x)][0]} for x in res.results]
   gd = [{'company_id': doc.company_id, 'document_id': doc.id, 'published_at': doc.published_at, 'metric': g.metric,
          'metric_label': g.metric_label, 'period': g.period, 'low': g.low, 'high': g.high, 'value_text': g.value_text,
-         'unit': g.unit, 'basis': g.basis, 'quote': g.quote, 'stated': g.stated,
+         'unit': g.unit, 'currency': g.currency, 'basis': g.basis, 'quote': g.quote, 'stated': g.stated,
          'extractor': 'llm' if id(g) in llm_ids else 'code', 'verified': checks[id(g)][0],
          'verify_note': checks[id(g)][1]} for g in res.guidance]
   dt = [{'company_id': doc.company_id, 'period': d.period, 'event_date': d.event_date, 'quote': d.quote,
@@ -417,7 +428,7 @@ def _run(docs: list[dict], tickers: dict[str, str], client, session, ws, args, b
       continue
     run = _CompanyRun(mod, client, session, ws, args, cid, llm)
     for r in rows:
-      run.process(_to_doc(r, ticker), blob, r.get('parse_note'))
+      run.process(_to_doc(r, ticker), blob, r.get('parse_note'), r.get('llm_attempts') or 0)
     failures += run.finish(ticker, len(rows))
     calls += run.llm_calls
   if llm is not None:
@@ -437,14 +448,17 @@ class _CompanyRun:
     self.rows: Counter = Counter()      # 표 → 적재(또는 dry-run 이면 적재할) 행 수
     self.verified: Counter = Counter()
     self.dropped = 0
+    self.llm_screened: Counter = Counter()   # LLM 행 거르기 사유 → 건수
     self._pubs: dict[str, dict] = {}    # 표 → «나중 공시 우선» 비교용 기존 공시일
 
-  def _set_doc(self, doc, status: str, note: str | None, sha: str | None) -> None:
+  def _set_doc(self, doc, status: str, note: str | None, sha: str | None, llm_attempts: int | None = None) -> None:
     if self.args.dry_run or not doc.id:
       return
     patch = {'parse_status': status, 'parse_note': note[:_NOTE_MAX] if note else None}
     if sha:
       patch['sha256'] = sha
+    if llm_attempts is not None:
+      patch['llm_attempts'] = llm_attempts
     self.ws.table('customer_documents').update(patch).eq('id', doc.id).execute()
 
   def _content(self, doc, blob):
@@ -474,15 +488,22 @@ class _CompanyRun:
       notes.append(NOTE_NO_KEY)
       return None
     from lib import llm_guidance
-    hint = getattr(self.mod, 'LLM_HINT', '')
-    hint = hint(doc) if callable(hint) else hint
-    self.llm_calls += 1
+    label = self._label()   # DB 오류는 「LLM 실패」가 아니다 — try 밖(실행이 죽어 드러난다)
     try:
-      rows = llm_guidance.extract(self.llm, doc, content.text, self._label(), hint)
+      hint = getattr(self.mod, 'LLM_HINT', '')
+      hint = hint(doc) if callable(hint) else hint
+      self.llm_calls += 1
+      rows, why = llm_guidance.extract(self.llm, doc, content.text, label, hint,
+                                       getattr(self.mod, 'BASE_CURRENCY', None), getattr(self.mod, 'LLM_DROP', None))
+    except _PROGRAMMING_ERRORS:
+      raise   # 코드 버그 — process 가 파서 예외(failed)로 닫는다(LLM 재시도로 뭉개면 영영 안 드러난다)
     except Exception as e:  # API 오류·JSON 파싱·응답 중단 — 그 문서만(예외 문장엔 본문이 실릴 수 있어 클래스 이름만)
       self.outcomes['llm_failed'] += 1
       notes.append(f'{NOTE_LLM_FAIL}: {type(e).__name__}')
       return None
+    if why:
+      self.llm_screened += why
+      notes.append('LLM 거름 ' + ' · '.join(f'{k} {v}' for k, v in sorted(why.items())))
     res.guidance += rows
     return {id(g) for g in rows}
 
@@ -492,7 +513,7 @@ class _CompanyRun:
     if prev_note != note:
       self._set_doc(doc, 'pending', note, None)
 
-  def process(self, doc, blob: bytes | None, prev_note: str | None = None) -> None:
+  def process(self, doc, blob: bytes | None, prev_note: str | None = None, llm_attempts: int = 0) -> None:
     from customer_parsers.base import drop_off_vocab
     if not self.mod.wants(doc):
       # not_target 으로 닫지 않는다 — 나중에 이 서식의 파서(IR PDF 등)가 생기면 다시 봐야 한다
@@ -515,7 +536,10 @@ class _CompanyRun:
       res = self.mod.parse(doc, content)
     except Exception as e:  # 파서 버그 하나가 다른 문서·회사를 막지 않게
       return self._parser_error(doc, e)
-    llm_ids = self._llm(doc, content, res, notes)
+    try:
+      llm_ids = self._llm(doc, content, res, notes)
+    except _PROGRAMMING_ERRORS as e:
+      return self._parser_error(doc, e)
     # 형식 밖 행을 먼저 버린다 — dedupe 가 먼저면 같은 키의 (형식 밖 코드 행, 맞는 LLM 행) 중 코드 행이 남았다가 버려져 둘 다 잃는다
     dropped = drop_off_vocab(res)
     if dropped:
@@ -532,11 +556,13 @@ class _CompanyRun:
       notes.append(NOTE_CODE_MISS_FILL if code_n else NOTE_CODE_MISS_ONLY)
       self.outcomes['code_miss'] += 1
     status, note = judge(res, v_values, v_dates, llm_n)
+    retry = self._llm_retry_reason(res, notes, status, llm_n, v_values)
+    if retry:
+      return self._llm_retry(doc, res, checks, llm_ids, notes, status, retry, llm_attempts, sha, v_values, v_dates)
     llm_missed = llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res)
     if status == 'not_target' and llm_missed:
-      # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·키 없음·LLM 실패) — 닫으면 다시 못 본다
-      fails = [n for n in notes if n.startswith(NOTE_LLM_FAIL)]
-      return self._keep_pending(doc, ' · '.join([NOTE_LLM_WAIT, *fails]), prev_note, 'llm_wait')
+      # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·키 없음) — 닫으면 다시 못 본다
+      return self._keep_pending(doc, NOTE_LLM_WAIT, prev_note, 'llm_wait')
     if status == 'parsed' and llm_missed:
       # 코드 행은 정상이라 parsed 로 닫되, LLM 칸(가이던스)을 못 읽었다는 표식을 note 맨 앞에 — 나중에 LLM 경로가
       # 붙으면 parse_note LIKE 'LLM 대기%' 로 뽑아 --reparse 한다. 다음 --reparse 에서 LLM 이 돌면 note 가 새로 써져 사라진다
@@ -549,7 +575,38 @@ class _CompanyRun:
       self._store(doc, payloads(doc, res, checks, llm_ids or set()), llm_ran=llm_ids is not None)
       self.verified['values'] += v_values
       self.verified['dates'] += v_dates
-    self._set_doc(doc, status, ' · '.join(notes) or None, sha)
+    # LLM 이 제대로 돌았으면 재시도 횟수를 0 으로(다음 --reparse 의 실패가 옛 횟수를 이어 세지 않게)
+    reset = 0 if llm_ids is not None and llm_attempts else None
+    self._set_doc(doc, status, ' · '.join(notes) or None, sha, reset)
+
+  @staticmethod
+  def _llm_retry_reason(res, notes: list[str], status: str, llm_n: int, v_values: int) -> str | None:
+    """LLM 을 다음 실행에 다시 돌릴 사유 — (a) extract 예외(코드 행은 정상) · (b) 값 행이 전부 LLM 행인데 전부 대조 실패."""
+    fail = next((n for n in notes if n.startswith(NOTE_LLM_FAIL)), None)
+    if fail and status in ('parsed', 'not_target'):
+      return fail
+    if status == 'failed' and llm_n and llm_n == len(value_rows(res)) and v_values == 0:
+      return NOTE_LLM_UNVERIFIED
+    return None
+
+  def _llm_retry(self, doc, res, checks, llm_ids, notes, status, reason, attempts, sha, v_values, v_dates) -> None:
+    """재시도 대기(pending · llm_attempts+1) 또는 상한이면 닫기. 코드 값 행은 어느 쪽이든 적재한다(멱등)."""
+    attempts += 1
+    code_ok = status == 'parsed'   # (a) 코드 행이 있어 parsed 로 판정된 문서
+    if code_ok:
+      # 코드 행만 싣는다(LLM 은 실패했다) — llm_ran=False 라 선삭제가 옛 LLM 행을 지우지 않는다
+      self._store(doc, payloads(doc, res, checks, set()), llm_ran=False)
+      self.verified['values'] += v_values
+      self.verified['dates'] += v_dates
+    others = [n for n in notes if not n.startswith(NOTE_LLM_FAIL)]
+    if attempts < LLM_MAX_ATTEMPTS:
+      self.outcomes['llm_retry'] += 1
+      note = f'{NOTE_LLM_RETRY}{reason} ({attempts}/{LLM_MAX_ATTEMPTS})'
+      return self._set_doc(doc, 'pending', ' · '.join([note, *others]), sha, attempts)
+    closed = 'parsed' if code_ok else 'failed'
+    self.outcomes[closed] += 1
+    self.outcomes['llm_gave_up'] += 1
+    self._set_doc(doc, closed, ' · '.join([f'{NOTE_LLM_GAVE_UP} — {reason}', *others]), sha, attempts)
 
   def _parser_error(self, doc, e: Exception) -> None:
     self.outcomes['failed'] += 1
@@ -606,7 +663,7 @@ class _CompanyRun:
     moved = self._directions() if o['parsed'] else 0
     parse_failed, blocked = o['failed'], o['blocked']
     fetch_failed = o['fetch_failed'] + o['fetch_retry']
-    llm_failed = o['llm_failed']
+    llm_retry = o['llm_retry']
     reasons = []
     if parse_failed:
       reasons.append(f'새 문서 {parse_failed}건에서 숫자를 못 뽑음(파서 점검 필요)')
@@ -614,10 +671,11 @@ class _CompanyRun:
       reasons.append(f'문서 {blocked}건 내용 접근 차단(HTTP 401·403)')
     if fetch_failed:
       reasons.append(f'문서 {fetch_failed}건 내용 받기 실패')
-    if llm_failed:
-      reasons.append(f'문서 {llm_failed}건 LLM 실패(LLM 대기로 남김)')
-    status = ('parse_failed' if parse_failed else 'blocked' if blocked
-              else 'error' if fetch_failed or llm_failed else 'ok')
+    if llm_retry:
+      reasons.append(f'문서 {llm_retry}건 LLM 재시도 대기(pending · 다음 실행이 다시 시도)')
+    if o['llm_gave_up']:
+      reasons.append(f'문서 {o["llm_gave_up"]}건 LLM {LLM_MAX_ATTEMPTS}회 실패로 닫음')
+    status = ('parse_failed' if parse_failed else 'blocked' if blocked else 'error' if fetch_failed else 'ok')
     if not self.args.dry_run:
       write_status(self.ws, self.cid, 'parse', status, ' · '.join(reasons) or None)
     kinds = ' '.join(f'{k}={v}' for k, v in sorted(o.items()))
@@ -626,8 +684,10 @@ class _CompanyRun:
     print(f'  {ticker:<10} 문서 {n_docs} · {kinds}' + (f' · 행 {tabs}' if tabs else '')
           + f' · 검증 값 {self.verified["values"]} 일정 {self.verified["dates"]}'
           + (f' · 형식 밖 버림 {self.dropped}' if self.dropped else '')
-          + (f' · LLM 호출 {self.llm_calls}' if self.llm_calls else '') + f' · {moved_label} {moved} · {status}')
-    return parse_failed + fetch_failed + llm_failed
+          + (f' · LLM 호출 {self.llm_calls}' if self.llm_calls else '')
+          + (f' · LLM 거름 {sum(v for k, v in self.llm_screened.items() if k != "억→million 환산")}'
+             if self.llm_screened else '') + f' · {moved_label} {moved} · {status}')
+    return parse_failed + fetch_failed
 
 
 if __name__ == '__main__':

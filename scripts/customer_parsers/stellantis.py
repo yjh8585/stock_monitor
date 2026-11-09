@@ -102,6 +102,7 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return result.llm_hint and not any(g.metric != 'other' for g in result.guidance)
 
 
+BASE_CURRENCY = 'EUR'   # 보고 통화 — companies.currency 는 상장 통화(USD)라 쓰지 않는다
 LLM_HINT = ('연간(FY) 전망 상자·글머리표의 항목(Net revenues·AOI margin·Industrial free cash flows 등) — 숫자가 아닌 '
             '전망은 원문 낱말 그대로 value_text 로. 🔴 반기(H1·H2) 전망은 연간이 아니니 뽑지 마세요.')
 

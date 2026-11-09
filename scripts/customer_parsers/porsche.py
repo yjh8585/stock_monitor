@@ -75,6 +75,7 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return result.llm_hint
 
 
+BASE_CURRENCY = 'EUR'   # 보고 통화(LLM 행 통화 검사 기준)
 LLM_HINT = ('Forecast·Outlook(전망) 문단의 연간 항목만 — 그룹 매출(revenue) · 그룹 영업이익률(operating_margin) · '
             'Automotive EBITDA margin · Automotive net cash flow margin · Automotive BEV share. '
             '괄호 안 이전 전망(previous forecast: …)과 중장기 목표 중 연도가 없는 것은 뽑지 마세요.')

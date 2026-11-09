@@ -436,6 +436,7 @@ export type Database = {
           form: string | null;
           id: number;
           items: string | null;
+          llm_attempts: number;
           parse_note: string | null;
           parse_status: string;
           published_at: string;
@@ -452,6 +453,7 @@ export type Database = {
           form?: string | null;
           id?: never;
           items?: string | null;
+          llm_attempts?: number;
           parse_note?: string | null;
           parse_status?: string;
           published_at: string;
@@ -468,6 +470,7 @@ export type Database = {
           form?: string | null;
           id?: never;
           items?: string | null;
+          llm_attempts?: number;
           parse_note?: string | null;
           parse_status?: string;
           published_at?: string;
@@ -588,6 +591,7 @@ export type Database = {
         Row: {
           basis: string | null;
           company_id: string;
+          currency: string | null;
           direction: string | null;
           document_id: number;
           extractor: string;
@@ -608,6 +612,7 @@ export type Database = {
         Insert: {
           basis?: string | null;
           company_id: string;
+          currency?: string | null;
           direction?: string | null;
           document_id: number;
           extractor: string;
@@ -628,6 +633,7 @@ export type Database = {
         Update: {
           basis?: string | null;
           company_id?: string;
+          currency?: string | null;
           direction?: string | null;
           document_id?: number;
           extractor?: string;

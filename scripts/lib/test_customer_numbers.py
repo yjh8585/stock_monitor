@@ -5,9 +5,11 @@
 """
 import importlib.util
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -193,25 +195,39 @@ def _upserted_guidance(ws) -> list[dict]:
   return [r for c in ws.table.return_value.upsert.call_args_list for r in c.args[0] if 'extractor' in r]
 
 
+def _ok(rows, why=None):
+  """가짜 extract 반환 — (행, 거른 사유 Counter)."""
+  return rows, Counter(why or {})
+
+
+def _status_patches(ws) -> list[dict]:
+  return [p for p in _doc_patches(ws) if 'parse_status' in p]
+
+
 class LlmPathTests(unittest.TestCase):
   def test_extract_called_with_client_label_hint(self):
-    """extract(client, doc, text, company_label, hint) — 클라이언트는 실행에서 받은 것 · hint 는 모듈 LLM_HINT(함수도 된다)."""
+    """extract(client, doc, text, company_label, hint, 보고 통화, LLM_DROP) — 클라이언트는 실행에서 받은 것 · hint 는 모듈
+    LLM_HINT(함수도 된다)."""
     mod = _llm_mod()
     mod.LLM_HINT = lambda d: f'hint-for-{d.ticker}'
+    mod.BASE_CURRENCY = 'USD'
+    mod.LLM_DROP = re.compile('scooter')
     client = MagicMock()
     run, _ = _llm_run(mod, client)
     run._company_label = 'Acme Motors'
-    with patch('lib.llm_guidance.extract', return_value=[]) as ex, patch.object(ccn, 'existing_pubs', return_value={}):
+    with patch('lib.llm_guidance.extract', return_value=_ok([])) as ex, \
+         patch.object(ccn, 'existing_pubs', return_value={}):
       run.process(_DOC, None, None)
-    ex.assert_called_once_with(client, _DOC, _G_TEXT, 'Acme Motors', 'hint-for-ACME')
+    ex.assert_called_once_with(client, _DOC, _G_TEXT, 'Acme Motors', 'hint-for-ACME', 'USD', mod.LLM_DROP)
     self.assertEqual(run.llm_calls, 1)
 
-  def test_llm_exception_isolated_to_that_doc(self):
-    """🔴 extract 예외(API·JSON) → 그 문서만 LLM 대기 + 「LLM 실패」 note · 코드 행은 적재 · 다음 문서는 계속 · exit 1 사유."""
+  def test_llm_exception_code_rows_kept_doc_pending_retry(self):
+    """🔴 (a) 코드 행이 있는 문서에서 extract 예외 → 코드 행은 적재 · 문서는 pending + llm_attempts 1 · note
+    「LLM 대기 — LLM 실패: <클래스> (1/3)」 · 다음 문서는 계속 · exit 1 사유 아님(재시도 대기)."""
     mod = _llm_mod(code_guidance=[_G_CODE])
     run, ws = _llm_run(mod)
     doc2 = _doc(id=8)
-    calls = iter([RuntimeError('api down https://secret.example/?k=1'), [_G_LLM_REV]])
+    calls = iter([RuntimeError('api down https://secret.example/?k=1'), _ok([_G_LLM_REV])])
 
     def fake_extract(*a, **kw):
       x = next(calls)
@@ -220,49 +236,155 @@ class LlmPathTests(unittest.TestCase):
       return x
     with patch('lib.llm_guidance.extract', side_effect=fake_extract), \
          patch.object(ccn, 'existing_pubs', return_value={}):
-      run.process(_DOC, None, None)
-      run.process(doc2, None, None)
-    first, second = [p for p in _doc_patches(ws) if 'parse_status' in p]
-    self.assertEqual(first['parse_status'], 'parsed')
-    self.assertTrue(first['parse_note'].startswith(ccn.NOTE_LLM_WAIT_PARSED))
-    self.assertIn(f'{ccn.NOTE_LLM_FAIL}: RuntimeError', first['parse_note'])
+      run.process(_DOC, None, None, 0)
+      run.process(doc2, None, None, 0)
+    first, second = _status_patches(ws)
+    self.assertEqual(first['parse_status'], 'pending')
+    self.assertEqual(first['parse_note'], f'LLM 대기 — {ccn.NOTE_LLM_FAIL}: RuntimeError (1/3)')
+    self.assertEqual(first['llm_attempts'], 1)
+    self.assertTrue(first['parse_note'].startswith('LLM 대기'))   # LIKE 'LLM 대기%' 로 같이 뽑힌다
     self.assertNotIn('secret', first['parse_note'])
     self.assertEqual(second['parse_status'], 'parsed')
     self.assertIsNone(second['parse_note'])
-    self.assertEqual(run.outcomes['llm_failed'], 1)
+    self.assertNotIn('llm_attempts', second)   # 0 회였으면 건드리지 않는다
+    self.assertEqual(run.outcomes['llm_retry'], 1)
     # 첫 문서 코드 행은 적재됐다(LLM 행 없음) · 둘째 문서는 코드 + LLM
     self.assertEqual(sorted(g['extractor'] for g in _upserted_guidance(ws)), ['code', 'code', 'llm'])
-    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
-      self.assertGreaterEqual(run.finish('ACME', 2), 1)
+    with patch('collect_customer_docs.write_status') as ws_status, patch.object(run, '_directions', return_value=0):
+      self.assertEqual(run.finish('ACME', 2), 0)
+    self.assertEqual(ws_status.call_args.args[3], 'ok')
 
-  def test_llm_exception_pending_doc_keeps_wait_note(self):
-    """코드가 못 알아보는 문서에서 LLM 이 실패하면 pending + 「LLM 대기 … · LLM 실패」(LIKE 'LLM 대기%' 로 다시 뽑힌다)."""
-    mod = _llm_mod(recognized=False, volume=False)
-    run, ws = _llm_run(mod)
+  def test_llm_retry_code_rows_idempotent(self):
+    """재시도마다 같은 코드 행을 다시 싣는다 — 두 번 돌려도 적재 행(upsert 인자)이 같다(멱등)."""
+    payloads = []
+    for attempts in (0, 1):
+      run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))
+      with patch('lib.llm_guidance.extract', side_effect=RuntimeError('x')), \
+           patch.object(ccn, 'existing_pubs', return_value={}):
+        run.process(_DOC, None, None, attempts)
+      payloads.append([c.args[0] for c in ws.table.return_value.upsert.call_args_list])
+      self.assertEqual(_status_patches(ws)[-1]['llm_attempts'], attempts + 1)
+    self.assertEqual(payloads[0], payloads[1])
+
+  def test_llm_exception_unrecognized_doc_pending_retry(self):
+    """코드가 못 알아보는 문서에서 LLM 이 실패하면 pending + 「LLM 대기 — LLM 실패: <클래스> (1/3)」."""
+    run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
     with patch('lib.llm_guidance.extract', side_effect=ValueError('bad json')):
-      run.process(_DOC, None, None)
-    note = _doc_patches(ws)[-1]
-    self.assertEqual(note['parse_status'], 'pending')
-    self.assertEqual(note['parse_note'], f'{ccn.NOTE_LLM_WAIT} · {ccn.NOTE_LLM_FAIL}: ValueError')
+      run.process(_DOC, None, None, 0)
+    last = _status_patches(ws)[-1]
+    self.assertEqual(last['parse_status'], 'pending')
+    self.assertEqual(last['parse_note'], f'LLM 대기 — {ccn.NOTE_LLM_FAIL}: ValueError (1/3)')
+    self.assertEqual(last['llm_attempts'], 1)
+
+  def test_all_llm_rows_unverified_pending_retry(self):
+    """🔴 (b) 값 행이 전부 LLM 행인데 전부 대조 실패 → failed 가 아니라 pending + llm_attempts +1(LLM 은 실행마다 다르다)."""
+    run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
+    bad = base.GuidanceRow('revenue', 'Revenue', 'FY2026', 9.0, 9.5, None, 'billion', None, 'not in source text at all')
+    with patch('lib.llm_guidance.extract', return_value=_ok([bad])), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 1)
+    last = _status_patches(ws)[-1]
+    self.assertEqual(last['parse_status'], 'pending')
+    self.assertEqual(last['parse_note'], f'LLM 대기 — {ccn.NOTE_LLM_UNVERIFIED} (2/3)')
+    self.assertEqual(last['llm_attempts'], 2)
+    self.assertEqual(_upserted_guidance(ws), [])   # 대조 실패 LLM 행은 싣지 않는다
+    self.assertEqual(run.outcomes['failed'], 0)
+
+  def test_llm_attempts_cap_closes(self):
+    """🔴 (c) 3회째 — 코드 값 행이 있으면 parsed + 「LLM 3회 실패」(exit 사유 아님) · 없으면 failed(exit 1)."""
+    run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))
+    with patch('lib.llm_guidance.extract', side_effect=RuntimeError('x')), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 2)
+    last = _status_patches(ws)[-1]
+    self.assertEqual(last['parse_status'], 'parsed')
+    self.assertTrue(last['parse_note'].startswith(ccn.NOTE_LLM_GAVE_UP))
+    self.assertEqual(last['llm_attempts'], 3)
+    self.assertEqual([g['extractor'] for g in _upserted_guidance(ws)], ['code'])
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
+      self.assertEqual(run.finish('ACME', 1), 0)
+    # 코드 행 없는 문서(LLM 만 읽는 IR 등) — 예외든 전부 대조 실패든 failed
+    bad = base.GuidanceRow('revenue', 'Revenue', 'FY2026', 9.0, 9.5, None, 'billion', None, 'not in source text at all')
+    for effect in ({'side_effect': RuntimeError('x')}, {'return_value': _ok([bad])}):
+      run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
+      with patch('lib.llm_guidance.extract', **effect), patch.object(ccn, 'existing_pubs', return_value={}):
+        run.process(_DOC, None, None, 2)
+      last = _status_patches(ws)[-1]
+      self.assertEqual(last['parse_status'], 'failed')
+      self.assertTrue(last['parse_note'].startswith(ccn.NOTE_LLM_GAVE_UP))
+      with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
+        self.assertEqual(run.finish('ACME', 1), 1)
+
+  def test_llm_success_resets_attempts(self):
+    """재시도 끝에 LLM 이 제대로 돌면 llm_attempts 를 0 으로."""
+    run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))
+    with patch('lib.llm_guidance.extract', return_value=_ok([_G_LLM_REV])), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, 'LLM 대기 — LLM 실패: RuntimeError (2/3)', 2)
+    last = _status_patches(ws)[-1]
+    self.assertEqual((last['parse_status'], last['llm_attempts']), ('parsed', 0))
+
+  def test_llm_hint_exception(self):
+    """LLM_HINT 함수 예외 — 일반 예외는 그 문서만 LLM 재시도 대기(다음 문서 계속) · 프로그래밍 오류는 파서 예외(failed)."""
+    for err, want_status, want_note in ((RuntimeError('x'), 'pending', 'LLM 실패: RuntimeError'),
+                                        (KeyError('x'), 'failed', '파서 예외: KeyError')):
+      mod = _llm_mod(recognized=False, volume=False)
+      mod.LLM_HINT = MagicMock(side_effect=[err, ''])
+      run, ws = _llm_run(mod)
+      with patch('lib.llm_guidance.extract', return_value=_ok([_G_LLM_REV])) as ex, \
+           patch.object(ccn, 'existing_pubs', return_value={}):
+        run.process(_DOC, None, None, 0)
+        run.process(_doc(id=8), None, None, 0)
+      first, second = _status_patches(ws)
+      self.assertEqual(first['parse_status'], want_status)
+      self.assertIn(want_note, first['parse_note'])
+      self.assertEqual(second['parse_status'], 'parsed')
+      self.assertEqual(ex.call_count, 1)
+      self.assertEqual(run.llm_calls, 1)   # hint 에서 죽은 문서는 호출로 세지 않는다
+
+  def test_extract_programming_error_is_parser_error(self):
+    """extract 안의 KeyError·TypeError 는 「LLM 실패」로 뭉개지 않고 파서 예외(failed)."""
+    run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))
+    with patch('lib.llm_guidance.extract', side_effect=TypeError('x')):
+      run.process(_DOC, None, None, 0)
+    self.assertEqual(_status_patches(ws)[-1], {'parse_status': 'failed', 'parse_note': '파서 예외: TypeError'})
+
+  def test_label_db_error_not_llm_failure(self):
+    """회사 이름 조회(DB) 오류는 LLM 실패로 바뀌지 않고 그대로 올라간다."""
+    run, ws = _llm_run(_llm_mod())
+    run.client.table.side_effect = ConnectionError('db down')
+    with patch('lib.llm_guidance.extract', return_value=_ok([])) as ex, self.assertRaises(ConnectionError):
+      run.process(_DOC, None, None, 0)
+    ex.assert_not_called()
+
+  def test_screened_counts_in_note(self):
+    """extract 가 거른 사유별 건수가 문서 note 에 남는다(「LLM 이 못 찾음」과 「검사가 다 버림」을 가른다)."""
+    run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))
+    with patch('lib.llm_guidance.extract', return_value=_ok([], {'규모': 2, '분기·반기': 1})), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 0)
+    self.assertIn('LLM 거름 규모 2 · 분기·반기 1', _status_patches(ws)[-1]['parse_note'])
+    self.assertEqual(run.llm_screened['규모'], 2)
 
   def test_code_row_wins_same_key(self):
     """🔴 코드 우선 — 같은 (metric, period) 의 LLM 행은 버린다 · 다른 칸의 LLM 행은 extractor='llm'."""
     mod = _llm_mod(code_guidance=[_G_CODE])
     run, ws = _llm_run(mod)
     llm_same = base.GuidanceRow('deliveries', 'Deliveries', 'FY2026', 5500.0, 5500.0, None, 'units', None, 'zzz')
-    with patch('lib.llm_guidance.extract', return_value=[llm_same, _G_LLM_REV]), \
+    with patch('lib.llm_guidance.extract', return_value=_ok([llm_same, _G_LLM_REV])), \
          patch.object(ccn, 'existing_pubs', return_value={}):
       run.process(_DOC, None, None)
     rows = {(g['metric'], g['extractor']): g for g in _upserted_guidance(ws)}
     self.assertEqual(set(rows), {('deliveries', 'code'), ('revenue', 'llm')})
     self.assertEqual(rows[('deliveries', 'code')]['low'], 5000.0)
     self.assertTrue(rows[('revenue', 'llm')]['verified'])
+    self.assertIsNone(rows[('deliveries', 'code')]['currency'])   # 코드 행 통화 = None(보고 통화)
 
   def test_code_miss_note(self):
     """코드 표식은 있는데 코드 가이던스 0행 → LLM 이 채워도 note 「코드 문구 미스 — LLM 행만」(일부면 「빠진 항목 메움」)."""
     for code, want in (([], ccn.NOTE_CODE_MISS_ONLY), ([_G_CODE], ccn.NOTE_CODE_MISS_FILL)):
       run, ws = _llm_run(_llm_mod(code_guidance=code, code_miss=True))
-      with patch('lib.llm_guidance.extract', return_value=[_G_LLM_REV]), \
+      with patch('lib.llm_guidance.extract', return_value=_ok([_G_LLM_REV])), \
            patch.object(ccn, 'existing_pubs', return_value={}):
         run.process(_DOC, None, None)
       last = _doc_patches(ws)[-1]
@@ -271,7 +393,7 @@ class LlmPathTests(unittest.TestCase):
       self.assertEqual(run.outcomes['code_miss'], 1)
     # 원래 서술형 문서(code_miss 거짓)는 표식 없음
     run, ws = _llm_run(_llm_mod())
-    with patch('lib.llm_guidance.extract', return_value=[_G_LLM_REV]), \
+    with patch('lib.llm_guidance.extract', return_value=_ok([_G_LLM_REV])), \
          patch.object(ccn, 'existing_pubs', return_value={}):
       run.process(_DOC, None, None)
     self.assertIsNone(_doc_patches(ws)[-1]['parse_note'])

@@ -81,6 +81,9 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return any(x.metric_name == 'Total Revenues' for x in result.results) or bool(result.dates)
 
 
+BASE_CURRENCY = 'VND'   # 보고 통화 — companies.currency 는 상장 통화(USD)라 쓰지 않는다
+# 🔴 이륜차 제외(사용자 지시) — 프롬프트(LLM_HINT)만 믿지 않고 LLM 행의 quote·metric_label 을 이 정규식으로 거른다
+LLM_DROP = re.compile(r'scooter|e-?bike|motorbike|motorcycle|moped|two-?wheel|xe máy', re.I)
 LLM_HINT = ('🔴 전기 이륜차(e-scooter·e-bike·electric motorbike·two-wheeler) 목표·수치는 뽑지 마세요. 자동차(EV)만 — '
             '인도 목표는 metric=deliveries, unit=units. 매출·이익 전망도 회사 전체(연간)만.')
 
@@ -297,6 +300,13 @@ def self_test() -> list[str]:
     got = _flatten(parse(doc, Content(text=text + ' ' + _Q3_2026)))
     if got != _Q3_2026_WANT:
       errs.append(f'MUST_MISS 이륜차·모델·베트남 문장이 행을 바꿨다: {text[:50]} → {got}')
+  # LLM_DROP — 이륜차 실물 문장(위 MUST_MISS 앞 4개 · 연간 1개 · 베트남 공시)은 걸리고, 정상 EV 인도 목표 문장은 안 걸린다
+  for text in [*MUST_MISS[:4], MUST_MISS[5], MUST_NOT_RECOGNIZED[0]]:
+    if not LLM_DROP.search(text):
+      errs.append(f'LLM_DROP 이륜차 안 걸림: {text[:50]}')
+  for text in ('VinFast reiterates its global deliveries of at least 300,000 EVs for the full year 2026', _Q3_2026):
+    if LLM_DROP.search(text):
+      errs.append(f'LLM_DROP 이 EV 문장을 걸었다: {text[:50]}')
   for tables in MUST_MISS_TABLES:
     got = _flatten(parse(doc, Content(text='', tables=tables)))
     if sorted(v for k, v in got.items() if k[0] == 'deliveries') != [70085]:

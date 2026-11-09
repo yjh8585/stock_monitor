@@ -10,6 +10,9 @@
   (선택) llm_only(doc) -> bool           코드가 읽지 않고 LLM 만 읽는 문서(IR 발표자료 등) — LLM 이 안 도는 실행에선
                                         내려받지 않고 LLM 대기로 둔다
   (선택) LLM_HINT: str | (doc) -> str     LLM 프롬프트에 붙일 회사별 지시(뽑을 것·뺄 것)
+  (선택) LLM_DROP: re.Pattern            LLM 행 중 quote·metric_label 이 걸리면 버린다(프롬프트만 믿지 않는 제외 — 빈패스트 이륜차)
+  (llm_wants 가 있으면 필수) BASE_CURRENCY: str   보고 통화(CURRENCIES 중) — LLM 행 통화 검사의 기준. companies.currency 는
+                                        «상장» 통화라(스텔란티스·빈패스트 = USD) 쓰지 않는다
 
 행 규약:
   🔴 quote 는 값·날짜가 든 원문 «연속 구간»을 통째로 싣는다. '…'·' / ' 로 떼어 값만 뒤에 붙이면
@@ -82,6 +85,9 @@ class GuidanceRow:
   basis: str | None
   quote: str
   stated: str | None = None   # 원문이 밝힌 방향 낱말 → raised 등(숫자로 비교 못 할 때만 쓴다)
+  # 금액·주당 값의 통화 — None = 회사 보고 통화(파서 모듈 BASE_CURRENCY). 코드 파서 행은 늘 None, LLM 행만 외화를 적는다
+  # (모비스 수주 목표 'USD 89.7억' · Task 11 수정 1회차)
+  currency: str | None = None
 
 
 @dataclass(frozen=True)
@@ -150,6 +156,7 @@ UNITS = ('million', 'billion', 'trillion', 'per_share', 'percent', 'units', 'tex
 RESULT_UNITS = ('million', 'billion', 'per_share')                                  # DB CHECK 와 같음
 BASES = ('reported', 'adjusted')                                                    # DB CHECK 와 같음 — 연결/별도는 여기 아님
 STATED = ('raised', 'maintained', 'lowered', 'withdrawn')                           # DB CHECK 와 같음
+CURRENCIES = ('KRW', 'USD', 'EUR', 'VND')                                           # customer_guidance.currency CHECK 와 같음
 
 # 기간 표기 — 표마다 DB CHECK 가 일부에만 있어(가이던스만 FY) 여기서 한 벌로 맞춘다. 표기가 갈리면
 # 같은 분기가 두 행('2026-Q3'·'2026Q3')으로 쌓여 화면·방향 이력이 조용히 갈라진다.

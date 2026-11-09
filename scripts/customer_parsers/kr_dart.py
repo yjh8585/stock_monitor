@@ -283,6 +283,7 @@ def llm_wants(doc: Doc, res: ParseResult) -> bool:
   return llm_only(doc) or doc.doc_type == 'guidance' and not res.guidance
 
 
+BASE_CURRENCY = 'KRW'   # 보고 통화(LLM 행 통화 검사 기준) — 모비스 IR 수주 목표는 USD 라 LLM 이 currency 를 적는다
 _HINT_DART = ('공시 서식의 연간 전망·목표(판매·매출·영업이익·투자 등)와 연도가 밝혀진 중장기 목표만. 분기 실적·전년 실적은 '
               '뽑지 마세요.')
 _HINT_IR = {

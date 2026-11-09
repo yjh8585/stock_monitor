@@ -73,6 +73,7 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return llm_only(doc)
 
 
+BASE_CURRENCY = 'USD'   # 보고 통화(LLM 행 통화 검사 기준)
 LLM_HINT = ('연간(full year) Sales·Adjusted EPS 전망 범위만. 🔴 분기(quarter) 전망은 연간이 아니니 뽑지 마세요. '
             '이전 전망(prior·previous)과 과거 실적도 뽑지 마세요.')
 

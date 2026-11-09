@@ -106,6 +106,7 @@ def llm_wants(doc: Doc, result: ParseResult) -> bool:
   return result.llm_hint
 
 
+BASE_CURRENCY = 'EUR'   # 보고 통화(LLM 행 통화 검사 기준)
 LLM_HINT = ('Outlook(전망) 문단의 연간 항목만 — 매출(금액 revenue 또는 증감률 revenue_growth) · 영업이익률(operating_margin) · '
             'Automotive 투자 비율(investment_ratio) · Automotive 순현금흐름(automotive_net_cash_flow) · Automotive 순유동성'
             '(automotive_net_liquidity). 괄호 안 이전 값(previously: …)·이전 전망(previous forecast)은 뽑지 마세요.')
