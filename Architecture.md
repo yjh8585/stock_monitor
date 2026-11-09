@@ -73,24 +73,24 @@
 
 ## 5. 페이지·라우트 맵
 
-| 라우트              | 목적                                              | 데이터 소스                                             |
-| ------------------- | ------------------------------------------------- | ------------------------------------------------------- |
-| `/related-stocks`   | 21개사 메인 표                                    | `related_stocks_view`                                   |
-| `/compare`          | 다중 회사 비교                                    | `compareData`, `compareMetrics`                         |
-| `/customers`        | 고객사 요약 · 사외비 역할만(`canAccessCustomers`) | `lib/customers/source.ts`(명단·손익·실적·주가)          |
-| `/customers/[slug]` | 고객사 개별(실적·MarkLines 판매·뉴스)             | `lib/customers/source.ts`                               |
-| `/domestic`         | 국내자동차 (421개사 + 매크로)                     | `domestic_stocks_view`                                  |
-| `/oem`              | OEM 전체 (MarkLines 대시보드)                     | `oem_sales_*` 7개 테이블                                |
-| `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)                     | `oem_model_outlook` v2 (§7-E)                           |
-| `/oem/china`        | 중국 승용 생산·수출                               | `oem_china_*` 3개 테이블 (§7-E)                         |
-| `/parts-top100`     | 부품사 TOP100                                     | `parts_top100_stocks_view`                              |
-| `/humanoid`         | 휴머노이드 기업                                   | `humanoid_stocks_view`                                  |
-| `/hansae`           | 한세그룹 (3 종목 intraday)                        | KIS 분봉 + pykrx 수급                                   |
-| `/etc`              | 해운·철강·환율·매크로·두바이유                    | `market_series_*`, `exchange_rates_*`                   |
-| `/reports`          | 보고서 + YouTube 요약                             | `posts` 테이블 + `cacheComponents` 패턴                 |
-| `/management`       | 경영관리 (탭 구조 → §5-A)                         | 사외비 테이블 (명단 정본 = `CONFIDENTIAL_TABLES`, §7-G) |
-| `/login`            | 세션 로그인                                       | Supabase Auth                                           |
-| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스)                   | `stock_prices`, `news`, `naver_board_posts`             |
+| 라우트              | 목적                            | 데이터 소스                                             |
+| ------------------- | ------------------------------- | ------------------------------------------------------- |
+| `/related-stocks`   | 21개사 메인 표                  | `related_stocks_view`                                   |
+| `/compare`          | 다중 회사 비교                  | `compareData`, `compareMetrics`                         |
+| `/customers`        | 고객사 요약(사외비 역할만)      | `lib/customers/source.ts` · `canAccessCustomers`        |
+| `/customers/[slug]` | 고객사 개별(실적·IR·판매·뉴스)  | `lib/customers/source.ts`                               |
+| `/domestic`         | 국내자동차 (421개사 + 매크로)   | `domestic_stocks_view`                                  |
+| `/oem`              | OEM 전체 (MarkLines 대시보드)   | `oem_sales_*` 7개 테이블                                |
+| `/oem/competition`  | 핵심 차종 10종 경쟁 분석 (AI)   | `oem_model_outlook` v2 (§7-E)                           |
+| `/oem/china`        | 중국 승용 생산·수출             | `oem_china_*` 3개 테이블 (§7-E)                         |
+| `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
+| `/humanoid`         | 휴머노이드 기업                 | `humanoid_stocks_view`                                  |
+| `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
+| `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`                   |
+| `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴                 |
+| `/management`       | 경영관리 (탭 구조 → §5-A)       | 사외비 테이블 (명단 정본 = `CONFIDENTIAL_TABLES`, §7-G) |
+| `/login`            | 세션 로그인                     | Supabase Auth                                           |
+| `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts`             |
 
 `/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄 · 중국. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
 
@@ -606,22 +606,9 @@ UNIQUE: (source, note_date)
 **PK**: (basis_year, basis_quarter, series, period_year)
 **RLS**: 정책 없음 (20260715000001) → service_role 전용(`confidentialDb`).
 
-#### `customer_accounts` (신규, 20261109000003) — 고객사 페이지 명단 (사외비)
+#### 고객사 7종 (사외비 · 20261109000003~5)
 
-고객사 페이지 명단·손익 고객명 매핑. 행은 로컬 1회 INSERT(공개 레포에 명단 없음).
-**PK**: `company_id`(→ `companies.id`) · `slug` unique · 캐시 태그 `customer_accounts`
-**RLS**: 정책 없음 (20261109000003) → service_role 전용(`confidentialDb`).
-
-#### 고객사 2단계 6종 (신규, 20261109000004) — 회사 공식 문서와 거기서 뽑은 숫자 (사외비)
-
-전부 RLS on + 정책 없음 → service_role 전용(`confidentialDb`). 캐시 태그 = 표 이름. `customer_collect_status` 외 5개는 `trg_skip_identical_update` 부착(§7-J).
-
-- `customer_documents` — EDGAR·DART·IR 문서 목록. PK `id` · UNIQUE (`source`, `source_id`) · `parse_status` 로 추출 대기 판정 · 수집 = `scripts/collect_customer_docs.py` · `llm_attempts`(LLM 재시도 횟수, 3 이면 닫음 · 20261109000005)
-- `customer_guidance` — 연간 가이던스(범위·문구). UNIQUE (`document_id`, `metric`, `period`) · `period` 는 `FY2026` 꼴 · `currency`(null = 회사 보고 통화 · 외화 LLM 행만 KRW·USD·EUR·VND · 20261109000005)
-- `customer_volume_ir` — 회사 공표 출하·인도·생산·도매·판매 물량. PK (`company_id`, `metric`, `region`, `period_grain`, `period`)
-- `customer_reported_results` — 회사 발표 실적(회사가 쓴 지표 이름 그대로). PK (`company_id`, `period_grain`, `period`, `metric`)
-- `customer_earnings_dates` — 다음 실적 발표일. PK (`company_id`, `period`)
-- `customer_collect_status` — 수집기별 마지막 상태·화면용 사유. PK (`company_id`, `collector`)
+`customer_accounts`(명단) + 2단계 `customer_documents`·`customer_guidance`·`customer_volume_ir`·`customer_reported_results`·`customer_earnings_dates`·`customer_collect_status`. 전부 RLS on·정책 없음 → `confidentialDb`. 키·칸 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
@@ -755,7 +742,7 @@ UNIQUE: (source, note_date)
 - 비-12월 결산 글로벌사 fiscal_year 한국식 -1 보정 (20260521000002 일본 / 20260521000003 일본 외)
 - `parts_top100_stocks_view` 미래 period_end_date 가드 (20260521000001)
 - `companies.status` — `active` / `hidden` / `merged_into` (구 `delisted` 명칭 변경, 20260520)
-- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`). 수집 스크립트가 매 실행마다 전체 행을 upsert해 WAL·dead tuple이 폭증하던 것을 차단한다 (20260803000002). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개 `customer_documents`·`customer_guidance`·`customer_volume_ir`·`customer_reported_results`·`customer_earnings_dates` (20261109000004 · `checked_at` 이 매번 바뀌는 `customer_collect_status` 는 제외).
+- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`). 수집 스크립트가 매 실행마다 전체 행을 upsert해 WAL·dead tuple이 폭증하던 것을 차단한다 (20260803000002). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개(`customer_collect_status` 제외 · 20261109000004).
   - 실측 배경(2026-08-03): `exchange_rates` 8,165행에 누적 UPDATE 521만 회(행당 638회), `market_series_daily` 27,784행에 1,822만 회. WAL이 하루 1.65GB씩 생성돼 Supabase Free 용량 초과의 주원인이 됐다.
   - **부작용 주의**: 동일 값 upsert는 이제 **0행을 반환**한다. 반환 행 수로 성공을 판정하는 코드를 쓰지 말 것(현재 `upsert_rows`는 입력 길이를 반환해 무관).
   - `updated_at`처럼 매번 바뀌는 컬럼이 있는 테이블에는 붙이지 말 것(항상 값이 달라 무의미). 기존 BEFORE 트리거가 있는 `companies`·`financials`·`posts`는 상호작용 회피를 위해 제외했다.
@@ -894,7 +881,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
 | **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
 | **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, `customer_accounts`, 고객사 2단계 6종(`customer_documents` 등, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, 고객사 7종(`customer_*`, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
 | **백업 테이블** | 일회성 백업(`*_dropped_*`·`*_reverted_*`)도 **만들 때 RLS를 켠다**. 2026-08-25에 남긴 2개가 RLS 없이 public 에 있어 anon 키로 읽히고 있었고 Security Advisor 가 ERROR 로 잡았다(20260907000002 로 차단) |
 | **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |
@@ -1170,7 +1157,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 - `collect_*.py` — 외부 → DB 수집. **Stellantis 북미 출하(도매)** → `stellantis_shipments`는 **수집기 2개, IR 홈페이지(`collect_stellantis_shipments_ir.py`)가 primary·EDGAR(`collect_stellantis_shipments.py`)가 보완·백필**(사용자 지시 2026-07-16). 🔴 **fnguide 접근은 반드시 `scripts/lib/fnguide_client.py` 경유**하고, **계약이 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**한다(주 1회 `verify-fnguide.yml`). Cox 재고일수·PDF-only(UzAuto)·현대 분기 IR 등 개별 수집기 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** · `docs/oem-collection.md` · 계약표 [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md).
-- **`scripts/customer_parsers/`** — 고객사 문서 «내용» → 숫자 규칙 파서(회사별 모듈 + 등록부 `__init__.MODULE_NAMES`). 공통 틀 `base.py`(자료형·정규 어휘·기간 형식 `check_vocab`/`drop_off_vocab`·숫자 읽기) · `common.py`(표·문장 도우미). 오케스트레이터 = `collect_customer_numbers.py`(자가 시험 → pending 문서 → 파서 → 대조 → 적재 → 방향 재계산 → 상태), 시험 = `scripts/lib/test_customer_parsers.py`·`test_customer_numbers.py`. 🔴 **문서 상태 칸(`parse_status`·`parse_note`·`sha256`)은 이 오케스트레이터만 쓴다** · **등록부에 없는 회사의 문서는 pending 그대로**(not_target 으로 닫으면 나중에 생긴 파서가 못 본다) · **quote 는 값이 든 원문 연속 구간을 통째로**(`…` 뒤에 값만 붙이면 대조 실패) · 기간 표기는 표마다 하나(일정의 연간 발표 = `YYYY-FY`, `YYYY-Q4` 아님).
+- **`scripts/customer_parsers/`**(회사별 숫자 파서) · `collect_customer_docs.py`(목록) · `collect_customer_numbers.py`(내용) — 고객사 수집. 약속 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 - `enrich_*.py` — 기존 행 보강(외부 LLM·검색). **append-only**. `onboard_company.py`는 신규 회사 추가 직후 1회 실행하며 **멱등**이라 부분 실패 시 같은 명령을 재실행하면 된다(비-12월 결산은 `--fiscal-year-end-month`).
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
@@ -1181,7 +1168,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
 
-- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `product_categories.py`(제품군 카테고리 목록을 **DB 정본**(`product_category_map`)에서 읽어 LLM enum 으로 준다. 🔴 **목록을 수집기에 박지 말 것** — UI 에 이미 사본이 3벌 있다. `split_domains()` 로 자동차/로봇을 **반드시 가를 것**: 22종을 통째로 주면 자동차 부품이 로봇 칸으로 새고 «맞던 값까지» 망가진다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `china_excel.py`(MarkLines 중국 엑셀 3종 → `oem_china_*` 행. 순수 함수, `test_china_excel.py`. 🔴 **그룹 표기 정규화는 `GROUP_ALIASES` 한 곳** — 없는 이름은 원문 그대로 둬 새 그룹이 조용히 사라지지 않게 한다. NEV·승용차 두 파일의 전 차종 월합이 같다는 교차 검증을 `import_oem_china.py` 가 돌린다) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `naver_market_cap.py`(시가총액 대체 출처. 🔴 **KRX 시총 계열이 죽었을 때 쓴다** — 2026-09-16 실측에서 종목 단위·시장 전체가 둘 다 죽고 주가만 살아 있었다. 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주므로 파싱이 필요하고, 🔴 **반환값은 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱 자가 시험(`self_test()`)을 수집 시작 «전에» 부를 것) · `komis.py`(KOMIS 광물 가격 일별 조회 — 철광석·LME 구리 공용. 🔴 **가격기준 코드는 박지 말고 이름으로 조회**: KOMIS 가 예고 없이 바꾸며 옛 코드는 HTTP 200 빈 배열을 준다(2026-11 초 793→878)) · `market_series.py`(`existing_trade_dates()` — 백필 때 이미 적재된 날짜를 건너뛴다) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다) · `doc_text.py`·`edgar.py`·`dart_api.py`(공시·보도자료 원문 → 텍스트·표 행 / SEC EDGAR / DART OpenAPI 공용 — 고객사 수집기·스텔란티스 출하 수집기가 같이 쓴다. 🔴 **EDGAR 요청은 `edgar.edgar_get` 한곳**(UA=env `SEC_USER_AGENT` · 0.15초 간격 · 재시도) · **`companies.sec_cik` 에 넣는 CIK 는 `edgar.normalize_cik` 로 앞 0 없는 꼴**(칸 CHECK 가 `0000320193` 도 통과시켜 같은 회사가 두 꼴로 들어간다) · **DART 키는 예외·로그 문장에 넣지 않는다**(`raise_for_status` 문장은 쿼리째 URL 을 싣는다 → `dart_api._get` 경유) · `doc_text.pdf_text` 는 실패를 빈 문자열로 삼키지 않는다) · `test_customer_docs_classify.py`(고객사 문서 목록 수집기 `scripts/collect_customer_docs.py` 의 문서 종류 분류·적재 칸·상태 판정 + `edgar.fetch_filings` 종류·날짜 거르기 시험. 🔴 **`customer_documents` upsert 에 `parse_status`·`sha256`·`first_seen_at` 을 싣지 않는다** — 실으면 이미 파싱한 문서가 재수집 때 `pending` 으로 돌아간다) · `ir_lists.py`(고객사 IR 사이트 «문서 목록» 어댑터 — 폭스바겐·포르쉐·폴라리스·현대차·기아·현대모비스·KGM. 회사마다 받기 `fetch_*` 와 순수 `parse_*` 를 가르고 `test_ir_lists.py` 가 `fixtures/ir_lists/`(2026-11 실물을 자른 응답)로 본다. `source_id` 는 `ir_source_id()` 한 곳에서만 만든다(호스트+경로 · 쿼리 제외 · 모비스만 서버 파일명 — 다운로드 쿼리가 요청마다 바뀐다). 🔴 **날짜 칸 없는 목록(현대차·모비스)은 `_quarter` 로 내고 수집기가 같은 분기 DART «연결» 잠정실적 공시일로 채운다** — 월 판매 공시도 이름이 「영업(잠정)실적」이라 섞으면 날짜가 틀린다. KGM 발표자료는 같은 분기 보도자료 날짜(파일 올린 날은 재업로드면 한 달 늦어 안 쓴다). 못 찾으면 보류로 세고 지어내지 않는다. 하위 목록 하나가 0건이면 그 이름을 실은 `EmptyListError`. 실적 일정 기간은 `YYYY-Qn`·연간 `YYYY-FY`. GM IR 은 403 이라 어댑터 없이 `probe_gm()` 만) · `quote_check.py`(인용·숫자 대조기 — 순수 함수, agents 규칙 이식. 고객사 파서가 뽑은 행의 quote 가 원문에 있고 값이 그 quote 안에 있는지 본다 → `check_row`·일정은 `check_date_row`. 🔴 **코드 행도 LLM 행도 이걸 지나야 `verified=true`** · 자가 시험 `self_test()`(MUST_HIT·MUST_MISS·DATE_HIT·DATE_MISS — 한국어 띄어쓰기 변이는 통과·활용형은 실패로 고정)를 본 실행 «전에» 부를 것) · `guidance_direction.py`(가이던스 방향 raised·maintained·lowered·initiated·withdrawn — 같은 회사·metric·period 의 직전 «verified» 행과 숫자로 비교하는 순수 함수, `test_guidance_direction.py`. 🔴 **LLM 이 방향을 정하지 않는다** · 가운데값 상대 차 0.5% 이내는 maintained(범위 좁히기도 maintained — 원문 낱말보다 숫자가 우선) · 호출은 `collect_customer_numbers.py` 가 회사마다 전부 다시 매긴다) · `llm_guidance.py`(고객사 가이던스 LLM 추출 — 코드 파서가 못 뽑는 칸(파서의 `llm_wants`)만. 모델 상수 `MODEL`(env `CUSTOMER_GUIDANCE_MODEL`, 기본 `claude-sonnet-5-5`) 한곳 · 구조화 출력 `SCHEMA` · `test_llm_guidance.py`. 🔴 **코드 우선**(같은 문서·metric·period 의 코드 행이 있으면 LLM 행을 버린다) · LLM 행도 `quote_check` 를 지나야 verified · 응답 중단(max_tokens·refusal)은 빈 목록이 아니라 예외(문서는 LLM 대기로 남는다) · 🔴 `quote_check` 는 배수 아무것으로나 수를 맞춰 보므로 규모·통화·기간이 틀린 행도 통과한다 → `screen` 이 돌려주기 전에 거른다(분기·반기 표지 · 원문 배수 낱말로 구한 절대값 ≠ low×단위 · 값에 붙은 외화 표지인데 `currency` 빈칸(값 뒤 괄호 환산은 그 값의 통화가 아니다) · CAGR · 숫자 `other` · 파서 `LLM_DROP`) — 원문 'N억' 을 billion 으로 적은 행만 million 으로 환산. 거른 수는 문서 note 「LLM 거름」)
+- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `product_categories.py`(제품군 카테고리 목록을 **DB 정본**(`product_category_map`)에서 읽어 LLM enum 으로 준다. 🔴 **목록을 수집기에 박지 말 것** — UI 에 이미 사본이 3벌 있다. `split_domains()` 로 자동차/로봇을 **반드시 가를 것**: 22종을 통째로 주면 자동차 부품이 로봇 칸으로 새고 «맞던 값까지» 망가진다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `china_excel.py`(MarkLines 중국 엑셀 3종 → `oem_china_*` 행. 순수 함수, `test_china_excel.py`. 🔴 **그룹 표기 정규화는 `GROUP_ALIASES` 한 곳** — 없는 이름은 원문 그대로 둬 새 그룹이 조용히 사라지지 않게 한다. NEV·승용차 두 파일의 전 차종 월합이 같다는 교차 검증을 `import_oem_china.py` 가 돌린다) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `naver_market_cap.py`(시가총액 대체 출처. 🔴 **KRX 시총 계열이 죽었을 때 쓴다** — 2026-09-16 실측에서 종목 단위·시장 전체가 둘 다 죽고 주가만 살아 있었다. 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주므로 파싱이 필요하고, 🔴 **반환값은 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱 자가 시험(`self_test()`)을 수집 시작 «전에» 부를 것) · `komis.py`(KOMIS 광물 가격 일별 조회 — 철광석·LME 구리 공용. 🔴 **가격기준 코드는 박지 말고 이름으로 조회**: KOMIS 가 예고 없이 바꾸며 옛 코드는 HTTP 200 빈 배열을 준다(2026-11 초 793→878)) · `market_series.py`(`existing_trade_dates()` — 백필 때 이미 적재된 날짜를 건너뛴다) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다) · `doc_text.py`·`edgar.py`·`dart_api.py`·`ir_lists.py`·`quote_check.py`·`guidance_direction.py`·`llm_guidance.py`(고객사 수집 공용 — 약속 → [`docs/customers-collection.md`](./docs/customers-collection.md))
 
 ### `supabase/migrations/`
 
