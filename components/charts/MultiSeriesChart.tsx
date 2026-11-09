@@ -14,6 +14,7 @@ import RangeToggle, { type RangeKey } from './RangeToggle';
 import { sliceByRange } from '@/lib/seriesRange';
 import { arrowColor, fmtChange, growthPct } from '@/lib/format';
 import type { SeriesPoint } from '@/lib/series';
+import { useHiddenSeries } from '@/components/oem-companies/common/useHiddenSeries';
 
 export interface MultiSeriesItem {
   label: string;
@@ -33,7 +34,8 @@ interface MultiSeriesChartProps {
 }
 
 /** 다중 라인 차트(예: 국채 10Y/2Y) — 동일 단위, 범례 + 기간 토글.
- * secondaryFor를 넘기면 해당 인덱스의 series는 왼쪽 보조 Y축에 그려 가격대가 다른 두 종목을 비교하기 쉽다. */
+ * secondaryFor를 넘기면 해당 인덱스의 series는 왼쪽 보조 Y축에 그려 가격대가 다른 두 종목을 비교하기 쉽다.
+ * 범례 항목을 누르면 그 선을 숨기거나 다시 보인다(recharts 차트와 같은 useHiddenSeries · 취소선·흐림 표시). */
 export default function MultiSeriesChart({
   title,
   unit,
@@ -48,6 +50,7 @@ export default function MultiSeriesChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<ISeriesApi<'Line'>[]>([]);
   const [range, setRange] = useState<RangeKey>(initialRange);
+  const { hidden, isHidden, toggle } = useHiddenSeries();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 
@@ -118,6 +121,19 @@ export default function MultiSeriesChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDark, height, series.length, useDualAxis, secondaryFor?.join(',')]);
 
+  // 범례로 끈 선 숨김 — 위에서 차트를 다시 만들면(테마·축 변경) 새 선은 보이는 상태로 생기므로 같은 의존성으로 다시 건다.
+  useEffect(() => {
+    series.forEach((s, i) =>
+      seriesRefs.current[i]?.applyOptions({ visible: !hidden.has(s.label) })
+    );
+    // 보조축의 선을 모두 끄면 왼쪽 눈금도 감춘다(남겨 두면 보이지 않는 선의 값 범위가 축에 남는다)
+    if (useDualAxis) {
+      const leftVisible = series.some((s, i) => secondaryFor?.includes(i) && !hidden.has(s.label));
+      chartRef.current?.applyOptions({ leftPriceScale: { visible: leftVisible } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hidden, isDark, height, series.length, useDualAxis, secondaryFor?.join(',')]);
+
   useEffect(() => {
     slicedAll.forEach((s, i) => {
       const ref = seriesRefs.current[i];
@@ -140,8 +156,16 @@ export default function MultiSeriesChart({
             {series.map((s, i) => {
               const v = lastValues[i];
               const changeLabel = fmtChange(changePcts[i]);
+              const off = isHidden(s.label);
               return (
-                <span key={s.label} className="inline-flex items-center gap-1.5">
+                <button
+                  type="button"
+                  key={s.label}
+                  onClick={() => toggle(s.label)}
+                  aria-pressed={!off}
+                  title={off ? '눌러서 다시 표시' : '눌러서 숨기기'}
+                  className={`inline-flex items-center gap-1.5 cursor-pointer select-none text-left ${off ? 'opacity-50 line-through' : ''}`}
+                >
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-full"
                     style={{ background: s.color }}
@@ -159,7 +183,7 @@ export default function MultiSeriesChart({
                       {changeLabel}
                     </span>
                   )}
-                </span>
+                </button>
               );
             })}
           </div>
@@ -167,9 +191,10 @@ export default function MultiSeriesChart({
         <RangeToggle value={range} onChange={setRange} />
       </div>
       <div ref={containerRef} className="w-full" style={{ height }} />
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>단위: {unit}</span>
-        <span>출처: {source}</span>
+      {/* 출처가 길면 오른쪽 끝을 넘지 않고 줄바꿈한다 */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 text-[10px] text-muted-foreground">
+        <span className="shrink-0">단위: {unit}</span>
+        <span className="min-w-0 text-right">출처: {source}</span>
       </div>
     </div>
   );

@@ -45,7 +45,7 @@
 ### `/related-stocks`, `/compare`, `/domestic`, `/etc` — 시계열 위주
 
 - `SeriesChart` — 단일 라인 + 기간 토글 + 최근값/등락 헤더 + 단위/출처 footer
-- `MultiSeriesChart` — 다중 라인(동일 단위), `secondaryFor`로 좌측 보조축(가격대 다른 2종목)
+- `MultiSeriesChart` — 다중 라인(동일 단위), `secondaryFor`로 좌측 보조축(가격대 다른 2종목) · 헤더 범례 클릭으로 선 숨김 토글(`useHiddenSeries` 재사용 · 보조축 선을 다 끄면 왼쪽 눈금도 숨김). 보조축 선은 라벨에 「· 좌축」을 붙인다(`/etc/commodities`)
 - `compare/MetricCard` — 비교 지표 카드 내 미니 차트
 
 ### `/oem` (전체 탭) — `components/oem/`
@@ -331,7 +331,7 @@ const enriched = data.map((p) => ({ ...p, __anchor: TOTAL_LABEL_ANCHOR,
 
 - **표준: 상단 중앙** — `verticalAlign="top"`, `align="center"`, `wrapperStyle={{ paddingBottom: 4~8 }}`.
 - 클릭 토글이 필요하면 `useHiddenSeries().legendProps` 또는 커스텀 `LegendRow`/`ClickableLegend`.
-- lightweight-charts는 범례가 없어 **헤더에 색 점(dot) + 라벨 + 최근값**으로 대체(`MultiSeriesChart`).
+- lightweight-charts는 범례가 없어 **헤더에 색 점(dot) + 라벨 + 최근값**으로 대체(`MultiSeriesChart` — 항목이 버튼이라 클릭 토글, 꺼지면 취소선·흐림).
 
 ### 5-D. 툴팁 (가장 많이 복붙된 값 — 63회 / 42파일)
 

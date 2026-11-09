@@ -1308,6 +1308,7 @@ DB 에는 발표처 원값 그대로 두고 **환산은 `lib/commodityUnits.ts` 
 - SHFE 는 **장중엔 파일이 있어도 결산가가 비고** `小计`(소계) 행의 미결제약정이 더 크다 — 숫자 월물만 본다
 - 미국 HRC 는 **short ton**, COMEX 구리는 **USD/lb** 단위다
 - 미국 알루미늄 = LME + 중서부 프리미엄 `AUP=F` — COMEX `ALI=F` 는 관세가 빠져 LME 와 같다
+- 미국 구리엔 웃돈을 더하지 않는다 — 정제 구리는 232조 관세 면제라 COMEX 가 곧 미국 가격(관세 기대는 COMEX−LME 차이에 이미 있다)
 - 🔴 로컬 yfinance 가 전부 「possibly delisted」 0행이면 `PYTHONUTF8=0` 으로 다시 돌린다(한글 경로)
 
 → [경위](./history/gotchas-data-collection-경위.md)

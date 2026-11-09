@@ -52,6 +52,9 @@ export default async function CommoditiesPage() {
     getExchangeRateSeries('USD'),
     getExchangeRateSeries('CNY'),
   ]);
+  // 미국 구리는 알루미늄처럼 웃돈을 더하지 않는다(2026-11-09 조사 · 사용자 선택) — 정제 구리(전기동)는 232조 관세
+  // 면제(백악관 팩트시트 2025-07-30 · 포고문 10962)이고 2027·2028 단계 관세는 미시행(2026-11-06 기사). COMEX 가
+  // 미국 인도 가격이라 관세 기대는 이미 COMEX−LME 차이에 들어 있다(2025-07 +22.5% → 면제 발표 뒤 붕괴).
   const copperSeries = [
     {
       label: '미국 COMEX',
@@ -66,20 +69,23 @@ export default async function CommoditiesPage() {
       data: krwVatToUsdPerMt(dataByCode.COPPER_KR ?? [], usdKrw),
     },
   ];
+  // 보조축(2026-11-09 사용자 지시) — 미국(~1,500)과 중국(~420) 값 차이가 커서 한 축이면 중국 선이 바닥에
+  // 깔려 움직임이 안 보인다. 중국을 왼쪽 보조축(secondaryFor)에 둔다. 라벨의 「좌축」이 그 표시다.
   const hrcSeries = [
     // 미국 색은 아래 단일 「HRC」 차트와 같게 둔다
     { label: '미국 CME HRC', color: COLOR.HRC, data: usHrcToUsdPerMt(dataByCode.HRC ?? []) },
     {
-      label: '중국 SHFE (증치세 제외)',
+      label: '중국 SHFE (증치세 제외) · 좌축',
       color: OEM_COLORS[1],
       data: cnyVatToUsdPerMt(dataByCode.HRC_CN ?? [], cnyKrw, usdKrw),
     },
   ];
   // 알루미늄(2026-11-09 추가 지시) — 미국은 COMEX 선물(ALU)이 아니라 LME + 중서부 프리미엄(관세 반영 실거래가).
   // 국제·한국·중국 색은 위 두 카드와 같게 둔다(LME 파랑 · 한국 초록 · 중국 빨강).
+  // 미국만 프리미엄만큼 높아(~5,400 vs ~3,100) 왼쪽 보조축에 둔다(2026-11-09 사용자 지시).
   const aluSeries = [
     {
-      label: '미국 중서부 (LME+프리미엄)',
+      label: '미국 LME+프리미엄 · 좌축',
       color: OEM_COLORS[3],
       data: usMidwestAluminumUsdPerMt(dataByCode.ALU_LME ?? [], dataByCode.ALU_MWP ?? []),
     },
@@ -110,7 +116,7 @@ export default async function CommoditiesPage() {
           <MultiSeriesChart
             title="구리 — 미국·국제·한국"
             unit="USD/t"
-            source="COMEX · KOMIS(LME Cash) · 조달청 비축 판매가 · 환율 일봉 환산"
+            source="COMEX(정제 구리는 미국 관세 면제 · 2026-11 기준) · KOMIS(LME Cash) · 조달청 비축 판매가 · 환율 일봉 환산"
             series={copperSeries}
           />
           <MultiSeriesChart
@@ -118,12 +124,14 @@ export default async function CommoditiesPage() {
             unit="USD/t"
             source="CME HRC 선물 · SHFE 주력월물 결산가 · 환율 일봉 환산"
             series={hrcSeries}
+            secondaryFor={[1]}
           />
           <MultiSeriesChart
             title="알루미늄 — 미국·국제·한국·중국"
             unit="USD/t"
             source="KOMIS(LME Cash) · CME 중서부 프리미엄 · 조달청 비축 판매가(서구산) · SHFE 주력월물 · 환율 일봉 환산"
             series={aluSeries}
+            secondaryFor={[0]}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
