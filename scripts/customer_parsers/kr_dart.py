@@ -10,7 +10,10 @@
   - KGM 은 월 판매와 분기 실적이 같은 제목 → 본문으로 가른다(kgm_kind).
   - 모비스는 월 판매 공시가 없다(부품사) — 분기 잠정실적·IR 일정만.
   - 4분기 실적 발표 IR 은 연간 발표라 일정 기간을 'YYYY-FY' 로 쓴다(base.DATE_PERIOD — 'YYYY-Q4' 는 버려진다).
-  - 중장기 목표(Investor Day 장래사업)는 연간 가이던스 문구가 아니라 코드가 안 뽑는다 → recognized=False(LLM 몫).
+  - 중장기 목표(Investor Day 장래사업)는 연간 가이던스 문구가 아니라 코드가 안 뽑는다 → recognized=False(LLM 몫 —
+    llm_wants 가 참이라 LLM 이 못 돈 실행에선 오케스트레이터가 pending 으로 둔다).
+  - 「알아봄」 은 행이 나왔는지가 아니라 서식 표식으로 판정한다(가이던스 G_ANNUAL · IR 개최목적 「분기」+「실적」 ·
+    실적 필수 칸) — 문구가 바뀌어 0행이면 not_target 으로 조용히 닫히지 않고 failed 로 드러난다.
   - 국문 음수 표기 '△'(예 '△89')는 음수로 읽는다(lib.quote_check 와 같은 규칙). 2024-11~2026-11 DART 본문 303건엔
     '△' 가 없고 음수는 '-298' 꼴이다 — 서식이 바뀌어도 부호가 뒤집히지 않게 둔다.
 """
@@ -53,8 +56,10 @@ RESULT_ITEMS = [
   ('revenue', '매출액'),
   ('operating_income', '영업이익'),
   ('net_income', '당기순이익'),
-  ('net_income_parent', '지배기업 소유주지분 순이익'),
+  ('net_income_parent', '지배기업 소유주지분 순이익'),   # 별도 공시(KGM)엔 이 줄이 없다 — 선택 칸
 ]
+# 이 칸을 못 찾으면 서식(라벨)이 바뀐 것 — 문서를 failed 로 드러낸다(빠진 칸만 조용히 비지 않게)
+RESULT_REQUIRED = ('revenue', 'operating_income', 'net_income')
 
 G_SALES_FORM = re.compile(r'(\d{4})년 판매목표\(대수\)\s+(\d[\d,]*)\s+-')
 G_SALES_PLAN = re.compile(r'(\d{4})년 판매목표\s*:\s*(\d+(?:\.\d+)?)만\s*대')
@@ -70,8 +75,15 @@ G_PNL_GUIDE = re.compile(
   r'(\d{4})년 손익 가이던스\s*·\s*매출액\s*:\s*' + _F + r'\s*~\s*' + _F + r'\s*조원\s*·\s*영업이익\s*:\s*'
   + _F + r'\s*~\s*' + _F + r'\s*조원\s*·\s*영업이익률\s*:\s*' + _F + r'\s*%(\s*이상)?')
 
+# 연간 가이던스 서식의 표식 — 숫자를 못 뽑아도 이 표식이 있으면 「알아본 서식」(문구가 바뀌면 failed 로 드러난다).
+# 중장기(Investor Day) 장래사업 5건(2024-11~2026-08 실물)엔 0건 — 「2030년 … 목표」 꼴이라 걸리지 않는다.
+G_ANNUAL = re.compile(r'\d{4}년\s*(판매\s*목표|손익\s*(사업계획|가이던스)|투자\s*계획)|영업실적\s*전망')
+
 _IR = re.compile(
   r'일시\s+(\d{4}-\d{2}-\d{2})\s+(?:\d{2}:\d{2}|--:--).{0,200}?개최목적\s+(\d{4})년\s*([1-4])분기\s*경영실적\s*발표')
+# 개최목적 칸(다음 「N. 」 항목 앞까지). 🔴 범위를 이 칸으로 묶는다 — NDR 공시도 「6. 주요 설명회내용」 에
+# 「3분기 경영실적」 을 적는다(20261104800225).
+_IR_PURPOSE = re.compile(r'개최목적\s+(.{0,120}?)(?=\s\d{1,2}\.\s|$)')
 
 
 def wants(doc: Doc) -> bool:
@@ -183,6 +195,8 @@ def parse_results(text: str) -> tuple[list[ResultRow], bool]:
   for metric, label in RESULT_ITEMS:
     r = re.search(r'(?:^|\s)' + re.escape(label) + r'\s+당해실적\s+(' + _NUM + ')', body)
     if not r:
+      if metric in RESULT_REQUIRED:
+        return [], True   # 필수 칸 라벨이 바뀌었다 — 나머지 칸만 적재해 parsed 로 숨지 않게 문서를 failed 로
       continue
     rows.append(ResultRow(
       metric=metric, metric_name=label + (' (별도)' if separate else ''), basis='reported',
@@ -203,8 +217,8 @@ def _last(rx: re.Pattern, text: str):
 
 def parse_guidance(text: str) -> tuple[list[GuidanceRow], bool]:
   """연간 가이던스 서식(전망 공시·장래사업). 정정공시는 마지막 서식이 정정 후 값이다.
-  알아봄 = 연간 서식 문구가 하나라도 걸렸다. 중장기(Investor Day) 장래사업은 문구가 달라 0행 → recognized=False
-  (「숫자 0개 = 파싱 실패」로 세지 않는다 — 그 숫자는 LLM 몫이다)."""
+  알아봄 = 행이 나왔거나 연간 서식 표식(G_ANNUAL)이 걸렸다 — 표식은 있는데 0행이면 숫자 문구가 바뀐 것이라
+  failed 로 드러난다. 중장기(Investor Day) 장래사업은 표식도 없어 recognized=False(그 숫자는 LLM 몫 — llm_wants)."""
   text = _restated(text)
   out: list[GuidanceRow] = []
   m = _last(G_SALES_FORM, text)
@@ -250,15 +264,22 @@ def parse_guidance(text: str) -> tuple[list[GuidanceRow], bool]:
       GuidanceRow('operating_margin', '영업이익률' + (' (이상)' if m.group(7) else ''), fy, opm_low,
                   None if m.group(7) else opm_low, None, 'percent', None, q),
     ]
-  return out, bool(out)
+  return out, bool(out) or bool(G_ANNUAL.search(text))
+
+
+def llm_wants(doc: Doc, res: ParseResult) -> bool:
+  """코드가 숫자를 못 뽑는 가이던스 문서(중장기 Investor Day 등)는 LLM 이 읽는다."""
+  return doc.doc_type == 'guidance' and not res.guidance
 
 
 def parse_ir_date(text: str) -> tuple[list[EarningsDate], bool]:
   """IR 개최 안내공시 → 실적 발표일. NDR·컨퍼런스(개최목적에 「분기 경영실적 발표」 없음)는 건너뛴다.
-  4분기 발표 = 연간 발표 → 'YYYY-FY'. 정정공시는 정정 후 서식이 뒤에 오므로 마지막 매치."""
+  4분기 발표 = 연간 발표 → 'YYYY-FY'. 정정공시는 정정 후 서식이 뒤에 오므로 마지막 매치.
+  알아봄 = 일시까지 읽었거나, 개최목적 칸에 「분기」 와 「실적」 이 있다(문구가 바뀌어 0행이면 failed 로 드러난다)."""
   m = _last(_IR, text)
   if not m:
-    return [], False
+    purpose = _last(_IR_PURPOSE, text)
+    return [], bool(purpose and '분기' in purpose.group(1) and '실적' in purpose.group(1))
   year, q = m.group(2), m.group(3)
   period = f'{year}-FY' if q == '4' else f'{year}-Q{q}'
   return [EarningsDate(period, m.group(1), m.group(0))], True
@@ -280,6 +301,9 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   if kind != 'sales':
     res.results, results_ok = parse_results(text)
   res.recognized = sales_ok or results_ok
+  if (sales_ok and not res.volume) or (results_ok and not res.results):
+    # 한쪽이 서식은 알아봤는데 0행(검산 실패·라벨 변경) — 다른 쪽 행이 있어도 문서를 failed 로 드러낸다
+    res.volume, res.results = [], []
   return res
 
 
@@ -316,24 +340,39 @@ _KGM_3Q26 = ('영업(잠정)실적(공정공시) 실적기간 당기실적 2026-
              '단위 : 억원, % 구분 당기실적 전기실적 전기대비 전년동기실적 전년동기대비 (2026년 3분기) (2026년 2분기) 증감율(%) '
              '흑자적자전환여부 (2025년 3분기) 증감율(%) 흑자적자전환여부 매출액 당해실적 9,941 11,823 -15.9 - 11,889 -16.4 - '
              '누계실적 33,129 - - - 31,321 5.8 - 영업이익 당해실적 -298 88 - 적자전환 30 - 적자전환 '
+             '법인세비용차감전계속사업이익 당해실적 -1,325 176 - 적자전환 110 - 적자전환 누계실적 -774 - - - 221 - 적자전환 '
+             '당기순이익 당해실적 -1,332 176 - 적자전환 105 - 적자전환 누계실적 -780 - - - 215 - 적자전환 '
              '- 상기 실적은 한국채택국제회계기준(K-IFRS)에 따라 작성된 별도 재무제표로')
+# 현대 3Q26 연결(20261029800228) — 영업이익 누계 줄은 생략하고 이었다(행 값은 원문 그대로)
+_HMC_3Q26 = (
+  '연결재무제표 기준 영업(잠정)실적(공정공시) 실적기간 당기실적 2026-07-01 ~ 2026-09-30 전기실적 2026-04-01 ~ 2026-06-30 '
+  '1. 연결실적내용 단위 : 백만원, % 구분 당기실적 전기실적 전기대비 전년동기실적 전년동기대비 (2026년 3분기) (2026년 2분기) '
+  '증감율(%) 흑자적자전환여부 (2025년 3분기) 증감율(%) 흑자적자전환여부 매출액 당해실적 45,110,247 49,215,328 -8.3 - '
+  '46,721,448 -3.4 - 누계실적 140,264,461 - - - 139,415,886 0.6 - 영업이익 당해실적 2,677,232 2,850,888 -6.1 - '
+  '2,537,266 5.5 - 법인세비용차감전계속사업이익 당해실적 2,906,622 3,645,740 -20.3 - 3,325,963 -12.6 - '
+  '누계실적 10,073,873 - - - 12,175,904 -17.3 - 당기순이익 당해실적 1,931,746 2,887,962 -33.1 - 2,548,183 -24.2 - '
+  '누계실적 7,404,634 - - - 9,180,747 -19.3 - 지배기업 소유주지분 순이익 당해실적 1,704,370')
 MUST_HIT_RESULTS = [
-  ('연결재무제표 기준 영업(잠정)실적(공정공시) 실적기간 당기실적 2026-07-01 ~ 2026-09-30 전기실적 2026-04-01 ~ 2026-06-30 '
-   '1. 연결실적내용 단위 : 백만원, % 구분 당기실적 전기실적 전기대비 전년동기실적 전년동기대비 (2026년 3분기) (2026년 2분기) '
-   '증감율(%) 흑자적자전환여부 (2025년 3분기) 증감율(%) 흑자적자전환여부 매출액 당해실적 45,110,247 49,215,328 -8.3 - '
-   '46,721,448 -3.4 - 누계실적 140,264,461 - - - 139,415,886 0.6 - 영업이익 당해실적 2,677,232 2,850,888 -6.1 - '
-   '2,537,266 5.5 -',
-   {('revenue', '2026-Q3'): 45110247.0, ('operating_income', '2026-Q3'): 2677232.0}, '매출액'),
-  (_KGM_3Q26, {('revenue', '2026-Q3'): 994100.0, ('operating_income', '2026-Q3'): -29800.0}, '매출액 (별도)'),
+  (_HMC_3Q26,
+   {('revenue', '2026-Q3'): 45110247.0, ('operating_income', '2026-Q3'): 2677232.0,
+    ('net_income', '2026-Q3'): 1931746.0, ('net_income_parent', '2026-Q3'): 1704370.0}, '매출액'),
+  (_KGM_3Q26, {('revenue', '2026-Q3'): 994100.0, ('operating_income', '2026-Q3'): -29800.0,
+               ('net_income', '2026-Q3'): -133200.0}, '매출액 (별도)'),
+  # 기아 2024 3Q — 영업이익 이후 줄(전기 이하·법인세 줄)은 생략하고 당기순이익 줄을 이었다
   ('연결재무제표 기준 영업(잠정)실적(공정공시) 1. 연결실적내용 단위 : 백만원, % 구분 당기실적 전기실적 전기대비증감율(%) '
    '전년동기실적 전년동기대비증감율(%) (2024년 3분기 ) (2024년 2분기 ) (2023년 3분기 ) 매출액 당해실적 26,519,877 '
-   '27,567,907 -3.8 25,545,392 +3.8 누계실적 80,300,635 53,780,758 - 75,480,266 +6.4 영업이익 당해실적 2,881,280',
-   {('revenue', '2024-Q3'): 26519877.0, ('operating_income', '2024-Q3'): 2881280.0}, '매출액'),
+   '27,567,907 -3.8 25,545,392 +3.8 누계실적 80,300,635 53,780,758 - 75,480,266 +6.4 영업이익 당해실적 2,881,280 '
+   '당기순이익 당해실적 2,267,912 2,956,622 -23.3 2,221,005 +2.1',
+   {('revenue', '2024-Q3'): 26519877.0, ('operating_income', '2024-Q3'): 2881280.0,
+    ('net_income', '2024-Q3'): 2267912.0}, '매출액'),
+  # KGM 25Q1 — 법인세 줄은 생략하고 당기순이익 줄을 이었다
   ("영업(잠정)실적(공정공시) 1. 실적내용 단위 : 억원, % 구분 당기실적 전기실적 전기대비증감율(%) 전년동기실적 "
    "전년동기대비증감율(%) ('25년1분기) ('24년4분기 ) ('24년1분기 ) 매출액 당해실적 9,070 9,732 -6.80 9,814 -7.58 "
    '누계실적 9,070 37,825 - 9,814 -7.58 영업이익 당해실적 106 207 -48.79 173 -38.73 '
+   '당기순이익 당해실적 85 52 63.46 561 -84.85 '
    '- 상기 실적은 한국채택국제회계기준(K-IFRS)에 따라 작성된 별도 재무제표로',
-   {('revenue', '2025-Q1'): 907000.0, ('operating_income', '2025-Q1'): 10600.0}, '매출액 (별도)'),
+   {('revenue', '2025-Q1'): 907000.0, ('operating_income', '2025-Q1'): 10600.0,
+    ('net_income', '2025-Q1'): 8500.0}, '매출액 (별도)'),
   # 가상 — 국문 음수 표기 '△'(DART 본문 303건엔 없다 · lib.quote_check 와 같은 규칙으로 음수)
   (_KGM_3Q26.replace('영업이익 당해실적 -298', '영업이익 당해실적 △298'),
    {('operating_income', '2026-Q3'): -29800.0}, '매출액 (별도)'),
@@ -389,6 +428,34 @@ MUST_MISS_IR = [  # 20261104800225 NDR — 「주요 설명회내용」 에 「3
   '(Non-Deal Roadshow) 실시 4. 개최방법 투자자 면담 (One-on-One 및 소그룹) 5. 후원기관 CLSA/Macquarie/Morgan Stanley '
   '6. 주요 설명회내용(요약) 2026년 3분기 경영실적 설',
 ]
+# 「알아봤는데 0행」 이어야 하는 표본 — 문구가 바뀐 것이 not_target 으로 조용히 닫히지 않고 failed 로 드러나는지
+MUST_RECOGNIZED_EMPTY = [
+  ('실적: 필수 칸 라벨 변경', lambda: parse_results(_HMC_3Q26.replace('당기순이익 당해실적', '분기순이익 당해실적'))),
+  ('가이던스: 숫자 문구 변경', lambda: parse_guidance('·2026년 판매목표 : 약 416만대 수준 ·2026년 투자계획 : 미정')),
+  ('IR: 일시 칸 변경', lambda: parse_ir_date(
+    '1. 일시 및 장소 일시 2026년 10월 29일 오후 2시 장소 - 2. 참가 대상자 기관 투자가 및 애널리스트 '
+    '3. 개최목적 2026년 3분기 경영실적발표 4. 개최방법 컨퍼런스콜')),
+]
+# 알아보면 안 되는 표본 — 중장기 Investor Day(20260826800246 원문) · NDR(MUST_MISS_IR)
+MUST_UNRECOGNIZED = [
+  ('가이던스: 중장기 Investor Day', lambda: parse_guidance(
+    '1. 장래계획 사항 중장기 경영 전략 및 재무 목표 발표 2. 주요내용 및 추진일정 목적 2026년 CEO Investor Day 개최 통한 '
+    '당사 사업 관련 투자자 이해 제고 세부내용 · 중장기 전략 - 당사 주요 판매 및 지역별 전략 - 미래 모빌리티 및 미래 기술 '
+    '전략 · 중장기 재무계획 - 중장기(2030년) 영업이익률 목표 : 9+α% - 당사 총주주환원율 영문 용어 변경 : Total '
+    'Shareholder Return(TSR) → Total Payout Ratio(TPR) ※ 상세 내용 첨부파일 참조 추진일정 시작일 - 종료일 2030-12-31')),
+  ('IR: NDR', lambda: parse_ir_date(MUST_MISS_IR[0])),
+]
+
+
+def _parse_doc_test() -> list[str]:
+  """현대 월 판매 검산 실패 + 실적 행이 한 문서에 있어도 실적 행이 실패를 가리지 않는다(문서 0행 · recognized)."""
+  broken = _HEAD_2610 + '국내 49,042 49,022 0.04 - 53,822 -8.9 - 해외 280,731 261,026 7.5 - 298,261 -5.9 - 계 329,774 310,048 6.4 - 352,083 -6.3 -'
+  doc = Doc(id=0, company_id='', ticker='005380', source='dart', doc_type='sales_release', form='', items='',
+            title='', url='', published_at='2026-11-02')
+  res = parse(doc, Content(text=broken + ' ' + _HMC_3Q26))
+  if not res.recognized or res.count():
+    return [f'kr_dart 판매 검산 실패가 실적 행에 가려짐: recognized={res.recognized} 행={res.count()}']
+  return []
 
 
 def self_test() -> list[str]:
@@ -427,4 +494,15 @@ def self_test() -> list[str]:
   for text in MUST_MISS_IR:
     if parse_ir_date(text)[0]:
       errs.append(f'kr_dart IR 일정 오탐: {text[:50]}')
-  return errs
+  for name, run in MUST_RECOGNIZED_EMPTY:
+    rows, ok = run()
+    if rows or not ok:
+      errs.append(f'kr_dart {name}: 행 {len(rows)} · recognized={ok} (기대 0행 · True)')
+  for name, run in MUST_UNRECOGNIZED:
+    rows, ok = run()
+    if rows or ok:
+      errs.append(f'kr_dart {name}: 행 {len(rows)} · recognized={ok} (기대 0행 · False)')
+  for text, _ in MUST_HIT_GUIDANCE:
+    if not parse_guidance(text)[1]:
+      errs.append(f'kr_dart 가이던스 recognized 아님: {text[:30]}')
+  return errs + _parse_doc_test()

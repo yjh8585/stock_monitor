@@ -12,6 +12,9 @@ exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사
 🔴 문서 상태(parse_status·parse_note·sha256)는 이 스크립트만 쓴다 — 목록 수집기(collect_customer_docs.store)는 이 칸을 거부한다.
 🔴 등록부(customer_parsers.MODULE_NAMES)에 파서가 없는 회사의 문서는 pending 그대로 둔다. not_target 으로 닫으면 나중에
    그 회사 파서가 생겨도 문서를 다시 못 본다(--reparse 를 문서마다 돌려야 한다).
+   같은 까닭으로 파서의 wants 가 거짓인 문서(IR 출처 등)도 pending + note 「대상 파서 없음」, LLM 이 읽을 문서(llm_wants)인데
+   LLM 이 이번에 못 돈 문서도 pending + note 「LLM 대기」 — 같은 note 면 다시 쓰지 않는다(매 실행 쓰기 0).
+🔴 LLM 행이 1건 이상이면 코드 파서의 recognized=False 보다 우선한다(judge — 중장기 Investor Day 처럼 코드가 못 알아보는 서식).
 🔴 내용 받기 실패는 그 문서만 처리하고 다음 문서로 간다(note = 예외 클래스·HTTP 상태만 — 본문·URL 금지).
    일시 실패(401·403·408·425·429·5xx·연결·시간 초과·만료 URL)는 pending 그대로 note 만 → 다음 실행이 다시 시도하고 회사 상태가
    blocked·error 로 매번 다시 난다. 영구 실패(404·410·그 밖 4xx·내용 형식 오류)만 failed 로 닫는다.
@@ -28,7 +31,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import requests
 
-DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at'
+DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note'
+NOTE_NO_PARSER = '대상 파서 없음'
+NOTE_LLM_WAIT = 'LLM 대기 — 코드 파서가 못 알아보는 서식'
 DOC_TYPES = ('earnings_release', 'presentation', 'shareholder_letter', 'periodic', 'current_report', 'prelim_results',
              'sales_release', 'guidance', 'ir_event', 'fact_sheet', 'investor_day', 'other')  # DB CHECK 와 같음
 _PAGE = 1000      # PostgREST 한 응답 최대 행 수 — 넘으면 .range() 로 넘긴다(.order() 필수)
@@ -146,11 +151,12 @@ def value_rows(res) -> list:
   return [*res.volume, *res.results, *res.guidance]
 
 
-def judge(res, verified_values: int, verified_dates: int) -> tuple[str, str | None]:
+def judge(res, verified_values: int, verified_dates: int, llm_rows: int = 0) -> tuple[str, str | None]:
   """(parse_status, note). 순서가 뜻이다(계획서 Task 6 Step 6).
   값 행도 없고 검증된 일정도 없는 문서(일정 행이 전부 대조 실패)는 「대조 통과 0」 — 요약서의 「그 밖 parsed」가
-  이 꼴을 parsed 로 넘겨 일정 파서가 깨져도 조용해지는 것을 막는다."""
-  if not res.recognized:
+  이 꼴을 parsed 로 넘겨 일정 파서가 깨져도 조용해지는 것을 막는다.
+  llm_rows = 거르기·dedupe 뒤 남은 LLM 행 수 — 1 이상이면 코드 파서가 못 알아본 문서여도 대상이다."""
+  if not res.recognized and not llm_rows:
     return 'not_target', None
   if res.count() == 0:
     return 'failed', '새 문서인데 숫자 0개'
@@ -389,7 +395,7 @@ def _run(docs: list[dict], tickers: dict[str, str], client, session, ws, args, b
       continue
     run = _CompanyRun(mod, client, session, ws, args, cid)
     for r in rows:
-      run.process(_to_doc(r, ticker), blob)
+      run.process(_to_doc(r, ticker), blob, r.get('parse_note'))
     failures += run.finish(ticker, len(rows))
   return failures
 
@@ -425,8 +431,11 @@ class _CompanyRun:
     """LLM 행 id 집합. None = 이번에 LLM 이 돌지 않았다(--no-llm·llm_wants 거짓·모듈 없음) — 선삭제가 옛 LLM 행을 남긴다."""
     if self.args.no_llm or not hasattr(self.mod, 'llm_wants') or not self.mod.llm_wants(doc, res):
       return None
+    import importlib
     try:
-      from lib import llm_guidance  # Task 11 — 시그니처는 그쪽이 정본
+      # Task 11 — 시그니처는 그쪽이 정본. 🔴 `from lib import llm_guidance` 로 쓰면 모듈이 없을 때 ModuleNotFoundError 가
+      # 아니라 ImportError('cannot import name') 라 아래 except 를 지나쳐 실행 전체가 죽는다(수정 1회차 dry-run 실측)
+      llm_guidance = importlib.import_module('lib.llm_guidance')
     except ModuleNotFoundError as e:
       if e.name != 'lib.llm_guidance':
         raise
@@ -436,12 +445,17 @@ class _CompanyRun:
     res.guidance += rows
     return {id(g) for g in rows}
 
-  def process(self, doc, blob: bytes | None) -> None:
+  def _keep_pending(self, doc, note: str, prev_note: str | None, kind: str) -> None:
+    """pending 그대로 note 만 — 같은 note 면 쓰지 않는다(매 실행 같은 문서를 다시 쓰지 않게)."""
+    self.outcomes[kind] += 1
+    if prev_note != note:
+      self._set_doc(doc, 'pending', note, None)
+
+  def process(self, doc, blob: bytes | None, prev_note: str | None = None) -> None:
     from customer_parsers.base import drop_off_vocab
     if not self.mod.wants(doc):
-      self.outcomes['not_target'] += 1
-      self._set_doc(doc, 'not_target', None, None)
-      return
+      # not_target 으로 닫지 않는다 — 나중에 이 서식의 파서(IR PDF 등)가 생기면 다시 봐야 한다
+      return self._keep_pending(doc, NOTE_NO_PARSER, prev_note, 'no_parser')
     try:
       content, sha = self._content(doc, blob)
     except Exception as e:  # 문서 하나 받기 실패가 실행 전체를 죽이지 않게
@@ -467,7 +481,11 @@ class _CompanyRun:
     checks = verify(res, content.text)
     v_values = sum(checks[id(r)][0] for r in value_rows(res))
     v_dates = sum(checks[id(d)][0] for d in res.dates)
-    status, note = judge(res, v_values, v_dates)
+    llm_n = sum(id(g) in llm_ids for g in res.guidance) if llm_ids else 0
+    status, note = judge(res, v_values, v_dates, llm_n)
+    if status == 'not_target' and llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res):
+      # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·모듈 없음) — 닫으면 LLM 이 생겨도 다시 못 본다
+      return self._keep_pending(doc, NOTE_LLM_WAIT, prev_note, 'llm_wait')
     if note:
       notes.insert(0, note)
     self.outcomes[status] += 1

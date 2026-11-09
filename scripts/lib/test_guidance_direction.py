@@ -20,11 +20,35 @@ class GuidanceDirectionTests(unittest.TestCase):
     """같은 metric·period 3행을 날짜 뒤섞어 넣어도 공시 순으로 initiated → raised → maintained."""
     base = {'metric': 'deliveries', 'period': 'FY2026', 'value_text': None, 'stated': None}
     rows = [
-      {**base, 'id': 3, 'published_at': '2026-10-29', 'document_id': 30, 'low': 67000, 'high': 70000},
+      {**base, 'id': 3, 'published_at': '2026-11-05', 'document_id': 30, 'low': 67000, 'high': 70000},
       {**base, 'id': 1, 'published_at': '2026-02-20', 'document_id': 10, 'low': 65000, 'high': 70000},
       {**base, 'id': 2, 'published_at': '2026-10-29', 'document_id': 20, 'low': 67000, 'high': 70000},
     ]
     self.assertEqual(dict(gd.assign(rows)), {1: 'initiated', 2: 'raised', 3: 'maintained'})
+
+  def test_assign_same_day_rows_compare_to_previous_date(self):
+    """같은 날 두 행은 서로 비교하지 않고 둘 다 직전 날짜의 마지막 행과 비교한다
+    (현대 FY2026 판매목표 — 2026-11-10 DB 행 10·11·15·16(재파싱 뒤 31) 의 값·날짜 그대로: 2026-10-29 두 공시가 둘 다 lowered).
+    그다음 날짜 행은 같은 날 묶음의 마지막 행과 비교한다."""
+    base = {'metric': 'sales_units', 'period': 'FY2026', 'value_text': None, 'stated': None}
+    rows = [
+      {**base, 'id': 10, 'published_at': '2026-01-05', 'document_id': 47, 'low': 4158300, 'high': 4158300},
+      {**base, 'id': 11, 'published_at': '2026-01-29', 'document_id': 45, 'low': 4160000, 'high': 4160000},
+      {**base, 'id': 15, 'published_at': '2026-10-29', 'document_id': 29, 'low': 4000000, 'high': 4000000},
+      {**base, 'id': 16, 'published_at': '2026-10-29', 'document_id': 30, 'low': 4000000, 'high': 4000000},
+      {**base, 'id': 99, 'published_at': '2027-01-05', 'document_id': 99, 'low': 4100000, 'high': 4100000},
+    ]
+    self.assertEqual(dict(gd.assign(rows)),
+                     {10: 'initiated', 11: 'maintained', 15: 'lowered', 16: 'lowered', 99: 'raised'})
+
+  def test_assign_same_day_first_rows_are_initiated(self):
+    """첫 날짜에 두 행이 있으면 둘 다 initiated(서로 비교하지 않는다)."""
+    base = {'metric': 'sales_units', 'period': 'FY2026', 'value_text': None, 'stated': None}
+    rows = [
+      {**base, 'id': 1, 'published_at': '2026-01-29', 'document_id': 10, 'low': 4000000, 'high': 4000000},
+      {**base, 'id': 2, 'published_at': '2026-01-29', 'document_id': 20, 'low': 4160000, 'high': 4160000},
+    ]
+    self.assertEqual(dict(gd.assign(rows)), {1: 'initiated', 2: 'initiated'})
 
   def test_assign_groups_by_metric_and_period(self):
     rows = [

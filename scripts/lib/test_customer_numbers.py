@@ -71,6 +71,87 @@ class JudgeTests(unittest.TestCase):
     self.assertEqual(ccn.judge(R(volume=[_vol()], dates=[_date()], recognized=True), 0, 1), ('failed', '대조 통과 0'))
     self.assertEqual(ccn.judge(R(volume=[_vol()], recognized=True), 1, 0), ('parsed', None))
 
+  def test_llm_rows_override_unrecognized(self):
+    """코드 파서가 못 알아본 문서(recognized=False)라도 LLM 행이 있으면 대상이다."""
+    R = base.ParseResult
+    self.assertEqual(ccn.judge(R(guidance=[_guid()]), 1, 0, llm_rows=1), ('parsed', None))
+    self.assertEqual(ccn.judge(R(guidance=[_guid()]), 0, 0, llm_rows=1), ('failed', '대조 통과 0'))
+    self.assertEqual(ccn.judge(R(), 0, 0, llm_rows=0), ('not_target', None))
+
+
+def _guid():
+  return base.GuidanceRow('revenue', 'Revenue', 'FY2026', 10.0, 12.0, None, 'billion', None, 'revenue of $10 to $12 billion')
+
+
+class PendingTests(unittest.TestCase):
+  """wants 거짓·LLM 대기 문서는 not_target 으로 닫지 않는다 — 나중에 파서·LLM 이 생기면 다시 봐야 한다."""
+
+  def test_wants_false_stays_pending_with_note(self):
+    mod = _mod()
+    mod.wants = lambda d: False
+    run, ws = _run(mod)
+    run.process(_DOC, None, None)
+    self.assertEqual(_doc_patches(ws), [{'parse_status': 'pending', 'parse_note': ccn.NOTE_NO_PARSER}])
+    self.assertEqual(run.outcomes['not_target'], 0)
+
+  def test_wants_false_same_note_no_write(self):
+    mod = _mod()
+    mod.wants = lambda d: False
+    run, ws = _run(mod)
+    run.process(_DOC, None, ccn.NOTE_NO_PARSER)
+    ws.table.assert_not_called()
+
+  def test_llm_wanted_but_not_run_stays_pending(self):
+    """중장기 Investor Day 처럼 코드가 못 알아보고(recognized=False) LLM 이 읽을 문서인데 LLM 이 안 돌았다 → pending."""
+    mod = _mod(parse=lambda d, c: base.ParseResult())
+    mod.llm_wants = lambda d, r: True
+    run, ws = _run(mod)   # no_llm=True
+    run.process(_DOC, None, None)
+    self.assertEqual(_doc_patches(ws), [{'parse_status': 'pending', 'parse_note': ccn.NOTE_LLM_WAIT}])
+    run2, ws2 = _run(mod)
+    run2.process(_DOC, None, ccn.NOTE_LLM_WAIT)
+    ws2.table.assert_not_called()
+
+  def test_llm_module_missing_keeps_pending(self):
+    """LLM 을 켜고(no_llm=False) 돌렸는데 lib.llm_guidance 가 아직 없다 → 예외 없이 note 「LLM 모듈 없음」 + pending."""
+    mod = _mod(parse=lambda d, c: base.ParseResult())
+    mod.llm_wants = lambda d, r: True
+    ws = MagicMock()
+    run = ccn._CompanyRun(mod, MagicMock(), None, ws, SimpleNamespace(dry_run=False, no_llm=False), 'c-1')
+    real = __import__('importlib').import_module
+
+    def no_llm_module(name, *a, **kw):
+      if name == 'lib.llm_guidance':
+        raise ModuleNotFoundError(f"No module named '{name}'", name=name)
+      return real(name, *a, **kw)
+    with patch('importlib.import_module', side_effect=no_llm_module):
+      run.process(_DOC, None, None)
+    self.assertEqual(_doc_patches(ws), [{'parse_status': 'pending', 'parse_note': ccn.NOTE_LLM_WAIT}])
+
+  def test_unrecognized_without_llm_wants_closes(self):
+    """LLM 도 안 읽는 문서(NDR 등)는 그대로 not_target."""
+    mod = _mod(parse=lambda d, c: base.ParseResult())
+    mod.llm_wants = lambda d, r: False
+    run, ws = _run(mod)
+    run.process(_DOC, None, None)
+    self.assertEqual(_doc_patches(ws)[-1]['parse_status'], 'not_target')
+
+  def test_llm_rows_with_unrecognized_code_parse_is_parsed(self):
+    """LLM 행 1건 + 코드 recognized=False → parsed(가짜 _llm 결과)."""
+    mod = _mod(parse=lambda d, c: base.ParseResult())
+    run, ws = _run(mod)
+
+    def fake_llm(doc, content, res, notes):
+      g = _guid()
+      res.guidance.append(g)
+      return {id(g)}
+    with patch.object(run, '_llm', side_effect=fake_llm), \
+         patch.object(ccn, 'verify', side_effect=lambda res, text: {id(g): (True, None) for g in res.guidance}), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None)
+    self.assertEqual(run.outcomes['parsed'], 1)
+    self.assertEqual(_doc_patches(ws)[-1]['parse_status'], 'parsed')
+
 
 class PayloadTests(unittest.TestCase):
   def test_verified_flags_extractor_and_dates(self):
@@ -269,7 +350,7 @@ class StoreTests(unittest.TestCase):
     mod.wants = lambda d: False
     run, _ = _run(mod)
     with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0) as d:
-      run.process(_DOC, None)
+      run.process(_DOC, None, ccn.NOTE_NO_PARSER)
       run.finish('ACME', 1)
     d.assert_not_called()
 
