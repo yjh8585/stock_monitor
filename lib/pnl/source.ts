@@ -25,10 +25,11 @@ const SUPABASE_PAGE_SIZE = 1000;
  *
  * 외부는 `getPreparedPnl()`만 호출한다. raw 1000+ 행은 RSC payload로 통과시키지
  * 말고 서버에서 가공한 PreparedPnlData만 client에 전달 (RSC payload 1/3 감소).
+ * 예외: 고객사 매출 비중(`lib/customers/source.ts`)이 raw 를 서버에서만 집계한다 — 결과(비중)만 화면에 넘긴다.
  *
  * 사외비 — confidentialDb 자동 라우팅으로 service_role 사용.
  */
-async function fetchPnlEntries(): Promise<PnlEntry[]> {
+export async function fetchPnlEntries(): Promise<PnlEntry[]> {
   const all: PnlEntry[] = [];
   let from = 0;
   while (true) {
