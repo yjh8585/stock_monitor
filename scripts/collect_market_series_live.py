@@ -17,7 +17,8 @@ init_script(__file__)
 from lib.db import get_client, WriteSession  # noqa: E402
 
 # 미국 국채는 라이브 대상에서 제외 (사용자 정책)
-EXCLUDED = {'UST10Y', 'UST30Y'}
+# ALU_MWP(중서부 프리미엄)는 화면이 일봉으로만 LME 에 더해 쓴다 — 매시간 받아도 쓰는 곳이 없다(2026-11-09)
+EXCLUDED = {'UST10Y', 'UST30Y', 'ALU_MWP'}
 
 
 def collectMarketSeriesLive() -> None:

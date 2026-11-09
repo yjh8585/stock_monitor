@@ -532,7 +532,7 @@ MarkLines 중국 전용 엑셀 3종을 그대로 담는다(전 세계 생산 `oe
 | series_code | trade_date | close |  
 인덱스: (series_code, trade_date DESC)  
 수집(`collect_market_series.py`): KOSPI·KOSDAQ는 KRX(pykrx `get_index_ohlcv`, `KRX_ID`/`KRX_PW` 로그인 필요 — 야후 `^KS11`/`^KQ11` 당일 지연 회피), 그 외 지수·금/은·국채·원자재는 yfinance(`end`는 exclusive라 +1일 보정), 일부는 FRED. 출처 표기는 `market_series.source`.
-철·구리 지역 비교(2026-11-09): `STEEL_KR`(철광석)·`COPPER_LME` 는 KOMIS(`lib/komis.py`), `COPPER_KR` 는 조달청 비축 판매가 게시판(`collect_copper_pps.py`), `HRC_CN` 은 SHFE 일별 JSON(`collect_shfe_hrc.py`) — 모두 `collect-steel-kr.yml`. **DB 에는 발표처 원 단위·세금 포함 그대로** 두고, 원자재 화면 상단 비교 차트만 `lib/commodityUnits.ts` 로 USD/t·세금 제외 환산한다.
+철·구리·알루미늄 지역 비교(2026-11-09): `STEEL_KR`(철광석)·`COPPER_LME`·`ALU_LME` 는 KOMIS(`lib/komis.py` · `collect_komis_lme.py`), `COPPER_KR`·`ALU_KR` 는 조달청 비축 판매가 게시판(`collect_pps_metals.py`), `HRC_CN`·`ALU_CN` 은 SHFE 일별 JSON(`collect_shfe.py`) — 모두 `collect-steel-kr.yml`. 미국 알루미늄은 COMEX 선물(`ALU`)이 아니라 `ALU_LME` + 중서부 프리미엄 `ALU_MWP`(야후 `AUP=F` · `collect_market_series.py`)다. **DB 에는 발표처 원 단위·세금 포함 그대로** 두고, 원자재 화면 상단 비교 차트만 `lib/commodityUnits.ts` 로 USD/t·세금 제외 환산한다.
 
 #### `market_series_live` — 지수·원자재 라이브 끝점 (현재가)
 
@@ -834,7 +834,7 @@ GHA runner: sync_management_excel.py (apply)
 | 감성 | analyze-board-sentiment | 일간 |
 | DART | collect-dart-audit (shard 8), collect-dart-labor | 분기 / 일간 |
 | 매크로 | collect-macro-outlook(**비활성** 2026-10-02), collect-market-series, collect-market-series-live | 일간 / 주간 / 매시간 |
-| 해운·철강 | collect-shipping, collect-steel-kr (철광석·LME 구리·조달청 구리·SHFE 열연 — 단계별 `!cancelled()`) | 일간 |
+| 해운·철강 | collect-shipping, collect-steel-kr (철광석 · KOMIS LME 구리·알루미늄 · 조달청 구리·알루미늄 · SHFE 열연·알루미늄 — 단계별 `!cancelled()`) | 일간 |
 | 원자재 | collect-dubai-oil | 일간 |
 | 글로벌 스냅샷 | collect-global-snapshot | 일간 |
 | 한세 종목토론 | collect-naver-board (GHA Node tsx 직접) | 30분 |

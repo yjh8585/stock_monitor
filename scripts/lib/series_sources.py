@@ -20,21 +20,28 @@ KOMIS_IRON_PRICE_NAME: Final[str] = 'Iron Ore Fines'
 # 광종 그룹: 철광석·에너지(HP003) / 비철금속(HP001)
 KOMIS_IRON_HP_GROUP: Final[str] = 'HP003'
 
-# --- KOMIS 비철금속 — 구리(동) LME 현물 ---
+# --- KOMIS 비철금속 — LME 현물 (구리·알루미늄) ---
 KOMIS_BASE_METALS_URL: Final[str] = 'https://www.komis.or.kr/Komis/RsrcPrice/BaseMetals'
 KOMIS_BASE_METALS_HP_GROUP: Final[str] = 'HP001'
+KOMIS_LME_PRICE_NAME: Final[str] = 'LME CASH'
 KOMIS_COPPER_MNRL_CODE: Final[str] = 'MNRL0008'
-KOMIS_COPPER_PRICE_NAME: Final[str] = 'LME CASH'
+# 알루미늄 — 페이지에 광종 이름이 없어 DB ALU 와 2년 맞대 판별했다(2026-11-09 · 니켈은 MNRL0002)
+KOMIS_ALU_MNRL_CODE: Final[str] = 'MNRL0009'
 
 # --- 조달청 비축물자 「원자재 판매가격」 게시판 (영업일마다 1건, 원/톤 · 부가세 포함) ---
 PPS_LIST_URL: Final[str] = 'https://www.pps.go.kr/bichuk/bbs/list.do'
 PPS_VIEW_URL: Final[str] = 'https://www.pps.go.kr/bichuk/bbs/view.do'
 PPS_PRICE_BOARD_KEY: Final[str] = '00825'
 PPS_COPPER_ITEM: Final[str] = '구리(99.99%이상)'
+# 서구산 — 2021년부터 한 줄로 꾸준하다(비서구산은 지역별로 두 줄로 갈린 날이 있다 · 사용자 선택 2026-11-09)
+PPS_ALU_ITEM: Final[str] = '알루미늄(서구산)'
+# 수집하지 않는 형제 품목 — 이것만 있는 날은 서구산 「판매 안 함」으로 본다
+PPS_ALU_NON_WESTERN_ITEM: Final[str] = '알루미늄(비서구산)'
 
 # --- SHFE(상하이선물거래소) 일별 시세 JSON — 휴장일은 404 HTML ---
 SHFE_DAILY_URL: Final[str] = 'https://www.shfe.com.cn/data/tradedata/future/dailydata/kx{ymd}.dat'
 SHFE_HRC_PRODUCT: Final[str] = 'hc'  # 热轧卷板(열연강판), CNY/t, 중국 증치세 포함 가격
+SHFE_ALU_PRODUCT: Final[str] = 'al'  # 铝(알루미늄), CNY/t, 증치세 포함 · 'ao'(산화알루미늄)·'ad'(주조 합금)와 다르다
 # 메타 갱신용 라벨/단위 (KOMIS Iron Ore Fines는 USD/MT)
 STEEL_KR_LABEL: Final[str] = '철광석 (Iron Ore Fines 62%, CFR China)'
 STEEL_KR_UNIT: Final[str] = 'USD/MT'

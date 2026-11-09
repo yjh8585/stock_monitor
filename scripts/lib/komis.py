@@ -1,7 +1,7 @@
 """
 KOMIS(한국광해광업공단 자원정보서비스) 광물 가격 일별 시계열 조회 공용 모듈.
 
-철광석(collect_steel_kr.py)·LME 구리(collect_copper_lme.py)가 같은 ajax 엔드포인트를 쓴다.
+철광석(collect_steel_kr.py)·LME 구리·알루미늄(collect_komis_lme.py)이 같은 ajax 엔드포인트를 쓴다.
 광종은 그룹(HP001 비철 · HP003 철광석·에너지 …)과 광종 코드(MNRL…)로, 가격 기준은
 이름(cdVal)으로 고른다.
 

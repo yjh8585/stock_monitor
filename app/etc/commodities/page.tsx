@@ -14,6 +14,7 @@ import {
   usHrcToUsdPerMt,
   krwVatToUsdPerMt,
   cnyVatToUsdPerMt,
+  usMidwestAluminumUsdPerMt,
 } from '@/lib/commodityUnits';
 
 // 라이브 끝점 대상 (선물·24h) — STEEL_KR(KOMIS)·DUBAI(FRED 월별)는 제외
@@ -45,8 +46,8 @@ export default async function CommoditiesPage() {
     )
   );
 
-  // 상단 지역 비교 차트 — 전부 USD/t · 세금 제외(2026-11-09 사용자 선택). 새 시리즈 3종(COPPER_LME·
-  // COPPER_KR·HRC_CN)도 commodity 분류라 위 반복에서 이미 읽혔다. 단일 차트 목록(ORDER)에는 넣지 않는다.
+  // 상단 지역 비교 차트 — 전부 USD/t · 세금 제외(2026-11-09 사용자 선택). 비교용 시리즈(COPPER_LME·COPPER_KR·
+  // HRC_CN·ALU_LME·ALU_KR·ALU_CN·ALU_MWP)도 commodity 분류라 위 반복에서 이미 읽혔다. 단일 차트 목록(ORDER)에는 넣지 않는다.
   const [usdKrw, cnyKrw] = await Promise.all([
     getExchangeRateSeries('USD'),
     getExchangeRateSeries('CNY'),
@@ -74,6 +75,26 @@ export default async function CommoditiesPage() {
       data: cnyVatToUsdPerMt(dataByCode.HRC_CN ?? [], cnyKrw, usdKrw),
     },
   ];
+  // 알루미늄(2026-11-09 추가 지시) — 미국은 COMEX 선물(ALU)이 아니라 LME + 중서부 프리미엄(관세 반영 실거래가).
+  // 국제·한국·중국 색은 위 두 카드와 같게 둔다(LME 파랑 · 한국 초록 · 중국 빨강).
+  const aluSeries = [
+    {
+      label: '미국 중서부 (LME+프리미엄)',
+      color: OEM_COLORS[3],
+      data: usMidwestAluminumUsdPerMt(dataByCode.ALU_LME ?? [], dataByCode.ALU_MWP ?? []),
+    },
+    { label: '국제 LME', color: OEM_COLORS[0], data: dataByCode.ALU_LME ?? [] },
+    {
+      label: '한국 조달청 (부가세 제외)',
+      color: OEM_COLORS[2],
+      data: krwVatToUsdPerMt(dataByCode.ALU_KR ?? [], usdKrw),
+    },
+    {
+      label: '중국 SHFE (증치세 제외)',
+      color: OEM_COLORS[1],
+      data: cnyVatToUsdPerMt(dataByCode.ALU_CN ?? [], cnyKrw, usdKrw),
+    },
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -97,6 +118,12 @@ export default async function CommoditiesPage() {
             unit="USD/t"
             source="CME HRC 선물 · SHFE 주력월물 결산가 · 환율 일봉 환산"
             series={hrcSeries}
+          />
+          <MultiSeriesChart
+            title="알루미늄 — 미국·국제·한국·중국"
+            unit="USD/t"
+            source="KOMIS(LME Cash) · CME 중서부 프리미엄 · 조달청 비축 판매가(서구산) · SHFE 주력월물 · 환율 일봉 환산"
+            series={aluSeries}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

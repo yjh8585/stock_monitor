@@ -21,21 +21,37 @@ export const CN_VAT = 1.13;
 // 화면에는 소수 2자리까지만 보이고 payload 를 줄이려고 소수 1자리로 반올림한다.
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-/** prices 각 점에 같은 날 또는 그 이전 가장 가까운 날의 rate 를 붙여 fn(price, rate) 로 바꾼다. 둘 다 시간 오름차순. */
+const DAY_MS = 86_400_000;
+
+/**
+ * prices 각 점에 같은 날 또는 그 이전 가장 가까운 날의 rate 를 붙여 fn(price, rate) 로 바꾼다. 둘 다 시간 오름차순.
+ * maxLagDays 를 주면 붙일 rate 가 그보다 오래된 점은 버린다 — rate 쪽 수집이 끊겼을 때 옛 값을 몇 달씩
+ * 붙여 그리지 않게(선이 끊겨야 눈에 띈다 · 2026-11-09 검토).
+ */
 export function joinAsOf(
   prices: SeriesPoint[],
   rates: SeriesPoint[],
-  fn: (price: number, rate: number) => number
+  fn: (price: number, rate: number) => number,
+  maxLagDays?: number
 ): SeriesPoint[] {
   const out: SeriesPoint[] = [];
   let j = -1;
   for (const p of prices) {
     while (j + 1 < rates.length && rates[j + 1].time <= p.time) j++;
     if (j < 0) continue;
+    if (
+      maxLagDays !== undefined &&
+      Date.parse(p.time) - Date.parse(rates[j].time) > maxLagDays * DAY_MS
+    ) {
+      continue;
+    }
     out.push({ time: p.time, value: fn(p.value, rates[j].value) });
   }
   return out;
 }
+
+/** 중서부 프리미엄이 이보다 오래되면 미국 알루미늄 점을 그리지 않는다(연휴 포함 여유) */
+export const PREMIUM_MAX_LAG_DAYS = 10;
 
 /** COMEX 구리 USD/lb → USD/t */
 export function comexCopperToUsdPerMt(points: SeriesPoint[]): SeriesPoint[] {
@@ -45,6 +61,24 @@ export function comexCopperToUsdPerMt(points: SeriesPoint[]): SeriesPoint[] {
 /** 미국 HRC 선물 USD/short ton → USD/t */
 export function usHrcToUsdPerMt(points: SeriesPoint[]): SeriesPoint[] {
   return points.map((p) => ({ time: p.time, value: round1(p.value * SHORT_TON_PER_MT) }));
+}
+
+/**
+ * 미국 중서부 알루미늄 실거래가 USD/t = LME 현물(USD/t) + 중서부 프리미엄(USD/lb → ×2204.62262).
+ * 관세·운송 웃돈은 프리미엄에만 들어 있어, COMEX 선물(ALI=F)만으로는 미국 가격이 LME 와 거의 같게 보인다
+ * (2026-11-09 사용자 선택). 프리미엄은 LME 날짜에 «같은 날 또는 그 이전» 값을 붙인다.
+ * 프리미엄이 가격의 큰 몫(2026-11 약 2,290 USD/t)이라, PREMIUM_MAX_LAG_DAYS 보다 오래된 프리미엄은 붙이지 않는다.
+ */
+export function usMidwestAluminumUsdPerMt(
+  lmeUsdPerMt: SeriesPoint[],
+  premiumUsdPerLb: SeriesPoint[]
+): SeriesPoint[] {
+  return joinAsOf(
+    lmeUsdPerMt,
+    premiumUsdPerLb,
+    (lme, premium) => round1(lme + premium * LB_PER_MT),
+    PREMIUM_MAX_LAG_DAYS
+  );
 }
 
 /** 원/톤(부가세 포함) → USD/t(부가세 제외). usdKrw = 1달러당 원 */
