@@ -212,7 +212,10 @@ def parse_outlook(text: str) -> tuple[list[GuidanceRow], bool]:
         m = rx.search(body)
         if m and group not in found:
           lo, hi = _range(m.group(1), m.group(2), m.group(3))
-          found[group] = GuidanceRow(metric, label, f'FY{year}', lo, hi, None, unit, basis, m.group(0))
+          # 'around' 는 근사 — 숫자는 그대로 두고 원문 구절('around €315 billion')을 value_text 로 남겨 화면이 「약」을 붙인다
+          # (전망을 단정으로 바꾸지 않기 · Task 15 Codex 대조). 구절은 quote 의 꼬리라 quote_check 를 그대로 통과한다
+          approx = m.group(0)[m.start(1) - m.start(0):] if m.group(1).lower() == 'around' else None
+          found[group] = GuidanceRow(metric, label, f'FY{year}', lo, hi, approx, unit, basis, m.group(0))
       tm = _G_TEXT.search(body)
       if tm and 'revenue' not in found:
         found['revenue'] = GuidanceRow('revenue_growth', 'Group sales revenue growth', f'FY{year}', None, None,
@@ -459,10 +462,23 @@ MUST_NOT_RECOGNIZED = [
 ]
 
 
+# 근사 낱말 보존(Task 15 Codex 대조) — (본문, metric, 기대 value_text). 숫자도 그대로여야 한다(MUST_HIT 가 본다).
+# 1507(9M 보도자료)·1527(ad-hoc) 실물 문장 · 'between'·'up to' 는 근사가 아니라 None
+APPROX_SAMPLES = [
+  (OUT_9M, 'revenue', 'around €315 billion'),                  # 2026-10-29 9M 판(doc 1507)
+  (ADHOC, 'revenue', 'around 315 billion'),                    # 2026-09-18 ad-hoc(doc 1527) — 'billion euros' 의 앞까지
+  (OUT_9M, 'automotive_net_cash_flow', None),                  # 'between €3 billion and €6 billion'
+  (OUT_9M, 'operating_margin', None),                          # 'up to 1 percent'
+  (OUT_2025, 'automotive_net_liquidity', 'around EUR 30 billion'),
+]
+
+
 def _flatten(r: ParseResult) -> dict:
   out = {('V', x.metric, x.period): x.value for x in r.volume}
   out.update({('R', x.metric, x.period): x.value for x in r.results})
-  out.update({('G', x.metric, x.period): (x.value_text if x.value_text else (x.low, x.high)) for x in r.guidance})
+  # 숫자가 있으면 숫자(근사 구절은 APPROX_SAMPLES 가 따로 본다) · 숫자 없는 문장 전망만 value_text
+  out.update({('G', x.metric, x.period): ((x.low, x.high) if x.low is not None or x.high is not None else x.value_text)
+              for x in r.guidance})
   out[('N',)] = len(r.volume) + len(r.results) + len(r.guidance)
   out[('H',)] = r.llm_hint
   return out
@@ -491,4 +507,8 @@ def self_test() -> list[str]:
     res = parse(doc, Content(text=text, tables=tables))
     if res.recognized or res.count():
       errs.append(f'MUST_NOT_RECOGNIZED {name}: {_flatten(res)}')
+  for text, metric, want in APPROX_SAMPLES:
+    row = next((g for g in parse_outlook(text)[0] if g.metric == metric), None)
+    if row is None or row.value_text != want or (want and want not in row.quote):
+      errs.append(f'APPROX {metric}: 기대 {want} · 실제 {row and row.value_text}')
   return errs

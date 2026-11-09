@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   amountText,
+  approxPrefix,
   docTypeLabel,
   earningsFootnotes,
   guidanceDirection,
@@ -21,6 +22,22 @@ describe('pctText', () => {
   it('기존 동작 유지', () => {
     expect(pctText(1.234)).toBe('+1.2%');
     expect(pctText(null)).toBe('—');
+  });
+});
+
+describe('approxPrefix', () => {
+  it('원문 구절이 근사 낱말로 시작하면 「약 」 — 전망을 단정으로 바꾸지 않는다', () => {
+    expect(approxPrefix('around €315 billion')).toBe('약 ');
+    expect(approxPrefix('Around 315 billion')).toBe('약 ');
+    expect(approxPrefix('approximately 6 percent')).toBe('약 ');
+    expect(approxPrefix('about $2 billion')).toBe('약 ');
+    expect(approxPrefix('약 3조원')).toBe('약 ');
+  });
+  it('근사 낱말이 아니거나 원문 구절이 없으면 빈 문자열(다른 행 표시는 그대로)', () => {
+    expect(approxPrefix(null)).toBe('');
+    expect(approxPrefix('€(5) billion - €(10) billion')).toBe('');
+    expect(approxPrefix('aboutness 3')).toBe('');
+    expect(approxPrefix('in line with the previous year')).toBe('');
   });
 });
 

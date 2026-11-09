@@ -65,6 +65,16 @@ export function rangeText(
   return low != null ? `${num(low)}${suffix} 이상` : `${num(high!)}${suffix} 이하`;
 }
 
+const APPROX = /^(?:(?:around|approximately|about|roughly)\b|약\s)/i;
+
+/**
+ * 가이던스 원문 구절(value_text)이 근사 낱말로 시작하면 숫자 앞에 붙일 「약 」 — 전망을 단정으로 바꾸지 않는다
+ * (폭스바겐 'around €315 billion' · Task 15 Codex 대조). 근사 구절이 아니면 빈 문자열이라 다른 행 표시는 그대로.
+ */
+export function approxPrefix(valueText: string | null): string {
+  return valueText && APPROX.test(valueText.trim()) ? '약 ' : '';
+}
+
 /** 금액 한 값 — 단위(billion·million·per_share·percent·units)와 통화 이름을 붙인다. */
 export function amountText(value: number | null, unit: string, currency: string | null): string {
   return rangeText(value, value, unit, currency);

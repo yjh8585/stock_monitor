@@ -20,6 +20,7 @@
     문서를 failed 로(_results_incomplete · 검토 1회차).
 """
 import re
+from dataclasses import replace
 
 from customer_parsers.base import (Doc, Content, ParseResult, ResultRow, VolumeRow, GuidanceRow,
                                    numeric_cells, to_number)
@@ -46,6 +47,15 @@ RESULT_REQUIRED = ('revenue', 'ebit_adjusted')
 # 4분기 판(2025-01·2026-01 실물)은 괄호 없이 '$M except per share amounts'
 _RESULT_HEAD = re.compile(r'^\(?\$M\)? except per share')
 _GUIDE_HEAD = re.compile(r'^(?:Updated |Initial )?(20\d{2}) [Gg]uidance$')
+# 본문이 «지표를 특정해» 방향을 밝힌 문장만 그 지표 행의 stated 로(Task 15 Codex 대조 · 2026-07-21 실물
+# 'The company is raising its full-year 2026 EBIT-adjusted guidance for the second time this year.').
+# 제목의 'raises full-year 2026 guidance' 처럼 지표가 없는 문장은 전 지표에 퍼뜨리지 않는다(null 유지) ·
+# 'updating … narrowing the range'(2026-10-20)는 방향 낱말이 아니라 stated 없음(숫자 비교가 정한다).
+_STATED_SENT = re.compile(r'\b(rais|lower|reaffirm)(?:ing|es|ed|s)? its full[- ]year (20\d{2}) '
+                          r'(EBIT-adjusted|adjusted automotive free cash flow|EPS-diluted-adjusted) guidance', re.I)
+_STATED_WORD = {'rais': 'raised', 'lower': 'lowered', 'reaffirm': 'maintained'}
+_STATED_METRIC = {'ebit-adjusted': 'ebit_adjusted', 'adjusted automotive free cash flow': 'adjusted_automotive_fcf',
+                  'eps-diluted-adjusted': 'eps_adjusted'}
 
 
 def wants(doc: Doc) -> bool:
@@ -152,6 +162,14 @@ def parse_guidance(tables) -> tuple[list[GuidanceRow], bool]:
   return [], False
 
 
+def apply_stated(rows: list[GuidanceRow], text: str) -> list[GuidanceRow]:
+  """본문의 «지표 특정» 방향 문장(_STATED_SENT)을 같은 지표·연도 행의 stated 로. 없는 지표는 그대로(null)."""
+  said = {}
+  for m in _STATED_SENT.finditer(norm_text(text)):
+    said[(_STATED_METRIC[m.group(3).lower()], f'FY{m.group(2)}')] = _STATED_WORD[m.group(1).lower()]
+  return [replace(x, stated=said[(x.metric, x.period)]) if (x.metric, x.period) in said else x for x in rows]
+
+
 def parse(doc: Doc, content: Content) -> ParseResult:
   r = ParseResult()
   r.results, results_ok = parse_results(content.tables)
@@ -159,6 +177,7 @@ def parse(doc: Doc, content: Content) -> ParseResult:
     r.results += parse_operating_income(content.tables, r.results[0].period)
   r.volume = parse_wholesale(content.tables)
   r.guidance, guidance_ok = parse_guidance(content.tables)
+  r.guidance = apply_stated(r.guidance, content.text)
   # 알아봄 = 실적 요약 머리 또는 전망 표 머리(전망 표만 있는 7.01 도 대상). 머리는 있는데 0행이면 failed 로 드러난다
   r.recognized = results_ok or guidance_ok
   if (results_ok and not r.results) or (guidance_ok and not r.guidance) or (r.results and _results_incomplete(r)):
@@ -290,6 +309,21 @@ SEGMENT_SAMPLE = [['($M) except per share amounts', 'September 30, 2026', 'Septe
                   ['Revenue', '$', '50,015', '$', '48,591'],
                   ['GMNA EBIT-adjusted', '$', '3,592', '$', '2,506', '$', '1,087', '43.4', '%'],
                   ['EBIT-adjusted', '$', '4,106', '$', '3,376', '$', '730', '21.6', '%']]
+# 본문 방향 문장 → stated (Task 15 Codex 대조). 표는 MUST_HIT[0] 의 2026 전망 표를 그대로 쓴다.
+# (본문, {metric: 기대 stated}) — 지표 없는 제목 문장·'updating … narrowing' 은 전부 None 이어야 한다
+STATED_SAMPLES = [
+  # 2026-07-21 실물(제목 + 본문) — EBIT-adjusted 만 raised · FCF·EPS 는 null
+  ('GM releases 2026 second-quarter results, raises full-year 2026 guidance and declares quarterly dividend '
+   'DETROIT - ... and EBIT-adjusted of $3.9 billion. The company is raising its full-year 2026 EBIT-adjusted '
+   'guidance for the second time this year.',
+   {'ebit_adjusted': 'raised', 'adjusted_automotive_fcf': None, 'eps_adjusted': None}),
+  # 제목만(지표 특정 없음) — 전 지표 null
+  ('GM releases 2026 second-quarter results, raises full-year 2026 guidance and declares quarterly dividend',
+   {'ebit_adjusted': None, 'adjusted_automotive_fcf': None, 'eps_adjusted': None}),
+  # 2026-10-20 실물 — 'updating … narrowing the range' 는 방향 낱말이 아니다
+  ('The company is updating its full-year 2026 EBIT-adjusted guidance, narrowing the range',
+   {'ebit_adjusted': None, 'adjusted_automotive_fcf': None, 'eps_adjusted': None}),
+]
 MUST_MISS = [
   # 'Previous' 칸만 있는 표는 전망이 아니다
   ([[['Previous 2026 guidance'], ['EBIT-adjusted', '$14.0 billion - $16.0 billion']]], ('G', 'ebit_adjusted')),
@@ -330,4 +364,8 @@ def self_test() -> list[str]:
   ebit = [x.value for x in parse_results([SEGMENT_SAMPLE])[0] if x.metric == 'ebit_adjusted']
   if ebit != [4106.0]:
     errs.append(f'부문 EBIT-adjusted 섞임: ebit_adjusted {ebit} (기대 [4106.0])')
+  for text, want in STATED_SAMPLES:
+    got = {x.metric: x.stated for x in parse(doc, Content(text=text, tables=MUST_HIT[0][0])).guidance}
+    if got != want:
+      errs.append(f'stated: 기대 {want} · 실제 {got} ({text[:40]}…)')
   return errs

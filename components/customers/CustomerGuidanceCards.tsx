@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import type { GuidanceCard, GuidanceRowTs, GuidanceTarget, ReportedRow } from '@/lib/customers/ir';
 import {
   amountText,
+  approxPrefix,
   guidanceDirection,
   latestActual,
   mergeGuidanceChains,
@@ -47,7 +48,9 @@ function Badge({ row, notes }: { row: GuidanceRowTs; notes: GuidanceRowTs[] }) {
 /** 범위(숫자가 없으면 원문 문구). 통화: 행 currency → 카드 통화(회사 보고 통화). */
 function valueText(row: GuidanceRowTs, currency: string | null): string {
   if (row.low == null && row.high == null) return row.value_text ?? '—';
-  return rangeText(row.low, row.high, row.unit, row.currency ?? currency);
+  return (
+    approxPrefix(row.value_text) + rangeText(row.low, row.high, row.unit, row.currency ?? currency)
+  );
 }
 
 function RowMeta({ row }: { row: GuidanceRowTs }) {
