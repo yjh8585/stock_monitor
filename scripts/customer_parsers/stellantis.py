@@ -270,6 +270,10 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   if doc.doc_type == 'fact_sheet':
     return parse_factsheet(content.text)
   r = parse_summary(content.tables)
+  if r.recognized and not r.results:
+    # 요약 표는 알아봤는데 0행(꼴이 바뀜) — 같은 문서의 일정·확인 행이 있어도 failed 로(그 행으로 parsed 가 되면
+    # 요약 표 파손이 숨는다 · 최종 검토 P7)
+    return ParseResult(recognized=True)
   r.dates, announced = parse_dates(content.text)
   if announced and not r.dates:
     return ParseResult(recognized=True)   # 일정 공지 제목은 있는데 날짜 문장 꼴이 바뀌었다
@@ -357,6 +361,12 @@ MUST_MISS = [
 MUST_RECOGNIZED_EMPTY = [
   ('요약 표에 AOI 행 없음', [[Q3_HEAD, *_Q3_ROWS[:2], _Q3_ROWS[4]]], ''),
   ('요약 표에 연결 출하 행 없음', [[Q3_HEAD, *_Q3_ROWS[:4]]], ''),
+  # 요약 표는 알아봤는데 0행 + 같은 문서의 실적 일정 1행(최종 검토 P7) — 일정 행으로 parsed 가 되면 요약 표 파손이 숨는다
+  ('요약 표 0행 + 일정 1행', [[Q3_HEAD, *_Q3_ROWS[:2], _Q3_ROWS[4]]],
+   'Stellantis N.V. announced today that its Full Year 2025 Results will be released on Thursday, February 26, 2026.'),
+  ('요약 표 기간 칸 꼴 변경 + 확인 문장', [[[Q3_HEAD[0], '3Q 2026', '3Q 2025', *Q3_HEAD[3:]], *_Q3_ROWS]],
+   'Stellantis confirms that its 2025 financial guidance, as communicated during the H1 Earnings Call on July 29, 2025, '
+   'remains unchanged in all respects.'),
   ('일정 공지 문장 꼴 변경', [], 'Stellantis to Announce Third Quarter 2026 Financial Results on October 28 AMSTERDAM, '
                                  'October 15, 2026 - Stellantis N.V. will publish Q3 2026 results on October 28, 2026.'),
   # 머리는 € million 인데 기간 칸 꼴이 바뀌었다('Q3 2026' → '3Q 2026') — 조용히 not_target 이 되면 안 된다

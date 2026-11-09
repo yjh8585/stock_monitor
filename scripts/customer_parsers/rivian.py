@@ -37,6 +37,9 @@ _GUIDE_HEAD = re.compile(r'^(?:Current Outlook|(20\d{2}) (?:Annual )?Guidance(?:
 GUIDANCE_ROWS = ((r'Vehicles Delivered$', 'deliveries', 'units', None),
                  (r'Adj(?:usted|\.) EBITDA$', 'adjusted_ebitda', 'billion', 'adjusted'),
                  (r'Capital Expenditures$', 'capex', 'billion', None))
+# 전망 표 머리를 알아봤는데 이 지표가 하나라도 빠지면 라벨이 바뀐 것 — 문서를 failed 로(최종 검토 P5 · GM 과 같은 방식).
+# 실측: 2025-02~2026-10 전망 표 8편 모두 3지표가 다 있다(2026-11-10 DB)
+GUIDANCE_REQUIRED = tuple(m for _, m, _, _ in GUIDANCE_ROWS)
 # 5개 분기 표에서 이 칸을 못 찾으면 라벨이 바뀐 것 — 문서를 failed 로(빠진 칸만 조용히 비지 않게)
 QUARTER_REQUIRED = ('production', 'deliveries', 'revenue', 'adjusted_ebitda')
 _NET_LABEL = re.compile(r'Net loss attributable to common (?:stock|share)holders(?:, basic and diluted)?')
@@ -129,7 +132,8 @@ def _guidance_cell(cell: str, unit: str) -> tuple[tuple[float, float] | None, st
 
 
 def parse_guidance_table(tables, default_year: str) -> tuple[list[GuidanceRow], bool]:
-  """전망 표 → (행, 머리를 알아봤나). 머리는 있는데 0행이면 칸 문구가 바뀐 것(failed 로 드러난다)."""
+  """전망 표 → (행, 머리를 알아봤나). 머리는 있는데 필수 지표(GUIDANCE_REQUIRED)가 하나라도 없으면 칸 문구가
+  바뀐 것 — 0행 + True 로 돌려 문서를 failed 로 드러낸다."""
   for rows in tables:
     m = _GUIDE_HEAD.match(norm_text(rows[0][0])) if rows and rows[0] and len(rows[0]) == 1 else None
     if not m:
@@ -145,6 +149,8 @@ def parse_guidance_table(tables, default_year: str) -> tuple[list[GuidanceRow], 
           if rng:
             out.append(GuidanceRow(metric, _label(row), f'FY{year}', rng[0], rng[1], None, u, basis,
                                    row_text(row)))
+    if not set(GUIDANCE_REQUIRED) <= {x.metric for x in out}:
+      return [], True
     return out, True
   return [], False
 
@@ -298,6 +304,10 @@ MUST_MISS = [
 MUST_RECOGNIZED_EMPTY = [
   ('5개 분기 표: 매출 라벨 변경', [[r if r[0] != 'Total revenues' else ['Net revenues', *r[1:]] for r in Q3_TABLES[0]]], ''),
   ('전망 표: 칸 문구 변경', [Q3_TABLES[0], [['Current Outlook'], ['Deliveries (units)', '67,000 – 70,000']]], ''),
+  # 필수 지표 하나만 라벨이 바뀜(최종 검토 P5 — GM 과 같은 구멍) — 나머지 2행이 있어도 failed
+  ('전망 표: 지표 하나 빠짐', [Q3_TABLES[0], [['Current Outlook'], ['Vehicles Delivered', '67,000 – 70,000'],
+                                              ['Adjusted EBITDA', '$(1.85)B – $(1.75)B'],
+                                              ['Capital Spending', '$1.40B – $1.50B']]], ''),
   ('생산·인도 문장 변경', [], 'Rivian Automotive, Inc. today announced production and delivery totals for the third '
                               'quarter of 2026: 19,751 vehicles were produced and 19,248 were delivered.'),
 ]

@@ -42,6 +42,9 @@ GUIDANCE_ROWS = (  # (라벨 정규식, metric, 단위)
   (r'Adjusted automotive free cash flow$', 'adjusted_automotive_fcf', 'billion'),
   (r'EPS-diluted-adjusted$', 'eps_adjusted', 'per_share'),
 )
+# 전망 표 머리를 알아봤는데 이 지표가 하나라도 빠지면 라벨이 바뀐 것 — 문서를 failed 로(최종 검토 P5 · 실적 쪽
+# RESULT_REQUIRED 와 같은 방식). 실측: 2024-10~2026-10 전망 표 8편 모두 3지표가 다 있다(2026-11-10 DB)
+GUIDANCE_REQUIRED = tuple(m for _, m, _ in GUIDANCE_ROWS)
 # 이 칸을 못 찾으면 실적 요약 라벨이 바뀐 것 — 문서를 failed 로 드러낸다(빠진 칸만 조용히 비지 않게)
 RESULT_REQUIRED = ('revenue', 'ebit_adjusted')
 # 4분기 판(2025-01·2026-01 실물)은 괄호 없이 '$M except per share amounts'
@@ -141,7 +144,8 @@ def parse_wholesale(tables) -> list[VolumeRow]:
 
 
 def parse_guidance(tables) -> tuple[list[GuidanceRow], bool]:
-  """전망 표 → (행, 서식을 알아봤나). 머리(올해 전망 칸)가 있는데 0행이면 칸 문구가 바뀐 것(failed 로 드러난다)."""
+  """전망 표 → (행, 서식을 알아봤나). 머리(올해 전망 칸)가 있는데 필수 지표(GUIDANCE_REQUIRED)가 하나라도 없으면
+  칸 문구가 바뀐 것 — 0행 + True 로 돌려 문서를 failed 로 드러낸다."""
   for rows in tables:
     head = rows[0] if rows else []
     col = next((i for i, c in enumerate(head) if _GUIDE_HEAD.match(norm_text(c))), None)
@@ -158,6 +162,8 @@ def parse_guidance(tables) -> tuple[list[GuidanceRow], bool]:
           if rng:
             out.append(GuidanceRow(metric, _label(row), f'FY{year}', rng[0], rng[1], None, unit, 'adjusted',
                                    row_text(row)))
+    if not set(GUIDANCE_REQUIRED) <= {x.metric for x in out}:
+      return [], True
     return out, True
   return [], False
 
@@ -255,11 +261,16 @@ MUST_HIT = [
    {('R', 'operating_income', '2026-Q3'): 0.0}),
   # 전망 표만 있는 8-K 7.01(2025-05-01 실물 머리) — recognized 여야 not_target 으로 버려지지 않는다
   ([[['Updated 2025 Guidance', 'Previous 2025 Guidance'],
-     ['EBIT-adjusted', '$10.0 billion - $12.5 billion', '$13.7 billion - $15.7 billion']]],
+     ['EBIT-adjusted', '$10.0 billion - $12.5 billion', '$13.7 billion - $15.7 billion'],
+     ['Adjusted automotive free cash flow', '$7.5 billion - $10.0 billion', '$11.0 billion - $13.0 billion'],
+     ['EPS-diluted-adjusted', '$8.25 - $10.00', '$11.00 - $12.00']]],
    {('G', 'ebit_adjusted', 'FY2025'): (10.0, 12.5)}),
   # 4분기 판 머리(2026-01 실물): 'Final 2025 Guidance | 2025 Results | 2026 Guidance' — 셋째 칸이 새 해 전망
   ([[['Final 2025 Guidance', '2025 Results', '2026 Guidance'],
-     ['EBIT-adjusted', '$12.0 billion - $13.0 billion', '$12.7 billion', '$13.0 billion - $15.0 billion']]],
+     ['EBIT-adjusted', '$12.0 billion - $13.0 billion', '$12.7 billion', '$13.0 billion - $15.0 billion'],
+     ['Adjusted automotive free cash flow', '$10.0 billion - $11.0 billion', '$10.6 billion',
+      '$9.0 billion - $11.0 billion'],
+     ['EPS-diluted-adjusted', '$9.75 - $10.50', '$10.60', '$11.00 - $13.00']]],
    {('G', 'ebit_adjusted', 'FY2026'): (13.0, 15.0)}),
   # 4분기 판(2026-01-27) 실적 요약 머리 — 괄호 없는 '$M' · 연간 도매 칸('Years Ended')
   ([[['Three Months Ended'],
@@ -298,6 +309,11 @@ MUST_RECOGNIZED_EMPTY = [
                                   ['EBIT-adjusted', '$', '4,106', '$', '3,376']]]),
   ('전망 표: 행 라벨 변경', [[['Updated 2026 guidance', 'Previous 2026 guidance'],
                               ['EBIT-adj.', '$14.5 billion - $15.5 billion', '$14.0 billion - $16.0 billion']]]),
+  # 전망 표에서 필수 지표 하나만 라벨이 바뀜(최종 검토 P5) — 나머지 2행이 있어도 문서를 failed 로
+  ('전망 표: 지표 하나 빠짐', [[['Updated 2026 guidance', 'Previous 2026 guidance'],
+                               ['EBIT-adjusted', '$14.5 billion - $15.5 billion', '$14.0 billion - $16.0 billion'],
+                               ['Adj. automotive FCF', '$11.5 billion - $12.5 billion', '$9.5 billion - $11.5 billion'],
+                               ['EPS-diluted-adjusted', '$12.75 - $13.75', '$12.00 - $14.00']]]),
   # 도매 표가 통째로 사라짐(검토 1회차) — 실적·영업이익은 있어도 문서를 failed 로
   ('도매 표 없음', [_SUMMARY_2026Q3, _OP_2026Q3]),
   # 1~3분기 판인데 연결 손익의 영업이익 행이 사라짐(검토 1회차)
