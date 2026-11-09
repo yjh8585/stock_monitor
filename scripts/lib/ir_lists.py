@@ -37,6 +37,8 @@ from lib.retry import with_retry
 BROWSER_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
               'Chrome/130.0.0.0 Safari/537.36')
 TIMEOUT_S = 30
+# 「접근 차단」(인증·봇 차단)으로 보는 HTTP 상태 — 목록 수집기·숫자 수집기·GM 접근 시험이 이 한 튜플을 쓴다(최종 검토 P12)
+BLOCKED_HTTP = (401, 403)
 
 
 class EmptyListError(Exception):
@@ -615,8 +617,9 @@ def gm_probe_status(codes: list[int | None]) -> tuple[str, str | None]:
   """시도별 HTTP 상태(연결 실패 = None) → (status, reason). 한 번이라도 200 이면 ok."""
   if 200 in codes:
     return 'ok', None
-  if 403 in codes:
-    return 'blocked', GM_BLOCKED_REASON
+  blocked = next((c for c in codes if c in BLOCKED_HTTP), None)
+  if blocked:
+    return 'blocked', GM_BLOCKED_REASON.replace('HTTP 403', f'HTTP {blocked}')
   last = next((c for c in reversed(codes) if c is not None), None)
   return 'error', f'GM IR 사이트 접근 실패(HTTP {last})' if last else 'GM IR 사이트 접근 실패(연결 안 됨)'
 

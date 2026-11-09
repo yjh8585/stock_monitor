@@ -375,6 +375,17 @@ class GmProbeTest(unittest.TestCase):
     self.assertEqual(L.gm_probe_status([200]), ('ok', None))
     self.assertEqual(L.gm_probe_status([503, None]), ('error', 'GM IR 사이트 접근 실패(HTTP 503)'))
     self.assertEqual(L.gm_probe_status([None, None]), ('error', 'GM IR 사이트 접근 실패(연결 안 됨)'))
+    # 최종 검토 P12 — 401 도 차단(BLOCKED_HTTP 한곳) · 사유의 상태 숫자는 실제 값
+    self.assertEqual(L.gm_probe_status([401, None]),
+                     ('blocked', L.GM_BLOCKED_REASON.replace('HTTP 403', 'HTTP 401')))
+
+  def test_blocked_codes_single_source(self):
+    """차단 코드는 lib.ir_lists.BLOCKED_HTTP 한곳 — 숫자 수집기도 같은 튜플을 쓴다(P12)."""
+    self.assertEqual(L.BLOCKED_HTTP, (401, 403))
+    ccn_spec = importlib.util.spec_from_file_location('ccn_p12', _SCRIPTS / 'collect_customer_numbers.py')
+    ccn = importlib.util.module_from_spec(ccn_spec)
+    ccn_spec.loader.exec_module(ccn)
+    self.assertIs(ccn._BLOCKED_CODES, L.BLOCKED_HTTP)
 
   def test_reason_sentence(self):
     """화면(Task 14)에 그대로 나가는 문장 — 요약서 원문과 글자까지 같아야 한다."""

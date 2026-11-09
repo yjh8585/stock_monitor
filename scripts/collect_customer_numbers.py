@@ -47,6 +47,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import requests
 
+from lib.ir_lists import BLOCKED_HTTP
+
 DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note,llm_attempts'
 NOTE_NO_PARSER = '대상 파서 없음'
 NOTE_LLM_WAIT = 'LLM 대기 — 코드 파서가 못 알아보는 서식'
@@ -152,7 +154,7 @@ def fetch_failure_note(e: Exception, doc) -> str:
   return note
 
 
-_BLOCKED_CODES = (401, 403)        # 인증·봇 차단 — 화면에 「접근 차단」 사유
+_BLOCKED_CODES = BLOCKED_HTTP      # 인증·봇 차단(401·403) — 화면에 「접근 차단」 사유 · 목록 수집기와 같은 튜플(P12)
 _RETRY_4XX = (408, 425, 429)       # 시간 초과·너무 이름·요청 과다 — 다음 실행에 다시
 
 

@@ -205,6 +205,10 @@ class StatusTest(unittest.TestCase):
   def test_403_is_blocked(self):
     self.assertEqual(ccd.failure_status('EDGAR', self._http(403)), ('blocked', 'EDGAR 접근 차단(HTTP 403)'))
 
+  def test_401_is_blocked(self):
+    """최종 검토 P12 — 차단 판정은 lib.ir_lists.BLOCKED_HTTP(401·403) 한곳(숫자 수집기와 같은 기준)."""
+    self.assertEqual(ccd.failure_status('IR', self._http(401)), ('blocked', 'IR 접근 차단(HTTP 401)'))
+
   def test_other_http_is_error_class_name_only(self):
     self.assertEqual(ccd.failure_status('DART', self._http(404)), ('error', 'HTTPError'))
 

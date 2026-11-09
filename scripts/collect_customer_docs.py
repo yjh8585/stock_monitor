@@ -212,8 +212,8 @@ def failure_status(label: str, e: Exception) -> tuple[str, str]:
   if isinstance(e, EmptyListError):
     return 'error', str(e)
   code = getattr(getattr(e, 'response', None), 'status_code', None)
-  if isinstance(e, requests.HTTPError) and code == 403:
-    return 'blocked', f'{label} 접근 차단(HTTP 403)'
+  if isinstance(e, requests.HTTPError) and code in ir_lists.BLOCKED_HTTP:
+    return 'blocked', f'{label} 접근 차단(HTTP {code})'
   return 'error', type(e).__name__
 
 
