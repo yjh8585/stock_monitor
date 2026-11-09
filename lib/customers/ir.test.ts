@@ -278,6 +278,17 @@ describe('latestGuidance', () => {
     }
   });
 
+  it('같은 날·같은 값이라도 기준(조정/장부)이 다르면 접지 않는다', () => {
+    const [card] = latestGuidance(
+      [
+        capex({ published_at: '2026-10-29', basis: 'reported' }),
+        capex({ published_at: '2026-10-29', basis: 'adjusted', extractor: 'llm' }),
+      ],
+      2026
+    );
+    expect(card.history.map((h) => h.basis)).toEqual(['adjusted', 'reported']);
+  });
+
   it('날짜가 다르면 같은 값이라도 접지 않는다(유지 확인 이력)', () => {
     const [card] = latestGuidance(
       [

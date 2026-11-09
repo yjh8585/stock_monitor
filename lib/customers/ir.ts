@@ -119,13 +119,21 @@ const fyNum = (period: string) => Number(period.slice(2));
 const extractorRank = (r: GuidanceRowTs) => (r.extractor === 'code' ? 1 : 0);
 
 /**
- * 한 FY 의 이력 — 같은 날 같은 값(DART 공시 code + IR 자료 llm 처럼 같은 전망을 두 문서가 낸 것)은 한 줄로 접고
+ * 한 FY 의 이력 — 같은 날 같은 값·같은 기준(basis — 조정/장부만 다르면 다른 전망)(DART 공시 code + IR 자료 llm 처럼 같은 전망을 두 문서가 낸 것)은 한 줄로 접고
  * 코드 추출을 남긴다(코드 우선). 값이 다르면 둘 다 두되 같은 날이면 코드 행을 뒤(= current)로. 그 밖은 입력 순서.
  */
 function foldHistory(rows: GuidanceRowTs[]): GuidanceRowTs[] {
   const byKey = new Map<string, GuidanceRowTs>();
   for (const r of rows) {
-    const k = JSON.stringify([r.published_at, r.low, r.high, r.value_text, r.unit, r.currency]);
+    const k = JSON.stringify([
+      r.published_at,
+      r.low,
+      r.high,
+      r.value_text,
+      r.unit,
+      r.currency,
+      r.basis,
+    ]);
     const kept = byKey.get(k);
     if (!kept || extractorRank(r) > extractorRank(kept)) byKey.set(k, r);
   }
