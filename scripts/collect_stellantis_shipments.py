@@ -43,19 +43,19 @@ region 'North America'는 미국+캐나다+멕시코이고 마세라티는 제�
 import argparse
 import re
 import sys
-import time
 from datetime import datetime, timezone
 from typing import Any
 
 import requests
-from bs4 import BeautifulSoup
 from loguru import logger
 
 from lib.bootstrap import init_script
 
 init_script(__file__)
 
+from lib import edgar  # noqa: E402
 from lib.db import WriteSession  # noqa: E402
+from lib.doc_text import html_to_table_rows, normalize_cell  # noqa: E402,F401 — 기존 호출부·시험 호환
 
 # ---------------------------------------------------------------------------
 # 상수
@@ -63,16 +63,7 @@ from lib.db import WriteSession  # noqa: E402
 SEC_CIK = 1605484                       # Stellantis N.V.
 SUBMISSIONS_URL = f'https://data.sec.gov/submissions/CIK{SEC_CIK:010d}.json'
 ARCHIVES_BASE = f'https://www.sec.gov/Archives/edgar/data/{SEC_CIK}'
-
-# SEC는 UA 헤더가 없으면 403. 자동화 정책상 연락처 포함 문자열을 요구한다.
-USER_AGENT = 'stock-monitor research contact@example.com'
-COMMON_HEADERS = {
-  'User-Agent': USER_AGENT,
-  'Accept-Encoding': 'gzip, deflate',
-}
-REQUEST_TIMEOUT_S = 30
-# SEC 공정이용 가이드 상한은 10 req/s. 여유를 둬 요청 간 0.15s 대기.
-REQUEST_SLEEP_S = 0.15
+# UA(연락처)·요청 간격·재시도는 lib/edgar.py 한곳에 있다(SEC 는 UA 가 없으면 403).
 
 DEFAULT_YEAR_FROM = 2021                # Stellantis 출범(FCA+PSA 합병) 연도
 UNITS_PER_THOUSAND = 1000               # IR 'Shipments (000s)' 천대 → 대 환산
@@ -109,14 +100,8 @@ PERIOD_Q1, PERIOD_Q3, PERIOD_H1, PERIOD_FY = 'Q1', 'Q3', 'H1', 'FY'
 
 # ---------------------------------------------------------------------------
 # 순수 파싱 함수 (scripts/lib/test_stellantis_shipments.py 가 고정)
+# normalize_cell·html_to_table_rows 는 lib/doc_text.py 로 옮겼다(위에서 다시 내보낸다).
 # ---------------------------------------------------------------------------
-def normalize_cell(text: str | None) -> str:
-  """표 셀 텍스트 정규화 — nbsp 제거 + 트림."""
-  if text is None:
-    return ''
-  return text.replace('\xa0', ' ').strip()
-
-
 def parse_period_key(doc_name: str) -> tuple[str, int] | None:
   """exhibit 파일명 → (기간, 연도). 'stellantisnvq12026pressrel.htm' → ('Q1', 2026)."""
   m = PRESSREL_DOC_RE.search(doc_name)
@@ -203,22 +188,6 @@ def extract_north_america_shipments(rows_by_table: list[list[list[str]]]) -> int
         if value is not None:
           return value
   return None
-
-
-def html_to_table_rows(html: str) -> list[list[list[str]]]:
-  """HTML → 표별 정규화 행 매트릭스 (빈 셀 제거)."""
-  soup = BeautifulSoup(html, 'html.parser')
-  tables: list[list[list[str]]] = []
-  for table in soup.find_all('table'):
-    rows: list[list[str]] = []
-    for tr in table.find_all('tr'):
-      cells = [normalize_cell(c.get_text(' ')) for c in tr.find_all(['td', 'th'])]
-      cells = [c for c in cells if c != '']
-      if cells:
-        rows.append(cells)
-    if rows:
-      tables.append(rows)
-  return tables
 
 
 def derive_year_quarters(
@@ -317,12 +286,8 @@ def build_db_rows(
 # SEC 수집 (네트워크)
 # ---------------------------------------------------------------------------
 def _get(session: requests.Session, url: str) -> requests.Response:
-  """SEC GET — UA 헤더 + rate limit 대기. 실패 시 예외."""
-  time.sleep(REQUEST_SLEEP_S)
-  resp = session.get(url, headers=COMMON_HEADERS, timeout=REQUEST_TIMEOUT_S)
-  if resp.status_code != 200:
-    raise RuntimeError(f'SEC status={resp.status_code}: {url}')
-  return resp
+  """SEC GET — lib/edgar.py 에 위임(UA·재시도·요청 간격). 실패 시 requests.HTTPError 등 예외."""
+  return edgar.edgar_get(session, url)
 
 
 def discover_press_releases(
