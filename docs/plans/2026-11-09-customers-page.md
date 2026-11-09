@@ -64,7 +64,8 @@
 | 2    | `customer_documents`        | RLS on·정책 없음               | `company_id`·`source`·`doc_type`·`url`·`published_at`·`sha256`    |
 | 3    | `customer_signals`          | RLS on·정책 없음               | `document_id`·`signal_type`·`status`·`quote`·`page_no`·`value`    |
 | 3    | `customer_ir_slides`        | RLS on·정책 없음 + 비공개 버킷 | `document_id`·`page_no`·`storage_path`·`caption_ko`               |
-| 3    | `customer_volume_ir`        | RLS on·정책 없음               | `company_id`·`period`·`metric`·`value`·`document_id`              |
+| 2    | `customer_volume_ir`        | RLS on·정책 없음               | `company_id`·`period`·`metric`·`value`·`source`                   |
+| 2    | `customer_guidance`         | RLS on·정책 없음               | `document_id`·`metric`·`period`·`low`·`high`·`quote`              |
 | 2    | `companies.sec_cik` 칸 추가 | 공개(기존 표)                  | EDGAR 수집 대상 식별                                              |
 
 #### 상세
@@ -72,7 +73,8 @@
 - 새 사외비 표는 `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES` 에 추가하고 [`Architecture.md §7-G`](../../Architecture.md) 의 「새 사외비 테이블 5-step」을 따른다.
 - `customer_documents` 는 공개 IR 이지만 화면이 사외비 역할 전용이고 «어느 회사 문서를 분석했나»가 명단을 드러내므로 서버 전용으로 둔다. 조회는 `confidentialDb`.
 - `customer_signals.status` = `red`·`yellow`·`green`·`no_evidence`(회색 — 인용 없음)·`not_applicable`. 「없음(다 봤고 없다)」과 「모름(못 읽음)」을 가른다(지식노트 `ma-workflow.md` §4.1). 그 밖의 칸: `claim_ko`(한국어 한 문장) · `unit` · `period`(수치의 기준 시점) · `verified`(기계 대조 통과 여부).
-- `customer_volume_ir.metric` = 출하·인도·생산·소매 — 회사마다 IR 이 발표하는 정의가 달라 칸으로 구분한다(결정 6 의 「차이 설명」 근거).
+- `customer_volume_ir.metric` = 출하·인도·생산·소매 — 회사마다 IR 이 발표하는 정의가 달라 칸으로 구분한다(결정 6 의 「차이 설명」 근거). 2026-11-09 선택 4차로 **2단계로 당겼고 출처는 회사별 전용 수집기**(AI 없음) — 그 밖의 칸: `period_grain`(월·분기) · `document_id`(있으면) · `source`(수집기 이름).
+- `customer_guidance`(선택 4차 신설) — 회사가 발표한 전망. 그 밖의 칸: `company_id` · `unit` · `basis`(회사 정의 그대로 — 조정 영업이익 등) · `direction`(직전 발표 대비 `raised`·`maintained`·`lowered`·`initiated`·`withdrawn` — 같은 `metric`·`period` 의 직전 행과 **코드가** 비교) · `verified`(인용·숫자 원문 대조 통과). 화면엔 `verified` 만.
 - 매출 비중 = `pnl_entries` 실적(`is_plan=false`)을 `customer_accounts.pnl_customers` 로 묶어 합산. `share_group` 이 같은 회사는 합산 비중을 함께 표시(결정 5). **기준은 연결 · 실적 최신월 앵커 최근 12개월 · 0월 제외로 확정(2026-11-09 사용자 선택 3차).**
 - `trg_skip_identical_update` 는 2·3단계 수집 표에 붙인다(AGENTS 「신규 수집 테이블」).
 
@@ -131,6 +133,18 @@
 - 원본 PDF 는 저장하지 않는다(발행처 링크 · `report-from-pdf.md` §2-A 와 같은 원칙). 분석 때 내려받아 쓰고 버린다. 중복 판정은 `sha256`.
 - 기존 수집기 재사용: 기존 IR 수집기들(`collect_*_shipments_ir.py`·`collect_*_quarterly_earnings.py`)의 Playwright·sha 캐시 패턴. DART 접근은 기존 `scripts/lib` 경유. 신규 mutating 스크립트는 `WriteSession`.
 - 미확인: EDGAR 상장사 일부의 발표자료가 공시 첨부에 있는지 IR 사이트에만 있는지 · 국내 상장사 IR 발표자료 주소 · 유럽 IR 사이트의 봇 차단 여부. 2단계 착수 때 실측(회사별 목록은 원본).
+
+### 가이던스·물량 공표 (2단계로 당김 — 2026-11-09 추가 지시 · 사용자 선택 4차)
+
+- 🔴 **원칙 = 코드 우선**(사용자 지시 2026-11-09 「AI 수집 비중을 줄이기 위해 코드로 수집할 수 있는 건 최대한」). 공시 API·XBRL·IR 페이지 표·보도자료의 고정 문구는 코드 파서로 뽑고, AI 는 코드로 못 뽑는 칸만 맡는다. 2단계 착수 때 회사별 「코드로 됨 / AI 필요」 표를 실측(최근 4회 발표)으로 만들고 AI 갈래는 그 표의 「AI 필요」 칸에만 붙인다.
+- **분기별 실적**은 1단계 화면에 이미 있다(개별 화면 분기·연간 차트·표 — `financials`). 이 절은 그 밖의 두 가지다.
+- **가이던스** — 회사가 전망을 **표나 고정 문구**(「2026 Outlook」 표 · 「연간 목표」 공시 서식 등)로 내면 회사별 코드 파서로 뽑는다(물량과 같은 MUST_HIT 자가 시험 · 0건이면 실패). **문장으로만** 내는 회사만 Sonnet 5.5 1회 호출로 구조화 추출(strict 스키마 · 원문 인용 필수 · 범위·조건 보존 · 「전망을 단정으로 바꾸지 않기」 지식노트 자산). AI 추출분의 기계 검사 = 인용 대조 · 숫자 대조(3단계 4종 중 2종을 2단계로 당긴다 · MUST_HIT·MUST_MISS 자가 시험 포함). 상향·하향 판정은 출처와 무관하게 코드. 행마다 `extractor`(`code`·`llm`) 칸으로 출처를 남긴다.
+  - 3단계는 **같은 호출에 신호·슬라이드 항목을 더한다** — 문서마다 Sonnet 을 두 번 부르지 않는다.
+  - 화면: 개별 = 가이던스 카드(항목별 최신 범위 · 판정 · 인용 · 출처 날짜) + 변경 이력 표 · 요약 = 「최근 가이던스 변경」 열(상향 초록 · 하향 빨강).
+- **출하·인도·생산 공표** — 회사별 전용 수집기(AI 없음 · 사용자 선택). 이미 있는 것은 새로 짜지 않고 읽어 합친다(스텔란티스 출하 수집기 2종 · 국내 OEM 월 판매 표). 나머지는 회사마다 보도자료·공시 형식 규칙 파서.
+  - 🔴 규칙 파서는 형식이 바뀌면 **조용히 0건**이 된다 → 수집기마다 「걸려야 하는 표본」(MUST_HIT — 실제 보도자료 문장) 자가 시험을 먼저 돌고, 새 문서를 받았는데 숫자 0개면 GHA 를 실패(exit≠0)로 끝낸다. 「발표 없음」과 「파싱 실패」를 가른다.
+  - 같은 기간이 여러 출처(회사 발표 · MarkLines)로 오면 둘 다 싣고 `metric` 정의 차이를 화면에 적는다(결정 6).
+- 미확인: 회사별로 인도·생산을 따로 공표하는지·주기(월·분기)·형식 — 2단계 착수 때 회사마다 최근 4회 발표를 열어 표로 정한다(회사별 표는 원본).
 
 ### AI 분석 (3단계 — GHA + Sonnet 5.5)
 
@@ -195,20 +209,22 @@
 - 월 약 3천 원. GHA 실행 시간 0원(공개 레포 표준 러너). 첫 소급(과거 2년 = 8분기)은 일회성 약 $42(약 5.7만 원).
 - 슬라이드 저장 연 약 40MB 추정. Supabase 저장소 요금제 한도는 미확인.
 - 3단계 착수 때 실제 문서 3건으로 `usage` 를 재서 이 표를 실측값으로 바꾼다(`measured-not-proxy`).
+- 선택 4차 + 코드 우선 지시: 가이던스는 코드 파서가 먼저이고, 문장형 회사만 위 「분기 실적 자료 분석」 호출이 2단계에서 먼저 돈다(3단계가 같은 호출에 항목을 더함) — 별도 줄을 더하지 않는다. 코드로 되는 회사가 많을수록 위 표의 건수가 줄어든다 → 2단계 착수 때 회사별 표와 실제 문서 3건으로 재서 갱신. 물량 공표 수집기는 AI 를 쓰지 않아 0원.
+- 3단계에서도 같은 원칙: ①⑤⑥ 신호는 이미 코드 판정, ②③④ 도 근거 문장이 공시 서식 칸(예: 정해진 항목 번호)에 있으면 코드가 먼저 찾고 AI 는 판정만.
 
 ## 단계별 범위·완료 정의
 
 | 단계 | 범위 요약                                         | 완료 정의 요약                                 |
 | ---- | ------------------------------------------------- | ---------------------------------------------- |
 | 1    | 화면 뼈대 + 기존 데이터 + 명단·매출 비중          | 사외비 역할로 전 고객사 화면 확인 · 그 밖 차단 |
-| 2    | 문서 수집기 3종 + 자료실·동향·일정                | 전 고객사 최근 4분기 문서가 자료실에 뜸        |
-| 3    | Sonnet 신호·슬라이드·IR 물량 + 기계 검사 + 신호등 | 표본 3사 원문 대조 통과 · 2회 실행 판정 일치   |
+| 2    | 문서 수집 + 가이던스·물량 공표 + 자료실·동향·일정 | 최근 4분기 문서·가이던스·물량이 화면에 뜸      |
+| 3    | Sonnet 신호·슬라이드 + 기계 검사 + 신호등         | 표본 3사 원문 대조 통과 · 2회 실행 판정 일치   |
 
 #### 상세
 
 - 1단계 범위: 라우트·권한·사이드바 · 미등록 1곳 등록(`onboard_company.py`) · `customer_accounts` · 매출 비중 · 실적 표·차트 · 물량(기존 MarkLines 표 + 기존 OEM 회사 탭의 판매·출하 표) · 뉴스. 완료 = `check-all` 통과 + guest·hmobility 차단을 시험으로 + 헤드리스 화면 확인.
-- 2단계 범위: `sec_cik` · `customer_documents` · 수집기 3종 · GHA · 자료실 · 동향 피드 · 실적 일정. 빠진 회사는 화면에 사유 표시.
-- 3단계 범위: `customer_signals`·`customer_ir_slides`·`customer_volume_ir` · Sonnet 파이프라인 · 기계 검사 4종 · 요약 신호등. 완료 = 표본 3사 Codex 원문 대조 통과 · 같은 입력 2회 실행 판정 일치 · 실측 비용으로 위 표 갱신.
+- 2단계 범위: `sec_cik` · `customer_documents` · 수집기 3종 · GHA · 자료실 · 동향 피드 · 실적 일정 · **`customer_guidance`(Sonnet 추출 + 인용·숫자 대조) · `customer_volume_ir`(회사별 전용 수집기)**(선택 4차). 빠진 회사는 화면에 사유 표시. 완료에 더함 = 가이던스 표본 3사 Codex 원문 대조 통과 · 수집기마다 MUST_HIT 자가 시험 통과.
+- 3단계 범위: `customer_signals`·`customer_ir_slides` · Sonnet 파이프라인(2단계 호출에 항목 추가) · 기계 검사 나머지 2종 · 요약 신호등. 완료 = 표본 3사 Codex 원문 대조 통과 · 같은 입력 2회 실행 판정 일치 · 실측 비용으로 위 표 갱신.
 
 ## 검증 (단계 공통)
 
