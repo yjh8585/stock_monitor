@@ -18,6 +18,11 @@ agents 레포에서 옮겨 온 규칙(원본 = repo_assets 8번):
 - 값·value_text·날짜는 quote 전체가 아니라 «원문에서 확인된 긴 조각»에서만 찾는다('… 9.99' 지어낸 수 차단)
 - 짧은 표 행은 한글 공백을 지운 꼴·안 지운 꼴 중 하나로 경계를 본다 · 연도 꼴은 배수 1 로만 ·
   한글 뒤 '-' 는 음수 부호 · 위첨자 각주 제거 · 공백 뒤 '-' 부호를 떨군 조각은 실패 · 유럽식·기간 날짜
+Task 7(2026-11-10, 국내 DART)에서 더한 것:
+- 국문 음수 표기 '△'(바로 뒤 또는 공백 하나 뒤의 수)는 음수 — '순이익 △89' 의 값은 -89. '△' 를 떨군 조각('89 …')은 실패.
+  '▲' 는 부호로 보지 않는다(이 레포 화면·보도자료 관례에서 ▲ = 증가 · DART 본문 303건엔 △·▲ 둘 다 0건이라
+  실물로 정한 것이 아니라 관례로 정했다 — 실물에서 ▲ 음수가 나오면 그때 고친다).
+- 가상 한국어 표본을 DART 실물 문장으로 바꿨다(띄어쓰기 변이·활용형·한국어 날짜 「M월 D일」·「M월D일」).
 
 한계(원리상 못 막는 것 — 파서 책임):
 - 같은 quote 안의 «다른 칸» 숫자를 고르는 실수(열 선택 오류 — 당월 대신 누계, 올해 대신 전년)는 못 막는다.
@@ -63,7 +68,7 @@ def _frag_in(frag: str, src: str) -> bool:
     부호로 본다 — 'Q3-2026' 의 '-' 는 하이픈이라 '2026 …' 조각은 통과한다"""
   pat = re.escape(frag)
   if frag[:1].isdigit():
-    pat = r'(?<![\d,.])(?<!\s-)' + pat
+    pat = r'(?<![\d,.△])(?<!\s-)(?<!△\s)' + pat   # '△89' 의 △ 를 떨군 '89 …' 도 부호를 잃은 조각이다
   if frag[-1:].isdigit():
     pat += r'(?![\d]|[,.]\d)'
   return re.search(pat, ' ' + src) is not None
@@ -104,7 +109,9 @@ def _number_tokens(s: str) -> list[tuple[float, bool]]:
     # 앞 글자가 숫자·영문이면 '-' 는 음수 부호가 아니라 범위 대시다('7.55-7.60' 의 7.60 은 양수).
     # str.isalnum() 은 한글에도 참이라 '영업손실-1,234' 가 양수가 된다 → ASCII 만 본다
     range_dash = tok.startswith('-') and m.start() > 0 and re.match(r'[0-9a-z]', t[m.start() - 1]) is not None
-    neg = tok.startswith('(') and tok.endswith(')') or (tok.startswith('-') and not range_dash)
+    # 국문 음수 표기 '△89'·'△ 89' — 부호 없이 읽으면 손실이 이익으로 뒤집혀 대조를 통과한다
+    triangle = t[max(0, m.start() - 2):m.start()].rstrip(' ').endswith('△')
+    neg = tok.startswith('(') and tok.endswith(')') or (tok.startswith('-') and not range_dash) or triangle
     digits = tok.strip('()').lstrip('-').replace(',', '')
     if not digits or digits == '.':
       continue
@@ -188,10 +195,17 @@ _SRC = ('Total | 1,028 | 977 | 2,917 | 2,862 ' 'The Company now expects 2026 adj
 
         'The Company expects 2026 sales to be up one to three percent versus 2025. '
         'The company also announced that on February 12th, 2026, after market close, it will release its fourth quarter'
-        # 아래는 가상 문장 — 한국어 활용형·띄어쓰기 변이 · 잘린 수 · 붙은 범위 대시 · 한국어 날짜 꼴을 고정하려고 둔다
-        ' 2026년 연간 매출액은 전년 대비 3~5% 증가할 것으로 전망합니다. '
+        # DART 실물(Task 7) — 띄어쓰기 변이·활용형: 현대 장래사업 20260129800348 · 현대 10월 판매 20261102800520
+        ' ·2026년 연결 기준 매출액 성장률(전년대비) : 1.0 ~ 2.0% 수준 ·2026년 연결 기준 영업이익률 목표 : 6.3 ~ 7.3% 수준 '
+        "'26년 10월 전 세계 시장서 총 32만 9,773대 판매, 전년 동월 대비 6.3% 감소 "
+        '1. 상기 2항의 주요 내용 및 추진 일정 등은 국내외 시장상황 및 경영계획 변경 등에 따라 변동될 수 있습니다. '
+        # DART 실물 — 한국어 날짜 「M월 D일」(기아 20260128800295) · 붙은 꼴 「M월D일」(KGM 20250424800433)
+        '정보제공(예정)일자 2026년 1월 28일(수) 정보제공(예정)시간 14:10 행사명(장소) 경영실적 발표 '
+        '정보제공(예정)일시 2025년 4월24일(목) 행사명(장소) 보도자료 배포 '
+        # 아래는 가상 문장 — 잘린 수 · 붙은 범위 대시
         'Net sales of 1,028,500 units. Full-year guidance of $7.55-7.60 billion. '
-        '2026년 1월 29일 경영실적 발표 예정 '
+        # 가상 — 국문 음수 표기 '△'(DART 공정공시 본문 303건엔 없고 음수는 '-298' 꼴. 서식이 바뀌어도 부호를 지키려고 둔다)
+        '당기순이익 △89 억원 적자전환 2026년 3분기 '
         # 검토 1회차 — 포르쉐 EQS 공시 실물(fixtures/ir_lists/porsche_feed.json 2026-10-08 글)
         'Preliminary announcement of the publication of quarterly reports and quarterly/interim statements '
         '08.10.2026 / 15:07 CET/CEST ... Date of disclosure: October 27, 2026 Address: '
@@ -207,8 +221,10 @@ MUST_HIT = [
   _R('CKD 60 60', value=60),                                                     # KGM 월 판매 짧은 행(9자)
   _R('expects 2026 sales to be up one to three percent', low=1.0, high=3.0),   # 폴라리스 — 영어 수 낱말
   _R('2026년 판매 목표(대수) 4,158,300', value=4158300),                      # 띄어쓰기 변이(원문 '판매목표')
-  _R('연간 매출액은 전년대비 3~5% 증가할 것으로 전망합니다', low=3, high=5),     # 띄어쓰기 변이(원문 '전년 대비')
-  _R('전년 대비 3~5% 증가할 것으로 전망합니다', value_text='증가할것으로 전망'),  # value_text 띄어쓰기 변이
+  _R('2026년 연결기준 매출액 성장률(전년 대비) : 1.0 ~ 2.0% 수준', low=1.0, high=2.0),  # 띄어쓰기 변이(원문 '연결 기준'·'전년대비')
+  _R('주요 내용 및 추진 일정 등은 국내외 시장상황 및 경영계획 변경 등에 따라 변동될 수 있습니다',
+     value_text='변동 될 수'),                                                 # value_text 띄어쓰기 변이
+  _R('당기순이익 △89 억원 적자전환', value=-89),                                # 국문 음수 표기 △
   _R('Full-year guidance of $7.55-7.60 billion', low=7.55, high=7.60),         # 붙은 범위 대시 — 7.60 은 양수
   # 검토 1회차
   _R('렉스턴 60 60', value=60),                                                  # 짧은 한글 표 행 — 앞 칸 라벨과 붙지 않는다
@@ -225,8 +241,11 @@ MUST_MISS = [
   _R('60 60', value=60),                                                         # 라벨 없는 짧은 quote
   _R('versus prior guidance. Adjusted EBITDA', value_text='Improved Y-o-Y'),     # value_text 가 quote 에 없다
   _R('expects 2026 sales to be up one to three percent', low=1.0, high=4.0),   # four 는 quote 에 없다
-  _R('연간 매출액은 전년 대비 3~5% 증가했습니다', low=3, high=5),               # 활용형 — 전망을 실적으로 바꿔 쓴 인용
-  _R('전년 대비 3~5% 증가할 것으로 전망합니다', value_text='증가했다'),           # value_text 활용형이 quote 와 다르다
+  _R('전 세계 시장서 총 32만 9,773대 판매, 전년 동월 대비 6.3% 감소할 것으로', value=6.3),  # 활용형 — 실적을 전망으로 바꿔 쓴 인용
+  _R('주요 내용 및 추진 일정 등은 국내외 시장상황 및 경영계획 변경 등에 따라 변동될 수 있습니다',
+     value_text='변동되었다'),                                                 # value_text 활용형이 quote 와 다르다
+  _R('당기순이익 △89 억원 적자전환', value=89),                                 # △89 를 양수로
+  _R('89 억원 적자전환 2026년 3분기', value=89),                                 # 원문 '△89' 의 △ 를 떨군 조각
   _R('CKD 6060', value=6060),                                                    # 숫자 사이 공백은 지우지 않는다
   _R('Net sales of 1,028', value=1028),                                          # 원문 1,028,500 의 한가운데서 잘린 수
   # 검토 1회차 — 확인 안 된 짧은 조각에 지어낸 수를 붙인 꼴
@@ -239,7 +258,8 @@ MUST_MISS = [
   _R('26.2 The Company expects 2026 sales', value=26.2),                          # 원문 '-26.2' 의 부호를 떨군 조각
 ]
 DATE_HIT = [_R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-02-12'),
-            _R('2026년 1월 29일 경영실적 발표', event_date='2026-01-29'),
+            _R('정보제공(예정)일자 2026년 1월 28일(수) 정보제공(예정)시간 14:10', event_date='2026-01-28'),  # 기아 실물
+            _R('정보제공(예정)일시 2025년 4월24일(목) 행사명(장소) 보도자료 배포', event_date='2025-04-24'),  # KGM 실물 붙은 꼴
             _R('quarterly/interim statements 08.10.2026 / 15:07 CET/CEST', event_date='2026-10-08'),  # 포르쉐 실물 D.M.Y
             _R('Date of disclosure: October 27, 2026', event_date='2026-10-27'),                       # 포르쉐 실물
             _R('Annual General Meeting 12.02.2026', event_date='2026-02-12'),
@@ -247,7 +267,8 @@ DATE_HIT = [_R('on February 12th, 2026, after market close, it will release its 
             _R('12-Feb-2026 Annual General Meeting', event_date='2026-02-12')]
 DATE_MISS = [_R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-02-13'),
              _R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-12-12'),  # 월·일 뒤바뀜
-             _R('2026년 1월 29일 경영실적 발표', event_date='2026-01-09'),
+             _R('정보제공(예정)일자 2026년 1월 28일(수) 정보제공(예정)시간 14:10', event_date='2026-01-08'),
+             _R('정보제공(예정)일시 2025년 4월24일(목) 행사명(장소) 보도자료 배포', event_date='2025-04-02'),
              _R('Annual General Meeting 12.02.2026', event_date='2026-12-02'),                         # D.M.Y 를 M.D.Y 로
              _R('Capital Markets Day Feb 11-12, 2026', event_date='2026-02-13')]
 
