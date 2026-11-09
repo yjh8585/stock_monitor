@@ -1298,3 +1298,14 @@ GHA IP 문제가 아니었다.
 **처방** — ID 를 박지 않고 페이지와 같은 `getMnrlPriceCrtr`(`HP000=HP003&mnrkndUnqCd=…`)로
 매 실행마다 **이름(`cdVal == 'Iron Ore Fines'`)으로 조회**한다(`collect_steel_kr.py` 의
 `_resolvePriceCode`). 이름까지 사라지면 받은 목록을 로그에 찍고 실패한다.
+(같은 날 LME 구리를 붙이며 이 조회를 `scripts/lib/komis.py` 의 `resolvePriceCode` 로 옮겼다.)
+
+## 철·구리 지역 비교 원천의 특이점 — 세금 포함 여부가 제각각이다 (2026-11-09 실측)
+
+DB 에는 발표처 원값 그대로 두고 **환산은 `lib/commodityUnits.ts` 에서만** 한다(수집기에서 바꾸면 원문과 대조할 길이 사라진다).
+
+- 조달청 `COPPER_KR` = 비축 판매가 **부가세 포함**(÷1.10) · SHFE `HRC_CN` = **증치세 13% 포함**(÷1.13)
+- SHFE 는 **장중엔 파일이 있어도 결산가가 비고** `小计`(소계) 행의 미결제약정이 더 크다 — 숫자 월물만 본다
+- 미국 HRC 는 **short ton**, COMEX 구리는 **USD/lb** 단위다
+
+→ [경위](./history/gotchas-data-collection-경위.md)

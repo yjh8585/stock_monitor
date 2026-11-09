@@ -47,7 +47,7 @@ year_month는 YYYYMM 정수 (202504 = 2025년 4월).
 
 ### market_series_daily
 매크로·해운·철강·원자재. series_code × trade_date, close.
-주요 series_code: BDI(발틱지수), HRC_CHINA(중국 열연), DUBAI_OIL, USD_KRW 등.`;
+주요 series_code: BDI(발틱지수), HRC_CN(중국 열연 SHFE, CNY/t), DUBAI_OIL, USD_KRW 등.`;
 
 const ROUTE_MAP = `## 페이지 라우트 맵
 

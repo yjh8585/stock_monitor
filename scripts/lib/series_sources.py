@@ -17,6 +17,24 @@ KOMIS_PRICE_CRTR_API: Final[str] = (
   'https://www.komis.or.kr/Komis/RsrcPrice/ajax/getMnrlPriceCrtr'
 )
 KOMIS_IRON_PRICE_NAME: Final[str] = 'Iron Ore Fines'
+# 광종 그룹: 철광석·에너지(HP003) / 비철금속(HP001)
+KOMIS_IRON_HP_GROUP: Final[str] = 'HP003'
+
+# --- KOMIS 비철금속 — 구리(동) LME 현물 ---
+KOMIS_BASE_METALS_URL: Final[str] = 'https://www.komis.or.kr/Komis/RsrcPrice/BaseMetals'
+KOMIS_BASE_METALS_HP_GROUP: Final[str] = 'HP001'
+KOMIS_COPPER_MNRL_CODE: Final[str] = 'MNRL0008'
+KOMIS_COPPER_PRICE_NAME: Final[str] = 'LME CASH'
+
+# --- 조달청 비축물자 「원자재 판매가격」 게시판 (영업일마다 1건, 원/톤 · 부가세 포함) ---
+PPS_LIST_URL: Final[str] = 'https://www.pps.go.kr/bichuk/bbs/list.do'
+PPS_VIEW_URL: Final[str] = 'https://www.pps.go.kr/bichuk/bbs/view.do'
+PPS_PRICE_BOARD_KEY: Final[str] = '00825'
+PPS_COPPER_ITEM: Final[str] = '구리(99.99%이상)'
+
+# --- SHFE(상하이선물거래소) 일별 시세 JSON — 휴장일은 404 HTML ---
+SHFE_DAILY_URL: Final[str] = 'https://www.shfe.com.cn/data/tradedata/future/dailydata/kx{ymd}.dat'
+SHFE_HRC_PRODUCT: Final[str] = 'hc'  # 热轧卷板(열연강판), CNY/t, 중국 증치세 포함 가격
 # 메타 갱신용 라벨/단위 (KOMIS Iron Ore Fines는 USD/MT)
 STEEL_KR_LABEL: Final[str] = '철광석 (Iron Ore Fines 62%, CFR China)'
 STEEL_KR_UNIT: Final[str] = 'USD/MT'

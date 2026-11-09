@@ -1,4 +1,4 @@
-name: STEEL_KR 수집 (KOMIS 철광석)
+name: 철광석·구리·열연 수집 (KOMIS·조달청·SHFE)
 
 on:
   schedule:
@@ -33,6 +33,39 @@ jobs:
 
       - name: STEEL_KR (KOMIS Iron Ore) 수집
         run: python collect_steel_kr.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+
+      # 아래 세 단계는 원자재 화면 상단 「구리·열연 지역 비교」 차트용(2026-11-09).
+      # 원천이 서로 달라 한 곳이 막혀도 나머지는 돌도록 !cancelled() — 실패한 단계는 그대로 빨간불로 남는다.
+      # always() 와 달리 사용자가 실행을 취소하면 멈춘다.
+      - name: COPPER_LME (KOMIS LME 구리) 수집
+        if: ${{ !cancelled() }}
+        run: python collect_copper_lme.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+
+      - name: COPPER_KR (조달청 구리 판매가) 수집
+        if: ${{ !cancelled() }}
+        run: python collect_copper_pps.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+          NEXT_REVALIDATE_URL: ${{ secrets.NEXT_REVALIDATE_URL }}
+          NEXT_REVALIDATE_SECRET: ${{ secrets.NEXT_REVALIDATE_SECRET }}
+
+      - name: HRC_CN (SHFE 열연) 수집
+        if: ${{ !cancelled() }}
+        run: python collect_shfe_hrc.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

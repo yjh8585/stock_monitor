@@ -116,7 +116,7 @@ export const CHAT_TOOLS: Anthropic.Messages.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        series_code: { type: 'string', description: '예: "BDI", "HRC_CHINA", "DUBAI_OIL"' },
+        series_code: { type: 'string', description: '예: "BDI", "HRC_CN", "DUBAI_OIL"' },
         from: { type: 'string', description: 'YYYY-MM-DD' },
         to: { type: 'string', description: 'YYYY-MM-DD' },
         limit: { type: 'integer', minimum: 1, maximum: MAX_LIMIT, default: 30 },
