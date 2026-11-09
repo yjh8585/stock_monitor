@@ -567,6 +567,19 @@ class FetchFailureTests(unittest.TestCase):
                      '내용 받기 실패: DartUnavailable (dart document 20261030000002: zip 아님 status=020)')
     self.assertEqual(ccn.fetch_failure_kind(dart_api.DartUnavailable('DART_API_KEY 없음'), _DOC), 'retry')
 
+  def test_dart_permanent_status_is_failed(self):
+    """잔여 Minor 1 — 013(조회 자료 없음)·014(파일 없음)는 영구 → failed 로 닫는다(빨강은 하루, 이후 「닫힌 실패」).
+    키·한도·점검 계열과 status 를 못 읽은 경우는 그대로 retry."""
+    from lib import dart_api
+    for st in ('013', '014'):
+      with self.subTest(status=st):
+        e = dart_api.DartUnavailable(f'dart document 1: zip 아님 status={st}', status=st)
+        self.assertEqual(ccn.fetch_failure_kind(e, _DOC), 'failed')
+    for st in ('010', '011', '012', '020', '800', '900', '901', None):
+      with self.subTest(status=st):
+        e = dart_api.DartUnavailable(f'dart document 1: zip 아님 status={st or "?"}', status=st)
+        self.assertEqual(ccn.fetch_failure_kind(e, _DOC), 'retry')
+
   def _one(self, code):
     def fetch(session, doc):
       raise _http_error(code)

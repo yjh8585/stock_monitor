@@ -37,7 +37,8 @@ exit 0 정상(내용 접근 차단 401·403 · 서식 미인식 포함 — 상�
 🔴 LLM 행이 1건 이상이면 코드 파서의 recognized=False 보다 우선한다(judge — 중장기 Investor Day 처럼 코드가 못 알아보는 서식).
 🔴 내용 받기 실패는 그 문서만 처리하고 다음 문서로 간다(note = 예외 클래스·HTTP 상태만 — 본문·URL 금지).
    일시 실패(401·403·408·425·429·5xx·연결·시간 초과·만료 URL·DART 키 없음·DART 비-zip 응답)는 pending 그대로 note 만 →
-   다음 실행이 다시 시도하고 회사 상태가 blocked·error 로 매번 다시 난다(blocked 는 GHA ::warning:: · 최종 검토 P6). 영구 실패(404·410·그 밖 4xx·내용 형식 오류)만 failed 로 닫는다.
+   다음 실행이 다시 시도하고 회사 상태가 blocked·error 로 매번 다시 난다(blocked 는 GHA ::warning:: · 최종 검토 P6).
+   영구 실패(404·410·그 밖 4xx·내용 형식 오류·DART status 013·014 자료·파일 없음)만 failed 로 닫는다.
    현대모비스 IR URL 의 fileId 는 요청마다 바뀌어 저장된 URL 이 만료될 수 있다 → note 에 「만료 가능 URL」.
 🔴 파서 예외(parse · 파서 모듈 fetch 의 AttributeError·TypeError 등)는 그 문서만 failed('파서 예외: <클래스>').
 출력은 회사·문서 건수·행수만(금액 금지 — 공개 수치여도 습관을 지킨다).
@@ -162,6 +163,7 @@ def fetch_failure_note(e: Exception, doc) -> str:
 
 _BLOCKED_CODES = BLOCKED_HTTP      # 인증·봇 차단(401·403) — 화면에 「접근 차단」 사유 · 목록 수집기와 같은 튜플(P12)
 _RETRY_4XX = (408, 425, 429)       # 시간 초과·너무 이름·요청 과다 — 다음 실행에 다시
+_DART_PERMANENT = ('013', '014')   # DART 조회 자료 없음·파일 없음 — 다시 받아도 같다(나머지 status 는 일시)
 
 
 def fetch_failure_kind(e: Exception, doc) -> str:
@@ -169,13 +171,14 @@ def fetch_failure_kind(e: Exception, doc) -> str:
   🔴 일시 실패를 failed 로 닫으면 다음 실행이 다시 안 봐 차단·오류 신호가 하루 만에 사라진다
   (회사의 다른 문서가 파싱되면 상태 표가 ok 로 덮인다). pending 으로 두면 매 실행 다시 시도돼 blocked·error 가 매번 다시 난다.
   일시 = 408·425·429·5xx·연결 오류·시간 초과·만료 URL · DART 키 없음·비-zip status 응답(DartUnavailable — 최종 검토 P10).
-  영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외)."""
+  영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외) · DART status 013·014(자료·파일 없음).
+  DART 의 키·한도·점검 계열(010·011·012·020·800·900·901)과 status 를 못 읽은 응답은 일시다."""
   from lib.dart_api import DartUnavailable
   code = http_status(e)
   if code in _BLOCKED_CODES:
     return 'blocked'
   if isinstance(e, DartUnavailable):
-    return 'retry'
+    return 'failed' if e.status in _DART_PERMANENT else 'retry'
   if _expiring_url(doc):
     return 'retry'   # 만료 URL 의 404 도 — 목록 수집기가 새 URL 을 넣으면 다음 실행에서 받힌다
   if code is not None:

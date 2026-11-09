@@ -21,7 +21,12 @@ GAP_S = 0.25
 class DartUnavailable(Exception):
   """DART 가 지금 내용을 못 준다 — 키 없음 · HTTP 200 인데 zip 이 아닌 응답(JSON status: 020 요청 한도 · 800 점검 등).
   호출부(collect_customer_numbers.fetch_failure_kind)는 일시 오류로 보고 문서를 pending 에 둔다(최종 검토 P10 —
-  전엔 KeyError·BadZipFile 이 영구 실패로 새 DART 문서를 전부 failed 로 닫았다). 문장엔 status 만(키·URL 없음)."""
+  전엔 KeyError·BadZipFile 이 영구 실패로 새 DART 문서를 전부 failed 로 닫았다). 문장엔 status 만(키·URL 없음).
+  `status` = 응답의 DART status 문자열(못 읽었거나 키 없음이면 None) — 호출부가 013·014(자료·파일 없음)만 영구로 닫는다."""
+
+  def __init__(self, msg: str, status: str | None = None):
+    super().__init__(msg)
+    self.status = status
 
 
 def _key() -> str:
@@ -84,6 +89,6 @@ def document_text(session: requests.Session, rcept_no: str) -> str:
       status = (r.json() or {}).get('status')
     except ValueError:
       status = None
-    raise DartUnavailable(f'{label}: zip 아님 status={status or "?"}')
+    raise DartUnavailable(f'{label}: zip 아님 status={status or "?"}', status=status or None)
   with zipfile.ZipFile(io.BytesIO(raw)) as z:
     return '\n'.join(xml_to_text(z.read(n).decode('utf-8', errors='replace')) for n in sorted(z.namelist()))

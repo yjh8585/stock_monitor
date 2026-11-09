@@ -108,6 +108,18 @@ class DocumentTextTest(unittest.TestCase):
       dart_api.document_text(s, '20261030000002')
     self.assertIn('020', str(cm.exception))
     self.assertNotIn(FAKE_KEY, str(cm.exception))
+    self.assertEqual(cm.exception.status, '020')   # 잔여 Minor 1 — 호출부가 영구/일시를 가르는 근거
+
+  def test_status_none_when_unreadable_or_no_key(self, _sleep):
+    s = _Session(_Resp(content=b'<html>maintenance</html>'))
+    s._responses[0].json = lambda: (_ for _ in ()).throw(ValueError('not json'))
+    with self.assertRaises(dart_api.DartUnavailable) as cm:
+      dart_api.document_text(s, '20261030000002')
+    self.assertIsNone(cm.exception.status)
+    with patch.dict(os.environ, {}, clear=True):
+      with self.assertRaises(dart_api.DartUnavailable) as cm:
+        dart_api.document_text(_Session(), '20261030000002')
+    self.assertIsNone(cm.exception.status)
 
   def test_non_zip_unreadable_body_is_unavailable(self, _sleep):
     s = _Session(_Resp(content=b'<html>maintenance</html>'))
