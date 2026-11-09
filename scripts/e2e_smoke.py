@@ -83,6 +83,9 @@ EXPECTED: dict[str, dict[str, str]] = {
     # 조직도 — 사외비 계열. 현장·게스트 차단
     '/management/org-chart': {'admin': ALLOW, 'holdings': ALLOW, 'mobility': ALLOW,
                               'hmobility': DENY, 'guest': DENY},
+    # 고객사 — 사외비 역할만(2026-11-09 사용자 결정). 현장·게스트 차단
+    '/customers': {'admin': ALLOW, 'holdings': ALLOW, 'mobility': ALLOW,
+                   'hmobility': DENY, 'guest': DENY},
     # 회사관리·업로드 — admin 전용
     '/management/companies': {'admin': ALLOW, 'holdings': DENY, 'mobility': DENY,
                               'hmobility': DENY, 'guest': DENY},
@@ -113,6 +116,7 @@ CONTENT: dict[str, str] = {
     '/reports': 'table',
     '/hansae': 'table',
     '/management/pnl': 'table',
+    '/customers': 'table',
     '/compare': 'svg',
     '/management/inventory': 'svg',
     '/management/org-chart': 'svg',

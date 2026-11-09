@@ -4,20 +4,10 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 // server-only 모듈이라 타입만 가져온다(값 import 면 클라이언트 번들로 새어 빌드가 깨진다).
 import type { CustomerOverviewRow } from '@/lib/customers/source';
+import { pctClass, pctText } from '@/lib/customers/format';
 
 const TD = 'px-3 py-2 whitespace-nowrap';
 const NUM = `${TD} text-right tabular-nums`;
-
-/** 퍼센트 문자열 — 값이 없으면 「—」, signed 면 양수에 + 를 붙인다. */
-function pctText(v: number | null, signed = true): string {
-  if (v == null) return '—';
-  return `${signed && v > 0 ? '+' : ''}${v.toFixed(1)}%`;
-}
-/** 증감 색 — 양수 초록·음수 빨강·0/없음 회색. */
-function pctClass(v: number | null): string {
-  if (v == null || v === 0) return 'text-muted-foreground';
-  return v > 0 ? 'text-emerald-600' : 'text-rose-600';
-}
 
 interface Props {
   rows: CustomerOverviewRow[];

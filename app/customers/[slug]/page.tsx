@@ -9,6 +9,7 @@ import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccess } from '@/lib/auth/permissions';
 import { getCustomerDetail } from '@/lib/customers/source';
 import type { CustomerEarnings } from '@/lib/customers/types';
+import { pctClass, pctText } from '@/lib/customers/format';
 
 /** Cache Components 는 dynamic route 에 generateStaticParams 결과를 최소 1개 요구한다(app/stock-popup/[id] 와 같은 방식). */
 export async function generateStaticParams() {
@@ -48,11 +49,22 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
           {row.ticker && <span className="text-sm text-muted-foreground">{row.ticker}</span>}
         </h1>
         <p className="text-sm tabular-nums mt-0.5">
-          {row.price.lastClose == null
-            ? '주가 —'
-            : `${row.price.lastClose.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${row.currency} · 1개월 ${
-                row.price.return1mPct == null ? '—' : `${row.price.return1mPct.toFixed(1)}%`
-              } · 연초 대비 ${row.price.returnYtdPct == null ? '—' : `${row.price.returnYtdPct.toFixed(1)}%`} (${row.price.lastDate})`}
+          {row.price.lastClose == null ? (
+            '주가 —'
+          ) : (
+            <>
+              {row.price.lastClose.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
+              {row.currency} · 1개월{' '}
+              <span className={pctClass(row.price.return1mPct)}>
+                {pctText(row.price.return1mPct)}
+              </span>{' '}
+              · 연초 대비{' '}
+              <span className={pctClass(row.price.returnYtdPct)}>
+                {pctText(row.price.returnYtdPct)}
+              </span>{' '}
+              ({row.price.lastDate})
+            </>
+          )}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           우리 매출 비중 {shareText}
@@ -99,8 +111,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
             </Link>
           )}
         </section>
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold">최근 뉴스</h2>
+        {/* 제목은 PopupNewsSection 안의 「최신 뉴스」가 맡는다 — 여기 h2 를 두면 제목이 두 번 나온다. */}
+        <section>
           <PopupNewsSection
             companyId={row.company_id}
             companyName={row.name_kr}
