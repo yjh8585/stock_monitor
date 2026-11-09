@@ -135,9 +135,12 @@ def ir_rows(session, c: dict, since: str, client) -> list[dict]:
   """IR 어댑터 행 → 날짜 채우기(_quarter) → since 이후 → company_id. 어댑터가 0건이면 목록이 깨진 것이다(error)."""
   raw = require_rows('IR', ir_lists.IR_LISTS[c['ticker']](session, since))
   qdates = prelim_quarter_dates(client, c['id']) if c['dart_corp_code'] else {}
-  rows, held = ir_lists.resolve_dates(raw, qdates, since)
-  if held:
-    print(f'  {c["ticker"]:<10} IR    날짜 보류 {held}건 — 같은 분기 DART 연결 잠정실적 공시가 아직 없다(다음 실행에 다시 본다)')
+  rows, holds = ir_lists.resolve_dates(raw, qdates, since)
+  for wait, n in sorted(holds.items()):
+    if wait == ir_lists.NO_DATE:
+      print(f'  {c["ticker"]:<10} IR    날짜 없음 {n}건 — 원문에 분기도 날짜도 없어 싣지 않는다(다음 실행에도 안 풀린다)')
+    else:
+      print(f'  {c["ticker"]:<10} IR    날짜 보류 {n}건 — {ir_lists.HOLD_REASONS[wait]}(다음 실행에 다시 본다)')
   return [{'company_id': c['id'], **r} for r in rows]
 
 
@@ -190,8 +193,7 @@ def store(rows: list[dict]) -> None:
   _db().upsert_rows('customer_documents', rows, 'source,source_id')
 
 
-class EmptyListError(Exception):
-  """정상일 수 없는 0건 — 조용한 0건을 no_new 로 숨기지 않는다. 문장은 화면 사유로 그대로 나간다."""
+EmptyListError = ir_lists.EmptyListError  # IR 하위 목록 0건도 같은 클래스로 올라온다(정의는 lib/ir_lists.py)
 
 
 def require_rows(label: str, rows: list[dict]) -> list[dict]:
@@ -281,14 +283,19 @@ def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
         status = 'ok' if n else 'no_new'
         if rows and not dry_run:
           store(rows)
-        date_fetch = ir_lists.IR_EARNINGS_DATES.get(c['ticker']) if collector == 'ir_list' else None
-        if date_fetch:
-          dates = date_fetch(session, since)
-          dates_note = f' · 일정 {len(dates)} · 일정 새/바뀜 {sync_earnings_dates(client, c["id"], dates, dry_run)}'
       except Exception as e:  # 한 출처 실패가 다른 출처·회사를 막지 않게 — 상태 표에 남긴다
         status, reason = failure_status(label, e)
         n = 0
         errors += status == 'error'
+      date_fetch = ir_lists.IR_EARNINGS_DATES.get(c['ticker']) if collector == 'ir_list' else None
+      if date_fetch:  # 문서와 따로 — 일정이 깨져도 이미 실은 문서의 상태는 그대로 두고 사유만 덧붙인다
+        try:
+          dates = date_fetch(session, since)
+          dates_note = f' · 일정 {len(dates)} · 일정 새/바뀜 {sync_earnings_dates(client, c["id"], dates, dry_run)}'
+        except Exception as e:
+          note = f'실적 일정 실패: {failure_status(label, e)[1]}'
+          reason = f'{reason} · {note}' if reason else note
+          errors += 1
       kinds = ' '.join(f'{k}={v}' for k, v in sorted(Counter(r['doc_type'] for r in rows).items()))
       print(f'  {c["ticker"]:<10} {label:<5} {status:<7} 문서 {len(rows)} · 새 {n}' + (f' · {kinds}' if kinds else '')
             + dates_note + (f' · {reason}' if reason else ''))
