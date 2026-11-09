@@ -77,7 +77,7 @@
 | ------------------- | ------------------------------------------------- | ------------------------------------------------------- |
 | `/related-stocks`   | 21개사 메인 표                                    | `related_stocks_view`                                   |
 | `/compare`          | 다중 회사 비교                                    | `compareData`, `compareMetrics`                         |
-| `/customers`        | 고객사 요약 · 사외비 역할만(`canAccessCustomers`) | `customer_accounts` + 손익 (사외비, §7-G)               |
+| `/customers`        | 고객사 요약 · 사외비 역할만(`canAccessCustomers`) | `lib/customers/source.ts`(명단·손익·실적·주가)          |
 | `/customers/[slug]` | 고객사 개별(실적·MarkLines 판매·뉴스)             | `lib/customers/source.ts`                               |
 | `/domestic`         | 국내자동차 (421개사 + 매크로)                     | `domestic_stocks_view`                                  |
 | `/oem`              | OEM 전체 (MarkLines 대시보드)                     | `oem_sales_*` 7개 테이블                                |
@@ -882,7 +882,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
 | **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
 | **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, `customer_accounts` — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
 | **백업 테이블** | 일회성 백업(`*_dropped_*`·`*_reverted_*`)도 **만들 때 RLS를 켠다**. 2026-08-25에 남긴 2개가 RLS 없이 public 에 있어 anon 키로 읽히고 있었고 Security Advisor 가 ERROR 로 잡았다(20260907000002 로 차단) |
 | **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |

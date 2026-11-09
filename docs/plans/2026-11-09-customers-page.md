@@ -73,7 +73,7 @@
 - `customer_documents` 는 공개 IR 이지만 화면이 사외비 역할 전용이고 «어느 회사 문서를 분석했나»가 명단을 드러내므로 서버 전용으로 둔다. 조회는 `confidentialDb`.
 - `customer_signals.status` = `red`·`yellow`·`green`·`no_evidence`(회색 — 인용 없음)·`not_applicable`. 「없음(다 봤고 없다)」과 「모름(못 읽음)」을 가른다(지식노트 `ma-workflow.md` §4.1). 그 밖의 칸: `claim_ko`(한국어 한 문장) · `unit` · `period`(수치의 기준 시점) · `verified`(기계 대조 통과 여부).
 - `customer_volume_ir.metric` = 출하·인도·생산·소매 — 회사마다 IR 이 발표하는 정의가 달라 칸으로 구분한다(결정 6 의 「차이 설명」 근거).
-- 매출 비중 = `pnl_entries` 실적(`is_plan=false`)을 `customer_accounts.pnl_customers` 로 묶어 합산. `share_group` 이 같은 회사는 합산 비중을 함께 표시(결정 5). **어느 `basis` 값을 쓸지·기간(최근 12개월 vs 올해 누계)은 1단계 실측 후 정한다(미확인).**
+- 매출 비중 = `pnl_entries` 실적(`is_plan=false`)을 `customer_accounts.pnl_customers` 로 묶어 합산. `share_group` 이 같은 회사는 합산 비중을 함께 표시(결정 5). **기준은 연결 · 실적 최신월 앵커 최근 12개월 · 0월 제외로 확정(2026-11-09 사용자 선택 3차).**
 - `trg_skip_identical_update` 는 2·3단계 수집 표에 붙인다(AGENTS 「신규 수집 테이블」).
 
 ### 화면
@@ -219,7 +219,7 @@
 
 ## 미확인 (지어내지 않고 남긴 것)
 
-- `pnl_entries.basis` 값의 뜻과 매출 비중에 쓸 값·기간
+- ~~`pnl_entries.basis` 값의 뜻과 매출 비중에 쓸 값·기간~~ → 확정 — 연결 · 실적 최신월 앵커 최근 12개월 · 0월 제외(2026-11-09 사용자 선택 3차)
 - 일부 상장사의 IR 발표자료 위치·EDGAR 첨부 여부·봇 차단(회사별 = 원본)
 - EDGAR `User-Agent` 연락처로 쓸 값
 - Supabase 저장소 한도
