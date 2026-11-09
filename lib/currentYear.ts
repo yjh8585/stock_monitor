@@ -14,3 +14,11 @@ export function currentYear(): number {
   const seoulDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
   return parseInt(seoulDate.slice(0, 4), 10);
 }
+
+/**
+ * 서울 기준 오늘 날짜 `YYYY-MM-DD`. 순수 함수에는 이 값을 인자로 넘긴다(함수 안에서 `new Date()` 금지).
+ * 🔴 `toISOString().slice(0, 10)` 은 UTC 라 서울 오전 9시 전엔 어제가 된다.
+ */
+export function todaySeoul(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}

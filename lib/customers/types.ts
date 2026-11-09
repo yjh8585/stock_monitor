@@ -51,6 +51,10 @@ export interface CustomerEarningsPoint {
   net_income_bn: number | null;
   /** 전년 같은 기간 대비 매출 증감(%). 비교 대상이 없으면 null. */
   revenue_yoy_pct: number | null;
+  /** 칸마다 출처(해외만 · pickEarnings). 없으면 1단계 그대로(financials). */
+  origin?: EarningsOrigin;
+  /** 그 분기 회사 발표 조정 영업이익(회사 이름 그대로). */
+  adjusted?: { metric: string; name: string; value_bn: number }[];
 }
 
 export interface CustomerEarnings {
@@ -72,4 +76,35 @@ export interface PriceReturns {
   return1mPct: number | null;
   /** 마지막 종가 vs 전년 마지막 거래일 종가, %. */
   returnYtdPct: number | null;
+}
+
+/** 칸의 출처. 회사 장부상 → 회사 조정 영업이익 → 시장 데이터(yfinance) → 없음(「미발표」). */
+export type EarningsSource = 'company_reported' | 'company_adjusted' | 'market' | 'none';
+
+export interface CumulativeNote {
+  period: string; // 2025-6M · 2025
+  metric_name: string;
+  basis: 'reported' | 'adjusted';
+  value_bn: number;
+}
+
+export interface CellOrigin {
+  source: EarningsSource;
+  /** 회사 누계 차이로 계산한 분기(H1 − Q1 등). */
+  derived?: boolean;
+  /** 회사가 쓴 이름(조정 지표일 때 각주에 그대로). */
+  metric_name?: string;
+  /** source='market' 일 때 같은 해 회사 발표 누계(반기·연간) — 각주 「회사 발표 반기 값 …」. */
+  company_cumulative?: CumulativeNote[];
+  /**
+   * 순이익 칸에만 — 출처마다 정의가 다르다. 회사 `net_income` = 세후 합계(비지배지분 포함) 'total' ·
+   * 회사 `net_income_parent`·시장(yfinance) = 지배주주 귀속 'parent'. 출처가 바뀌면 라벨도 바뀌어야 한다(폭스바겐 등).
+   */
+  definition?: 'total' | 'parent';
+}
+
+export interface EarningsOrigin {
+  revenue: CellOrigin;
+  operating_income: CellOrigin;
+  net_income: CellOrigin;
 }

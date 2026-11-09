@@ -19,6 +19,21 @@ import { computeShares } from './share';
 import { buildEarnings } from './earnings';
 import { priceReturns } from './prices';
 import { groupMonthToSaleRows } from './volume';
+import {
+  buildVolumeSeries,
+  droppedCurrencies,
+  guidanceStatusNotes,
+  latestGuidance,
+  latestGuidanceChange,
+  pickEarnings,
+  type EarningsDateRow,
+  type GuidanceCard,
+  type GuidanceChange,
+  type GuidanceRowTs,
+  type ReportedRow,
+  type VolumeRow,
+  type VolumeSeries,
+} from './ir';
 import type {
   CustomerEarnings,
   CustomerEarningsPoint,
@@ -44,9 +59,51 @@ export interface CustomerOverviewRow {
   earningsCurrency: string | null;
 }
 
+/** 요약 표의 공식 문서 열 재료 — 「다음 실적」은 화면이 nextEarnings(earningsDates, todaySeoul()) 로 고른다. */
+export interface CustomerOverviewIr {
+  guidanceChange: GuidanceChange | null;
+  earningsDates: EarningsDateRow[];
+}
+
 export interface CustomersOverview {
   windowLabel: string;
-  rows: CustomerOverviewRow[];
+  rows: (CustomerOverviewRow & { ir: CustomerOverviewIr })[];
+}
+
+export interface CustomerDocumentItem {
+  id: number;
+  source: string; // edgar · dart · ir
+  doc_type: string;
+  form: string | null;
+  title: string;
+  url: string;
+  published_at: string;
+}
+
+export interface CollectStatusItem {
+  collector: string;
+  status: string; // ok · no_new · blocked · parse_failed · error
+  reason: string | null;
+  checked_at: string;
+}
+
+/** 개별 화면의 공식 문서 절 재료 — 사외비 표(confidentialDb)에서 verified 행만. */
+export interface CustomerIr {
+  /** 'financials' = 국내(DART 회사) — 실적 표는 1단계 그대로 · 'company_first' = 해외 — 화면이 pickCustomerEarnings 를 부른다. */
+  earningsRule: 'company_first' | 'financials';
+  /** 회사 보고 통화(실적 공시 행에서 가장 많은 통화). 가이던스 currency null 이 가리키는 통화. 공시 행이 없으면 null. */
+  reportCurrency: string | null;
+  /** 최근 40건(공시일 내림차순). */
+  documents: CustomerDocumentItem[];
+  /** (metric, 통화) 별 최신 FY 카드 — 철회 플래그(withdrawn_at) 포함. */
+  guidance: GuidanceCard[];
+  /** 상태 행(철회·「가이던스 확인」) — 날짜순. */
+  guidanceNotes: GuidanceRowTs[];
+  volume: VolumeSeries[];
+  /** 분기·누계·연간 전부(pickEarnings 가 누계 차이·각주 재료로 쓴다). 별도 기준 행도 들어 있다 — 칸 고르기에서 pickEarnings 가 거른다. */
+  reported: ReportedRow[];
+  earningsDates: EarningsDateRow[];
+  collectStatus: CollectStatusItem[];
 }
 
 export interface CustomerDetail {
@@ -89,7 +146,7 @@ async function fetchCompanies(ids: string[]) {
   const sb = createSupabaseAnonClient();
   const { data, error } = await sb
     .from('companies')
-    .select('id,name_kr,name,ticker,currency,country')
+    .select('id,name_kr,name,ticker,currency,country,dart_corp_code')
     .in('id', ids)
     .eq('status', 'active');
   if (error) throw new Error(`companies 조회 실패: ${error.message}`);
@@ -228,8 +285,238 @@ export async function getCustomersOverview(): Promise<CustomersOverview> {
   cacheTag('financials');
   cacheTag('stock_prices');
   cacheTag('companies');
-  const { rows, windowLabel } = await buildRows(await fetchAccounts());
-  return { windowLabel, rows: rows.map((x) => x.row) };
+  cacheTag('customer_documents');
+  cacheTag('customer_guidance');
+  cacheTag('customer_volume_ir');
+  cacheTag('customer_reported_results');
+  cacheTag('customer_earnings_dates');
+  cacheTag('customer_collect_status');
+  const accounts = await fetchAccounts();
+  const ids = accounts.map((a) => a.company_id);
+  const [{ rows, windowLabel }, guidance, dates] = await Promise.all([
+    buildRows(accounts),
+    fetchGuidance(ids),
+    fetchEarningsDates(ids),
+  ]);
+  return {
+    windowLabel,
+    rows: rows.map((x) => ({
+      ...x.row,
+      ir: {
+        guidanceChange: latestGuidanceChange(guidance.get(x.row.company_id) ?? [], currentYear()),
+        earningsDates: dates.get(x.row.company_id) ?? [],
+      },
+    })),
+  };
+}
+
+// ---------------------------------------------------------------- 공식 문서(공시·IR) — 전부 사외비 표
+/** `.range()` 페이지 반복 — 호출부가 PK 전체로 `.order()` 를 건다(AGENTS.md: 조건은 「유일하다」). */
+async function fetchAllPages<T>(
+  label: string,
+  page: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) {
+      logger.error({ err: error }, `${label} 조회 실패`);
+      throw new Error(`${label} 조회 실패: ${error.message}`);
+    }
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
+function groupBy<T extends { company_id: string }, U>(rows: T[], map: (r: T) => U) {
+  const out = new Map<string, U[]>();
+  for (const r of rows) out.set(r.company_id, [...(out.get(r.company_id) ?? []), map(r)]);
+  return out;
+}
+
+const GUIDANCE_COLS =
+  'id,company_id,metric,metric_label,period,low,high,value_text,unit,basis,currency,stated,direction,extractor,quote,published_at,verified';
+
+/** 검증된 가이던스 행 — 회사별. numeric 칸은 Number 로(문자열 직렬화 방지). */
+async function fetchGuidance(ids: string[]): Promise<Map<string, GuidanceRowTs[]>> {
+  const rows = await fetchAllPages('customer_guidance', (from, to) =>
+    confidentialDb
+      .from('customer_guidance')
+      .select(GUIDANCE_COLS)
+      .in('company_id', ids)
+      .eq('verified', true)
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  return groupBy(rows, (r) => ({
+    metric: r.metric,
+    metric_label: r.metric_label,
+    period: r.period,
+    low: r.low == null ? null : Number(r.low),
+    high: r.high == null ? null : Number(r.high),
+    value_text: r.value_text,
+    unit: r.unit,
+    basis: r.basis as GuidanceRowTs['basis'],
+    currency: r.currency,
+    stated: r.stated,
+    direction: r.direction,
+    extractor: r.extractor as GuidanceRowTs['extractor'],
+    quote: r.quote,
+    published_at: r.published_at,
+    verified: r.verified,
+  }));
+}
+
+async function fetchEarningsDates(ids: string[]): Promise<Map<string, EarningsDateRow[]>> {
+  const rows = await fetchAllPages('customer_earnings_dates', (from, to) =>
+    confidentialDb
+      .from('customer_earnings_dates')
+      .select('company_id,period,event_date,source,url')
+      .in('company_id', ids)
+      .order('company_id', { ascending: true })
+      .order('period', { ascending: true })
+      .range(from, to)
+  );
+  return groupBy(rows, (r) => ({
+    period: r.period,
+    event_date: r.event_date,
+    source: r.source,
+    url: r.url,
+  }));
+}
+
+async function fetchVolume(companyId: string): Promise<VolumeRow[]> {
+  const rows = await fetchAllPages('customer_volume_ir', (from, to) =>
+    confidentialDb
+      .from('customer_volume_ir')
+      .select('metric,region,period_grain,period,value,definition,published_at')
+      .eq('company_id', companyId)
+      .eq('verified', true)
+      .order('metric', { ascending: true })
+      .order('region', { ascending: true })
+      .order('period_grain', { ascending: true })
+      .order('period', { ascending: true })
+      .range(from, to)
+  );
+  return rows.map((r) => ({
+    ...r,
+    period_grain: r.period_grain as VolumeRow['period_grain'],
+    value: Number(r.value),
+  }));
+}
+
+async function fetchReported(companyId: string): Promise<ReportedRow[]> {
+  const rows = await fetchAllPages('customer_reported_results', (from, to) =>
+    confidentialDb
+      .from('customer_reported_results')
+      .select('period_grain,period,metric,metric_name,basis,value,unit,currency')
+      .eq('company_id', companyId)
+      .eq('verified', true)
+      .order('period_grain', { ascending: true })
+      .order('period', { ascending: true })
+      .order('metric', { ascending: true })
+      .range(from, to)
+  );
+  return rows.map((r) => ({
+    ...r,
+    period_grain: r.period_grain as ReportedRow['period_grain'],
+    basis: r.basis as ReportedRow['basis'],
+    unit: r.unit as ReportedRow['unit'],
+    value: Number(r.value),
+  }));
+}
+
+async function fetchDocuments(companyId: string): Promise<CustomerDocumentItem[]> {
+  const { data, error } = await confidentialDb
+    .from('customer_documents')
+    .select('id,source,doc_type,form,title,url,published_at')
+    .eq('company_id', companyId)
+    .order('published_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(40);
+  if (error) throw new Error(`customer_documents 조회 실패: ${error.message}`);
+  return data ?? [];
+}
+
+async function fetchCollectStatus(companyId: string): Promise<CollectStatusItem[]> {
+  const { data, error } = await confidentialDb
+    .from('customer_collect_status')
+    .select('collector,status,reason,checked_at')
+    .eq('company_id', companyId)
+    .order('collector', { ascending: true });
+  if (error) throw new Error(`customer_collect_status 조회 실패: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * 해외 회사 실적 칸 고르기(pickEarnings)의 서버 래퍼 — 화면은 이것을 부른다.
+ * 실적 통화와 달라 버린 회사 행이 있으면 경고 한 줄(회사 id·통화만 — 금액 없음). 버리면 그 칸이 조용히 시장 값으로 돌아간다.
+ */
+export function pickCustomerEarnings(
+  companyId: string,
+  earnings: CustomerEarnings,
+  reported: ReportedRow[]
+): CustomerEarnings {
+  const dropped = droppedCurrencies(earnings, reported);
+  if (dropped.length > 0)
+    logger.warn(
+      { companyId, earningsCurrency: earnings.currency, dropped },
+      '고객사 공시 실적 행의 통화가 실적 통화와 달라 칸 고르기에서 뺐다'
+    );
+  return pickEarnings(earnings, reported);
+}
+
+/** 실적 공시 행에서 가장 많은 통화(주당 값 제외). */
+function reportCurrencyOf(rows: ReportedRow[]): string | null {
+  const count = new Map<string, number>();
+  for (const r of rows)
+    if (r.unit !== 'per_share') count.set(r.currency, (count.get(r.currency) ?? 0) + 1);
+  return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
+  'use cache';
+  cacheLife('days');
+  cacheTag('customer_accounts');
+  cacheTag('companies');
+  cacheTag('customer_documents');
+  cacheTag('customer_guidance');
+  cacheTag('customer_volume_ir');
+  cacheTag('customer_reported_results');
+  cacheTag('customer_earnings_dates');
+  cacheTag('customer_collect_status');
+  const account = (await fetchAccounts()).find((a) => a.slug === slug);
+  if (!account) return null;
+  const id = account.company_id;
+  const [companies, documents, guidance, volume, reported, dates, collectStatus] =
+    await Promise.all([
+      fetchCompanies([id]),
+      fetchDocuments(id),
+      fetchGuidance([id]),
+      fetchVolume(id),
+      fetchReported(id),
+      fetchEarningsDates([id]),
+      fetchCollectStatus(id),
+    ]);
+  const company = companies.get(id);
+  if (!company) return null; // hidden·병합된 회사 — getCustomerDetail 과 같은 판정
+  const guidanceRows = guidance.get(id) ?? [];
+  const reportCurrency = reportCurrencyOf(reported);
+  return {
+    earningsRule: company.dart_corp_code ? 'financials' : 'company_first',
+    reportCurrency,
+    documents,
+    guidance: latestGuidance(guidanceRows, currentYear(), reportCurrency),
+    guidanceNotes: guidanceStatusNotes(guidanceRows),
+    volume: buildVolumeSeries(volume),
+    reported,
+    earningsDates: dates.get(id) ?? [],
+    collectStatus,
+  };
 }
 
 async function fetchGroupMonth(group: string): Promise<OemSalesGroupMonth[]> {
