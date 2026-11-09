@@ -33,7 +33,18 @@ _DART_TYPES = (  # (보고서명 정규식, doc_type) — [기재정정]·[첨�
   (r'기업설명회\(IR\)개최', 'ir_event'),
   (r'영업실적등에대한전망|장래사업ㆍ경영계획', 'guidance'),
 )
-_EDGAR_6K = ((r'result', 'earnings_release'), (r'deliver|shipment|production', 'sales_release'))
+# 6-K 는 EDGAR 「primaryDocDescription」(소문자)로 가른다. 위에서부터 첫 일치. 실물(2024-10~2026-11):
+#   STLA `6-K COVER PAGE Q3 2026 PRESS RELEASE`·`… SUPPLEMENTAL INFORMATION` = 실적 보도자료·보충자료
+#   STLA `6-K STELLANTIS N.V. Q3 2026` = Interim Report(H1 은 Semi-Annual Report) — 정기 보고서
+#   STLA `6-K`(출하·실적 예고 등 보도자료 전부) · VFS `FORM 6-K`(59/60) = 설명에 실마리 없음 → current_report
+_PERIOD = r'\b(q[1-4]|h[12]|9m|fy) 20\d\d\b'
+_EDGAR_6K = (
+  (_PERIOD + r'.*\b(press release|supplemental information)\b', 'earnings_release'),
+  # 아래 둘은 대상 회사 실물 표본 없음(요약서 갈래 유지). `Results of Annual General Meeting` 은 실적이 아니다.
+  (r'\bfinancial results\b|\b(quarter|half[- ]year|full[- ]year|annual) (20\d\d )?results\b', 'earnings_release'),
+  (r'deliver|shipment|production', 'sales_release'),
+  (_PERIOD, 'periodic'),  # 기간만 있고 보도자료·실적·출하 낱말이 없으면 정기 보고서(Interim·Semi-Annual Report)
+)
 EDGAR_FORMS = ('8-K', '6-K', '10-Q', '10-K', '20-F')
 DART_DETAIL_TYPES = ('I002', 'I003')  # 공정공시 · 안내공시(IR 개최)
 
@@ -144,8 +155,21 @@ def store(rows: list[dict]) -> None:
   _db().upsert_rows('customer_documents', rows, 'source,source_id')
 
 
+class EmptyListError(Exception):
+  """정상일 수 없는 0건 — 조용한 0건을 no_new 로 숨기지 않는다. 문장은 화면 사유로 그대로 나간다."""
+
+
+def require_rows(label: str, rows: list[dict]) -> list[dict]:
+  """EDGAR 대상 회사인데 400일 동안 공시 0건은 정상일 수 없다(DART 는 비상장 OEM 이 정상 0건이라 쓰지 않는다)."""
+  if not rows:
+    raise EmptyListError(f'{label} 목록 0건')
+  return rows
+
+
 def failure_status(label: str, e: Exception) -> tuple[str, str]:
   """예외 → (status, reason). reason 은 화면에 그대로 나가므로 예외 문장(URL·키)을 싣지 않는다."""
+  if isinstance(e, EmptyListError):
+    return 'error', str(e)
   code = getattr(getattr(e, 'response', None), 'status_code', None)
   if isinstance(e, requests.HTTPError) and code == 403:
     return 'blocked', f'{label} 접근 차단(HTTP 403)'
@@ -164,7 +188,7 @@ def sources(c: dict, since: str, end: str) -> list[tuple]:
   """(collector, 화면 라벨, fetch(session) → rows). IR 은 Task 4 가 여기 한 줄을 더한다."""
   out = []
   if c['sec_cik']:
-    out.append(('edgar_list', 'EDGAR', lambda s: edgar_rows(s, c, since)))
+    out.append(('edgar_list', 'EDGAR', lambda s: require_rows('EDGAR', edgar_rows(s, c, since))))
   if c['dart_corp_code']:
     out.append(('dart_list', 'DART', lambda s: dart_rows(s, c, since.replace('-', ''), end.replace('-', ''))))
   return out

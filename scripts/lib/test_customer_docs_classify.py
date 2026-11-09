@@ -59,12 +59,35 @@ class ClassifyTest(unittest.TestCase):
   def test_edgar(self):
     self.assertEqual(ccd.classify_edgar('8-K', '2.02,9.01', ''), 'earnings_release')
     self.assertEqual(ccd.classify_edgar('8-K', '7.01,9.01', ''), 'current_report')
-    self.assertEqual(ccd.classify_edgar('6-K', '', 'Q3 2026 Shipments'), 'sales_release')
     self.assertEqual(ccd.classify_edgar('10-Q', '', ''), 'periodic')
 
-  def test_edgar_more(self):
+  # 6-K 설명 칸 — EDGAR primaryDocDescription 실물 그대로(STLA CIK 1605484 · VFS CIK 1913510, 2024-10~2026-11)
+  MUST_HIT_6K = (
+    ('6-K COVER PAGE Q3 2026 PRESS RELEASE', 'earnings_release'),
+    ('6-K COVER PAGE FY 2025 PRESS RELEASE', 'earnings_release'),
+    ('6-K COVER PAGE H1 2025 PRESS RELEASE', 'earnings_release'),
+    ('6-K COVER PAGE Q2 2026 SUPPLEMENTAL INFORMATION', 'earnings_release'),
+    ('6-K COVER PAGE FY 2024 SUPPLEMENTAL INFORMATION', 'earnings_release'),
+    ('6-K STELLANTIS N.V. Q3 2026', 'periodic'),   # EX-99.1 = Interim Report(실물 확인)
+    ('6-K STELLANTIS N.V. H1 2025', 'periodic'),   # EX-99.1 = Semi-Annual Report(실물 확인)
+  )
+  # 실마리 없는 설명 — 스텔란티스 출하·실적 예고 보도자료도 `6-K` 라 메타데이터로는 못 가른다(파서가 본문으로)
+  MUST_MISS_6K = ('6-K', 'FORM 6-K', '')
+
+  def test_edgar_6k_real_titles(self):
+    for desc, want in self.MUST_HIT_6K:
+      self.assertEqual(ccd.classify_edgar('6-K', '', desc), want, desc)
+    for desc in self.MUST_MISS_6K:
+      self.assertEqual(ccd.classify_edgar('6-K', '', desc), 'current_report', desc)
+
+  def test_edgar_6k_text_branches(self):
+    # 대상 회사 실물 표본 없음 — 요약서 갈래(실적·출하 낱말)를 합성 제목으로만 지킨다
+    self.assertEqual(ccd.classify_edgar('6-K', '', 'Q3 2026 Shipments'), 'sales_release')
     self.assertEqual(ccd.classify_edgar('6-K', '', 'Third Quarter 2026 Results'), 'earnings_release')
-    self.assertEqual(ccd.classify_edgar('6-K', '', ''), 'current_report')
+    # 「result」 낱말만으로는 실적이 아니다(검토 지적)
+    self.assertEqual(ccd.classify_edgar('6-K', '', 'Results of Annual General Meeting'), 'current_report')
+
+  def test_edgar_more(self):
     self.assertEqual(ccd.classify_edgar('20-F', '', ''), 'periodic')
     self.assertIsNone(ccd.classify_edgar('4', '', ''))
     # 8-K 의 2.02 는 항목 «단위»로 본다 — 12.02 같은 꼴에 잘못 걸리지 않게
@@ -184,6 +207,17 @@ class StatusTest(unittest.TestCase):
 
   def test_other_http_is_error_class_name_only(self):
     self.assertEqual(ccd.failure_status('DART', self._http(404)), ('error', 'HTTPError'))
+
+  def test_edgar_empty_list_is_error(self):
+    """EDGAR 대상인데 목록 0건 = 조용한 0건 → error + 사유(검토 지적). DART 는 비상장 OEM 이 정상 0건이라 그대로."""
+    gm = {'id': 'u-gm', 'ticker': 'GM', 'sec_cik': '1467858', 'dart_corp_code': '00000001'}
+    srcs = {collector: fetch for collector, _, fetch in ccd.sources(gm, '2026-01-01', '2026-11-09')}
+    with patch.object(ccd, 'edgar_rows', return_value=[]):
+      with self.assertRaises(ccd.EmptyListError) as cm:
+        srcs['edgar_list'](MagicMock())
+    self.assertEqual(ccd.failure_status('EDGAR', cm.exception), ('error', 'EDGAR 목록 0건'))
+    with patch.object(ccd, 'dart_rows', return_value=[]):
+      self.assertEqual(srcs['dart_list'](MagicMock()), [])
 
   def test_other_exception_class_name_only(self):
     self.assertEqual(ccd.failure_status('DART', RuntimeError('DART list status=020 corp=x')), ('error', 'RuntimeError'))
