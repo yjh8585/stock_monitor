@@ -45,6 +45,8 @@ ALLOWED_SCALAR_TUPLE: dict[tuple[str, str], str] = {
   ('collect_dart_audit', '_score_report'): '(등급, 접수일) 쌍을 «정렬 키» 로 통째로 쓴다',
   ('lib.naver_research', 'delta_group_key'): '묶음 키를 딕셔너리 키로 통째로 쓴다',
   ('lib.pdf_figures', 'clip_to_page'): '(x0, y0, x1, y1) 사각형을 통째로 넘긴다',
+  ('customer_parsers.common', 'parse_range'): 'Optional 2-튜플 — rivian._guidance_cell 이 통째로 받아 다음 줄에서 None 을 '
+                                              '가르고 정렬한다(못 읽은 칸 = None)',
 }
 
 
