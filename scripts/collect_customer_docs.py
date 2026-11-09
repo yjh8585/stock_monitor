@@ -1,8 +1,10 @@
-"""고객사 공식 문서 «목록» 수집 — EDGAR·DART → customer_documents · 결과는 customer_collect_status.
+"""고객사 공식 문서 «목록» 수집 — EDGAR·DART·IR 사이트 → customer_documents · 결과는 customer_collect_status.
 
 뒤 단계(회사별 파서)가 이 목록에서 parse_status='pending' 인 문서를 읽는다. 여기서는 본문을 받지 않는다.
 
-대상 = 활성 OEM + PARSER_ONLY_TICKERS 중 sec_cik 또는 dart_corp_code 가 있는 회사(파서 없는 OEM 도 목록은 쌓인다).
+대상 = 활성 OEM + PARSER_ONLY_TICKERS 중 sec_cik 또는 dart_corp_code 가 있거나 IR 어댑터(lib/ir_lists.IR_LISTS)가
+있는 회사(파서 없는 OEM 도 목록은 쌓인다 · 폭스바겐·포르쉐는 공시 식별자 없이 IR 만).
+IR 목록 중 실적 일정(VW ICS·폴라리스 이벤트)은 문서가 아니라 customer_earnings_dates 로 간다.
 
 실행:
   scripts/venv/Scripts/python.exe scripts/collect_customer_docs.py --dry-run --company GM
@@ -24,7 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import requests
 
-from lib import dart_api, edgar
+from lib import dart_api, edgar, ir_lists
 
 # ── 분류(순수) ────────────────────────────────────────────────────────────────
 
@@ -81,14 +83,14 @@ def _db():
 
 
 def targets() -> list[dict]:
-  """활성 OEM + PARSER_ONLY_TICKERS 중 sec_cik 또는 dart_corp_code 가 있는 회사. 거르기는 서버에서."""
+  """활성 OEM + PARSER_ONLY_TICKERS 중 sec_cik·dart_corp_code·IR 어댑터 중 하나라도 있는 회사. 거르기는 서버에서."""
   cols, c = 'id,ticker,name_kr,company_type,sec_cik,dart_corp_code,status', _db().get_client()
   rows = c.table('companies').select(cols).eq('company_type', 'OEM').eq('status', 'active').execute().data
   rows += (c.table('companies').select(cols).in_('ticker', list(PARSER_ONLY_TICKERS)).eq('status', 'active')
            .execute().data)
   seen, out = set(), []
   for r in rows:
-    if (r['sec_cik'] or r['dart_corp_code']) and r['id'] not in seen:
+    if (r['sec_cik'] or r['dart_corp_code'] or r['ticker'] in ir_lists.IR_LISTS) and r['id'] not in seen:
       seen.add(r['id'])
       out.append(r)
   return out
@@ -118,6 +120,39 @@ def dart_rows(session, c: dict, bgn: str, end: str) -> list[dict]:
                     'url': f'https://dart.fss.or.kr/dsaf001/main.do?rcpNo={d["rcept_no"]}',
                     'published_at': f'{d["rcept_dt"][:4]}-{d["rcept_dt"][4:6]}-{d["rcept_dt"][6:]}'})
   return out
+
+
+def prelim_quarter_dates(client, company_id: str) -> dict[str, str]:
+  """이미 적재된 DART 잠정실적 공시 → {'2026-Q3': 공시일}. 현대차·현대모비스 IR 목록엔 날짜 칸이 없어 이 날을 쓴다.
+
+  같은 실행에서 DART 출처가 IR 보다 먼저 적재된다(sources 순서) — dry-run 이면 이전 실행분을 본다."""
+  data = (client.table('customer_documents').select('title,published_at').eq('company_id', company_id)
+          .eq('source', 'dart').eq('doc_type', 'prelim_results').execute().data)
+  return ir_lists.quarter_dates(data)
+
+
+def ir_rows(session, c: dict, since: str, client) -> list[dict]:
+  """IR 어댑터 행 → 날짜 채우기(_quarter) → since 이후 → company_id. 어댑터가 0건이면 목록이 깨진 것이다(error)."""
+  raw = require_rows('IR', ir_lists.IR_LISTS[c['ticker']](session, since))
+  qdates = prelim_quarter_dates(client, c['id']) if c['dart_corp_code'] else {}
+  rows, held = ir_lists.resolve_dates(raw, qdates, since)
+  if held:
+    print(f'  {c["ticker"]:<10} IR    날짜 보류 {held}건 — 같은 분기 DART 연결 잠정실적 공시가 아직 없다(다음 실행에 다시 본다)')
+  return [{'company_id': c['id'], **r} for r in rows]
+
+
+def sync_earnings_dates(client, company_id: str, rows: list[dict], dry_run: bool) -> int:
+  """IR 실적 일정 → customer_earnings_dates. (분기, 날짜)가 이미 있으면 건너뛴다 — published_at 은 «처음 본 날»
+  (원문에 게시일이 없다)이라 매번 실으면 같은 일정이 날마다 다시 쓰인다. 반환 = 새로 쓰거나 바뀐 분기 수."""
+  have = {(d['period'], d['event_date']) for d in client.table('customer_earnings_dates')
+          .select('period,event_date').eq('company_id', company_id).execute().data}
+  by_period = {r['period']: r for r in rows}  # 한 요청에 같은 PK 둘이면 upsert 가 통째로 실패한다
+  today = date.today().isoformat()
+  changed = [{'company_id': company_id, **r, 'published_at': today} for r in by_period.values()
+             if (r['period'], r['event_date']) not in have]
+  if changed and not dry_run:
+    _db().upsert_rows('customer_earnings_dates', changed, 'company_id,period')
+  return len(changed)
 
 
 def dedupe(rows: list[dict]) -> list[dict]:
@@ -184,13 +219,15 @@ def write_status(ws, company_id: str, collector: str, status: str, reason: str |
     on_conflict='company_id,collector').execute()
 
 
-def sources(c: dict, since: str, end: str) -> list[tuple]:
-  """(collector, 화면 라벨, fetch(session) → rows). IR 은 Task 4 가 여기 한 줄을 더한다."""
+def sources(c: dict, since: str, end: str, client=None) -> list[tuple]:
+  """(collector, 화면 라벨, fetch(session) → rows). 순서가 뜻이 있다 — IR 의 날짜 채우기가 DART 적재분을 읽는다."""
   out = []
   if c['sec_cik']:
     out.append(('edgar_list', 'EDGAR', lambda s: require_rows('EDGAR', edgar_rows(s, c, since))))
   if c['dart_corp_code']:
     out.append(('dart_list', 'DART', lambda s: dart_rows(s, c, since.replace('-', ''), end.replace('-', ''))))
+  if c['ticker'] in ir_lists.IR_LISTS:
+    out.append(('ir_list', 'IR', lambda s: ir_rows(s, c, since, client)))
   return out
 
 
@@ -201,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
   from lib.bootstrap import init_script
   init_script(__file__)
 
-  ap = argparse.ArgumentParser(description='고객사 공식 문서 목록 수집(EDGAR·DART)')
+  ap = argparse.ArgumentParser(description='고객사 공식 문서 목록 수집(EDGAR·DART·IR)')
   ap.add_argument('--company', help='ticker 하나만(GHA 회사별 실행)')
   ap.add_argument('--since', help='YYYY-MM-DD (기본 = 오늘 − 400일 · --backfill 이면 − 760일)')
   ap.add_argument('--backfill', action='store_true', help='약 2년 치')
@@ -222,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.company:
     cos = [c for c in cos if c['ticker'] == args.company]
     if not cos:
-      print(f'대상 아님(활성 OEM·파서 대상 중 공시 식별자 있는 회사가 아님): {args.company}')
+      print(f'대상 아님(활성 OEM·파서 대상 중 공시 식별자·IR 어댑터 있는 회사가 아님): {args.company}')
       return 2
   print(f'대상 {len(cos)}곳 · {since} ~ {end}' + (' · dry-run' if args.dry_run else ''))
 
@@ -236,21 +273,25 @@ def main(argv: list[str] | None = None) -> int:
 def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
   errors = 0
   for c in cos:
-    for collector, label, fetch in sources(c, since, end):
-      rows, reason = [], None
+    for collector, label, fetch in sources(c, since, end, client):
+      rows, reason, dates_note = [], None, ''
       try:
         rows = dedupe(fetch(session))
         n = count_new(client, rows)
         status = 'ok' if n else 'no_new'
         if rows and not dry_run:
           store(rows)
+        date_fetch = ir_lists.IR_EARNINGS_DATES.get(c['ticker']) if collector == 'ir_list' else None
+        if date_fetch:
+          dates = date_fetch(session, since)
+          dates_note = f' · 일정 {len(dates)} · 일정 새/바뀜 {sync_earnings_dates(client, c["id"], dates, dry_run)}'
       except Exception as e:  # 한 출처 실패가 다른 출처·회사를 막지 않게 — 상태 표에 남긴다
         status, reason = failure_status(label, e)
         n = 0
         errors += status == 'error'
       kinds = ' '.join(f'{k}={v}' for k, v in sorted(Counter(r['doc_type'] for r in rows).items()))
       print(f'  {c["ticker"]:<10} {label:<5} {status:<7} 문서 {len(rows)} · 새 {n}' + (f' · {kinds}' if kinds else '')
-            + (f' · {reason}' if reason else ''))
+            + dates_note + (f' · {reason}' if reason else ''))
       if not dry_run:
         write_status(ws, c['id'], collector, status, reason)
   return errors

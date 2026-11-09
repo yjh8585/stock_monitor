@@ -1,0 +1,214 @@
+{
+ "GetFinancialReportListResult": [
+  {
+   "ReportSubType": "Third Quarter",
+   "ReportTitle": "Third Quarter 2026",
+   "ReportYear": 2026,
+   "ReportDate": "09/30/2026 00:00:00",
+   "Documents": [
+    {
+     "DocumentCategory": "news",
+     "DocumentTitle": "Press Release",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_earnings/2026/q3/earnings-result/Q3-2026-Press-Release.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "presentation",
+     "DocumentTitle": "Presentation",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_earnings/2026/q3/presentation/Q3-2026-Presentation.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "webcast",
+     "DocumentTitle": "Webcast",
+     "DocumentPath": "https://event.choruscall.com/mediaframe/webcast.html?webcastid=gml4cYFh",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "transcript",
+     "DocumentTitle": "Transcript",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q3/Polaris-IncPIIUS-Q3-2026-Earnings-Call-27October2026-900-ET-AM-26-10-2026-2026-10-26-0.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "tenq",
+     "DocumentTitle": "Form 10-Q",
+     "DocumentPath": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000931015 /ef6fb029-7ac0-4ed2-8a71-755c633c3d76.pdf",
+     "DocumentFileType": null
+    }
+   ]
+  },
+  {
+   "ReportSubType": "Second Quarter",
+   "ReportTitle": "Second Quarter 2026",
+   "ReportYear": 2026,
+   "ReportDate": "06/30/2026 00:00:00",
+   "Documents": [
+    {
+     "DocumentCategory": "news",
+     "DocumentTitle": "Press Release",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q2/PII-Q2-2026-Earnings-Release-FINAL-1.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "presentation",
+     "DocumentTitle": "Presentation",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q2/Q2-2026-PII-Earnings-Presentation-7-28-26-FINAL.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "webcast",
+     "DocumentTitle": "Webcast",
+     "DocumentPath": "https://event.choruscall.com/mediaframe/webcast.html?webcastid=Lbo6VmYQ",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "transcript",
+     "DocumentTitle": "Transcript",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q2/Polaris-Inc-PII-US-Q2-2026-Earnings-Call-28-July-2026-9_00-AM-ET.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "tenq",
+     "DocumentTitle": "Form 10-Q",
+     "DocumentPath": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000931015 /fbc09ce3-b780-4a0a-b547-af602f66cb52.pdf",
+     "DocumentFileType": null
+    }
+   ]
+  },
+  {
+   "ReportSubType": "First Quarter",
+   "ReportTitle": "First Quarter 2026",
+   "ReportYear": 2026,
+   "ReportDate": "03/31/2026 00:00:00",
+   "Documents": [
+    {
+     "DocumentCategory": "news",
+     "DocumentTitle": "Press Release",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q1/PII-Q1-2026-Earnings-Release-4-28-26-FINAL.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "presentation",
+     "DocumentTitle": "Presentation",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q1/Q1-2026-PII-Earnings-Presentation-4-28-26-FINAL.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "webcast",
+     "DocumentTitle": "Webcast",
+     "DocumentPath": "https://event.choruscall.com/mediaframe/webcast.html?webcastid=kjnHWwgg",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "transcript",
+     "DocumentTitle": "Transcript",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2026/q1/Polaris-Inc-PII-US-Q1-2026-Earnings-Call-28-April-2026-10_00-AM-ET.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "tenq",
+     "DocumentTitle": "Form 10-Q",
+     "DocumentPath": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000931015 /e4e3bad6-db3b-4910-bc18-054d1fbba1e2.pdf",
+     "DocumentFileType": null
+    }
+   ]
+  },
+  {
+   "ReportSubType": "Fourth Quarter",
+   "ReportTitle": "Fourth Quarter 2025",
+   "ReportYear": 2025,
+   "ReportDate": "12/31/2025 00:00:00",
+   "Documents": [
+    {
+     "DocumentCategory": "news",
+     "DocumentTitle": "Press Release",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/q4/PII-Q4-2025-Earnings-Release-1-27-26_F2.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "presentation",
+     "DocumentTitle": "Presentation",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/q4/2025-Q4-FY-PII-Earnings-Presentation-1-27-26_F2.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "webcast",
+     "DocumentTitle": "Webcast",
+     "DocumentPath": "https://event.choruscall.com/mediaframe/webcast.html?webcastid=IYXr7T7Z",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "tenk",
+     "DocumentTitle": "Form 10-K",
+     "DocumentPath": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000931015 /0db47c07-a181-422a-9d47-ce38dfe4aef3.pdf",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "transcript",
+     "DocumentTitle": "Transcript",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/q4/TRANSCRIPT_-Polaris-Inc-PII-Q4-2025-Earnings-Call-27-January-2026.pdf",
+     "DocumentFileType": "PDF"
+    }
+   ]
+  },
+  {
+   "ReportSubType": "Annual Report",
+   "ReportTitle": "2025 Annual Report",
+   "ReportYear": 2025,
+   "ReportDate": "12/31/2025 00:00:00",
+   "Documents": [
+    {
+     "DocumentCategory": "annual",
+     "DocumentTitle": "2025 Annual Report",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/ar/Polaris-2025-Annual-Report-Final.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "proxy",
+     "DocumentTitle": "2026 Proxy Statement",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/ar/Polaris-2026-Proxy-Final.pdf",
+     "DocumentFileType": "PDF"
+    }
+   ]
+  },
+  {
+   "ReportSubType": "Third Quarter",
+   "ReportTitle": "Third Quarter 2025",
+   "ReportYear": 2025,
+   "ReportDate": "09/30/2025 05:00:00",
+   "Documents": [
+    {
+     "DocumentCategory": "news",
+     "DocumentTitle": "Press Release",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/q3/PII-Q3-2025-Earnings-Release-10-28-25-F.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "presentation",
+     "DocumentTitle": "Presentation",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/q3/2025-Q3-PII-Earnings-Presentation-10-28-25-F.pdf",
+     "DocumentFileType": "PDF"
+    },
+    {
+     "DocumentCategory": "webcast",
+     "DocumentTitle": "Webcast",
+     "DocumentPath": "https://event.choruscall.com/mediaframe/webcast.html?webcastid=J8Af4SpB",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "tenq",
+     "DocumentTitle": "Form 10-Q",
+     "DocumentPath": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000931015 /67e434d9-8347-485f-aeb6-6386103062ca.pdf",
+     "DocumentFileType": null
+    },
+    {
+     "DocumentCategory": "transcript",
+     "DocumentTitle": "Transcript",
+     "DocumentPath": "https://s21.q4cdn.com/608247098/files/doc_financials/2025/q3/PII-TRANSCRIPT-Q3-2025-Earnings-Call-28-Oct-2025.pdf",
+     "DocumentFileType": "PDF"
+    }
+   ]
+  }
+ ]
+}

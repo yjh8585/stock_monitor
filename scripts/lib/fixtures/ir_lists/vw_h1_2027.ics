@@ -1,0 +1,17 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:icalendar-ruby
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTAMP:20261109T133110Z
+UID:https://www.volkswagen-group.com/en/events/half-yearly-financial-report
+ -2027-583
+DTSTART;VALUE=DATE:20270723
+DTEND;VALUE=DATE:20270723
+DESCRIPTION:https://www.volkswagen-group.com/en/events/half-yearly-financia
+ l-report-2027-583?follow
+SEQUENCE:1794231070
+SUMMARY:Half-Yearly Financial Report 2027
+END:VEVENT
+END:VCALENDAR

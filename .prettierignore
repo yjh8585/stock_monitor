@@ -33,6 +33,9 @@ scripts/_*.md
 scripts/_debug_*.html
 scripts/_tmp/
 
+# 시험 픽스처 — 외부 실물 응답을 잘라 둔 원문(JSON·HTML). 다시 포맷하면 실물과 달라진다
+scripts/lib/fixtures/
+
 # scripts/_archive — 일회성 보관 (모든 형식 무시)
 scripts/_archive/
 

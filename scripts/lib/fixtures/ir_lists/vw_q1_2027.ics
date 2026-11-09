@@ -1,0 +1,17 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:icalendar-ruby
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTAMP:20261109T133107Z
+UID:https://www.volkswagen-group.com/en/events/interim-report-january-march
+ -2027-581
+DTSTART;VALUE=DATE:20270429
+DTEND;VALUE=DATE:20270429
+DESCRIPTION:https://www.volkswagen-group.com/en/events/interim-report-janua
+ ry-march-2027-581?follow
+SEQUENCE:1794231067
+SUMMARY:Interim Report January – March 2027
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,17 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:icalendar-ruby
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTAMP:20261109T133109Z
+UID:https://www.volkswagen-group.com/en/events/volkswagen-ag-annual-media-c
+ onference-and-investor-conference-580
+DTSTART;VALUE=DATE:20270309
+DTEND;VALUE=DATE:20270309
+DESCRIPTION:https://www.volkswagen-group.com/en/events/volkswagen-ag-annual
+ -media-conference-and-investor-conference-580?follow
+SEQUENCE:1794231069
+SUMMARY:Volkswagen AG Annual Media Conference and Investor Conference
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,114 @@
+{
+ "code": "0000",
+ "message": "성공",
+ "body": {
+  "salesList": [
+   {
+    "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/10000390004/20261007112722922_AERpv5.xlsx",
+    "fileNm": "2026년 판매실적"
+   },
+   {
+    "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/10000390004/20260106144814736_xYznSH.xlsx",
+    "fileNm": "2025년 판매실적"
+   }
+  ],
+  "managementList": [
+   {
+    "date": "2025",
+    "fileList": [
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030015/20260128135431767_Ur3zG8.docx",
+      "fileNm": "4분기 경영실적 보도자료"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030015/20251030110207364_SGPbHd.docx",
+      "fileNm": "3분기 경영실적 보도자료"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030015/20250725110239017_5nXCat.pdf",
+      "fileNm": "2분기 경영실적 보도자료"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030015/20250430154405394_PybbAZ.pdf",
+      "fileNm": "1분기 경영실적 보도자료"
+     }
+    ]
+   },
+   {
+    "date": "2024",
+    "fileList": [
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030003/20250226110539839_PaQmCd.docx",
+      "fileNm": "4분기 경영실적 보도자료"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030003/20241220103355680_G8J36x.docx",
+      "fileNm": "2분기 경영실적 보도자료"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900030003/20241220103345004_vDIz0W.docx",
+      "fileNm": "1분기 경영실적 보도자료"
+     }
+    ]
+   }
+  ],
+  "releaseList": [
+   {
+    "date": "2026",
+    "fileList": [
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020012/20261104170835943_fcyBMH.pdf",
+      "fileNm": "2026년 3분기 경영실적"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020012/20260911145421808_rpZjcg.pdf",
+      "fileNm": "2026년 2분기 경영실적"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020012/20260609133645941_J2X6Ai.pdf",
+      "fileNm": "2026년 KG 모빌리티 Pressday"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020012/20260424160638090_Lma1Lz.pdf",
+      "fileNm": "2026년 1분기 경영실적"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020012/20260224172752703_wgMwwH.pdf",
+      "fileNm": "2026년 CEO IR설명회"
+     }
+    ]
+   },
+   {
+    "date": "2025",
+    "fileList": [
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020011/20251201113231333_9LleRD.pdf",
+      "fileNm": "2025년 3분기 경영실적 발표 - (2025.10.29)"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020011/20250619095853046_KWeCMY.pdf",
+      "fileNm": "KGM FORWARD (경영현황 / 상품전략 / Tech포럼 / Sales포럼) - (2025.06.17)"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020011/20250730101249191_g6YIrc.pdf",
+      "fileNm": "2025년 2분기 경영실적 발표 - (2025.07.24)"
+     },
+     {
+      "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/100003900020011/20250528092109102_UiHOgy.pdf",
+      "fileNm": "2025년 1분기 경영실적 발표 - (2025.04.24)"
+     }
+    ]
+   }
+  ],
+  "businessList": [
+   {
+    "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/10000390001/20260327120220117_eoVjwL.pdf",
+    "fileNm": "2025년 영업보고서"
+   },
+   {
+    "fileUrl": "https://www.kg-mobility.com/attached/contents/display/file/10000390001/20250324093806020_RbDZwz.pdf",
+    "fileNm": "2024년 영업보고서"
+   }
+  ]
+ }
+}
