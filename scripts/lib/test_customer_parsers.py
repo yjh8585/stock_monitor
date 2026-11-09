@@ -30,6 +30,27 @@ class ParserSelfTests(unittest.TestCase):
     spec.loader.exec_module(ccd)
     self.assertLessEqual(set(ccd.PARSER_ONLY_TICKERS), customer_parsers.parser_tickers())
 
+  def test_workflow_tickers_match_registry(self):
+    """최종 검토 P13 — 워크플로 matrix·수동 실행 options(yml 은 읽기만)가 파서 등록부 ∪ IR 목록 어댑터와 같다.
+    파서·어댑터를 더하고 yml 을 안 고치면 그 회사가 정기 실행에서 조용히 빠진다(반대면 빈 job).
+    yml 파서 의존성(PyYAML)을 늘리지 않으려고 두 목록 블록만 정규식으로 읽는다."""
+    import re
+    from lib import ir_lists
+    yml = (pathlib.Path(__file__).resolve().parents[2] / '.github' / 'workflows' / 'collect-customer-docs.yml'
+           ).read_text(encoding='utf-8')
+
+    def block(key: str) -> list[str]:
+      m = re.search(rf'^\s*{key}:\s*\n?\s*\[(.*?)\]', yml, re.S | re.M)
+      self.assertIsNotNone(m, f'yml 에서 {key} 목록을 못 찾음')
+      return re.findall(r"'([^']*)'", m.group(1))
+
+    want = customer_parsers.parser_tickers() | set(ir_lists.IR_LISTS)
+    matrix, options = block('ticker'), block('options')
+    self.assertEqual(len(matrix), len(set(matrix)), 'matrix 중복')
+    self.assertEqual(set(matrix), want)
+    self.assertEqual(options[0], '')   # 비우면 전체
+    self.assertEqual(set(options[1:]), want)
+
 
 class VocabTests(unittest.TestCase):
   def test_base_self_test(self):
