@@ -39,7 +39,8 @@ export async function fetchPnlEntries(): Promise<PnlEntry[]> {
       .order('basis', { ascending: true })
       .order('period_year', { ascending: true })
       // PK 는 period_year 가 아니라 year_label 이다 — '2025'·'2025(E)' 처럼 같은 연도에 라벨이 둘이면 동률이 되므로
-      // 기존 순서를 바꾸지 않고 동률 정렬로만 더한다.
+      // 정렬에 넣는다. 그래서 같은 period_year 안에서는 라벨 단위로 묶여 나온다('2025' 전체 → '2025(E)' 전체).
+      // 소비처(preparePnlData 등)는 거르고 더하기만 해 행 순서가 결과를 바꾸지 않는다.
       .order('year_label', { ascending: true })
       .order('period_month', { ascending: true })
       // 같은 (basis, 연, 월) 안에서도 sil·division·factory·product·customer 5차원으로
