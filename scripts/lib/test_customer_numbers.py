@@ -106,6 +106,12 @@ class NewerOnlyTests(unittest.TestCase):
                 ('sales',): ('2026-10-02', True)}
     self.assertEqual([r['metric'] for r in ccn.newer_only(rows, existing, ('metric',))], ['production', 'sales'])
 
+  def test_verified_replaces_unverified_regardless_of_date(self):
+    """백필·--add-file 로 앞 문서가 나중에 들어와도, 기존이 미검증이면 검증 행이 싣힌다(화면 빈칸 해소)."""
+    rows = [self._row('deliveries', '2026-08-01', True), self._row('production', '2026-08-01', False)]
+    existing = {('deliveries',): ('2026-11-03', False), ('production',): ('2026-11-03', False)}
+    self.assertEqual([r['metric'] for r in ccn.newer_only(rows, existing, ('metric',))], ['deliveries'])
+
 
 class FetchFailureTests(unittest.TestCase):
   def test_note_has_class_and_status_only(self):
@@ -119,8 +125,12 @@ class FetchFailureTests(unittest.TestCase):
   def test_kinds(self):
     k = ccn.fetch_failure_kind
     self.assertEqual(k(_http_error(403), _DOC), 'blocked')
+    self.assertEqual(k(_http_error(401), _DOC), 'blocked')
     self.assertEqual(k(_http_error(503), _DOC), 'retry')
+    self.assertEqual(k(_http_error(408), _DOC), 'retry')
+    self.assertEqual(k(_http_error(425), _DOC), 'retry')
     self.assertEqual(k(_http_error(429), _DOC), 'retry')
+    self.assertEqual(k(_http_error(400), _DOC), 'failed')
     self.assertEqual(k(requests.ConnectionError('x'), _DOC), 'retry')
     self.assertEqual(k(requests.Timeout('x'), _DOC), 'retry')
     self.assertEqual(k(_http_error(404), _DOC), 'failed')
@@ -139,7 +149,7 @@ class FetchFailureTests(unittest.TestCase):
     patch_, status, reason, fails = self._one(403)
     self.assertEqual(patch_, {'parse_status': 'pending', 'parse_note': '내용 받기 실패: HTTPError HTTP 403'})
     self.assertEqual(status, 'blocked')
-    self.assertIn('HTTP 403', reason)
+    self.assertIn('접근 차단(HTTP 401·403)', reason)
     self.assertEqual(fails, 0)
 
   def test_404_failed(self):
@@ -229,6 +239,39 @@ class StoreTests(unittest.TestCase):
     ws.table.return_value.delete.return_value.eq.assert_called_once_with('document_id', 7)
     names = [c.args[0] for c in ws.table.call_args_list]
     self.assertLess(names.index('customer_guidance'), names.index('customer_volume_ir'))
+
+  def test_llm_rows_kept_when_llm_did_not_run(self):
+    """--no-llm·모듈 없음 — LLM 행은 다시 만들 수 없으니 코드 행만 지운다."""
+    run, ws = _run(_mod())
+    with patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None)
+    ws.table.return_value.delete.return_value.eq.return_value.eq.assert_called_once_with('extractor', 'code')
+
+  def test_all_rows_deleted_when_llm_ran(self):
+    run, ws = _run(_mod())
+    with patch.object(ccn, 'existing_pubs', return_value={}), patch.object(run, '_llm', return_value=set()):
+      run.process(_DOC, None)
+    ws.table.return_value.delete.return_value.eq.return_value.eq.assert_not_called()
+    ws.table.return_value.delete.return_value.eq.return_value.execute.assert_called_once()
+
+  def test_directions_recomputed_when_parsed_even_without_guidance(self):
+    """실은 가이던스 0행이어도 선삭제가 옛 행을 지웠을 수 있다 → parsed 문서가 있으면 다시 매긴다."""
+    run, _ = _run(_mod())
+    with patch.object(ccn, 'existing_pubs', return_value={}), patch('collect_customer_docs.write_status'), \
+         patch.object(run, '_directions', return_value=0) as d:
+      run.process(_DOC, None)
+      run.finish('ACME', 1)
+    self.assertEqual(run.rows['customer_guidance'], 0)
+    d.assert_called_once()
+
+  def test_directions_skipped_without_parsed(self):
+    mod = _mod()
+    mod.wants = lambda d: False
+    run, _ = _run(mod)
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0) as d:
+      run.process(_DOC, None)
+      run.finish('ACME', 1)
+    d.assert_not_called()
 
 
 class DirectionTests(unittest.TestCase):

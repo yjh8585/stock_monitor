@@ -1,8 +1,8 @@
 """고객사 문서 «내용» → 숫자. 순서: 자가 시험(exit 2) → pending 문서(오래된 것부터) → 내용 1회 받기 →
 회사 파서 → (llm 칸만) LLM → 어휘·기간 형식 거르기 → 인용·숫자 대조 → 적재 → 가이던스 방향 재계산 → 상태 기록.
 
-exit 0 정상(내용 접근 차단 403 포함 — 상태 표에 blocked 사유가 남는다)
-     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외) 또는 내용 받기 실패(403 밖) 1건 이상
+exit 0 정상(내용 접근 차단 401·403 포함 — 상태 표에 blocked 사유가 남는다)
+     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외) 또는 내용 받기 실패(401·403 밖) 1건 이상
      2 자가 시험 실패 · 인자 오류 · --add-file 대상 회사에 파서 없음
 사용: collect_customer_numbers.py [--company TICKER] [--no-llm] [--reparse DOC_ID] [--dry-run]
      collect_customer_numbers.py --company TICKER --add-file PDF --url URL --doc-type fact_sheet --title T --published YYYY-MM-DD
@@ -13,7 +13,7 @@ exit 0 정상(내용 접근 차단 403 포함 — 상태 표에 blocked 사유�
 🔴 등록부(customer_parsers.MODULE_NAMES)에 파서가 없는 회사의 문서는 pending 그대로 둔다. not_target 으로 닫으면 나중에
    그 회사 파서가 생겨도 문서를 다시 못 본다(--reparse 를 문서마다 돌려야 한다).
 🔴 내용 받기 실패는 그 문서만 처리하고 다음 문서로 간다(note = 예외 클래스·HTTP 상태만 — 본문·URL 금지).
-   일시 실패(403·5xx·429·연결·시간 초과·만료 URL)는 pending 그대로 note 만 → 다음 실행이 다시 시도하고 회사 상태가
+   일시 실패(401·403·408·425·429·5xx·연결·시간 초과·만료 URL)는 pending 그대로 note 만 → 다음 실행이 다시 시도하고 회사 상태가
    blocked·error 로 매번 다시 난다. 영구 실패(404·410·그 밖 4xx·내용 형식 오류)만 failed 로 닫는다.
    현대모비스 IR URL 의 fileId 는 요청마다 바뀌어 저장된 URL 이 만료될 수 있다 → note 에 「만료 가능 URL」.
 🔴 파서 예외(parse · 파서 모듈 fetch 의 AttributeError·TypeError 등)는 그 문서만 failed('파서 예외: <클래스>').
@@ -115,18 +115,22 @@ def fetch_failure_note(e: Exception, doc) -> str:
   return note
 
 
+_BLOCKED_CODES = (401, 403)        # 인증·봇 차단 — 화면에 「접근 차단」 사유
+_RETRY_4XX = (408, 425, 429)       # 시간 초과·너무 이름·요청 과다 — 다음 실행에 다시
+
+
 def fetch_failure_kind(e: Exception, doc) -> str:
-  """받기 실패 갈래 → 'blocked'(403) · 'retry'(일시 — pending 유지) · 'failed'(영구 — 닫는다).
+  """받기 실패 갈래 → 'blocked'(401·403) · 'retry'(일시 — pending 유지) · 'failed'(영구 — 닫는다).
   🔴 일시 실패를 failed 로 닫으면 다음 실행이 다시 안 봐 차단·오류 신호가 하루 만에 사라진다
   (회사의 다른 문서가 파싱되면 상태 표가 ok 로 덮인다). pending 으로 두면 매 실행 다시 시도돼 blocked·error 가 매번 다시 난다.
-  영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외). 429 는 일시."""
+  일시 = 408·425·429·5xx·연결 오류·시간 초과·만료 URL. 영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외)."""
   code = http_status(e)
-  if code == 403:
+  if code in _BLOCKED_CODES:
     return 'blocked'
   if _expiring_url(doc):
     return 'retry'   # 만료 URL 의 404 도 — 목록 수집기가 새 URL 을 넣으면 다음 실행에서 받힌다
   if code is not None:
-    return 'retry' if code >= 500 or code == 429 else 'failed'
+    return 'retry' if code >= 500 or code in _RETRY_4XX else 'failed'
   if isinstance(e, (requests.ConnectionError, requests.Timeout)):
     return 'retry'
   return 'failed'
@@ -201,11 +205,19 @@ def newer_only(rows: list[dict], existing: dict[tuple, tuple[str, bool]], key_co
   """existing = 키 → (기존 published_at, 기존 verified). 실을 행만 남긴다.
   - 기존 행이 더 «나중 공시»면 뺀다 — 백필을 다시 돌려도 최신값이 옛 값에 덮이지 않게(같은 날이면 덮는다)
   - 🔴 미검증 행은 같은 키에 기존 «검증» 행이 있으면 뺀다 — 물량·실적 표 키엔 document_id 가 없어서, 나중 문서의
-    대조 실패 행이 앞 문서의 검증 행을 덮으면 화면(verified 만)이 빈칸이 된다"""
+    대조 실패 행이 앞 문서의 검증 행을 덮으면 화면(verified 만)이 빈칸이 된다
+  - 🔴 반대로 검증 행은 기존 행이 «미검증»이면 공시일과 무관하게 싣는다 — 백필·--add-file 로 앞 문서가 나중에
+    들어올 때, 공시일 규칙에 막히면 미검증 행(화면 빈칸)이 영영 남는다"""
   out = []
   for r in rows:
-    pub, verified = existing.get(tuple(r[c] for c in key_cols), ('', False))
-    if pub <= r['published_at'] and (r['verified'] or not verified):
+    key = tuple(r[c] for c in key_cols)
+    if key not in existing:
+      out.append(r)
+      continue
+    pub, verified = existing[key]
+    if r['verified'] and not verified:
+      out.append(r)
+    elif pub <= r['published_at'] and (r['verified'] or not verified):
       out.append(r)
   return out
 
@@ -409,16 +421,17 @@ class _CompanyRun:
       return c, _sha(c.raw or c.text.encode())
     return fetch_content(self.session, doc)
 
-  def _llm(self, doc, content, res, notes: list[str]) -> set[int]:
+  def _llm(self, doc, content, res, notes: list[str]) -> set[int] | None:
+    """LLM 행 id 집합. None = 이번에 LLM 이 돌지 않았다(--no-llm·llm_wants 거짓·모듈 없음) — 선삭제가 옛 LLM 행을 남긴다."""
     if self.args.no_llm or not hasattr(self.mod, 'llm_wants') or not self.mod.llm_wants(doc, res):
-      return set()
+      return None
     try:
       from lib import llm_guidance  # Task 11 — 시그니처는 그쪽이 정본
     except ModuleNotFoundError as e:
       if e.name != 'lib.llm_guidance':
         raise
       notes.append('LLM 모듈 없음 — 코드 행만')
-      return set()
+      return None
     rows = llm_guidance.extract(doc, content)
     res.guidance += rows
     return {id(g) for g in rows}
@@ -436,7 +449,7 @@ class _CompanyRun:
         return self._parser_error(doc, e)
       kind = fetch_failure_kind(e, doc)
       self.outcomes[{'blocked': 'blocked', 'retry': 'fetch_retry', 'failed': 'fetch_failed'}[kind]] += 1
-      # 일시 실패(403·5xx·연결·만료 URL)는 pending 그대로 note 만 — 다음 실행이 다시 시도한다
+      # 일시 실패(차단·5xx 등·연결·만료 URL)는 pending 그대로 note 만 — 다음 실행이 다시 시도한다
       self._set_doc(doc, 'failed' if kind == 'failed' else 'pending', fetch_failure_note(e, doc), None)
       return
     notes: list[str] = []
@@ -459,7 +472,7 @@ class _CompanyRun:
       notes.insert(0, note)
     self.outcomes[status] += 1
     if status == 'parsed':
-      self._store(doc, payloads(doc, res, checks, llm_ids))
+      self._store(doc, payloads(doc, res, checks, llm_ids or set()), llm_ran=llm_ids is not None)
       self.verified['values'] += v_values
       self.verified['dates'] += v_dates
     self._set_doc(doc, status, ' · '.join(notes) or None, sha)
@@ -468,13 +481,17 @@ class _CompanyRun:
     self.outcomes['failed'] += 1
     self._set_doc(doc, 'failed', f'파서 예외: {type(e).__name__}', None)
 
-  def _store(self, doc, tables: dict[str, list[dict]]) -> None:
+  def _store(self, doc, tables: dict[str, list[dict]], llm_ran: bool) -> None:
     """문서 1건 = 표마다 upsert 1회(dedupe 뒤라 한 요청 안 PK 중복 없음)."""
     from lib.retry import with_retry
     if not self.args.dry_run and doc.id:
       # 가이던스 키는 (document_id, metric, period) — 다시 파싱(--reparse·--add-file)한 문서에서 사라진 칸이
       # 옛 행으로 남지 않게 그 문서 행을 먼저 지운다(새 문서면 지울 행이 없다). 방향은 finish 가 다시 매긴다.
-      self.ws.table('customer_guidance').delete().eq('document_id', doc.id).execute()
+      # 이번에 LLM 이 안 돌았으면 코드 행만 지운다 — LLM 행은 다시 만들 수 없는데 같이 지우면 그냥 사라진다.
+      q = self.ws.table('customer_guidance').delete().eq('document_id', doc.id)
+      if not llm_ran:
+        q = q.eq('extractor', 'code')
+      q.execute()
     for table, rows in tables.items():
       conflict, key_cols = TABLES[table]
       if key_cols:
@@ -505,19 +522,21 @@ class _CompanyRun:
     return len(changed)
 
   def finish(self, ticker: str, n_docs: int) -> int:
-    """방향 재계산 · 상태 행 · 한 줄 출력. 반환 = exit 1 사유 건수(파싱 실패 + 403 밖 받기 실패).
+    """방향 재계산 · 상태 행 · 한 줄 출력. 반환 = exit 1 사유 건수(파싱 실패 + 401·403 밖 받기 실패).
     상태 우선순위 parse_failed > blocked > error > ok — 일시 실패 문서는 pending 이라 매 실행 다시 시도돼
-    차단(403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다)."""
+    차단(401·403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다)."""
     from collect_customer_docs import write_status
     o = self.outcomes
-    moved = self._directions() if self.rows['customer_guidance'] else 0
+    # parsed 문서가 하나라도 있으면 다시 매긴다 — 실은 가이던스가 0행이어도 선삭제가 옛 행을 지웠을 수 있고,
+    # 그러면 뒤 문서가 옛 기준으로 매긴 방향을 그대로 들고 남는다
+    moved = self._directions() if o['parsed'] else 0
     parse_failed, blocked = o['failed'], o['blocked']
     fetch_failed = o['fetch_failed'] + o['fetch_retry']
     reasons = []
     if parse_failed:
       reasons.append(f'새 문서 {parse_failed}건에서 숫자를 못 뽑음(파서 점검 필요)')
     if blocked:
-      reasons.append(f'문서 {blocked}건 내용 접근 차단(HTTP 403)')
+      reasons.append(f'문서 {blocked}건 내용 접근 차단(HTTP 401·403)')
     if fetch_failed:
       reasons.append(f'문서 {fetch_failed}건 내용 받기 실패')
     status = ('parse_failed' if parse_failed else 'blocked' if blocked else 'error' if fetch_failed else 'ok')
