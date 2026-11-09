@@ -240,9 +240,12 @@ def payloads(doc, res, checks: dict, llm_ids: set[int]) -> dict[str, list[dict]]
 TABLES = {
   'customer_volume_ir': ('company_id,metric,region,period_grain,period', ('metric', 'region', 'period_grain', 'period')),
   'customer_reported_results': ('company_id,period_grain,period,metric', ('period_grain', 'period', 'metric')),
-  'customer_earnings_dates': ('company_id,period', None),
+  # 일정도 나중 공시 우선(최종 검토 P11 — 백필·--reparse 로 앞 문서가 늦게 돌면 옛 일정이 새 일정을 덮었다)
+  'customer_earnings_dates': ('company_id,period', ('period',)),
   'customer_guidance': ('document_id,metric,period', None),
 }
+# verified 칸이 없는 표(통과한 행만 싣는다) — 기존 행·새 행 모두 «검증»으로 본다
+_NO_VERIFIED = {'customer_earnings_dates'}
 
 
 def newer_only(rows: list[dict], existing: dict[tuple, tuple[str, bool]], key_cols: tuple[str, ...]) -> list[dict]:
@@ -259,9 +262,10 @@ def newer_only(rows: list[dict], existing: dict[tuple, tuple[str, bool]], key_co
       out.append(r)
       continue
     pub, verified = existing[key]
-    if r['verified'] and not verified:
+    mine = r.get('verified', True)   # 일정 표엔 verified 칸이 없다(통과한 일정만 싣는다)
+    if mine and not verified:
       out.append(r)
-    elif pub <= r['published_at'] and (r['verified'] or not verified):
+    elif pub <= r['published_at'] and (mine or not verified):
       out.append(r)
   return out
 
@@ -310,10 +314,10 @@ def load_docs(client, company_id: str | None, reparse: int | None) -> list[dict]
 
 
 def existing_pubs(client, table: str, company_id: str, key_cols: tuple[str, ...]) -> dict[tuple, tuple[str, bool]]:
-  """키 → (published_at, verified) — newer_only 의 비교 근거."""
-  rows = fetch_all(lambda: client.table(table).select(','.join(key_cols) + ',published_at,verified')
-                   .eq('company_id', company_id), key_cols)
-  return {tuple(r[c] for c in key_cols): (r['published_at'], bool(r['verified'])) for r in rows}
+  """키 → (published_at, verified) — newer_only 의 비교 근거. verified 칸이 없는 표(_NO_VERIFIED)는 True."""
+  cols = ','.join(key_cols) + ',published_at' + ('' if table in _NO_VERIFIED else ',verified')
+  rows = fetch_all(lambda: client.table(table).select(cols).eq('company_id', company_id), key_cols)
+  return {tuple(r[c] for c in key_cols): (r['published_at'], bool(r.get('verified', True))) for r in rows}
 
 
 def add_file_doc(client, args, company: dict, blob: bytes) -> dict:
@@ -656,7 +660,8 @@ class _CompanyRun:
         continue
       with_retry(lambda: self.ws.table(table).upsert(rows, on_conflict=conflict).execute(), _label=f'{table} upsert')
       if key_cols:
-        self._pubs[table].update({tuple(r[c] for c in key_cols): (r['published_at'], r['verified']) for r in rows})
+        self._pubs[table].update({tuple(r[c] for c in key_cols): (r['published_at'], r.get('verified', True))
+                                  for r in rows})
 
   def _directions(self) -> int:
     """그 회사의 verified 가이던스 전부 → assign → 바뀐 행만 update. 반환 = 바뀐 행 수.

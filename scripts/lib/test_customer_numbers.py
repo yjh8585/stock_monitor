@@ -490,6 +490,31 @@ class NewerOnlyTests(unittest.TestCase):
     existing = {('deliveries',): ('2026-11-03', False), ('production',): ('2026-11-03', False)}
     self.assertEqual([r['metric'] for r in ccn.newer_only(rows, existing, ('metric',))], ['deliveries'])
 
+  def test_earnings_dates_later_published_wins(self):
+    """최종 검토 P11 — 실적 일정 표도 «나중 공시 우선»(백필·--reparse 로 앞 문서가 늦게 돌아도 새 일정을 덮지 않는다).
+    일정 표엔 verified 칸이 없다(통과한 일정만 싣는다) — 조회도 verified 를 묻지 않는다."""
+    self.assertEqual(ccn.TABLES['customer_earnings_dates'][1], ('period',))
+    old = {'company_id': 'c-1', 'period': '2026-Q3', 'event_date': '2026-10-28', 'published_at': '2026-07-01'}
+    new = {**old, 'event_date': '2026-10-30', 'published_at': '2026-10-02'}
+    client = MagicMock()
+    q = client.table.return_value.select.return_value.eq.return_value
+    q.order.return_value.range.return_value.execute.return_value.data = [{'period': '2026-Q3',
+                                                                          'published_at': '2026-10-02'}]
+    existing = ccn.existing_pubs(client, 'customer_earnings_dates', 'c-1', ('period',))
+    self.assertEqual(client.table.return_value.select.call_args.args[0], 'period,published_at')
+    self.assertEqual(ccn.newer_only([old], existing, ('period',)), [])
+    self.assertEqual(ccn.newer_only([new], existing, ('period',)), [new])   # 같은 날이면 덮는다
+
+  def test_earnings_dates_store_skips_older(self):
+    """_store 경로 — 앞 문서의 일정 행은 기존 나중 공시 행이 있으면 싣지 않는다."""
+    run, ws = _run(_mod())
+    tables = {'customer_earnings_dates': [{'company_id': 'c-1', 'period': '2026-Q3', 'event_date': '2026-10-28',
+                                           'quote': 'q', 'source': 'ir', 'source_ref': 'x', 'url': 'u',
+                                           'published_at': '2026-07-01'}]}
+    with patch.object(ccn, 'existing_pubs', return_value={('2026-Q3',): ('2026-10-02', True)}):
+      run._store(_DOC, tables, llm_ran=False)
+    ws.table.return_value.upsert.assert_not_called()
+
 
 class FetchFailureTests(unittest.TestCase):
   def test_note_has_class_and_status_only(self):
