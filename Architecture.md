@@ -1117,6 +1117,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - `layout/`, `common/`, `charts/` — 공용 / 나머지는 페이지별(`related-stocks/`, `oem/`, `hansae/`, `management/` 등)
 - **그림 클릭 확대는 `components/common/ImageLightbox.tsx` 를 재사용**(인라인 재구현 금지) — `ZoomableImage`(클릭하면 열리는 그림) / `ImageLightbox`(열림을 바깥에서 제어할 때. 조직도가 이 쪽). 원본 해상도 스크롤 + 화면 맞춤 전환 + grab-to-pan + Esc 닫기가 한 벌로 붙어 있다. 쓰는 곳은 보고서 본문(`MarkdownView` 의 `img`) · 증권사 리포트 하단 갤러리 · 조직도.
 - **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
+- `components/customers/` — 고객사 요약·실적 표
 
 ### `lib/`
 
@@ -1150,6 +1151,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
   - `lib/oem-companies/<slug>/` — `source.ts`(`'use cache'`+`cacheTag`) + `aggregate.ts`(pure) + 테스트. 상세 → `docs/oem-collection.md`
     - `china/` 는 차트를 새로 만들지 않고 **기존 차트가 받는 입력 모양**(`OemSalesGroupMonth`·`CompanyPtMixPoint`·`KgRegionSeriesPoint` 등)으로 줄여 내준다 — 화면은 「전체」 탭·회사 탭 차트 재사용(짝짓기 표 = `docs/plans/2026-10-29-oem-china-tab.md` 「화면」). 순위용 (묶음, 월) 행은 앵커 연도 − 2 부터만 싣는다(ISR Write).
   - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
+  - `lib/customers/` — 고객사 페이지 조회·계산(손익·명단은 `confidentialDb`, 결과만 반환)
 
 ### `scripts/` — Python 데이터 수집
 
