@@ -10,7 +10,7 @@ name: 고객사 공식 문서·숫자 수집 (평일 1회 · 회사별 격리)
 # 종료 코드 — job 색이 아니라 step 단위로 본다:
 #   수집 step 빨강 = 「돌았는데 못 뽑았다」 · 수집 step 회색 + 의존성 설치 step 빨강 = 「안 돌았다」 · 노란 경고 = 차단·키 누락·서식 미인식
 #   collect_customer_docs.py    0 정상(차단 blocked 포함 — 실행 요약에 ::warning:: 로 노랗게 뜬다) · 1 출처 error · 2 인자 오류
-#   collect_customer_numbers.py 0 정상(LLM 재시도 대기·차단·서식 미인식 포함) · 1 «이번 실행에서 새로 생긴» 파싱 실패(LLM 3회 상한 failed 포함 · 이미 닫힌 실패는 상태 표 사유로만) · 2 자가 시험 실패·인자 오류
+#   collect_customer_numbers.py 0 정상(LLM 재시도 대기·차단·서식 미인식 포함) · 1 «이번 실행에서 새로 생긴» 파싱 실패(LLM 3회 상한 failed·내용 받기 실패(일시 오류 포함) · 이미 닫힌 실패는 상태 표 사유로만) · 2 자가 시험 실패·인자 오류
 #   probe_gm()                  0 ok·blocked(알려진 상태) · 1 error(접근 실패·GM 행 없음)
 # 정본 = 각 스크립트 docstring · docs/commands.md 「고객사 수집 종료 코드」.
 
