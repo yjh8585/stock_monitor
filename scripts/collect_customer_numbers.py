@@ -2,8 +2,8 @@
 회사 파서 → (llm 칸만) LLM → 어휘·기간 형식 거르기 → 인용·숫자 대조 → 적재 → 가이던스 방향 재계산 → 상태 기록.
 
 exit 0 정상(내용 접근 차단 403 포함 — 상태 표에 blocked 사유가 남는다)
-     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0) 또는 내용 받기 실패(403 밖) 1건 이상
-     2 자가 시험 실패 · 인자 오류
+     1 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외) 또는 내용 받기 실패(403 밖) 1건 이상
+     2 자가 시험 실패 · 인자 오류 · --add-file 대상 회사에 파서 없음
 사용: collect_customer_numbers.py [--company TICKER] [--no-llm] [--reparse DOC_ID] [--dry-run]
      collect_customer_numbers.py --company TICKER --add-file PDF --url URL --doc-type fact_sheet --title T --published YYYY-MM-DD
        (사이트가 브라우저 내려받기만 받아 주는 소급 문서를 로컬 파일로 넣는다 — 문서 행을 만들고 그 내용으로 바로 파싱.
@@ -12,8 +12,11 @@ exit 0 정상(내용 접근 차단 403 포함 — 상태 표에 blocked 사유�
 🔴 문서 상태(parse_status·parse_note·sha256)는 이 스크립트만 쓴다 — 목록 수집기(collect_customer_docs.store)는 이 칸을 거부한다.
 🔴 등록부(customer_parsers.MODULE_NAMES)에 파서가 없는 회사의 문서는 pending 그대로 둔다. not_target 으로 닫으면 나중에
    그 회사 파서가 생겨도 문서를 다시 못 본다(--reparse 를 문서마다 돌려야 한다).
-🔴 내용 받기 실패는 그 문서만 failed(+ 예외 클래스·HTTP 상태만 — 본문·URL 금지)로 두고 다음 문서로 간다.
+🔴 내용 받기 실패는 그 문서만 처리하고 다음 문서로 간다(note = 예외 클래스·HTTP 상태만 — 본문·URL 금지).
+   일시 실패(403·5xx·429·연결·시간 초과·만료 URL)는 pending 그대로 note 만 → 다음 실행이 다시 시도하고 회사 상태가
+   blocked·error 로 매번 다시 난다. 영구 실패(404·410·그 밖 4xx·내용 형식 오류)만 failed 로 닫는다.
    현대모비스 IR URL 의 fileId 는 요청마다 바뀌어 저장된 URL 이 만료될 수 있다 → note 에 「만료 가능 URL」.
+🔴 파서 예외(parse · 파서 모듈 fetch 의 AttributeError·TypeError 등)는 그 문서만 failed('파서 예외: <클래스>').
 출력은 회사·문서 건수·행수만(금액 금지 — 공개 수치여도 습관을 지킨다).
 """
 import argparse
@@ -98,13 +101,39 @@ def http_status(e: Exception) -> int | None:
   return getattr(getattr(e, 'response', None), 'status_code', None)
 
 
+def _expiring_url(doc) -> bool:
+  """현대모비스 IR 다운로드 — fileId 가 요청마다 바뀌어 저장된 URL 이 만료된다(목록 수집기가 새 URL 로 고쳐 넣는다)."""
+  return doc.source == 'ir' and 'fileId' in parse_qs(urlsplit(doc.url).query)
+
+
 def fetch_failure_note(e: Exception, doc) -> str:
   """내용 받기 실패 → parse_note. 예외 클래스·HTTP 상태만(예외 문장엔 URL·DART 키가 실릴 수 있다)."""
   code = http_status(e)
   note = f'내용 받기 실패: {type(e).__name__}' + (f' HTTP {code}' if code else '')
-  if doc.source == 'ir' and 'fileId' in parse_qs(urlsplit(doc.url).query):
+  if _expiring_url(doc):
     note += ' · 만료 가능 URL(요청마다 바뀌는 fileId)'
   return note
+
+
+def fetch_failure_kind(e: Exception, doc) -> str:
+  """받기 실패 갈래 → 'blocked'(403) · 'retry'(일시 — pending 유지) · 'failed'(영구 — 닫는다).
+  🔴 일시 실패를 failed 로 닫으면 다음 실행이 다시 안 봐 차단·오류 신호가 하루 만에 사라진다
+  (회사의 다른 문서가 파싱되면 상태 표가 ok 로 덮인다). pending 으로 두면 매 실행 다시 시도돼 blocked·error 가 매번 다시 난다.
+  영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외). 429 는 일시."""
+  code = http_status(e)
+  if code == 403:
+    return 'blocked'
+  if _expiring_url(doc):
+    return 'retry'   # 만료 URL 의 404 도 — 목록 수집기가 새 URL 을 넣으면 다음 실행에서 받힌다
+  if code is not None:
+    return 'retry' if code >= 500 or code == 429 else 'failed'
+  if isinstance(e, (requests.ConnectionError, requests.Timeout)):
+    return 'retry'
+  return 'failed'
+
+
+# 파서 모듈 자체 fetch 의 이 예외는 사이트 문제가 아니라 코드 문제다 → 「파서 예외」(받기 실패와 섞지 않는다)
+_PROGRAMMING_ERRORS = (AttributeError, TypeError, NameError, KeyError, IndexError, AssertionError, ImportError)
 
 
 # ── 판정(순수) ────────────────────────────────────────────────────────────────
@@ -168,9 +197,17 @@ TABLES = {
 }
 
 
-def newer_only(rows: list[dict], existing: dict[tuple, str], key_cols: tuple[str, ...]) -> list[dict]:
-  """기존 행이 더 «나중 공시»면 뺀다 — 백필을 다시 돌려도 최신값이 옛 값에 덮이지 않게(같은 날이면 덮는다)."""
-  return [r for r in rows if existing.get(tuple(r[c] for c in key_cols), '') <= r['published_at']]
+def newer_only(rows: list[dict], existing: dict[tuple, tuple[str, bool]], key_cols: tuple[str, ...]) -> list[dict]:
+  """existing = 키 → (기존 published_at, 기존 verified). 실을 행만 남긴다.
+  - 기존 행이 더 «나중 공시»면 뺀다 — 백필을 다시 돌려도 최신값이 옛 값에 덮이지 않게(같은 날이면 덮는다)
+  - 🔴 미검증 행은 같은 키에 기존 «검증» 행이 있으면 뺀다 — 물량·실적 표 키엔 document_id 가 없어서, 나중 문서의
+    대조 실패 행이 앞 문서의 검증 행을 덮으면 화면(verified 만)이 빈칸이 된다"""
+  out = []
+  for r in rows:
+    pub, verified = existing.get(tuple(r[c] for c in key_cols), ('', False))
+    if pub <= r['published_at'] and (r['verified'] or not verified):
+      out.append(r)
+  return out
 
 
 # ── DB ────────────────────────────────────────────────────────────────────────
@@ -206,7 +243,9 @@ def load_companies(client, ids: set[str]) -> dict[str, str]:
 
 
 def load_docs(client, company_id: str | None, reparse: int | None) -> list[dict]:
-  """pending 문서를 (published_at, id) 오름차순으로 — 같은 칸을 여러 문서가 내면 «나중 공시»가 마지막 upsert 가 되게."""
+  """pending 문서를 (published_at, id) 오름차순으로 — 같은 칸을 여러 문서가 내면 «나중 공시»가 마지막 upsert 가 되게.
+  일시 받기 실패 문서도 pending 이라 다시 끼지만, 한 실행이 pending 전부를 돌아(상한 없음) 뒤 문서를 막지 않는다.
+  ⚠️ 한 실행 문서 수 상한을 넣으면 그 문서들(parse_note 「내용 받기 실패」)을 뒤로 보내야 한다 — 안 그러면 상한을 다 먹는다."""
   def q():
     b = client.table('customer_documents').select(DOC_COLS)
     b = b.eq('id', reparse) if reparse is not None else b.eq('parse_status', 'pending')
@@ -214,25 +253,35 @@ def load_docs(client, company_id: str | None, reparse: int | None) -> list[dict]
   return fetch_all(q, ('published_at', 'id'))
 
 
-def existing_pubs(client, table: str, company_id: str, key_cols: tuple[str, ...]) -> dict[tuple, str]:
-  rows = fetch_all(lambda: client.table(table).select(','.join(key_cols) + ',published_at').eq('company_id', company_id),
-                   key_cols)
-  return {tuple(r[c] for c in key_cols): r['published_at'] for r in rows}
+def existing_pubs(client, table: str, company_id: str, key_cols: tuple[str, ...]) -> dict[tuple, tuple[str, bool]]:
+  """키 → (published_at, verified) — newer_only 의 비교 근거."""
+  rows = fetch_all(lambda: client.table(table).select(','.join(key_cols) + ',published_at,verified')
+                   .eq('company_id', company_id), key_cols)
+  return {tuple(r[c] for c in key_cols): (r['published_at'], bool(r['verified'])) for r in rows}
 
 
 def add_file_doc(client, args, company: dict, blob: bytes) -> dict:
-  """--add-file → customer_documents 1행(source='ir' · source_id = ir_source_id(url) — IR 목록이 넣은 같은 문서와
-  한 행이 되게). dry-run 이면 쓰지 않고 이미 있는 행의 id(없으면 0)."""
+  """--add-file → customer_documents 행(source='ir' · source_id = ir_source_id(url) — IR 목록이 넣은 같은 문서와
+  한 행이 되게).
+  🔴 이미 행이 있으면(IR 목록이 넣었다) 그 행을 그대로 쓴다 — title·published_at·form·items 를 덮으면 다음 목록 수집과
+  값이 엇갈린다. sha256·파싱 상태는 파싱 뒤 _set_doc 이 갱신한다. 없을 때만 새로 넣는다(dry-run 이면 안 넣고 id 0)."""
   from lib import db
   from lib.ir_lists import ir_source_id
-  row = {'company_id': company['id'], 'source': 'ir', 'source_id': ir_source_id(args.url), 'doc_type': args.doc_type,
+  source_id = ir_source_id(args.url)
+
+  def find():
+    return (client.table('customer_documents').select(DOC_COLS).eq('source', 'ir').eq('source_id', source_id)
+            .execute().data)
+  got = find()
+  if got:
+    return got[0]
+  row = {'company_id': company['id'], 'source': 'ir', 'source_id': source_id, 'doc_type': args.doc_type,
          'form': None, 'items': None, 'title': args.title, 'url': args.url, 'published_at': args.published,
          'sha256': _sha(blob)}
-  if not args.dry_run:
-    db.upsert_rows('customer_documents', [row], 'source,source_id')
-  got = (client.table('customer_documents').select(DOC_COLS).eq('source', 'ir').eq('source_id', row['source_id'])
-         .execute().data)
-  return got[0] if got else {**row, 'id': 0}
+  if args.dry_run:
+    return {**row, 'id': 0}
+  db.upsert_rows('customer_documents', [row], 'source,source_id')
+  return find()[0]
 
 
 # ── 실행 ──────────────────────────────────────────────────────────────────────
@@ -298,6 +347,10 @@ def main(argv: list[str] | None = None) -> int:
     company = got[0]
 
   if blob is not None:
+    import customer_parsers
+    if customer_parsers.module_for(args.company) is None:  # 문서 행만 남고 영영 안 읽힌다 — 만들기 전에 멈춘다
+      print(f'--add-file 대상 회사에 파서가 없다(customer_parsers 등록부): {args.company}')
+      return 2
     docs = [add_file_doc(client, args, company, blob)]
   else:
     docs = load_docs(client, company['id'] if company else None, args.reparse)
@@ -379,17 +432,25 @@ class _CompanyRun:
     try:
       content, sha = self._content(doc, blob)
     except Exception as e:  # 문서 하나 받기 실패가 실행 전체를 죽이지 않게
-      self.outcomes['blocked' if http_status(e) == 403 else 'fetch_failed'] += 1
-      self._set_doc(doc, 'failed', fetch_failure_note(e, doc), None)
+      if isinstance(e, _PROGRAMMING_ERRORS) and hasattr(self.mod, 'fetch') and blob is None:
+        return self._parser_error(doc, e)
+      kind = fetch_failure_kind(e, doc)
+      self.outcomes[{'blocked': 'blocked', 'retry': 'fetch_retry', 'failed': 'fetch_failed'}[kind]] += 1
+      # 일시 실패(403·5xx·연결·만료 URL)는 pending 그대로 note 만 — 다음 실행이 다시 시도한다
+      self._set_doc(doc, 'failed' if kind == 'failed' else 'pending', fetch_failure_note(e, doc), None)
       return
     notes: list[str] = []
-    res = self.mod.parse(doc, content)
+    try:
+      res = self.mod.parse(doc, content)
+    except Exception as e:  # 파서 버그 하나가 다른 문서·회사를 막지 않게
+      return self._parser_error(doc, e)
     llm_ids = self._llm(doc, content, res, notes)
-    res.dedupe()  # 코드 행이 먼저 들어 있어 같은 키면 코드 우선
+    # 형식 밖 행을 먼저 버린다 — dedupe 가 먼저면 같은 키의 (형식 밖 코드 행, 맞는 LLM 행) 중 코드 행이 남았다가 버려져 둘 다 잃는다
     dropped = drop_off_vocab(res)
     if dropped:
       self.dropped += len(dropped)
       notes.append(f'어휘·기간 형식 밖 {len(dropped)}행 버림: ' + '; '.join(dropped[:5]))
+    res.dedupe()  # 코드 행이 먼저 들어 있어 같은 키면 코드 우선
     checks = verify(res, content.text)
     v_values = sum(checks[id(r)][0] for r in value_rows(res))
     v_dates = sum(checks[id(d)][0] for d in res.dates)
@@ -398,14 +459,22 @@ class _CompanyRun:
       notes.insert(0, note)
     self.outcomes[status] += 1
     if status == 'parsed':
-      self._store(payloads(doc, res, checks, llm_ids))
+      self._store(doc, payloads(doc, res, checks, llm_ids))
       self.verified['values'] += v_values
       self.verified['dates'] += v_dates
     self._set_doc(doc, status, ' · '.join(notes) or None, sha)
 
-  def _store(self, tables: dict[str, list[dict]]) -> None:
+  def _parser_error(self, doc, e: Exception) -> None:
+    self.outcomes['failed'] += 1
+    self._set_doc(doc, 'failed', f'파서 예외: {type(e).__name__}', None)
+
+  def _store(self, doc, tables: dict[str, list[dict]]) -> None:
     """문서 1건 = 표마다 upsert 1회(dedupe 뒤라 한 요청 안 PK 중복 없음)."""
     from lib.retry import with_retry
+    if not self.args.dry_run and doc.id:
+      # 가이던스 키는 (document_id, metric, period) — 다시 파싱(--reparse·--add-file)한 문서에서 사라진 칸이
+      # 옛 행으로 남지 않게 그 문서 행을 먼저 지운다(새 문서면 지울 행이 없다). 방향은 finish 가 다시 매긴다.
+      self.ws.table('customer_guidance').delete().eq('document_id', doc.id).execute()
     for table, rows in tables.items():
       conflict, key_cols = TABLES[table]
       if key_cols:
@@ -419,10 +488,11 @@ class _CompanyRun:
         continue
       with_retry(lambda: self.ws.table(table).upsert(rows, on_conflict=conflict).execute(), _label=f'{table} upsert')
       if key_cols:
-        self._pubs[table].update({tuple(r[c] for c in key_cols): r['published_at'] for r in rows})
+        self._pubs[table].update({tuple(r[c] for c in key_cols): (r['published_at'], r['verified']) for r in rows})
 
   def _directions(self) -> int:
-    """그 회사의 verified 가이던스 전부 → assign → 바뀐 행만 update. 반환 = 바뀐(dry-run 이면 바뀔) 행 수."""
+    """그 회사의 verified 가이던스 전부 → assign → 바뀐 행만 update. 반환 = 바뀐 행 수.
+    ⚠️ dry-run 은 DB 에 이미 있는 행만 본다 — 이번에 적재할 예정 행은 아직 없어 그 숫자에 안 들어간다."""
     from lib import guidance_direction
     rows = fetch_all(lambda: self.client.table('customer_guidance')
                      .select('id,metric,period,published_at,document_id,low,high,value_text,stated,direction')
@@ -435,26 +505,30 @@ class _CompanyRun:
     return len(changed)
 
   def finish(self, ticker: str, n_docs: int) -> int:
-    """방향 재계산 · 상태 행 · 한 줄 출력. 반환 = exit 1 사유 건수(파싱 실패 + 403 밖 받기 실패)."""
+    """방향 재계산 · 상태 행 · 한 줄 출력. 반환 = exit 1 사유 건수(파싱 실패 + 403 밖 받기 실패).
+    상태 우선순위 parse_failed > blocked > error > ok — 일시 실패 문서는 pending 이라 매 실행 다시 시도돼
+    차단(403)이면 blocked, 5xx·연결 오류면 error 가 실행마다 다시 난다(하루 만에 ok 로 덮이지 않는다)."""
     from collect_customer_docs import write_status
     o = self.outcomes
     moved = self._directions() if self.rows['customer_guidance'] else 0
-    parse_failed, fetch_failed, blocked = o['failed'], o['fetch_failed'], o['blocked']
+    parse_failed, blocked = o['failed'], o['blocked']
+    fetch_failed = o['fetch_failed'] + o['fetch_retry']
     reasons = []
     if parse_failed:
       reasons.append(f'새 문서 {parse_failed}건에서 숫자를 못 뽑음(파서 점검 필요)')
-    if fetch_failed:
-      reasons.append(f'문서 {fetch_failed}건 내용 받기 실패')
     if blocked:
       reasons.append(f'문서 {blocked}건 내용 접근 차단(HTTP 403)')
-    status = ('parse_failed' if parse_failed else 'error' if fetch_failed else 'blocked' if blocked else 'ok')
+    if fetch_failed:
+      reasons.append(f'문서 {fetch_failed}건 내용 받기 실패')
+    status = ('parse_failed' if parse_failed else 'blocked' if blocked else 'error' if fetch_failed else 'ok')
     if not self.args.dry_run:
       write_status(self.ws, self.cid, 'parse', status, ' · '.join(reasons) or None)
     kinds = ' '.join(f'{k}={v}' for k, v in sorted(o.items()))
     tabs = ' '.join(f'{t.removeprefix("customer_")}={n}' for t, n in sorted(self.rows.items()))
+    moved_label = '방향 바뀜(기존 행만 · 적재 예정 미반영)' if self.args.dry_run else '방향 바뀜'
     print(f'  {ticker:<10} 문서 {n_docs} · {kinds}' + (f' · 행 {tabs}' if tabs else '')
           + f' · 검증 값 {self.verified["values"]} 일정 {self.verified["dates"]}'
-          + (f' · 형식 밖 버림 {self.dropped}' if self.dropped else '') + f' · 방향 바뀜 {moved} · {status}')
+          + (f' · 형식 밖 버림 {self.dropped}' if self.dropped else '') + f' · {moved_label} {moved} · {status}')
     return parse_failed + fetch_failed
 
 
