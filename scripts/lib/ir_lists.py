@@ -659,18 +659,23 @@ def parse_porsche_dates(payload: dict) -> list[dict]:
   받기 범위(since − _RESULTS_LAG_DAYS ~ 오늘)엔 분기마다 AFR 이 있어 0건이면 피드가 바뀐 것이다."""
   afr = _need('포르쉐 EQS-AFR', [it for it in payload.get('items') or []
                                  if (it.get('_eqs') or {}).get('news_type') == 'EQS-AFR'])
+  if any(not it.get(k) for it in afr for k in ('date_published', 'news_id', 'url')):  # KeyError 가 사유로 나가지 않게
+    raise EmptyListError('포르쉐 EQS-AFR 항목에 게시일·news_id·url 이 없다')
   out: dict[str, dict] = {}
   for it in sorted(afr, key=lambda it: it['date_published']):  # 나중 공고가 덮는다
     text = html_to_text(it.get('content_html') or '')
     blocks = _P_AFR_BLOCK.findall(text)
     if not blocks or len(blocks) != text.count('Report Type:'):
       raise EmptyListError('포르쉐 EQS-AFR 해석 실패')
+    mine: dict[str, str] = {}  # 이 공고 안의 기간 → 날짜
     for kind, day in blocks:
       q = next((q for rx, q in _P_AFR_TYPES if rx.search(kind)), None)
       if q is None:
         raise EmptyListError('포르쉐 EQS-AFR 해석 실패')
       d = datetime.strptime(day, '%B %d, %Y').date()
       period = f'{d.year - 1}-FY' if q == 'FY' else f'{d.year}-{q}'
+      if mine.setdefault(period, d.isoformat()) != d.isoformat():  # 한 공고가 같은 기간에 두 날짜 — 어느 쪽도 고를 근거가 없다
+        raise EmptyListError('포르쉐 EQS-AFR 한 공고에 같은 기간 날짜 둘')
       out[period] = {'period': period, 'event_date': d.isoformat(),
                      'quote': f'Report Type: {kind}\nDate of disclosure: {day}', 'source': 'ir',
                      'source_ref': it['news_id'], 'url': it['url']}
@@ -678,6 +683,7 @@ def parse_porsche_dates(payload: dict) -> list[dict]:
 
 
 def fetch_porsche_dates(session: requests.Session, since: str) -> list[dict]:
+  # SHORTCUT: 문서 목록(fetch_porsche)과 같은 피드를 한 번 더 받는다 → 수집기가 회사별 응답을 넘겨 주면 한 번으로
   return [d for d in parse_porsche_dates(_porsche_feed(session, since)) if d['event_date'] >= since]
 
 

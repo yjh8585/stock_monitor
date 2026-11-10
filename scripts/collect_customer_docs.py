@@ -316,7 +316,7 @@ def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
   errors = 0
   for c in cos:
     for collector, label, fetch in sources(c, since, end, client):
-      rows, reason, dates_note, dates_blocked = [], None, '', False
+      rows, reason, dates_note = [], None, ''
       try:
         rows = dedupe(fetch(session))
         n = count_new(client, rows)
@@ -328,21 +328,25 @@ def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
         n = 0
         errors += status == 'error'
       date_fetch = ir_lists.IR_EARNINGS_DATES.get(c['ticker']) if collector == 'ir_list' else None
-      if date_fetch:  # 문서와 따로 — 일정이 깨져도 이미 실은 문서의 상태는 그대로 두고 사유만 덧붙인다
+      if date_fetch:  # 문서와 따로 — 일정이 깨져도 이미 실은 문서의 상태는 그대로 두고 사유만 덧붙인다(차단만 예외 · 아래)
         try:
           dates = date_fetch(session, since)
           dates_note = f' · 일정 {len(dates)} · 일정 새/바뀜 {sync_earnings_dates(client, c["id"], dates, dry_run)}'
-        except Exception as e:  # 차단(401·403)은 문서와 같은 판정 — error 로 세지 않고 아래 GHA 경고로 띄운다
+        except Exception as e:
           date_status, why = failure_status(label, e)
           note = f'실적 일정 실패: {why}'
           reason = f'{reason} · {note}' if reason else note
           errors += date_status == 'error'
-          dates_blocked = date_status == 'blocked'
+          # 「문서 상태는 그대로」의 예외 — 차단(401·403)은 문서가 문제없었으면(ok·no_new) status 를 blocked 로 올린다.
+          # 안 올리면 화면 수집 문제 목록(blocked·parse_failed·error 만 보인다)에 안 떠 조용히 넘어간다(전역 제약 8).
+          # 문서가 이미 error·blocked 면 그대로 두고 사유만 덧붙인다. 차단은 error 로 세지 않는다(2단계-z).
+          if date_status == 'blocked' and status in ('ok', 'no_new'):
+            status = 'blocked'
       kinds = ' '.join(f'{k}={v}' for k, v in sorted(Counter(r['doc_type'] for r in rows).items()))
       print(f'  {c["ticker"]:<10} {label:<5} {status:<7} 문서 {len(rows)} · 새 {n}' + (f' · {kinds}' if kinds else '')
             + dates_note + (f' · {reason}' if reason else ''))
       # 차단은 exit 0 그대로(매일 막히는 출처가 job 을 늘 빨갛게 만들지 않게) — 실행 요약에만 노랗게 띄운다
-      if (status == 'blocked' or dates_blocked) and os.environ.get('GITHUB_ACTIONS'):
+      if status == 'blocked' and os.environ.get('GITHUB_ACTIONS'):
         print(f'::warning::{c["ticker"]} · {reason}')
       if not dry_run:
         write_status(ws, c['id'], collector, status, reason)

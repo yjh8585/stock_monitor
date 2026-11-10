@@ -467,6 +467,25 @@ class PorscheDatesTest(unittest.TestCase):
       L.parse_porsche_dates({'items': news})
     self.assertEqual(str(cm.exception), '포르쉐 EQS-AFR 0건')
 
+  def test_same_period_two_dates_in_one_notice_stops(self):
+    """한 공고 안에서 같은 기간(연간 두 종류)인데 날짜가 다르면 고를 근거가 없다 — 조용히 뒤의 것을 쓰지 않고 멈춘다."""
+    fy = json.loads(json.dumps(next(it for it in self.AFR['items'] if it['date_published'].startswith('2026-01'))))
+    head, sep, tail = fy['content_html'].rpartition('March 11, 2026')  # 마지막(연결 보고서 영어판) 날짜만 바꾼다
+    fy['content_html'] = head + 'March 12, 2026' + tail
+    with self.assertRaises(L.EmptyListError) as cm:
+      L.parse_porsche_dates({'items': [fy]})
+    self.assertEqual(str(cm.exception), '포르쉐 EQS-AFR 한 공고에 같은 기간 날짜 둘')
+
+  def test_missing_item_keys_explained(self):
+    """게시일·news_id·url 이 빠진 AFR 은 KeyError 가 아니라 설명 문장으로 멈춘다(사유가 상태 표에 그대로 나간다)."""
+    for key in ('date_published', 'news_id', 'url'):
+      with self.subTest(key=key):
+        it = json.loads(json.dumps(self.AFR['items'][0]))
+        del it[key]
+        with self.assertRaises(L.EmptyListError) as cm:
+          L.parse_porsche_dates({'items': [it]})
+        self.assertEqual(str(cm.exception), '포르쉐 EQS-AFR 항목에 게시일·news_id·url 이 없다')
+
   def test_later_notice_wins(self):
     """같은 기간 공고가 둘이면(일정 변경) 나중에 낸 공고의 날짜를 쓴다."""
     old = json.loads(json.dumps(self.AFR['items'][0]))
@@ -1156,7 +1175,7 @@ class CollectorWiringTest(unittest.TestCase):
     rows = [{'company_id': 'u-vw', **L._row('presentation', 'x', 'https://a.example/x.pdf', '2026-05-01', 'f')}]
 
     def broken(session, since):
-      raise L.EmptyListError('VW 실적 일정 0건')
+      raise L.EmptyListError('VW 일정 ICS 0건')
     ws = MagicMock()
     with patch.object(ccd, 'sources', return_value=[('ir_list', 'IR', lambda s: rows)]), \
          patch.object(ccd, 'count_new', return_value=1), patch.object(ccd, 'store') as store, \
@@ -1164,28 +1183,43 @@ class CollectorWiringTest(unittest.TestCase):
          patch.object(ccd, 'write_status') as ws_call, patch('builtins.print'):
       errors = ccd._run([self.VW], '2026-01-01', '2026-11-09', MagicMock(), MagicMock(), ws, dry_run=False)
     store.assert_called_once()
-    self.assertEqual(ws_call.call_args.args[2:], ('ir_list', 'ok', '실적 일정 실패: VW 실적 일정 0건'))
+    self.assertEqual(ws_call.call_args.args[2:], ('ir_list', 'ok', '실적 일정 실패: VW 일정 ICS 0건'))
     self.assertEqual(errors, 1)
 
-  def test_earnings_dates_blocked_is_not_error(self):
-    """일정 받기 403 = 접근 차단 — BLOCKED_HTTP 로 가려 error 로 세지 않고(2단계-z) GHA 경고로 띄운다."""
-    rows = [{'company_id': 'u-vw', **L._row('presentation', 'x', 'https://a.example/x.pdf', '2026-05-01', 'f')}]
-
+  @staticmethod
+  def _run_dates_blocked(fetch, new: int):
+    """일정 받기가 403 일 때 _run → (errors, write_status 의 (collector, status, reason), 출력)."""
     def blocked(session, since):
       r = requests.Response()
       r.status_code = 403
       raise requests.HTTPError(response=r)
-    ws = MagicMock()
-    with patch.object(ccd, 'sources', return_value=[('ir_list', 'IR', lambda s: rows)]), \
-         patch.object(ccd, 'count_new', return_value=1), patch.object(ccd, 'store'), \
+    with patch.object(ccd, 'sources', return_value=[('ir_list', 'IR', fetch)]), \
+         patch.object(ccd, 'count_new', return_value=new), patch.object(ccd, 'store'), \
          patch.dict(ccd.ir_lists.IR_EARNINGS_DATES, {'VOW3.DE': blocked}), \
          patch.dict(ccd.os.environ, {'GITHUB_ACTIONS': 'true'}), \
          patch.object(ccd, 'write_status') as ws_call, patch('builtins.print') as out:
-      errors = ccd._run([self.VW], '2026-01-01', '2026-11-09', MagicMock(), MagicMock(), ws, dry_run=False)
-    self.assertEqual(errors, 0)
-    self.assertEqual(ws_call.call_args.args[2:], ('ir_list', 'ok', '실적 일정 실패: IR 접근 차단(HTTP 403)'))
-    printed = '\n'.join(c.args[0] for c in out.call_args_list)
-    self.assertIn('::warning::VOW3.DE · 실적 일정 실패: IR 접근 차단(HTTP 403)', printed)
+      errors = ccd._run([CollectorWiringTest.VW], '2026-01-01', '2026-11-09', MagicMock(), MagicMock(), MagicMock(),
+                        dry_run=False)
+    return errors, ws_call.call_args.args[2:], '\n'.join(c.args[0] for c in out.call_args_list)
+
+  def test_earnings_dates_blocked_raises_status(self):
+    """일정 받기 403 = 접근 차단 — 문서가 문제없었으면(ok·no_new) status 를 blocked 로 올린다(「문서 상태는 그대로」의
+    예외 · 안 올리면 화면 수집 문제 목록에 안 뜬다). error 로 세지 않고(2단계-z) GHA 경고로 띄운다."""
+    rows = [{'company_id': 'u-vw', **L._row('presentation', 'x', 'https://a.example/x.pdf', '2026-05-01', 'f')}]
+    for new in (1, 0):  # ok · no_new
+      with self.subTest(new=new):
+        errors, status, printed = self._run_dates_blocked(lambda s: rows, new)
+        self.assertEqual(errors, 0)
+        self.assertEqual(status, ('ir_list', 'blocked', '실적 일정 실패: IR 접근 차단(HTTP 403)'))
+        self.assertIn('::warning::VOW3.DE · 실적 일정 실패: IR 접근 차단(HTTP 403)', printed)
+
+  def test_earnings_dates_blocked_keeps_document_error(self):
+    """문서가 이미 error 면 그대로 두고 사유만 덧붙인다(error 는 문서 쪽 1건만)."""
+    def broken(s):
+      raise L.EmptyListError('VW ad-hoc 0건')
+    errors, status, _ = self._run_dates_blocked(broken, 1)
+    self.assertEqual(errors, 1)
+    self.assertEqual(status, ('ir_list', 'error', 'VW ad-hoc 0건 · 실적 일정 실패: IR 접근 차단(HTTP 403)'))
 
   def test_earnings_dates_ok_no_warning(self):
     rows = [{'company_id': 'u-vw', **L._row('presentation', 'x', 'https://a.example/x.pdf', '2026-05-01', 'f')}]
