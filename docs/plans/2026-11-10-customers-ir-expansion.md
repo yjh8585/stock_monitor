@@ -29,6 +29,10 @@
   > - 폭스바겐은 중국시장에서 의 동향도 추가해.
   > - (노사 갈등·파업 추적 요청 — 특정 회사 공장 사례를 든 원문은 공개 판에서 가림 · 원문 = `참고/고객사/2026-11-09-customers-page_최초지시.md` 「추가 지시 (2026-11-10 · IR 확장 계획서 실행 승인 뒤)」)
   - 범위 질문 답: 실행 방식 「작업별 서브에이전트 (추천)」 · 노사 동향 「별도 계획서로 새 기능 (추천)」(이 계획 밖 — 아래 범위 밖 표) · 폭스바겐 중국 「숫자 + 자료 목록 (추천)」(→ Task 13)
+- 2026-11-10 추가 지시 원문(작업 2 진행 중):
+  > - 최대한 코드로 수집할 수 있는 건 수집하고 나머지는 api를 사용하잖아. 지금 프로모션으로 받은 api 크레딧 있으니까 과거~최신 자료 등 찾거나 정리할 때 써야 되면 지금 최대한 써.
+  - 같은 날: 「코덱스 한도 있으니까 활용해」 · 「코덱스 한도 다 차면 재설정해서 사용량 복구할 거니까 코덱스 사용해」
+  - 범위 질문 답: 과거 자료 = 「지금 PC에서 2년치 (추천)」(→ E6 · Task 12 Step 0 이 `--backfill` 로)
 
 ## 확정된 결정
 
@@ -426,7 +430,7 @@
 
 구현 서브에이전트에 맡기지 않는다 — 최종 검토와 수정이 끝난 뒤 메인 세션이 돌린다.
 
-- [ ] **Step 0: 새 문서 목록 본 적재** — `collect_customer_docs.py`(드라이런 아님)를 11곳에 돌려 Task 2~8·13 의 새 문서를 `customer_documents` 에 넣는다(목록만 · 매일 GHA 가 푸시 뒤 할 일과 같다). 이어 `collect_customer_numbers.py`(드라이런 아님)로 새 문서를 처리한다 — 새 코드 대상(포르쉐 팩트시트 · 모비스 Script · GM 인도)은 코드로, 현대·기아 CID 등 LLM 대상은 LLM 으로. 회사별 새 문서 수 · parsed/not_target/failed 수 · LLM 토큰을 기록(Global Constraints 「목록 드라이런」 줄의 실물 확인).
+- [ ] **Step 0: 새 문서 목록 본 적재(2년 백필 · E6)** — `collect_customer_docs.py --backfill`(드라이런 아님 · 약 2년)을 11곳에 돌려 Task 2~8·13 의 새 문서를 `customer_documents` 에 넣는다(목록만 · 매일 GHA 가 푸시 뒤 할 일과 같다). 이어 `collect_customer_numbers.py`(드라이런 아님)로 새 문서를 처리한다 — 새 코드 대상(포르쉐 팩트시트 · 모비스 Script · GM 인도)은 코드로, 현대·기아 CID 등 LLM 대상은 LLM 으로. 회사별 새 문서 수 · parsed/not_target/failed 수 · LLM 토큰을 기록(Global Constraints 「목록 드라이런」 줄의 실물 확인).
 - [ ] **Step 1: 대상 목록** — Task 9·13 보고서의 GM·VW 문서 id · stated 4줄 문서(폴라리스 303·304 · 스텔란티스 317·318 — 2단계 HANDOFF) · Task 10-1 로 stated 가 바뀔 수 있는 문서(`customer_guidance.stated is not null` 이고 `extractor='llm'` 인 행의 문서 — 쿼리로 뽑는다) · Task 9 새 키로 옮겨 갈 수 있는 LLM 문서(`extractor='llm'` 이고 `metric in ('operating_margin','other')` 이면서 `metric_label`/quote 에 조정·특별 항목·EPS·영업현금흐름 낱말이 있는 행의 문서 — 쿼리로 뽑아 건수를 먼저 보고 · 0건이면 그렇게 적는다). 문서별로 «LLM 을 부르는지»(`llm_wants`/`llm_only`)를 표시.
 - [ ] **Step 2: 드라이런** — 대상마다 `--reparse <id> --dry-run` 으로 바뀔 행 수를 본다(🔴 2단계 기록: `--dry-run` 도 LLM 을 부른다 — LLM 대상 문서는 드라이런을 건너뛰고 본 실행만 한다).
 - [ ] **Step 3: 본 실행** — 한 건씩 `--reparse <id>`. 각 실행의 바뀐 행 수 · LLM 토큰(Task 5 출력)을 기록. 실패(exit 1)가 나면 거기서 멈추고 원인을 본다. 🔴 exit 0 이 완료가 아니다 — LLM 실패로 재시도 대기(`pending`)가 되거나 키가 없어 LLM 을 건너뛰어도 0 이 나오고 옛 LLM 행이 남는다(`collect_customer_numbers.py:659-680` · Codex 대조). 문서마다 실행 뒤 `parse_status='parsed'` · LLM 대상이면 이번 실행에서 LLM 이 돌았는지(토큰 줄) · 새 행의 `created_at` 이 실행 시각 뒤인지를 확인하고, 어긋나면 그 문서를 다시 한다.
