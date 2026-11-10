@@ -417,6 +417,88 @@ class PorscheReportsTest(unittest.TestCase):
     self.assertEqual(str(cm.exception), '포르쉐 보고서 표 0건')
 
 
+class PorscheDatesTest(unittest.TestCase):
+  """실적 일정 = EQS-AFR(보고서 공표 예고) 「Report Type: … Date of disclosure: …」 고정 서식(2026-11-11 실물 8건)."""
+  AFR = _json('porsche_afr.json')
+  # (기간, 공표일, Report Type 원문) — 연간은 1월 공고 → 3월 공표 = 전년 연간
+  MUST_HIT = [
+    ('2026-Q3', '2026-10-27', 'Quarterly/ Interim statement within the 2nd half-year'),
+    ('2026-Q2', '2026-07-29', 'Financial report of the group (half-year/Q2)'),
+    ('2026-Q1', '2026-04-29', 'Quarterly/ Interim statement within the 1st half-year'),
+    ('2025-FY', '2026-03-11', 'Annual financial report of the group'),  # 한 공고에 두 종류 — 뒤(연결)가 남는다
+    ('2025-Q3', '2025-10-24', 'Quarterly/ Interim statement within the 2nd half-year'),
+    ('2025-Q2', '2025-07-30', 'Financial report of the group (half-year/Q2)'),
+    ('2025-Q1', '2025-04-29', 'Quarterly/ Interim statement within the 1st half-year'),
+    ('2024-FY', '2025-03-12', 'Annual financial report of the group'),
+  ]
+
+  def test_must_hit(self):
+    got = {d['period']: d for d in L.parse_porsche_dates(self.AFR)}
+    self.assertEqual(sorted(got), sorted(p for p, _, _ in self.MUST_HIT))
+    for period, day, kind in self.MUST_HIT:
+      with self.subTest(period=period):
+        d = got[period]
+        self.assertEqual(d['event_date'], day)
+        month, dd, yyyy = date_words(day)
+        self.assertEqual(d['quote'], f'Report Type: {kind}\nDate of disclosure: {month} {dd}, {yyyy}')  # 원문 두 줄
+        self.assertEqual(d['source'], 'ir')
+        self.assertTrue(d['source_ref'])
+        self.assertTrue(d['url'].startswith('https://ir-api.eqs.com/'))
+        self.assertEqual(set(d), {'period', 'event_date', 'quote', 'source', 'source_ref', 'url'})
+
+  def test_must_miss_non_afr_news(self):
+    """AFR 이 아닌 뉴스(실적 보도·인도·ad-hoc)는 일정이 아니다 — 피드 픽스처(AFR 1건 + 뉴스 10건)에서 AFR 1건만."""
+    got = L.parse_porsche_dates(_json('porsche_feed.json'))
+    self.assertEqual([(d['period'], d['event_date']) for d in got], [('2026-Q3', '2026-10-27')])
+
+  def test_unknown_report_type_stops(self):
+    """AFR 인데 Report Type 꼴을 못 읽으면 조용히 빠지지 않고 멈춘다(VW ICS 와 같다)."""
+    it = json.loads(json.dumps(self.AFR['items'][0]))
+    it['content_html'] = it['content_html'].replace('Quarterly/ Interim statement within the 2nd half-year',
+                                                    'Something new')
+    with self.assertRaises(L.EmptyListError) as cm:
+      L.parse_porsche_dates({'items': [it]})
+    self.assertEqual(str(cm.exception), '포르쉐 EQS-AFR 해석 실패')
+
+  def test_no_afr_in_feed_is_error(self):
+    """받기 범위(since − 120일 ~ 오늘)엔 분기마다 AFR 이 있다 — 0건이면 피드 구조가 바뀐 것이다."""
+    news = [it for it in _json('porsche_feed.json')['items'] if it['_eqs']['news_type'] != 'EQS-AFR']
+    with self.assertRaises(L.EmptyListError) as cm:
+      L.parse_porsche_dates({'items': news})
+    self.assertEqual(str(cm.exception), '포르쉐 EQS-AFR 0건')
+
+  def test_later_notice_wins(self):
+    """같은 기간 공고가 둘이면(일정 변경) 나중에 낸 공고의 날짜를 쓴다."""
+    old = json.loads(json.dumps(self.AFR['items'][0]))
+    new = json.loads(json.dumps(old))
+    new['date_published'], new['news_id'] = '2026-10-20T08:00:00Z', 'later'
+    new['content_html'] = new['content_html'].replace('October 27, 2026', 'October 28, 2026')
+    for items in ([old, new], [new, old]):
+      with self.subTest(order=[i['news_id'] for i in items]):
+        got = L.parse_porsche_dates({'items': items})
+        self.assertEqual([(d['period'], d['event_date'], d['source_ref']) for d in got],
+                         [('2026-Q3', '2026-10-28', 'later')])
+
+  def test_fetch_filters_since_without_error(self):
+    """받은 AFR 이 있으면 since 로 거른 뒤 0건이어도 오류가 아니다(기간 필터 뒤 0건 ≠ 목록 깨짐)."""
+    resp = MagicMock()
+    resp.json.return_value = self.AFR
+    with patch.object(L, '_fetch', return_value=resp):
+      self.assertEqual(sorted(d['period'] for d in L.fetch_porsche_dates(MagicMock(), '2026-07-01')),
+                       ['2026-Q2', '2026-Q3'])
+      self.assertEqual(L.fetch_porsche_dates(MagicMock(), '2026-11-01'), [])
+
+  def test_registered(self):
+    self.assertIs(L.IR_EARNINGS_DATES['P911.DE'], L.fetch_porsche_dates)
+
+
+def date_words(day: str) -> tuple[str, int, str]:
+  """'2026-10-27' → ('October', 27, '2026') — AFR 원문 날짜 꼴."""
+  from datetime import date as _d
+  d = _d.fromisoformat(day)
+  return d.strftime('%B'), d.day, str(d.year)
+
+
 class NumbersCollectorWantsTest(unittest.TestCase):
   """목록 드라이런은 새 문서를 DB 에 싣지 않는다 — 새 행을 숫자 수집기의 Doc 꼴로 바꿔 wants 를 직접 본다.
   발표자료·행사·VW Factbook 은 대상 밖(pending) · 1분기 인도 보도자료와 포르쉐 팩트시트 XLSX(Task 3)는 대상."""
@@ -865,7 +947,11 @@ class EmptySubListTest(unittest.TestCase):
     self.assertEmpty('VW ad-hoc', L.parse_vw, rss, res, '<html></html>', deliv, gal)
     self.assertEmpty('VW 인도 표', L.parse_vw, rss, res, adhoc, '<html></html>', gal)
     self.assertEmpty('VW 발표자료 갤러리', L.vw_gallery_ids, '<html></html>')
-    self.assertEmpty('VW 실적 일정', L.parse_vw_events, '<html><a href="/en/events/ubs/ics">x</a></html>')
+    self.assertEmpty('VW 일정 ICS', L.parse_vw_events, '<html><a href="/en/events/ubs">x</a></html>')
+
+  def test_vw_events_without_results_is_not_error(self):
+    """일정 화면에 행사가 있는데 실적 일정만 없는 기간(학회·주총뿐)은 정상이다 — 받은 원문이 비었을 때만 멈춘다."""
+    self.assertEqual(L.parse_vw_events('<html><a href="/en/events/ubs/ics">x</a></html>'), [])
 
   def test_vw_results_ics_that_does_not_parse(self):
     """실적 일정 경로인데 기간을 못 읽으면(제목 꼴 변경) 조용히 빠지지 않고 멈춘다."""
@@ -1080,6 +1166,42 @@ class CollectorWiringTest(unittest.TestCase):
     store.assert_called_once()
     self.assertEqual(ws_call.call_args.args[2:], ('ir_list', 'ok', '실적 일정 실패: VW 실적 일정 0건'))
     self.assertEqual(errors, 1)
+
+  def test_earnings_dates_blocked_is_not_error(self):
+    """일정 받기 403 = 접근 차단 — BLOCKED_HTTP 로 가려 error 로 세지 않고(2단계-z) GHA 경고로 띄운다."""
+    rows = [{'company_id': 'u-vw', **L._row('presentation', 'x', 'https://a.example/x.pdf', '2026-05-01', 'f')}]
+
+    def blocked(session, since):
+      r = requests.Response()
+      r.status_code = 403
+      raise requests.HTTPError(response=r)
+    ws = MagicMock()
+    with patch.object(ccd, 'sources', return_value=[('ir_list', 'IR', lambda s: rows)]), \
+         patch.object(ccd, 'count_new', return_value=1), patch.object(ccd, 'store'), \
+         patch.dict(ccd.ir_lists.IR_EARNINGS_DATES, {'VOW3.DE': blocked}), \
+         patch.dict(ccd.os.environ, {'GITHUB_ACTIONS': 'true'}), \
+         patch.object(ccd, 'write_status') as ws_call, patch('builtins.print') as out:
+      errors = ccd._run([self.VW], '2026-01-01', '2026-11-09', MagicMock(), MagicMock(), ws, dry_run=False)
+    self.assertEqual(errors, 0)
+    self.assertEqual(ws_call.call_args.args[2:], ('ir_list', 'ok', '실적 일정 실패: IR 접근 차단(HTTP 403)'))
+    printed = '\n'.join(c.args[0] for c in out.call_args_list)
+    self.assertIn('::warning::VOW3.DE · 실적 일정 실패: IR 접근 차단(HTTP 403)', printed)
+
+  def test_earnings_dates_ok_no_warning(self):
+    rows = [{'company_id': 'u-vw', **L._row('presentation', 'x', 'https://a.example/x.pdf', '2026-05-01', 'f')}]
+    dates = [{'period': '2027-Q1', 'event_date': '2027-04-29', 'quote': 'q', 'source': 'ir', 'source_ref': '1', 'url': None}]
+    with patch.object(ccd, 'sources', return_value=[('ir_list', 'IR', lambda s: rows)]), \
+         patch.object(ccd, 'count_new', return_value=1), patch.object(ccd, 'store'), \
+         patch.object(ccd, 'sync_earnings_dates', return_value=1), \
+         patch.dict(ccd.ir_lists.IR_EARNINGS_DATES, {'VOW3.DE': lambda s, since: dates}), \
+         patch.dict(ccd.os.environ, {'GITHUB_ACTIONS': 'true'}), \
+         patch.object(ccd, 'write_status') as ws_call, patch('builtins.print') as out:
+      errors = ccd._run([self.VW], '2026-01-01', '2026-11-09', MagicMock(), MagicMock(), MagicMock(), dry_run=False)
+    self.assertEqual(errors, 0)
+    self.assertEqual(ws_call.call_args.args[2:], ('ir_list', 'ok', None))
+    printed = '\n'.join(c.args[0] for c in out.call_args_list)
+    self.assertIn('일정 1 · 일정 새/바뀜 1', printed)
+    self.assertNotIn('::warning::', printed)
 
   def test_sync_earnings_dates_skips_known(self):
     client = MagicMock()

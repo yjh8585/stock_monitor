@@ -13,7 +13,7 @@
 
 목록이 통째로 0건이면 사이트 구조가 바뀐 것이다 — 하위 목록마다 `EmptyListError`(문장이 상태 표 사유로 나간다).
 
-실적 일정(customer_earnings_dates)은 문서가 아니라 `IR_EARNINGS_DATES` 로 따로 낸다(VW ICS · 폴라리스 이벤트).
+실적 일정(customer_earnings_dates)은 문서가 아니라 `IR_EARNINGS_DATES` 로 따로 낸다(VW ICS · 포르쉐 EQS-AFR · 폴라리스 이벤트).
 기간 = 'YYYY-Qn' · 연간(4분기+연간 발표) = 'YYYY-FY'.
 
 GM IR 은 Akamai 가 로컬·Playwright 모두 403 이라 어댑터가 없다 — `probe_gm()` 이 GHA 러너에서 접근만 시험하고
@@ -456,14 +456,19 @@ def fetch_vw(session: requests.Session, since: str) -> list[dict]:
                   _fetch(session, VW_DELIVERIES).text, pages)
 
 
+_VW_EVENT_ICS = re.compile(r'/en/events/[^"/]+/ics$')
 _VW_EVENT_SLUG = re.compile(r'/en/events/[^"/]*(interim-report|half-yearly-financial-report|annual-media-conference)'
                             r'[^"/]*/ics$')
 
 
 def parse_vw_events(html: str) -> list[str]:
-  """일정 화면 → 실적 발표 일정의 ICS 경로(학회·로드쇼·주총은 버린다)."""
+  """일정 화면 → 실적 발표 일정의 ICS 경로(학회·로드쇼·주총은 버린다).
+
+  화면엔 다가올 행사만 있어 실적 일정이 하나도 없는 기간이 있다(학회·주총뿐) — 그건 정상 0건이다. 멈추는 것은 행사
+  ICS 자체가 0건일 때(화면 구조가 바뀜)뿐이다."""
   hrefs = [a['href'] for a in BeautifulSoup(html, 'html.parser').find_all('a', href=True)]
-  return _need('VW 실적 일정', list(dict.fromkeys(h for h in hrefs if _VW_EVENT_SLUG.search(h))))
+  ics = _need('VW 일정 ICS', [h for h in hrefs if _VW_EVENT_ICS.search(h)])
+  return list(dict.fromkeys(h for h in ics if _VW_EVENT_SLUG.search(h)))
 
 
 _VW_ICS_PERIOD = ((re.compile(r'Interim Report January\s*[–-]\s*March (\d{4})'), 'Q1'),
@@ -503,7 +508,8 @@ def fetch_vw_dates(session: requests.Session, since: str) -> list[dict]:
 
 PORSCHE_EQS_TOKEN = '280d99fe-1c97-49ce-8a12-e08a72f252c9'  # IR 화면이 쓰는 공개 회사 토큰(비밀 아님)
 PORSCHE_FEED = f'https://ir-api.eqs.com/feeds/news/{PORSCHE_EQS_TOKEN}/json'
-_PORSCHE_KINDS = ('EQS-News', 'EQS-Ad-hoc', 'EQS-Media')  # AFR(보고서 공표 예고)·DD(임원 거래)·PVR 은 버린다
+# AFR(보고서 공표 예고)은 문서가 아니라 실적 일정(parse_porsche_dates) · DD(임원 거래)·PVR 은 버린다
+_PORSCHE_KINDS = ('EQS-News', 'EQS-Ad-hoc', 'EQS-Media')
 _P_EARN_TITLE = re.compile(r'\bresults?\b|\bforecast\b|\boutlook\b', re.I)
 # 실적 보도자료 제목엔 results 가 거의 없다(2026 Q1·H1·연간 전부 없음 — 실측). 본문 세 낱말이 함께 있으면 실적이다.
 _P_EARN_BODY = (re.compile(r'sales revenue', re.I), re.compile(r'operating return on sales', re.I),
@@ -619,14 +625,60 @@ def parse_porsche_all(payload: dict, reports_html: str) -> list[dict]:
   return list(out.values())
 
 
-def fetch_porsche(session: requests.Session, since: str) -> list[dict]:
+def _porsche_feed(session: requests.Session, since: str) -> dict:
   # 피드는 since 보다 _RESULTS_LAG_DAYS 앞에서부터 — 범위 안 분기의 실적 보도일이 since 직전일 수 있다(표 행 날짜용).
   # 그 앞 피드 글은 수집기 resolve_dates 가 since 로 거른다.
   start = (date.fromisoformat(since) - timedelta(days=_RESULTS_LAG_DAYS)).isoformat()
   params = {'companyToken': PORSCHE_EQS_TOKEN, 'lang': 'en', 'from': start, 'till': date.today().isoformat(),
             'limit': -1}
-  payload = _fetch(session, PORSCHE_FEED, params=params).json()
-  return parse_porsche_all(payload, _fetch(session, PORSCHE_REPORTS).text)
+  return _fetch(session, PORSCHE_FEED, params=params).json()
+
+
+def fetch_porsche(session: requests.Session, since: str) -> list[dict]:
+  return parse_porsche_all(_porsche_feed(session, since), _fetch(session, PORSCHE_REPORTS).text)
+
+
+# 실적 일정 = EQS-AFR(보고서 공표 예고 · WpHG §114·115·117). 공표 2~3주 전에 피드에 오고 서식이 고정이다
+# (2025-01 ~ 2026-10 8건 실측): 「Report Type: <종류> Language: English Date of disclosure: October 27, 2026」.
+# 종류 → 기간. 연도 = 공표일의 해(연간 보고서는 3월 공표 = 전년 연간).
+_P_AFR_TYPES = ((re.compile(r'within the 1st half-year', re.I), 'Q1'),
+                (re.compile(r'\(half-year/Q2\)', re.I), 'Q2'),
+                (re.compile(r'within the 2nd half-year', re.I), 'Q3'),
+                (re.compile(r'^Annual financial report', re.I), 'FY'))
+# 영어판 날짜를 찾다가 다음 Report Type 으로 넘어가지 않게 막는다(넘어가면 남의 날짜를 조용히 가져온다).
+_P_AFR_BLOCK = re.compile(r'Report Type:\s*(.+?)\s+Language:(?:(?!Report Type:).)*?Language:\s*English\s+'
+                          r'Date of disclosure:\s*([A-Z][a-z]+ \d{1,2}, \d{4})', re.S)
+
+
+def parse_porsche_dates(payload: dict) -> list[dict]:
+  """EQS 피드의 AFR → 일정 행. quote = 원문 두 줄(Report Type · 영어판 Date of disclosure).
+
+  공고 하나에 종류가 둘일 수 있다(연간: 「Annual financial report」·「… of the group」 같은 날) — 기간 하나로 합치고
+  뒤의 것(연결)이 quote 로 남는다.
+  같은 기간 공고가 둘이면(일정 변경) 나중에 낸 공고를 쓴다. AFR 인데 종류·날짜를 못 읽으면 조용히 빠지지 않고 멈춘다.
+  받기 범위(since − _RESULTS_LAG_DAYS ~ 오늘)엔 분기마다 AFR 이 있어 0건이면 피드가 바뀐 것이다."""
+  afr = _need('포르쉐 EQS-AFR', [it for it in payload.get('items') or []
+                                 if (it.get('_eqs') or {}).get('news_type') == 'EQS-AFR'])
+  out: dict[str, dict] = {}
+  for it in sorted(afr, key=lambda it: it['date_published']):  # 나중 공고가 덮는다
+    text = html_to_text(it.get('content_html') or '')
+    blocks = _P_AFR_BLOCK.findall(text)
+    if not blocks or len(blocks) != text.count('Report Type:'):
+      raise EmptyListError('포르쉐 EQS-AFR 해석 실패')
+    for kind, day in blocks:
+      q = next((q for rx, q in _P_AFR_TYPES if rx.search(kind)), None)
+      if q is None:
+        raise EmptyListError('포르쉐 EQS-AFR 해석 실패')
+      d = datetime.strptime(day, '%B %d, %Y').date()
+      period = f'{d.year - 1}-FY' if q == 'FY' else f'{d.year}-{q}'
+      out[period] = {'period': period, 'event_date': d.isoformat(),
+                     'quote': f'Report Type: {kind}\nDate of disclosure: {day}', 'source': 'ir',
+                     'source_ref': it['news_id'], 'url': it['url']}
+  return list(out.values())
+
+
+def fetch_porsche_dates(session: requests.Session, since: str) -> list[dict]:
+  return [d for d in parse_porsche_dates(_porsche_feed(session, since)) if d['event_date'] >= since]
 
 
 # ── 폴라리스(Q4 Inc 피드) ─────────────────────────────────────────────────────
@@ -1220,6 +1272,7 @@ IR_LISTS: dict[str, Callable[[requests.Session, str], list[dict]]] = {
 # customer_earnings_dates 행({'period','event_date','quote','source','source_ref','url'}) — 문서가 아니다.
 IR_EARNINGS_DATES: dict[str, Callable[[requests.Session, str], list[dict]]] = {
   'VOW3.DE': fetch_vw_dates,
+  'P911.DE': fetch_porsche_dates,
   'PII': fetch_polaris_dates,
 }
 

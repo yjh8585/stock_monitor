@@ -316,7 +316,7 @@ def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
   errors = 0
   for c in cos:
     for collector, label, fetch in sources(c, since, end, client):
-      rows, reason, dates_note = [], None, ''
+      rows, reason, dates_note, dates_blocked = [], None, '', False
       try:
         rows = dedupe(fetch(session))
         n = count_new(client, rows)
@@ -332,15 +332,18 @@ def _run(cos, since, end, client, session, ws, dry_run: bool) -> int:
         try:
           dates = date_fetch(session, since)
           dates_note = f' · 일정 {len(dates)} · 일정 새/바뀜 {sync_earnings_dates(client, c["id"], dates, dry_run)}'
-        except Exception as e:
-          note = f'실적 일정 실패: {failure_status(label, e)[1]}'
+        except Exception as e:  # 차단(401·403)은 문서와 같은 판정 — error 로 세지 않고 아래 GHA 경고로 띄운다
+          date_status, why = failure_status(label, e)
+          note = f'실적 일정 실패: {why}'
           reason = f'{reason} · {note}' if reason else note
-          errors += 1
+          errors += date_status == 'error'
+          dates_blocked = date_status == 'blocked'
       kinds = ' '.join(f'{k}={v}' for k, v in sorted(Counter(r['doc_type'] for r in rows).items()))
       print(f'  {c["ticker"]:<10} {label:<5} {status:<7} 문서 {len(rows)} · 새 {n}' + (f' · {kinds}' if kinds else '')
             + dates_note + (f' · {reason}' if reason else ''))
-      if status == 'blocked' and os.environ.get('GITHUB_ACTIONS'):  # exit 0 그대로(매일 막히는 출처가 job 을 늘 빨갛게
-        print(f'::warning::{c["ticker"]} · {reason}')               # 만들지 않게) — 실행 요약에만 노랗게 띄운다
+      # 차단은 exit 0 그대로(매일 막히는 출처가 job 을 늘 빨갛게 만들지 않게) — 실행 요약에만 노랗게 띄운다
+      if (status == 'blocked' or dates_blocked) and os.environ.get('GITHUB_ACTIONS'):
+        print(f'::warning::{c["ticker"]} · {reason}')
       if not dry_run:
         write_status(ws, c['id'], collector, status, reason)
   return errors
