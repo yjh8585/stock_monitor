@@ -237,5 +237,24 @@ class StatusTest(unittest.TestCase):
     self.assertRegex(payload['checked_at'], r'^\d{4}-\d{2}-\d{2}T.*\+00:00$')
 
 
+class SelectTargetsTest(unittest.TestCase):
+  """수집 대상 = 파서·IR 어댑터가 있는 회사(= GHA matrix · 시험 P13) — 로컬 전체 실행이 대상 밖 OEM 을 돌지 않게."""
+  F = {'id': 'u-f', 'ticker': 'F', 'sec_cik': '37996', 'dart_corp_code': None}
+  KR_UNLISTED = {'id': 'u-kr', 'ticker': None, 'sec_cik': None, 'dart_corp_code': '00000009'}
+  GM = {'id': 'u-gm', 'ticker': 'GM', 'sec_cik': '1467858', 'dart_corp_code': None}
+
+  def test_only_wanted(self):
+    self.assertEqual(ccd.select_targets([self.F, self.KR_UNLISTED, self.GM], {'GM'}), [self.GM])
+
+  def test_still_needs_an_identifier_or_adapter(self):
+    bare = {'id': 'u-x', 'ticker': 'XX', 'sec_cik': None, 'dart_corp_code': None}
+    self.assertEqual(ccd.select_targets([bare], {'XX'}), [])
+    vw = {'id': 'u-vw', 'ticker': 'VOW3.DE', 'sec_cik': None, 'dart_corp_code': None}   # 공시 식별자 없이 IR 어댑터만
+    self.assertEqual(ccd.select_targets([vw], {'VOW3.DE'}), [vw])
+
+  def test_dedupe_by_id(self):
+    self.assertEqual(ccd.select_targets([self.GM, dict(self.GM)], {'GM'}), [self.GM])
+
+
 if __name__ == '__main__':
   unittest.main()

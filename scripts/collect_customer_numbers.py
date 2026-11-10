@@ -5,8 +5,11 @@ exit 0 정상(내용 접근 차단 401·403 · 서식 미인식 포함 — 상�
      1 이번 실행에서 새로 생긴 파싱 실패(새 문서인데 숫자 0개·대조 통과 0·파서 예외·LLM 재시도 상한) 또는 내용 받기
        실패(401·403 밖) 1건 이상 — 이미 닫힌 failed 문서는 상태(parse_failed)로만 드러나고 exit 엔 안 들어간다
        (LLM 재시도 대기 = pending 은 exit 1 이 아니다 — LLM 은 실행마다 결과가 달라 한 번 실패로 GHA 를 빨갛게 하지 않는다)
-     2 자가 시험 실패 · 인자 오류 · --add-file 대상 회사에 파서 없음
+     2 자가 시험 실패 · 인자 오류 · --add-file 대상 회사에 파서 없음 · --close 문서 없음
 사용: collect_customer_numbers.py [--company TICKER] [--no-llm] [--reparse DOC_ID] [--dry-run]
+     collect_customer_numbers.py --close DOC_ID --note "사유" [--dry-run]
+       (영구 받기 실패 문서를 사람이 닫는다 — not_target + 「수동 닫음: 사유」. finish 를 타지 않아 회사 상태 표의
+        「닫힌 실패 문서 N건」은 다음 정기 실행에 고쳐진다)
      collect_customer_numbers.py --company TICKER --add-file PDF --url URL --doc-type fact_sheet --title T --published YYYY-MM-DD
        (사이트가 브라우저 내려받기만 받아 주는 소급 문서를 로컬 파일로 넣는다 — 문서 행을 만들고 그 내용으로 바로 파싱.
         이 문서를 나중에 --reparse 하면 HTTP 로 다시 받다가 막힐 수 있다 — 그때는 --add-file 로 다시)
@@ -40,6 +43,8 @@ exit 0 정상(내용 접근 차단 401·403 · 서식 미인식 포함 — 상�
    다음 실행이 다시 시도하고 회사 상태가 blocked·error 로 매번 다시 난다(blocked 는 GHA ::warning:: · 최종 검토 P6).
    영구 실패(404·410·그 밖 4xx·내용 형식 오류·DART status 013·014 자료·파일 없음)만 failed 로 닫는다.
    현대모비스 IR URL 의 fileId 는 요청마다 바뀌어 저장된 URL 이 만료될 수 있다 → note 에 「만료 가능 URL」.
+   IR 문서가 50MB(lib.ir_lists.MAX_IR_BYTES)를 넘으면 실패가 아니다 — not_target + note 「크기 초과(N MB) — 링크만」
+   (exit 0 · 다음 실행이 다시 받지 않는다 · 문서 행·자료실 링크는 남는다 · 상태 사유 「크기 초과 n건」).
 🔴 파서 예외(parse · 파서 모듈 fetch 의 AttributeError·TypeError 등)는 그 문서만 failed('파서 예외: <클래스>').
 출력은 회사·문서 건수·행수만(금액 금지 — 공개 수치여도 습관을 지킨다).
 """
@@ -53,7 +58,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import requests
 
-from lib.ir_lists import BLOCKED_HTTP
+from lib.ir_lists import BLOCKED_HTTP, MAX_IR_BYTES, TooLarge, ir_get
 
 DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at,parse_note,llm_attempts'
 NOTE_NO_PARSER = '대상 파서 없음'
@@ -63,6 +68,8 @@ NOTE_NO_KEY = 'LLM 키 없음'
 # 숫자가 반드시 있어야 하는 문서(_expects_numbers)인데 코드가 서식을 못 알아봤다 — not_target 이지만 흔적을 남긴다(P4)
 NOTE_UNRECOGNIZED = '서식 미인식'
 NOTE_LLM_FAIL = 'LLM 실패'
+NOTE_TOO_LARGE = '크기 초과'   # IR 문서가 MAX_IR_BYTES 를 넘었다 — not_target · 찾기 = parse_note like '크기 초과%'
+NOTE_CLOSED = '수동 닫음: '    # --close — 영구 받기 실패 문서를 사람이 닫는다
 NOTE_CODE_MISS_ONLY = '코드 문구 미스 — LLM 행만'          # 코드 표식은 있는데 코드 가이던스 0행 → LLM 이 전부 채움
 NOTE_CODE_MISS_FILL = '코드 문구 미스 — LLM 이 빠진 항목 메움'  # 코드 가이던스 일부 + LLM 이 나머지
 LLM_MAX_ATTEMPTS = 3                    # 이 횟수째 실패하면 닫는다(코드 행 있으면 parsed · 없으면 failed)
@@ -97,18 +104,6 @@ def _sha(b: bytes) -> str:
   return hashlib.sha256(b).hexdigest()
 
 
-def _ir_get(session, url: str) -> requests.Response:
-  """IR 문서 — 목록 어댑터와 같은 브라우저 UA(없으면 일부 사이트가 403) · 5xx 만 재시도."""
-  from lib.ir_lists import BROWSER_UA
-  from lib.retry import with_retry
-
-  def _once():
-    r = session.get(url, headers={'User-Agent': BROWSER_UA}, timeout=60)
-    r.raise_for_status()
-    return r
-  return with_retry(_once, _label=urlsplit(url).netloc)
-
-
 def fetch_content(session, doc, local: bytes | None = None):
   """출처별로 내용을 한 번만 받는다 → (Content, sha256). local = --add-file 로 넘긴 파일 바이트(PDF 만)."""
   from customer_parsers.base import Content
@@ -130,7 +125,7 @@ def fetch_content(session, doc, local: bytes | None = None):
   if doc.source == 'dart':
     text = dart_api.document_text(session, doc.source_id)
     return Content(text), _sha(text.encode())
-  r = _ir_get(session, doc.url)
+  r = ir_get(session, doc.url)   # 50MB 상한 — 넘으면 TooLarge(process 가 not_target 「크기 초과」로 닫는다)
   b = r.content
   if b[:5] == b'%PDF-':
     return Content(pdf_text(b), [], b), _sha(b)
@@ -167,13 +162,16 @@ _DART_PERMANENT = ('013', '014')   # DART 조회 자료 없음·파일 없음 �
 
 
 def fetch_failure_kind(e: Exception, doc) -> str:
-  """받기 실패 갈래 → 'blocked'(401·403) · 'retry'(일시 — pending 유지) · 'failed'(영구 — 닫는다).
+  """받기 실패 갈래 → 'too_large'(MAX_IR_BYTES 초과 — 실패 아님 · not_target 으로 닫는다) · 'blocked'(401·403) ·
+  'retry'(일시 — pending 유지) · 'failed'(영구 — 닫는다).
   🔴 일시 실패를 failed 로 닫으면 다음 실행이 다시 안 봐 차단·오류 신호가 하루 만에 사라진다
   (회사의 다른 문서가 파싱되면 상태 표가 ok 로 덮인다). pending 으로 두면 매 실행 다시 시도돼 blocked·error 가 매번 다시 난다.
   일시 = 408·425·429·5xx·연결 오류·시간 초과·만료 URL · DART 키 없음·비-zip status 응답(DartUnavailable — 최종 검토 P10).
   영구 = 404·410·그 밖 4xx · 내용 형식 오류(PDF·zip 깨짐 등 HTTP 밖 예외) · DART status 013·014(자료·파일 없음).
   DART 의 키·한도·점검 계열(010·011·012·020·800·900·901)과 status 를 못 읽은 응답은 일시다."""
   from lib.dart_api import DartUnavailable
+  if isinstance(e, TooLarge):
+    return 'too_large'
   code = http_status(e)
   if code in _BLOCKED_CODES:
     return 'blocked'
@@ -385,7 +383,38 @@ def _args(argv):
   ap.add_argument('--title')
   ap.add_argument('--published', help='YYYY-MM-DD 필수 — 지어내지 않는다. 문서에 날짜가 없으면 같은 회사의 해당 연간 '
                                       '실적 공시일(customer_documents)을 사람이 찾아 넣는다(자동 조회 없음)')
+  ap.add_argument('--close', type=int, metavar='DOC_ID', help='영구 받기 실패 문서 하나를 닫는다(not_target · --note 필수)')
+  ap.add_argument('--note', help='--close 사유 — parse_note 「수동 닫음: <사유>」')
   return ap.parse_args(argv)
+
+
+def _close_error(args) -> str | None:
+  if args.close is None:
+    return '--note 는 --close 와 함께만 쓴다' if args.note else None
+  if not args.note:
+    return '--close 에 --note(사유)가 필요하다'
+  if args.reparse is not None or args.add_file:
+    return '--close 는 --reparse·--add-file 과 함께 쓸 수 없다'
+  return None
+
+
+def close_doc(client, args) -> int:
+  """--close → 문서 하나를 not_target + 「수동 닫음: <사유>」. 반환 = exit 코드(문서 없음 2).
+  finish 를 타지 않으므로 회사 상태 표(닫힌 실패 문서 수)는 다음 정기 실행에 고쳐진다."""
+  from lib import db
+  got = client.table('customer_documents').select('id,parse_status').eq('id', args.close).execute().data
+  if not got:
+    print(f'문서 없음: {args.close}')
+    return 2
+  note = f'{NOTE_CLOSED}{args.note}'[:_NOTE_MAX]
+  if args.dry_run:
+    print(f'문서 {args.close}({got[0]["parse_status"]}) → not_target 「{note}」 · dry-run(쓰지 않음)')
+    return 0
+  with db.WriteSession() as ws:
+    (ws.table('customer_documents').update({'parse_status': 'not_target', 'parse_note': note})
+     .eq('id', args.close).execute())
+  print(f'문서 {args.close}({got[0]["parse_status"]}) → not_target 닫음 — 회사 상태 표는 다음 정기 실행에 고쳐진다')
+  return 0
 
 
 def _add_file_error(args) -> str | None:
@@ -410,6 +439,14 @@ def main(argv: list[str] | None = None) -> int:
     for e in errs:
       print(f'자가 시험 실패 — {e}')
     return 2
+
+  err = _close_error(args)
+  if err:
+    print(err)
+    return 2
+  if args.close is not None:
+    from lib import db
+    return close_doc(db.get_client(), args)
 
   blob = None
   if args.add_file:
@@ -575,6 +612,8 @@ class _CompanyRun:
       if isinstance(e, _PROGRAMMING_ERRORS) and hasattr(self.mod, 'fetch') and blob is None:
         return self._parser_error(doc, e)
       kind = fetch_failure_kind(e, doc)
+      if kind == 'too_large':   # 아래 dict 조회 «앞에서» — 안 그러면 KeyError 로 실행 전체가 죽는다
+        return self._too_large(doc, e)
       self.outcomes[{'blocked': 'blocked', 'retry': 'fetch_retry', 'failed': 'fetch_failed'}[kind]] += 1
       # 일시 실패(차단·5xx 등·연결·만료 URL)는 pending 그대로 note 만 — 다음 실행이 다시 시도한다
       self._set_doc(doc, 'failed' if kind == 'failed' else 'pending', fetch_failure_note(e, doc), None)
@@ -665,6 +704,13 @@ class _CompanyRun:
     self.outcomes['llm_gave_up'] += 1
     self._set_doc(doc, closed, ' · '.join([f'{NOTE_LLM_GAVE_UP} — {reason}', *others]), sha, attempts)
 
+  def _too_large(self, doc, e: TooLarge) -> None:
+    """상한 초과 문서 — 실패가 아니다(exit 0 · fetch_failed 아님). not_target 으로 닫아 다음 실행이 다시 받지 않고,
+    문서 행(자료실 링크)은 그대로 남는다."""
+    self.outcomes['too_large'] += 1
+    size = f'{round(e.size / (1024 * 1024))} MB' if e.size else f'{MAX_IR_BYTES // (1024 * 1024)}MB 초과'
+    self._set_doc(doc, 'not_target', f'{NOTE_TOO_LARGE}({size}) — 링크만', None)
+
   def _parser_error(self, doc, e: Exception) -> None:
     self.outcomes['failed'] += 1
     self._set_doc(doc, 'failed', f'파서 예외: {type(e).__name__}', None)
@@ -749,6 +795,8 @@ class _CompanyRun:
       reasons.append(f'문서 {llm_retry}건 LLM 재시도 대기(pending · 다음 실행이 다시 시도)')
     if o['llm_gave_up']:
       reasons.append(f'문서 {o["llm_gave_up"]}건 LLM {LLM_MAX_ATTEMPTS}회 실패로 닫음')
+    if o['too_large']:
+      reasons.append(f'{NOTE_TOO_LARGE} {o["too_large"]}건({MAX_IR_BYTES // (1024 * 1024)}MB 상한 — 링크만)')
     reasons += warn
     status = ('parse_failed' if parse_failed or closed else 'blocked' if blocked else 'error' if fetch_failed
               else 'ok')

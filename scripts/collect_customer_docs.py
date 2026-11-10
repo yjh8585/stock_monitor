@@ -2,8 +2,10 @@
 
 뒤 단계(회사별 파서)가 이 목록에서 parse_status='pending' 인 문서를 읽는다. 여기서는 본문을 받지 않는다.
 
-대상 = 활성 OEM + PARSER_ONLY_TICKERS 중 sec_cik 또는 dart_corp_code 가 있거나 IR 어댑터(lib/ir_lists.IR_LISTS)가
-있는 회사(파서 없는 OEM 도 목록은 쌓인다 · 폭스바겐·포르쉐는 공시 식별자 없이 IR 만).
+대상 = 활성 OEM + PARSER_ONLY_TICKERS 중 파서·IR 어댑터가 있는 회사(= GHA matrix · 시험 P13 — customer_parsers
+.parser_tickers() ∪ lib/ir_lists.IR_LISTS)이면서 sec_cik·dart_corp_code·IR 어댑터 중 하나가 있는 회사(폭스바겐·포르쉐는
+공시 식별자 없이 IR 만). 빠진 회사(포드 등)의 customer_collect_status 행은 지우지 않는다 — 고객사 화면은
+customer_accounts 로 회사를 골라 상태 표를 읽는다.
 IR 목록 중 실적 일정(VW ICS·폴라리스 이벤트)은 문서가 아니라 customer_earnings_dates 로 간다.
 
 실행:
@@ -73,8 +75,8 @@ def classify_edgar(form: str, items: str, desc: str) -> str | None:
 
 # ── 행 만들기 ─────────────────────────────────────────────────────────────────
 
-# OEM 이 아니지만 파서 대상인 회사(현대모비스 = 부품사). customer_parsers 패키지(Task 6)에 기대지 않으려고 여기 둔다 —
-# Task 6 의 test_customer_parsers 가 parser_tickers() 와 어긋나지 않는지 본다.
+# OEM 이 아니지만 파서 대상인 회사(현대모비스 = 부품사) — 서버 질의용. customer_parsers 는 대상 판정(targets)만 늦게
+# import 한다. test_customer_parsers 가 parser_tickers() 와 어긋나지 않는지 본다.
 PARSER_ONLY_TICKERS = ('012330',)
 
 # upsert 에 실으면 안 되는 칸 — 파싱 상태·최초 발견 시각은 DB DEFAULT 와 파서의 몫이다.
@@ -86,18 +88,26 @@ def _db():
   return db
 
 
+def select_targets(rows: list[dict], wanted: set[str]) -> list[dict]:
+  """(순수) ticker 가 wanted(파서 ∪ IR 어댑터)에 있고 sec_cik·dart_corp_code·IR 어댑터 중 하나라도 있는 행 · id 중복 제거."""
+  seen, out = set(), []
+  for r in rows:
+    has_source = r['sec_cik'] or r['dart_corp_code'] or r['ticker'] in ir_lists.IR_LISTS
+    if r['ticker'] in wanted and has_source and r['id'] not in seen:
+      seen.add(r['id'])
+      out.append(r)
+  return out
+
+
 def targets() -> list[dict]:
-  """활성 OEM + PARSER_ONLY_TICKERS 중 sec_cik·dart_corp_code·IR 어댑터 중 하나라도 있는 회사. 거르기는 서버에서."""
+  """활성 OEM + PARSER_ONLY_TICKERS 중 파서·IR 어댑터가 있는 회사(= GHA matrix · 시험 P13). 질의는 서버에서,
+  대상 판정은 select_targets."""
+  import customer_parsers  # 대상 판정만 늦게 import(모듈 머리에서 파서 패키지에 기대지 않는다)
   cols, c = 'id,ticker,name_kr,company_type,sec_cik,dart_corp_code,status', _db().get_client()
   rows = c.table('companies').select(cols).eq('company_type', 'OEM').eq('status', 'active').execute().data
   rows += (c.table('companies').select(cols).in_('ticker', list(PARSER_ONLY_TICKERS)).eq('status', 'active')
            .execute().data)
-  seen, out = set(), []
-  for r in rows:
-    if (r['sec_cik'] or r['dart_corp_code'] or r['ticker'] in ir_lists.IR_LISTS) and r['id'] not in seen:
-      seen.add(r['id'])
-      out.append(r)
-  return out
+  return select_targets(rows, customer_parsers.parser_tickers() | set(ir_lists.IR_LISTS))
 
 
 def edgar_rows(session, c: dict, since: str) -> list[dict]:
@@ -265,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.company:
     cos = [c for c in cos if c['ticker'] == args.company]
     if not cos:
-      print(f'대상 아님(활성 OEM·파서 대상 중 공시 식별자·IR 어댑터 있는 회사가 아님): {args.company}')
+      print(f'대상 아님(활성 OEM·파서 대상 중 파서·IR 어댑터가 있고 공시 식별자·IR 어댑터 있는 회사가 아님): {args.company}')
       return 2
   print(f'대상 {len(cos)}곳 · {since} ~ {end}' + (' · dry-run' if args.dry_run else ''))
 

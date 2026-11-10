@@ -897,6 +897,132 @@ class NoParserTests(unittest.TestCase):
     ws.table.assert_not_called()
 
 
+def _resp(body: bytes, length: int | None = None, encoding: str | None = None) -> requests.Response:
+  """가짜 응답 — 본문은 raw 스트림(iter_content 가 읽는다)으로만 준다."""
+  r = requests.Response()
+  r.status_code = 200
+  r.raw = io.BytesIO(body)
+  if length is not None:
+    r.headers['Content-Length'] = str(length)
+  r.encoding = encoding
+  return r
+
+
+class _Session:
+  def __init__(self, resp):
+    self.resp, self.calls = resp, []
+
+  def get(self, url, **kw):
+    self.calls.append(kw)
+    return self.resp
+
+
+class TooLargeTests(unittest.TestCase):
+  """IR 문서 50MB 상한 — 큰 PDF(수백 MB)가 받기 대상이 돼도 러너 메모리가 터지지 않게(IR 확장 Task 1)."""
+
+  def test_content_length_over_limit_raises_without_reading(self):
+    from lib import ir_lists
+    s = _Session(_resp(b'x', length=60_000_000))
+    with self.assertRaises(ir_lists.TooLarge) as cm:
+      ccn.ir_get(s, 'https://ir.example.com/big.pdf')
+    self.assertEqual(cm.exception.size, 60_000_000)
+    self.assertTrue(s.calls[0]['stream'])
+    self.assertEqual(len(s.calls), 1)   # 상한 초과는 재시도하지 않는다(with_retry 가 일시 오류로 안 본다)
+
+  def test_body_over_limit_without_length(self):
+    from lib import ir_lists
+    with patch.object(ir_lists, 'MAX_IR_BYTES', 10), self.assertRaises(ir_lists.TooLarge) as cm:
+      ccn.ir_get(_Session(_resp(b'0123456789AB')), 'https://ir.example.com/big.pdf')
+    self.assertIsNone(cm.exception.size)
+
+  def test_small_body_kept(self):
+    body = b'<html>' + b'a' * 1024 + b'</html>'
+    r = ccn.ir_get(_Session(_resp(body, length=len(body), encoding='utf-8')), 'https://ir.example.com/a.html')
+    self.assertEqual(r.content, body)
+    self.assertEqual(r.encoding, 'utf-8')
+    self.assertTrue(r.apparent_encoding)
+
+  def test_limit_value(self):
+    from lib import ir_lists
+    self.assertEqual(ir_lists.MAX_IR_BYTES, 50 * 1024 * 1024)
+
+  def test_kind(self):
+    from lib import ir_lists
+    self.assertEqual(ccn.fetch_failure_kind(ir_lists.TooLarge(60_000_000), _DOC), 'too_large')
+    self.assertEqual(ccn.fetch_failure_kind(ir_lists.TooLarge(None), _DOC), 'too_large')
+
+  def _one(self, size):
+    from lib import ir_lists
+
+    def fetch(session, doc):
+      raise ir_lists.TooLarge(size)
+    run, ws = _run(_mod(fetch=fetch))
+    with patch('collect_customer_docs.write_status') as st:
+      run.process(_DOC, None)
+      fails = run.finish('ACME', 1)
+    return _doc_patches(ws), st.call_args.args, fails, run
+
+  def test_too_large_closes_doc_not_failure(self):
+    """not_target + 「크기 초과(N MB) — 링크만」 · 실패 아님(exit 0) · 상태 사유에 건수."""
+    patches, status_args, fails, run = self._one(60_000_000)
+    self.assertEqual(patches, [{'parse_status': 'not_target', 'parse_note': '크기 초과(57 MB) — 링크만'}])
+    self.assertEqual(fails, 0)
+    self.assertEqual(run.outcomes, {'too_large': 1})
+    self.assertEqual(status_args[3], 'ok')
+    self.assertIn('크기 초과 1건', status_args[4])
+
+  def test_too_large_unknown_size(self):
+    patches, _, fails, _ = self._one(None)
+    self.assertEqual(patches[0]['parse_note'], '크기 초과(50MB 초과) — 링크만')
+    self.assertEqual(fails, 0)
+
+
+class CloseTests(unittest.TestCase):
+  """--close DOC_ID --note TEXT — 영구 받기 실패 문서를 사람이 닫는다(문서 상태 칸은 이 스크립트만 쓴다)."""
+
+  def _args(self, **kw):
+    a = dict(close=5, note='사이트에서 내려감', reparse=None, add_file=None, dry_run=False)
+    return SimpleNamespace(**{**a, **kw})
+
+  def test_arg_errors(self):
+    self.assertIn('--note', ccn._close_error(self._args(note=None)))
+    self.assertIn('--reparse', ccn._close_error(self._args(reparse=3)))
+    self.assertIn('--add-file', ccn._close_error(self._args(add_file='x.pdf')))
+    self.assertIn('--close', ccn._close_error(self._args(close=None)))   # --note 만 오면 조용히 무시하지 않는다
+    self.assertIsNone(ccn._close_error(self._args()))
+    self.assertIsNone(ccn._close_error(self._args(close=None, note=None)))
+
+  def test_main_exit_2_without_note(self):
+    self.assertEqual(ccn.main(['--close', '5']), 2)
+
+  def _client(self, rows):
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = rows
+    return client
+
+  def test_missing_doc_exit_2(self):
+    with patch('lib.db.WriteSession') as wsc:
+      self.assertEqual(ccn.close_doc(self._client([]), self._args()), 2)
+    wsc.assert_not_called()
+
+  def test_close_writes_not_target(self):
+    ws = MagicMock()
+    with patch('lib.db.WriteSession') as wsc:
+      wsc.return_value.__enter__.return_value = ws
+      self.assertEqual(ccn.close_doc(self._client([{'id': 5, 'parse_status': 'failed'}]), self._args()), 0)
+    ws.table.assert_called_once_with('customer_documents')
+    ws.table.return_value.update.assert_called_once_with({'parse_status': 'not_target',
+                                                          'parse_note': '수동 닫음: 사이트에서 내려감'})
+    ws.table.return_value.update.return_value.eq.assert_called_once_with('id', 5)
+
+  def test_dry_run_does_not_write(self):
+    with patch('lib.db.WriteSession') as wsc, patch('builtins.print') as out:
+      self.assertEqual(ccn.close_doc(self._client([{'id': 5, 'parse_status': 'failed'}]),
+                                     self._args(dry_run=True)), 0)
+    wsc.assert_not_called()
+    self.assertEqual(out.call_count, 1)
+
+
 class SelfTests(unittest.TestCase):
   def test_self_tests_pass(self):
     self.assertEqual(ccn.self_tests(), [])

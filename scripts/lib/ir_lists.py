@@ -63,6 +63,47 @@ def _fetch(session: requests.Session, url: str, *, method: str = 'GET', params: 
   return with_retry(_once, _label=urlsplit(url).netloc)
 
 
+# ── 문서 «내용» 받기(숫자 수집기·파서가 함께 쓴다) ─────────────────────────────
+
+# IR 문서 한 건의 상한 — 넘으면 받지 않는다(리비안 180MB·AI Day 431MB 같은 PDF 를 통째로 메모리에 올리면 러너가 죽는다).
+# 🔴 숫자 수집기(collect_customer_numbers.py)는 __main__ 으로 돌고 시험은 따로 읽어 사본이 둘이 된다 — 파서와 함께 쓰는
+#    이 셋(MAX_IR_BYTES·TooLarge·ir_get)은 여기 한곳에 두고 양쪽이 import 한다(예외 isinstance 가 빗나가지 않게).
+MAX_IR_BYTES = 50 * 1024 * 1024
+
+
+class TooLarge(Exception):
+  """IR 문서가 MAX_IR_BYTES 를 넘는다. size = Content-Length(바이트) · 머리에 없어 받다가 넘었으면 None.
+  일시 오류가 아니다 — with_retry 의 판정(상태 코드·연결 예외·문구)에 안 걸려 재시도하지 않는다."""
+
+  def __init__(self, size: int | None):
+    self.size = size
+    super().__init__(f'IR 문서 상한 초과: {size if size is not None else "Content-Length 없음"}')
+
+
+def ir_get(session, url: str) -> requests.Response:
+  """IR 문서 — 목록 어댑터와 같은 브라우저 UA(없으면 일부 사이트가 403) · 5xx 만 재시도 · MAX_IR_BYTES 상한.
+  stream 으로 받아 Content-Length 가 넘으면 본문을 안 읽고, 머리가 없으면 1MB 씩 모으다 넘는 순간 끊는다.
+  다 모으면 r._content 에 넣어 호출부의 r.content·r.encoding·r.apparent_encoding 이 평소대로 돈다."""
+  def _once():
+    r = session.get(url, headers={'User-Agent': BROWSER_UA}, timeout=60, stream=True)
+    r.raise_for_status()
+    length = r.headers.get('Content-Length')
+    if length and length.isdigit() and int(length) > MAX_IR_BYTES:
+      r.close()
+      raise TooLarge(int(length))
+    chunks, total = [], 0
+    for chunk in r.iter_content(1 << 20):
+      total += len(chunk)
+      if total > MAX_IR_BYTES:
+        r.close()
+        raise TooLarge(None)
+      chunks.append(chunk)
+    r._content = b''.join(chunks)
+    r._content_consumed = True
+    return r
+  return with_retry(_once, _label=urlsplit(url).netloc)
+
+
 _MOBIS_DOWNLOAD = '/cmm/fms/PdfFileDown.do'
 
 
