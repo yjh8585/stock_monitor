@@ -90,6 +90,7 @@
 - 파일 UTF-8(BOM 없음)+LF · 커밋은 경로 명시 한 명령(`git add <경로> && git commit --only -F <파일> -- <경로>`) · `git add -A` 금지 · 🔴 **푸시하지 않는다**(사용자 요청 시에만 — 푸시 = Vercel 배포 + 매일 유료 LLM 수집 시작).
 - 🔴 네트워크 실측은 착수 Step 1 에서 «한 번» 받아 픽스처로 굳힌 뒤 시험은 픽스처로만 돈다. 실측이 이 계획과 다르면 **동작 불가(형식·경로가 다름)는 고치고 보고서에 기록 · 구조 선택(어디서 돌릴지·새 표·새 문서 종류·새 외부 의존)은 멈추고 보고**(전역 규칙).
 - 🔴 DB 에 쓰는 실행은 Task 5 Step 5(CID 1건)와 Task 12(메인이 직접)뿐. 구현 태스크의 확인은 `--dry-run`.
+- 🔴 **목록 드라이런은 새 문서를 저장하지 않고 숫자 수집기는 DB 의 문서만 읽는다**(`collect_customer_docs.py:288` · Codex 대조 2026-11-10) — 그래서 «새 문서가 숫자 수집 드라이런에서 대상으로 잡힌다»는 확인은 성립하지 않는다. 대신 시험으로: 목록 파서가 낸 픽스처 행 → 숫자 수집기의 `Doc` 꼴로 바꿔 → `mod.wants(doc)`(받아야 할 문서 True · 링크만인 문서 False) + 그 문서의 본문 픽스처로 `mod.parse`. 실물 연결 확인은 Task 12 에서 메인이 목록을 본 적재한 뒤 한다. 각 태스크의 「숫자 수집 드라이런」 문구는 이 뜻으로 읽는다(기존 문서에 대한 드라이런은 그대로 유효).
 
 ---
 
@@ -294,7 +295,7 @@
 
 1. **기아 `page=1` 고정**(`fetch_kia`) — 조사(`ir_korea.md:166` 「page 를 바꿔도 같은 목록」)와 기존 수집기 docstring(`collect_kia_sales.py:6` 「page=1,2,… 로 분산」)이 **서로 다르다** → 착수 때 두 페이지를 실제로 받아 비교하고 결과에 맞춘다(결과를 보고서에).
 2. **VW 실적 행렬 「연도 절마다 표 1개」 가정**(`parse_vw_results` `:203-226`) — 두 번째 표가 있으면 조용히 빠진다 → 절 안의 표 전부.
-3. **정정공시 분기 키** — `quarter_dates`(`:121-134`)가 «공시일 직전 분기»로 키를 만들어 다음 분기에 낸 [기재정정]은 엉뚱한 분기가 된다 → 정정공시는 원공시의 분기 키를 따른다(원공시를 못 찾으면 그 정정공시로는 키를 만들지 않는다).
+3. **정정공시 분기 키** — `quarter_dates`(`:121-134`)가 «공시일 직전 분기»로 키를 만들어 다음 분기에 낸 [기재정정]은 엉뚱한 분기가 된다. 입력(`{'title','published_at'}` · `collect_customer_docs.py:133`)에 원공시 참조가 없어 원공시를 특정할 수 없다(Codex 대조) → **정정공시(제목에 `정정`)는 `qdates` 를 만들지 않는다** — 그 분기의 날짜는 원공시가 이미 준다. MUST_MISS: 다음 분기 공시일의 `[기재정정]영업(잠정)실적` 이 어떤 분기 키도 덮지 않는다 · MUST_HIT: 원공시 키는 그대로.
 4. **VW ad-hoc 전부 `guidance`**(`parse_vw_adhoc` `:227-237`) — 제목에 results 가 있으면 `earnings_release`(자료실 라벨만 바뀐다 — 숫자는 `vw.py` 가 본문으로 가른다).
 5. **KGM 발표자료 날짜 근거** — DART 영업(잠정)실적 중 KGM 분기 실적 공시의 접수일을 `qdates` 로. 지금 `quarter_dates` 는 「연결재무제표기준」 공시만 본다 — KGM 공시 제목 꼴은 **미확인** → 실측해 맞춘다. 🔴 KGM 발표자료 행은 지금 `wait='press'`(`ir_lists.py:582`)라 `qdates` 를 아예 안 본다 → 발표자료 행의 `wait` 를 `'dart'` 로 바꾸거나, 보도자료 날짜를 못 찾을 때 `qdates` 로 넘어가는 갈래를 둔다(어느 쪽인지 보고서에 · 새 `wait` 값이면 `HOLD_REASONS` 에도).
 6. **KGM CEO IR설명회·Pressday 날짜** — DART IR 개최 공시(I003) 일자로. KGM 이 그 공시를 냈는지 **미확인** → 없으면 지금처럼 «날짜 없음».
@@ -327,13 +328,15 @@
   - 일정 MUST_HIT(원문 `ir_us.md:54`): `Fourth quarter 2026 earnings announcement is scheduled for Wednesday, January 27, 2027 and the first quarter 2027 earnings announcement is scheduled for Wednesday, April 21, 2027.` → 두 행. 4분기 발표의 기간 표기는 2단계-o(연간 발표 = `YYYY-FY`)와 `docs/customers-collection.md` 의 일정 규칙을 따른다.
   - Deliveries 총계(원문 꼴 `ir_us.md:53`): 제목 `GM U.S. DELIVERIES FOR QUARTER 3 2026` + 총계 행 → `customer_volume_ir(metric='deliveries', period_grain='quarter', period='2026-Q3')`. 모델별 행은 읽지 않는다(차종 칸 없음). 총계 행 라벨은 실물로 정한다(**미확인**). 총계 행을 못 찾으면 failed. region 은 새 키 `'us'` — 대조 결과 기존 어휘에 미국 단독 키가 없고(GM 도매 행은 `north_america`·`international`·`total`), `total` 로 넣으면 전 세계 합계로 읽힌다. 화면 라벨 `lib/customers/format.ts:337-338` 근처 지역 이름 표에 `us: '미국'` 한 줄 + vitest 1건(`volumeSeriesLabel` · `format.test.ts:365` 근처). Task 13 이 `china` 를 같은 자리에 더한다 — 먼저 끝난 쪽이 표를 만들고 뒤쪽은 한 줄만.
   - `gm_probe_status` 는 그대로 — CDP 결과 코드가 목록에 더해질 뿐(시험 1건: `[403, None, 200]` → ok).
+  - 🔴 기존 시험 `test_gm_has_no_adapter`(`test_ir_lists.py:395` · `assertNotIn('GM', L.IR_LISTS)`)는 등록하면 반드시 깨진다 → `IR_LISTS['GM'] is fetch_gm` · `IR_EARNINGS_DATES['GM'] is fetch_gm_dates` 를 보는 시험으로 바꾼다(이름도 바꾼다).
+  - 50MB 상한은 «받은 뒤»가 아니라 «받는 도중»에: 페이지 안 JS 가 `content-length` 머리가 상한을 넘으면 본문을 읽지 않고, 머리가 없으면 `response.body.getReader()` 로 읽으며 누적이 상한을 넘는 순간 `reader.cancel()` 하고 «크기 초과» 표식을 돌려준다(`_chrome_fetch` 결과에 상태 대신 표식 · 받는 쪽이 `ir_lists.TooLarge` 로 바꾼다). 상한 값은 `MAX_IR_BYTES` 를 JS 에 인자로 넘긴다(두 곳에 박지 않는다). 시험: JS 문자열에 상한이 인자로 들어가는지 + 표식 → `TooLarge` 변환(순수 함수로 떼어 시험).
 - [ ] **Step 3: 구현**
   - `probe_gm`: requests → Playwright → **CDP** 순. 어느 하나라도 200 이면 ok. 🔴 GM 이 등록부에 들어가면 문서 목록 step 도 `(GM, 'ir_list')` 상태를 쓴다 — 시험 step 과 같은 칸을 덮어 서로 결과를 지운다. 그래서 등록 뒤 `probe_gm` 은 **로그만** 찍고 상태 표에 쓰지 않는다(수집기 상태 칸 CHECK 제약이 있으면 새 칸을 만들지 말고 이 방식으로).
   - `fetch_gm`·`fetch_gm_dates`: `_chrome_fetch` 로 받아 순수 파서로. 403 이면 `blocked`(기존 `GM_BLOCKED_REASON`) — 차단은 실패가 아니다(exit 0 · 노란 경고). Chrome 이 없으면 `error`(사유 「Chrome 없음」).
   - `gm.fetch(session, doc)`: `doc.source != 'ir'` 면 `fetch_content(session, doc)[0]`(EDGAR 경로 불변) · IR 이면 `_chrome_fetch([doc.url])` 바이트 → 길이가 `ir_lists.MAX_IR_BYTES` 를 넘으면 `ir_lists.TooLarge`(Task 1 · `collect_customer_numbers` 에서 import 하지 않는다) · PDF 면 `pdf_text`.
   - `gm.wants`: 기존 EDGAR 조건 + `doc.source == 'ir' and doc.form == 'us-deliveries'`(덱·서한은 3단계 — 내려받지 않는다).
 - [ ] **Step 4: 워크플로** — 「GM IR 접근 시험」 step: `python -m playwright install --with-deps chromium` 은 남기고(Playwright 갈래 + CDP 의 `connect_over_cdp` 클라이언트), 그 앞에 `google-chrome --version || true` 한 줄(러너에 Chrome 이 있는지 로그로). ubuntu-latest 에 Chrome 이 있는지는 **미확인** — 없다고 확인되면 새 외부 액션을 넣지 말고 멈추고 보고(새 외부 의존 = 구조 선택). 머리 주석 `probe_gm()` 줄을 「requests → Playwright → 실제 Chrome(CDP)」로. 매일 실행의 GM 문서 목록도 Chrome 에 기댄다 — 문서 목록 step 앞에 `google-chrome --version || echo "Chrome 없음"` 한 줄(GM 행에서만 · 실패로 만들지 않는다 · Chrome 이 없으면 위 「Chrome 없음」 error 로 상태 표에 남는다). 이 동작(Chrome 없는 날 GM 이 error)이 맞는지는 푸시 전 사용자 확인 항목으로 HANDOFF 에 적는다.
-- [ ] **Step 5: 시험·로컬 드라이런** — `pytest` · `--dry-run --company GM`(이 PC) 새 문서 > 0 · 일정 2행 · 숫자 수집 드라이런에서 Deliveries 문서가 대상으로 잡힌다.
+- [ ] **Step 5: 시험·로컬 드라이런** — `pytest` · `--dry-run --company GM`(이 PC) 새 문서 > 0 · 일정 2행 · Deliveries 문서가 숫자 대상인지는 시험(`gm.wants`)으로(Global Constraints 「목록 드라이런」 줄).
 - [ ] **Step 6: 커밋.** 🔴 GHA 에서 통하는지는 푸시 뒤 사용자가 `probe_gm_ir` 로 확인한다(이 계획 안에서 판정하지 않는다). 막히면 D1 의 「사용자 PC」 갈래 — PC 정기 실행 등록은 결과를 본 뒤 따로 정한다(보고서·HANDOFF 에 적는다).
 
 ### Task 9: 지표 밖 연간 전망 6개 — GM 4 · VW 2 (E2)
@@ -374,9 +377,9 @@
 
 항목:
 
-1. **`raised` 어간 `increas` 조임** — 지금 `\bincreas` 는 «매출이 늘었다» 같은 실적 문장에도 걸려, 숫자 비교를 못 하는 행·`other` 행의 stated 거르기가 느슨하다. `raised` 판정 = `rais(e|ed|es|ing)` 단독 또는 «(increas|boost|upgrad|lift|상향|올려|올린|높여|높인) + 같은 quote 안의 전망 낱말(guidance|outlook|forecast|target|expect|전망|목표|가이던스)». 전망 낱말에 `계획|plan|range|projection` 도 넣는다(실물 문장에 쓰인다). MUST_HIT `The Company increased its full-year guidance for adjusted EBITDA.`(기존 시험 `:558`) · `연간 매출 목표를 상향` · `전망을 올려` · `투자 계획을 상향` / MUST_MISS `Revenue increased 12% year over year to $5.2 billion.` · `판매가 늘어 매출을 올린 분기`(전망 낱말 없음). 🔴 한국어는 활용형을 낱낱이 나열하고 띄어쓰기 변이는 `\s*`(전역 경고 「한국어 부분 문자열」). 기존 STATED 시험 10건이 그대로 통과해야 한다.
+1. **`raised` 어간 `increas` 조임** — 지금 `\bincreas` 는 «매출이 늘었다» 같은 실적 문장에도 걸려, 숫자 비교를 못 하는 행·`other` 행의 stated 거르기가 느슨하다. `raised` 판정 = `rais(e|ed|es|ing)` 단독 또는 «(increas|boost|upgrad|lift|상향|올려|올린|높여|높인) + 같은 quote 안의 전망 낱말(guidance|outlook|forecast|target|expect|전망|목표|가이던스)». 전망 낱말에 `계획|plan|range|projection` 도 넣는다(실물 문장에 쓰인다). MUST_HIT `The Company increased its full-year guidance for adjusted EBITDA.`(기존 시험 `:558`) · `연간 매출 목표를 상향` · `전망을 올려` · `투자 계획을 상향` / MUST_MISS `Revenue increased 12% year over year to $5.2 billion.` · `판매가 늘어 매출을 올린 분기`(전망 낱말 없음). 🔴 한국어는 활용형을 낱낱이 나열하고 띄어쓰기 변이는 `\s*`(전역 경고 「한국어 부분 문자열」). 기존 STATED 시험 32건(`STATED_HIT` 26 · `STATED_MISS` 6 · `llm_guidance.py:538·569`)이 그대로 통과해야 한다 — `('lowered', '투자 계획을 내린 15조 원')` 처럼 이미 `계획` 을 전망 낱말로 쓰는 행이 있다.
 2. **P4 「서식 미인식」 오탐** — 분기 잠정 «범위»만 낸 EDGAR 8-K Item 2.02(폴라리스 2025-10-14 · 리비안 2026-07-06 — `collect_customer_numbers._expects_numbers` docstring)는 새로 오면 경고가 한 번 뜬다. 두 파서에 `expects_numbers(doc)` 훅을 두어 «잠정 범위 공시» 꼴을 False 로 — 가르는 근거(제목·items·본문 첫 문장)는 두 실물로 확인. 근거가 실물에 없으면 고치지 말고 보고(지금 동작 = 한 번 뜨고 사람이 넘김 — 문서화돼 있다). 훅이 생기면 `_expects_numbers` 기본 갈래(EDGAR 2.02)는 그 회사에서 쓰이지 않으므로 훅 안에서 2.02 조건을 다시 포함한다.
-3. **스텔란티스 출하 합계 대조** — `collect_stellantis_shipments_ir.py:83` `TOTAL_LABEL`(전사 합계 행 `'stellantis'`)과 `extract_row_thousands` 는 있지만(2단계 T9) 고객사 파서의 연결 출하와 맞대는 대조가 없다. 같은 분기의 «EDGAR 실적 보도자료 연결 출하»(stellantis 파서 행)와 «IR 출하 표 합계 행»이 다르면 문서 note 에 「출하 합계 불일치(EDGAR n천 · IR m천)」 + 상태 사유(값은 버리지 않는다 · exit 0). 허용오차 = 반올림 단위(천 대 → ±1). IR 출하 표를 어디서 읽을지(같은 원문 표를 받아 `extract_row_thousands` 로 읽기 · 또는 기존 표 `stellantis_*` 를 읽기만)는 착수 때 보고 — 🔴 기존 표·수집기는 고치지 않는다. 대조할 IR 원문을 받을 방법이 Playwright 뿐이면(D8 과 같은 사이트) 이 항목은 멈추고 보고(3단계로).
+3. **스텔란티스 출하 합계 대조** — `collect_stellantis_shipments_ir.py:83` `TOTAL_LABEL`(전사 합계 행 `'stellantis'`)과 `extract_row_thousands` 는 있지만(2단계 T9) 고객사 파서의 연결 출하와 맞대는 대조가 없다. 같은 분기의 «EDGAR 실적 보도자료 연결 출하»(stellantis 파서 행)와 «IR 출하 표 합계 행»이 다르면 — 🔴 파서가 메모를 넘길 통로가 지금 없다(`ParseResult` 에 메모 칸 없음 `base.py:101` · 수집기 `notes` 는 `process` 지역 변수 `collect_customer_numbers.py:582-634` · Codex 대조) → `ParseResult.notes: list[str] = field(default_factory=list)` 를 더하고 `process` 가 `notes.extend(res.notes)` 하도록 한 줄(Files 에 `base.py`·`collect_customer_numbers.py` 추가 · 기존 파서는 안 쓰면 빈 목록이라 그대로) — 문서 note 에 「출하 합계 불일치(EDGAR n천 · IR m천)」 + 상태 사유(값은 버리지 않는다 · exit 0). 허용오차 = 반올림 단위(천 대 → ±1). IR 출하 표를 어디서 읽을지(같은 원문 표를 받아 `extract_row_thousands` 로 읽기 · 또는 기존 표 `stellantis_*` 를 읽기만)는 착수 때 보고 — 🔴 기존 표·수집기는 고치지 않는다. 대조할 IR 원문을 받을 방법이 Playwright 뿐이면(D8 과 같은 사이트) 이 항목은 멈추고 보고(3단계로).
 4. **VW `approximately`/`about`** — `_RANGE_WORD` 에 둘을 더하되 `around` 와 같은 근사 처리(숫자 그대로 · 원문 구절을 `value_text` · 2단계-ag). Task 9 의 `operating_margin_adjusted` 와 겹치지 않게 — MUST_HIT `expects Group sales revenue in 2026 of approximately €315 billion` · MUST_MISS(근사어가 이전 전망 구절 안이면 읽지 않음 — 기존 `previous forecast` 규칙 유지).
 
 - [ ] **Step 1~4**: 항목별 시험 → 구현 → 자가 시험·`pytest`.
@@ -388,7 +391,7 @@
 
 **Files:**
 
-- Modify: `scripts/customer_parsers/vw.py`(인도 표 파서 — 지금 `World` 행만 읽는다 `:237-239` · `_DELIV_HEAD` · 자가 시험)
+- Modify: `scripts/customer_parsers/vw.py`(인도 표 파서 — 지금 `World` 행만 읽는다 `:237-239` · `_DELIV_HEAD` · 자가 시험). 🔴 자가 시험의 펼치기 키 `('V', x.metric, x.period)`(`vw.py:477`)에 지역이 없어 중국 행이 전 세계 행을 덮는다(Codex 재현: 전체 100→999 로 바꿔도 중국 30 이 덮어 결과 동일) → 키에 `x.region` 을 넣고 기존 기대 키(`ADHOC`·인도 시험 등)를 함께 고친다.
 - Modify: `scripts/lib/ir_lists.py`(Task 2 의 갤러리 결과에서 China Investor Update 판정 — Task 2 가 이미 `investor_day` 로 넣었으면 `form` 만 확인)
 - Modify: `lib/customers/format.ts`(지역 이름 표에 `china: '중국'` · Task 8 과 같은 자리) · `lib/customers/format.test.ts`
 - Check: `lib/customers/ir.ts` `buildVolumeSeries` `:298-318` · `components/customers/CustomerVolumeCompare.tsx`(total 이 아닌 지역도 계열로 뜨는지 — 뜨면 손댈 것 없음)
@@ -423,9 +426,10 @@
 
 구현 서브에이전트에 맡기지 않는다 — 최종 검토와 수정이 끝난 뒤 메인 세션이 돌린다.
 
-- [ ] **Step 1: 대상 목록** — Task 9·13 보고서의 GM·VW 문서 id · stated 4줄 문서(폴라리스 303·304 · 스텔란티스 317·318 — 2단계 HANDOFF) · Task 10-1 로 stated 가 바뀔 수 있는 문서(`customer_guidance.stated is not null` 이고 `extractor='llm'` 인 행의 문서 — 쿼리로 뽑는다). 문서별로 «LLM 을 부르는지»(`llm_wants`/`llm_only`)를 표시.
+- [ ] **Step 0: 새 문서 목록 본 적재** — `collect_customer_docs.py`(드라이런 아님)를 11곳에 돌려 Task 2~8·13 의 새 문서를 `customer_documents` 에 넣는다(목록만 · 매일 GHA 가 푸시 뒤 할 일과 같다). 이어 `collect_customer_numbers.py`(드라이런 아님)로 새 문서를 처리한다 — 새 코드 대상(포르쉐 팩트시트 · 모비스 Script · GM 인도)은 코드로, 현대·기아 CID 등 LLM 대상은 LLM 으로. 회사별 새 문서 수 · parsed/not_target/failed 수 · LLM 토큰을 기록(Global Constraints 「목록 드라이런」 줄의 실물 확인).
+- [ ] **Step 1: 대상 목록** — Task 9·13 보고서의 GM·VW 문서 id · stated 4줄 문서(폴라리스 303·304 · 스텔란티스 317·318 — 2단계 HANDOFF) · Task 10-1 로 stated 가 바뀔 수 있는 문서(`customer_guidance.stated is not null` 이고 `extractor='llm'` 인 행의 문서 — 쿼리로 뽑는다) · Task 9 새 키로 옮겨 갈 수 있는 LLM 문서(`extractor='llm'` 이고 `metric in ('operating_margin','other')` 이면서 `metric_label`/quote 에 조정·특별 항목·EPS·영업현금흐름 낱말이 있는 행의 문서 — 쿼리로 뽑아 건수를 먼저 보고 · 0건이면 그렇게 적는다). 문서별로 «LLM 을 부르는지»(`llm_wants`/`llm_only`)를 표시.
 - [ ] **Step 2: 드라이런** — 대상마다 `--reparse <id> --dry-run` 으로 바뀔 행 수를 본다(🔴 2단계 기록: `--dry-run` 도 LLM 을 부른다 — LLM 대상 문서는 드라이런을 건너뛰고 본 실행만 한다).
-- [ ] **Step 3: 본 실행** — 한 건씩 `--reparse <id>`. 각 실행의 바뀐 행 수 · LLM 토큰(Task 5 출력)을 기록. 실패(exit 1)가 나면 거기서 멈추고 원인을 본다.
+- [ ] **Step 3: 본 실행** — 한 건씩 `--reparse <id>`. 각 실행의 바뀐 행 수 · LLM 토큰(Task 5 출력)을 기록. 실패(exit 1)가 나면 거기서 멈추고 원인을 본다. 🔴 exit 0 이 완료가 아니다 — LLM 실패로 재시도 대기(`pending`)가 되거나 키가 없어 LLM 을 건너뛰어도 0 이 나오고 옛 LLM 행이 남는다(`collect_customer_numbers.py:659-680` · Codex 대조). 문서마다 실행 뒤 `parse_status='parsed'` · LLM 대상이면 이번 실행에서 LLM 이 돌았는지(토큰 줄) · 새 행의 `created_at` 이 실행 시각 뒤인지를 확인하고, 어긋나면 그 문서를 다시 한다.
 - [ ] **Step 4: 확인** — 새 지표 행 `verified=true` 수 · LLM 문서의 metric 별 행 수 전후(Task 9 — 새 키로 옮겨 간 행) · stated 4줄이 지워졌는지 · 방향(`direction`) 재계산 결과를 Supabase MCP `execute_sql`(읽기)로 확인. 금액·비중 같은 사외비 값은 출력하지 않는다(고객사 공개 지표는 사외비가 아니지만 행 수·verified 수만 보고).
 - [ ] **Step 5: 기록** — 결과를 HANDOFF·결정 이행 문서(E3)에. 코드 변경이 없으면 커밋할 것은 문서뿐.
 
