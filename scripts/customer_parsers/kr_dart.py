@@ -96,10 +96,12 @@ _SCRIPT_TARGET = re.compile(r'annual\s+order\s+target\s+of\s+USD\s*(\d+(?:\.\d+)
 _YEAR = re.compile(r'\b(20\d{2})\b')
 _DOC_QUARTER_YEAR = re.compile(r'\b(20\d{2})\s*[1-4]Q\b')   # 목록 제목 「2026 3Q Business Results Script」
 _PARAGRAPH = re.compile(r'\n\s*\n')
+_SENTENCE_END = re.compile(r'[.!?](?=\s)')   # 소수점(「8.97」)은 뒤가 숫자라 문장 끝이 아니다
 
 
 def is_mobis_script(doc: Doc) -> bool:
-  """현대모비스 영문 실적 Script(목록 어댑터 parse_mobis_script → form='script') — 수주 목표 문장을 코드가 읽는다(Task 5)."""
+  """현대모비스 영문 실적 Script(목록 어댑터 lib.ir_lists.parse_mobis_script → form='script') — 수주 목표 문장을 코드가
+  읽는다(parse_script_order_target · Task 5)."""
   return doc.source == 'ir' and doc.ticker == MOBIS and doc.form == SCRIPT_FORM
 
 
@@ -119,9 +121,11 @@ def wants(doc: Doc) -> bool:
 
 def expects_numbers(doc: Doc) -> bool:
   """숫자가 반드시 있어야 하는 문서(오케스트레이터가 not_target 이면 「서식 미인식」 으로 드러낸다 · 최종 검토 P4) —
-  DART 영업(잠정)실적 공정공시(분기 잠정실적·월 판매 · doc_type prelim_results/earnings_release). IR 개최 공고(NDR 등)·
-  가이던스(중장기는 LLM 몫)는 숫자 없는 not_target 이 정상이라 빠진다. 실측(2026-11-10): prelim_results 110건 전부 parsed."""
-  return doc.source == 'dart' and doc.doc_type in ('prelim_results', 'earnings_release')
+  DART 영업(잠정)실적 공정공시(분기 잠정실적·월 판매 · doc_type prelim_results/earnings_release) · 현대모비스 영문 Script
+  (실물 2회차 모두 수주 목표 문장이 있다 — 문구가 바뀌어 못 읽으면 조용히 닫히지 않고 경고 · 결정 E7 2026-11-11).
+  IR 개최 공고(NDR 등)·가이던스(중장기는 LLM 몫)는 숫자 없는 not_target 이 정상이라 빠진다.
+  실측(2026-11-10): prelim_results 110건 전부 parsed."""
+  return is_mobis_script(doc) or doc.source == 'dart' and doc.doc_type in ('prelim_results', 'earnings_release')
 
 
 def _int(s: str) -> int:
@@ -336,17 +340,31 @@ def parse_ir_date(text: str) -> tuple[list[EarningsDate], bool]:
   return [EarningsDate(period, m.group(1), m.group(0))], True
 
 
-def parse_mobis_script(text: str, doc_year: int | None) -> tuple[list[GuidanceRow], bool]:
-  """현대모비스 영문 Script → 연간 수주 목표(order_intake · USD · 코드 행). 연도 = 같은 문단(빈 줄 사이)의 연도가 하나면
-  그것 → 아니면 문서 분기의 연도(doc_year = 목록 제목). 문서 밖 연도는 쓰지 않는다 — 둘 다 없으면 행을 만들지 않는다
-  (알아봤는데 0행 = failed 로 드러난다). 알아봄 = 목표 문장이 있다 — 없는 회차는 not_target."""
+def _script_year(text: str, m: re.Match, doc_year: int | None) -> int | None:
+  """수주 목표 문장의 연도. ① 같은 문장 안 매치 앞의 가장 가까운 연도(「For 2027, we set an annual order target …」)
+  → ② 없으면 같은 문단(빈 줄 사이)의 연도가 하나일 때 그것 → ③ 문단에 연도가 없으면 문서 분기의 연도(목록 제목).
+  문단에 서로 다른 연도가 둘 이상인데 문장에 연도가 없으면 None(어느 해 목표인지 원문으로 못 가린다 — 4분기 Script 가
+  다음 해 1월에 「… in 2026. … annual order target …」 꼴로 오면 FY 를 잘못 붙인다). 문서 밖 연도는 쓰지 않는다."""
+  start = max((p.end() for p in _PARAGRAPH.finditer(text, 0, m.start())), default=0)
+  sent = max((s.end() for s in _SENTENCE_END.finditer(text, start, m.start())), default=start)
+  before = _YEAR.findall(text, sent, m.start())
+  if before:
+    return int(before[-1])
+  nxt = _PARAGRAPH.search(text, m.end())
+  years = set(_YEAR.findall(text, start, nxt.start() if nxt else len(text)))
+  if len(years) == 1:
+    return int(next(iter(years)))
+  return doc_year if not years else None
+
+
+def parse_script_order_target(text: str, doc_year: int | None) -> tuple[list[GuidanceRow], bool]:
+  """현대모비스 영문 Script 본문 → 연간 수주 목표(order_intake · USD · 코드 행). 연도 = _script_year — 못 정하면 행을
+  만들지 않는다(알아봤는데 0행 = failed 로 드러난다). 알아봄 = 목표 문장이 있다 — 없으면 recognized=False 이고,
+  Script 는 expects_numbers 가 참이라 오케스트레이터가 「서식 미인식」 으로 경고한다(문구 변경이 조용히 닫히지 않게 · E7)."""
   out = []
   matches = list(_SCRIPT_TARGET.finditer(text))
   for m in matches:
-    start = max((p.end() for p in _PARAGRAPH.finditer(text, 0, m.start())), default=0)
-    nxt = _PARAGRAPH.search(text, m.end())
-    years = set(_YEAR.findall(text[start:nxt.start() if nxt else len(text)]))
-    year = int(next(iter(years))) if len(years) == 1 else doc_year
+    year = _script_year(text, m, doc_year)
     if year is None:
       continue
     v = float(m.group(1))
@@ -364,7 +382,7 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   text = content.text
   res = ParseResult()
   if is_mobis_script(doc):
-    res.guidance, res.recognized = parse_mobis_script(text, _doc_quarter_year(doc.title))
+    res.guidance, res.recognized = parse_script_order_target(text, _doc_quarter_year(doc.title))
     return res
   if llm_only(doc):
     return res   # IR 발표자료 — 코드가 읽지 않는다(llm_wants 가 참 · LLM 행이 없으면 not_target)
@@ -537,14 +555,24 @@ SCRIPT_3Q26 = ('of KRW 880.7 billion, up 7.8% year\n-over-year, supported by reg
                'Next, I will discuss R&D Tech Day. In September, we unveiled approximately 60 R&D \n')
 _SCRIPT_2Q26 = ('Non-captive orders for Core Parts reached USD 740 million in the second quarter of 2026, \n'
                 'representing 8.2% of the annual order target of USD 8.97 billion.\n \n')
+# 가상 문구(실물 없음 — 4분기 Script 가 다음 해 1월에 올 꼴 대비): 같은 문장 앞의 연도 · 문단에 연도 둘 + 문장엔 없음
+_SCRIPT_NEXT_YEAR = ('Non-captive orders for Core Parts reached USD 9.2 billion in 2026. \n'
+                     'For 2027, we set an annual order target of USD 9.5 billion.\n \n')
+_SCRIPT_TWO_YEARS = ('Non-captive orders for Core Parts reached USD 9.2 billion in 2026, up from USD 9.1 billion in 2025. \n'
+                     'We set an annual order target of USD 9.5 billion.\n \n')
 # (본문, 문서 분기 연도, 기대 (기간, low, high, 통화, 단위))
 MUST_HIT_SCRIPT = [
   ('representing 13% of the annual order target of USD 8.97 billion', 2026, ('FY2026', 8.97, 8.97, 'USD', 'billion')),
-  (SCRIPT_3Q26, None, ('FY2026', 8.97, 8.97, 'USD', 'billion')),    # 문단의 연도(「third quarter of 2026」)
-  (_SCRIPT_2Q26, 2027, ('FY2026', 8.97, 8.97, 'USD', 'billion')),   # 가상 — 문단 연도가 문서 연도보다 먼저
+  (SCRIPT_3Q26, None, ('FY2026', 8.97, 8.97, 'USD', 'billion')),    # 같은 문장의 연도(「third quarter of 2026」)
+  (_SCRIPT_2Q26, None, ('FY2026', 8.97, 8.97, 'USD', 'billion')),   # 문서 연도 없이 문장 연도만으로
+  (_SCRIPT_NEXT_YEAR, 2026, ('FY2027', 9.5, 9.5, 'USD', 'billion')),   # 문장 앞 연도가 문서·문단의 2026 보다 먼저
 ]
-MUST_MISS_SCRIPT = [   # 누계 «실적» — 목표가 아니다
-  'Non-captive orders for Core Parts reached USD 1.15 billion on a cumulative basis through the third quarter of 2026',
+# (본문, 문서 분기 연도, recognized 기대) — 행 0 이어야 한다
+MUST_MISS_SCRIPT = [
+  # 누계 «실적» — 목표 문장이 아니다(알아보지 않음 → expects_numbers 가 참이라 「서식 미인식」 경고)
+  ('Non-captive orders for Core Parts reached USD 1.15 billion on a cumulative basis through the third quarter of 2026',
+   2026, False),
+  (_SCRIPT_TWO_YEARS, 2026, True),   # 어느 해 목표인지 못 가린다 → 행 없음 · 알아봄(0행 = failed)
 ]
 
 
@@ -565,8 +593,10 @@ def _parse_doc_test() -> list[str]:
   script = Doc(**{**doc.__dict__, 'ticker': MOBIS, 'source': 'ir', 'doc_type': 'presentation', 'form': SCRIPT_FORM,
                   'title': '2026 3Q Business Results Script'})
   perf = Doc(**{**script.__dict__, 'form': 'performance'})
-  if not wants(script) or llm_only(script) or not llm_only(perf):
-    return ['kr_dart 모비스 Script 갈래 어긋남(wants·llm_only)']
+  # Script 는 숫자가 꼭 있어야 하는 문서(목표 문장을 못 읽으면 「서식 미인식」 경고 · E7) · 국문 실적 PDF 는 아니다
+  if not wants(script) or llm_only(script) or not llm_only(perf) or not expects_numbers(script) \
+     or expects_numbers(perf):
+    return ['kr_dart 모비스 Script 갈래 어긋남(wants·llm_only·expects_numbers)']
   res = parse(script, Content(text=SCRIPT_3Q26))
   if [g.period for g in res.guidance] != ['FY2026'] or llm_wants(script, res):
     return [f'kr_dart 모비스 Script parse: {res.guidance} · llm_wants={llm_wants(script, res)}']
@@ -621,12 +651,12 @@ def self_test() -> list[str]:
     if not parse_guidance(text)[1]:
       errs.append(f'kr_dart 가이던스 recognized 아님: {text[:30]}')
   for text, year, want in MUST_HIT_SCRIPT:
-    rows, ok = parse_mobis_script(text, year)
+    rows, ok = parse_script_order_target(text, year)
     got = [(r.period, r.low, r.high, r.currency, r.unit) for r in rows if r.metric == 'order_intake']
     if got != [want] or not ok:
       errs.append(f'kr_dart 모비스 Script 수주 목표 {text[:40]!r}: {got} ≠ {want}')
-  for text in MUST_MISS_SCRIPT:
-    rows, ok = parse_mobis_script(text, 2026)
-    if rows or ok:
-      errs.append(f'kr_dart 모비스 Script 오탐(누계 실적): {text[:40]}')
+  for text, year, recognized in MUST_MISS_SCRIPT:
+    rows, ok = parse_script_order_target(text, year)
+    if rows or ok != recognized:
+      errs.append(f'kr_dart 모비스 Script 오탐 {text[:40]!r}: 행 {len(rows)} · recognized={ok} (기대 0행 · {recognized})')
   return errs + _parse_doc_test()

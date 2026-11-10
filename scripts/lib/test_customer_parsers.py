@@ -194,11 +194,42 @@ class MobisScriptTests(unittest.TestCase):
     self.assertEqual(quote_check.check_row(res.guidance[0], content.text), (True, 'ok'))
     self.assertFalse(self.K.llm_wants(self._doc(), res))   # LLM 호출 0
 
-  def test_cumulative_actual_is_not_target(self):
+  def test_cumulative_actual_is_not_read(self):
     res = self.K.parse(self._doc(), base.Content(
       text='Non-captive orders for Core Parts reached USD 1.15 billion on a cumulative basis through the third quarter '
            'of 2026'))
-    self.assertEqual((res.guidance, res.recognized), ([], False))   # 목표 문장이 없는 회차 = 대상 아님
+    self.assertEqual((res.guidance, res.recognized), ([], False))   # 목표 문장 없음 → 알아보지 않음(아래 경고 시험)
+
+  def test_script_without_target_is_unrecognized_warning(self):
+    """E7(2026-11-11 사용자 결정) — 목표 문장이 없는 Script(문구가 바뀐 회차)는 조용한 not_target 이 아니라
+    숫자 수집기가 「서식 미인식」 으로 남기고 상태 사유에 센다(expects_numbers 가 참)."""
+    import importlib.util
+    from types import SimpleNamespace
+    from unittest import mock
+    p = pathlib.Path(__file__).resolve().parents[1] / 'collect_customer_numbers.py'
+    spec = importlib.util.spec_from_file_location('ccn_t5', p)
+    ccn = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ccn)
+    self.assertTrue(self.K.expects_numbers(self._doc()))
+    self.assertFalse(self.K.expects_numbers(self._doc(title='2026년 3분기 경영실적', form='performance')))
+    changed = base.Content(text='Our annual order goal for 2026 is USD 8.97 billion.')   # 가상 — 문구 변경
+    ws = mock.MagicMock()
+    run = ccn._CompanyRun(self.K, mock.MagicMock(), None, ws, SimpleNamespace(dry_run=False, no_llm=True), 'cid')
+    with mock.patch.object(ccn, 'fetch_content', return_value=(changed, 'sha')):
+      run.process(base.Doc(**{**self._doc().__dict__, 'id': 9}), None, None)   # id 0 은 문서 행을 안 쓴다
+    last = ws.table.return_value.update.call_args_list[-1].args[0]
+    self.assertEqual((last['parse_status'], last['parse_note']), ('not_target', ccn.NOTE_UNRECOGNIZED))
+    self.assertEqual(run.outcomes['unrecognized'], 1)
+
+  def test_year_nearest_before_in_same_sentence(self):
+    """다음 해 1월의 4분기 Script 꼴 — 문단엔 2026 이 있어도 같은 문장 앞의 2027 이 목표 연도(가상 문구)."""
+    res = self.K.parse(self._doc(title='2026 4Q Business Results Script'), base.Content(text=self.K._SCRIPT_NEXT_YEAR))
+    self.assertEqual([(g.period, g.low) for g in res.guidance], [('FY2027', 9.5)])
+
+  def test_two_years_in_paragraph_no_row(self):
+    """문장엔 연도가 없고 문단엔 둘 — 어느 해 목표인지 못 가려 행을 안 만든다(알아봄 · 0행 = failed)."""
+    res = self.K.parse(self._doc(), base.Content(text=self.K._SCRIPT_TWO_YEARS))
+    self.assertEqual((res.guidance, res.recognized), ([], True))
 
   def test_year_from_document_quarter_when_paragraph_has_none(self):
     res = self.K.parse(self._doc(), base.Content(
