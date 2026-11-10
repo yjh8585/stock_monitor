@@ -387,9 +387,11 @@ def parse_vw(rss_xml: str | bytes, results_html: str, adhoc_html: str, deliverie
   (세 문서가 같은 날 나온다). RSS(약 100건 ≈ 2년)에 없으면 `_quarter`(wait='rss')로 내보내 수집기가 범위 밖으로 거른다.
 
   제목으로 종류를 못 정한 RSS 글이 분기 인도 표를 올린 날과 같은 날이면 인도 보도자료다(1분기 제목엔 deliver 가 없다).
+  단 그날 제목으로 이미 인도 보도자료가 된 글이 있으면 그 글이 인도 보도이고 나머지는 홍보 글이다.
   """
   rss = {r['source_id']: r for r in parse_vw_rss(rss_xml)}
-  deliv_days = set(parse_vw_deliveries(deliveries_html))
+  titled = {r['published_at'] for r in rss.values() if r['doc_type'] == 'sales_release'}
+  deliv_days = set(parse_vw_deliveries(deliveries_html)) - titled
   for r in rss.values():
     if r['doc_type'] is None and r['published_at'] in deliv_days:
       r['doc_type'] = 'sales_release'
@@ -410,7 +412,7 @@ def parse_vw(rss_xml: str | bytes, results_html: str, adhoc_html: str, deliverie
 
 
 def _vw_gallery_pages(session: requests.Session, gallery_id: str) -> list[dict]:
-  """갤러리 하나를 끝까지(`nextOffset` 이 null 이 될 때까지 · 한 쪽 3건). 타일이 하나도 없으면 그 갤러리가 깨진 것."""
+  """갤러리 하나를 끝까지(`nextOffset` 이 null 이 될 때까지 · 한 쪽 3건). 0건 판정은 fetch_vw 가 갤러리 전체 합계로 한다."""
   url, offset, pages = f'{VW_BASE}/en/item/galleries/{gallery_id}/documents', 0, []
   while offset is not None:
     p = _fetch(session, url, params={'offset': offset}, headers={'Accept': 'application/json'}).json()
@@ -419,7 +421,6 @@ def _vw_gallery_pages(session: requests.Session, gallery_id: str) -> list[dict]:
     if nxt is not None and nxt <= offset:
       raise ValueError(f'VW 발표자료 갤러리 {gallery_id} 쪽 번호가 앞으로 가지 않는다({offset} → {nxt})')
     offset = nxt
-  _need(f'VW 발표자료 갤러리 {gallery_id}', [r for p in pages for r in parse_vw_gallery(p)])
   return pages
 
 
@@ -428,6 +429,9 @@ def fetch_vw(session: requests.Session, since: str) -> list[dict]:
   htmls = [main] + [_fetch(session, urljoin(VW_BASE, p)).text for p in vw_presentation_pages(main, since)]
   ids = list(dict.fromkeys(g for h in htmls for g in vw_gallery_ids(h)))
   pages = [p for g in ids for p in _vw_gallery_pages(session, g)]
+  # 0건 판정은 갤러리 «전체 합계»로 — 새해에 올해 쪽 갤러리 하나가 비어도 RSS·행렬·ad-hoc 까지 멈추지 않게.
+  # 전부 비면 갤러리 구조가 바뀐 것이다.
+  _need('VW 발표자료 갤러리 전체', [r for p in pages for r in parse_vw_gallery(p)])
   return parse_vw(_fetch(session, VW_RSS).content, _fetch(session, VW_RESULTS).text, _fetch(session, VW_ADHOC).text,
                   _fetch(session, VW_DELIVERIES).text, pages)
 
@@ -518,7 +522,9 @@ PORSCHE_REPORTS = f'{PORSCHE_IR}/en/financial-information/reports-and-presentati
 # 날짜 근거 = EQS 2026-10-07 보도 「At its Capital Markets Day, Porsche AG presents its strategy ‘Sportwagenschmiede '35’」.
 # 보고서 표의 행사 탭에도 있지만 그 표엔 날짜가 없다. 다음 CMD 는 경로가 달라질 것이라 여기 한 건만 둔다.
 PORSCHE_CMD = (f'{PORSCHE_IR}/~/media/Files/P/porsche-ir/cmd-2026/CapitalMarketsDay2026.pdf',
-               'Capital Markets Day 2026 Presentation', '2026-10-07')
+               'Capital Markets Day 2026 Presentation',
+               # SHORTCUT: CMD 날짜를 EQS 2026-10-07 보도에서 옮겨 적음 → 다음 CMD 때 피드의 Capital Markets Day 보도일에서 읽도록
+               '2026-10-07')
 
 # 보고서 표의 행 이름 → (doc_type, form). 모르는 행은 other(D4) + 'report-table'.
 _P_REPORT_ROWS = {

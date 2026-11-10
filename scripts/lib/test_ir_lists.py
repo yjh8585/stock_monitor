@@ -262,40 +262,63 @@ class VwGalleryTest(unittest.TestCase):
       L.parse_vw_deliveries('<html></html>')
     self.assertEqual(str(cm.exception), 'VW 인도 표 0건')
 
-  def _fake_fetch(self, gallery_pages: list[dict], calls: list):
+  def _fake_fetch(self, galleries: dict[str, list[dict]], calls: list):
+    """galleries = {갤러리 ID: 쪽들} — 올해 쪽 HTML 에 그 ID 들이 박힌다."""
     def resp(body, content=None):
       r = MagicMock()
       r.text, r.content = body, content if content is not None else body.encode('utf-8')
       return r
-    it = iter(gallery_pages)
+    its = {g: iter(pages) for g, pages in galleries.items()}
+    main = ''.join(f'<div up-data="{{&quot;url&quot;:&quot;/en/item/galleries/{g}/documents&quot;}}"></div>'
+                   for g in galleries)
 
     def fetch(session, url, **kw):
       calls.append((url, kw))
       if '/item/galleries/' in url:
         r = MagicMock()
-        r.json.return_value = next(it)
+        r.json.return_value = next(its[url.split('/item/galleries/')[1].split('/')[0]])
         return r
       return resp({L.VW_RSS: '', L.VW_RESULTS: _text('vw_results.html'), L.VW_ADHOC: _text('vw_adhoc.html'),
-                   L.VW_DELIVERIES: _text('vw_deliveries.html'),
-                   L.VW_PRESENTATIONS: '<div up-data="{&quot;url&quot;:&quot;/en/item/galleries/7/documents&quot;}">'
-                   '</div>'}[url], (FIX / 'vw_rss.xml').read_bytes() if url == L.VW_RSS else None)
+                   L.VW_DELIVERIES: _text('vw_deliveries.html'), L.VW_PRESENTATIONS: main}[url],
+                  (FIX / 'vw_rss.xml').read_bytes() if url == L.VW_RSS else None)
     return fetch
 
   def test_fetch_pages_with_accept_json(self):
     calls = []
     pages = [{'html': self.PAGES[0]['html'], 'nextOffset': 3}, {'html': self.PAGES[1]['html'], 'nextOffset': None}]
-    with patch.object(L, '_fetch', side_effect=self._fake_fetch(pages, calls)):
+    with patch.object(L, '_fetch', side_effect=self._fake_fetch({'7': pages}, calls)):
       rows = L.fetch_vw(MagicMock(), '2026-01-01')
     gallery = [(u, kw) for u, kw in calls if '/item/galleries/' in u]
     self.assertEqual([kw['params'] for _, kw in gallery], [{'offset': 0}, {'offset': 3}])
     self.assertTrue(all(kw['headers'] == {'Accept': 'application/json'} for _, kw in gallery))
     self.assertTrue([r for r in rows if r['form'] == 'roadshow'])
 
-  def test_empty_gallery_is_error(self):
-    with patch.object(L, '_fetch', side_effect=self._fake_fetch([{'html': '', 'nextOffset': None}], [])):
+  EMPTY = [{'html': '', 'nextOffset': None}]
+
+  def test_one_empty_gallery_passes(self):
+    """새해에 올해 쪽 갤러리 하나가 비어도 IR 목록 전체(RSS·행렬·ad-hoc)가 멈추지 않는다 — 다른 갤러리 행은 그대로."""
+    galleries = {'7': self.EMPTY, '8': [{'html': self.PAGES[0]['html'], 'nextOffset': None}]}
+    with patch.object(L, '_fetch', side_effect=self._fake_fetch(galleries, [])):
+      rows = L.fetch_vw(MagicMock(), '2026-01-01')
+    self.assertTrue([r for r in rows if r['form'] == 'roadshow'])
+    self.assertTrue([r for r in rows if r['form'] == 'ad-hoc'])
+
+  def test_all_galleries_empty_is_error(self):
+    with patch.object(L, '_fetch', side_effect=self._fake_fetch({'7': self.EMPTY, '8': self.EMPTY}, [])):
       with self.assertRaises(L.EmptyListError) as cm:
         L.fetch_vw(MagicMock(), '2026-01-01')
-    self.assertEqual(str(cm.exception), 'VW 발표자료 갤러리 7 0건')
+    self.assertEqual(str(cm.exception), 'VW 발표자료 갤러리 전체 0건')
+
+  def test_delivery_day_rule_skips_day_with_titled_release(self):
+    """그날 제목으로 이미 인도 보도자료(2026-10-12 「delivers 6 million」)가 있으면 같은 날 제목 미판정 글은 홍보 글."""
+    extra = (b'<item><title>Volkswagen opens new design studio</title><description></description>'
+             b'<pubDate>Mon, 12 Oct 2026 00:00:00 +0000</pubDate>'
+             b'<link>https://www.volkswagen-group.com/en/press-releases/new-design-studio-1</link></item></channel>')
+    rss = (FIX / 'vw_rss.xml').read_bytes().replace(b'</channel>', extra, 1)
+    rows = L.parse_vw(rss, _text('vw_results.html'), _text('vw_adhoc.html'), _text('vw_deliveries.html'),
+                      _json('vw_gallery.json'))
+    self.assertFalse([r for r in rows if 'new design studio' in r['title']])
+    self.assertEqual(next(r for r in rows if 'delivers 6 million' in r['title'])['doc_type'], 'sales_release')
 
 
 class PorscheReportsTest(unittest.TestCase):
