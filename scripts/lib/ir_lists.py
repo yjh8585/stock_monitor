@@ -203,8 +203,9 @@ def results_quarter_dates(pairs) -> dict[str, str]:
   return out
 
 
-# 분기 말 + 이 날수 안에 실적이 나온다(국내·독일·미국 실물 최장 = 4분기 3월 초). 이보다 오래된 «날짜 미상» 행은 범위 밖.
-_RESULTS_LAG_DAYS = 100
+# 분기 말 + 이 날수 안에 실적이 나온다. 이보다 오래된 «날짜 미상» 행은 범위 밖.
+# 실물 최장 = 빈패스트 2024 4분기 실적 6-K 114일(2025-04-24) · 2026 2분기 111일(2026-10-19) — 국내·독일·미국은 4분기 3월 초.
+_RESULTS_LAG_DAYS = 120
 
 
 def resolve_dates(rows: list[dict], qdates: dict[str, str], since: str) -> tuple[list[dict], dict[str, int]]:
@@ -920,6 +921,8 @@ def vinfast_pdf_url(viewer_html: str) -> str | None:
 def vinfast_edition_date(viewer_url: str, creation: str) -> str | None:
   """회사 소개 자료 날짜 = PDF 를 만든 날(메타데이터 CreationDate · 2026-11 판 = 2026-11-09). IR 쪽에는 날짜가 없다.
   판 이름(링크 끝 `2026.11.`)의 연·월과 같을 때만 쓴다 — 다르면 근거가 어긋난 것이라 날짜 없이 둔다."""
+  # SHORTCUT: 「PDF 만든 날」을 게시일로 근사 — 만든 뒤 며칠 지나 올리면 그만큼 이르다 → 회사가 게시일을 내는 곳(6-K·
+  #           보도자료·IR 뉴스)에서 판 이름을 찾으면 그 날짜로 바꾼다
   m, d = _VF_EDITION.search(urlsplit(viewer_url).path), _PDF_DATE.match(creation or '')
   if m and d and (int(m.group(1)), int(m.group(2))) == (int(d.group(1)), int(d.group(2))):
     return f'{d.group(1)}-{d.group(2)}-{d.group(3)}'
@@ -927,6 +930,8 @@ def vinfast_edition_date(viewer_url: str, creation: str) -> str | None:
 
 
 def _pdf_creation(content: bytes) -> str:
+  """PDF 메타데이터 CreationDate. 깨진·빈 PDF 는 pymupdf 가 RuntimeError 갈래(FileDataError·EmptyFileError)를 낸다 —
+  호출부(fetch_vinfast)가 잡는다. PDF 가 아닌 HTML 은 열리지만 CreationDate 가 비어 '' 가 된다(2026-11-10 실측)."""
   import fitz  # pymupdf(requirements.txt) — 지역 import: 순수 함수 시험이 fitz 없이 돌게
   with fitz.open(stream=content, filetype='pdf') as doc:
     return (doc.metadata or {}).get('creationDate') or ''
@@ -938,8 +943,12 @@ def parse_vinfast_event(html: str) -> list[dict]:
   soup = BeautifulSoup(html, 'html.parser')
   title = soup.find('h2').get_text(' ', strip=True) if soup.find('h2') else ''
   year, month, day = re.search(r'\b(20\d\d)\b', title), soup.select_one('.start-month'), soup.select_one('.start-date')
-  published = (f'{year.group(1)}-{int(month.get_text(strip=True)):02d}-{int(day.get_text(strip=True)):02d}'
-               if year and month and day else None)
+  published = None
+  if year and month and day:
+    try:
+      published = date(int(year.group(1)), int(month.get_text(strip=True)), int(day.get_text(strip=True))).isoformat()
+    except ValueError:  # 날짜 칸이 숫자가 아니거나 없는 날 — 날짜만 비우고(«날짜 없음») 목록은 낸다
+      pass
   out = [_row('investor_day', f'{title} Presentation', a['href'], published, 'event')
          for a in soup.select('.events-detail-place a[href]') if urlsplit(a['href']).netloc.endswith('widen.net')]
   return _need('빈패스트 Mobility Day 발표', out)
@@ -958,16 +967,19 @@ def parse_vinfast(reports_html: str, event_html: str, presentation_date: str | N
 
 
 def fetch_vinfast(session: requests.Session, since: str) -> list[dict]:
-  """IR 첫 쪽 → 회사 소개 자료 뷰어 → 서명 PDF(만든 날만 읽는다) · Mobility Day 상세. PDF 가 상한을 넘으면 날짜 없이
-  (수집기가 «날짜 없음»으로 센다)."""
+  """IR 첫 쪽 → 회사 소개 자료 뷰어 → 서명 PDF(만든 날만 읽는다) · Mobility Day 상세.
+
+  PDF 받기·읽기가 실패하면(상한 초과 · 서명 만료·CDN 4xx · 연결 오류 · PDF 아님) 그 한 건만 날짜 없이 두고 목록은
+  그대로 낸다(수집기가 «날짜 없음»으로 센다) — 날짜 하나 때문에 분기 보고서·행사까지 그 실행에서 잃지 않게.
+  경고엔 예외 종류만 찍는다(예외 문장에 서명 쿼리가 든 URL 이 실린다)."""
   html = _fetch(session, VINFAST_IR).text
   link = vinfast_presentation_link(html)
   pdf, created = vinfast_pdf_url(_fetch(session, link).text), ''
   if pdf:
     try:
       created = _pdf_creation(ir_get(session, pdf).content)
-    except TooLarge:
-      pass
+    except (TooLarge, requests.RequestException, RuntimeError) as e:  # RuntimeError = pymupdf 열기 실패 갈래
+      print(f'  VFS        IR    회사 소개 자료 PDF 못 읽음({type(e).__name__}) — 그 행은 날짜 없음')
   return parse_vinfast(html, _fetch(session, VINFAST_MOBILITY_DAY).text, vinfast_edition_date(link, created))
 
 

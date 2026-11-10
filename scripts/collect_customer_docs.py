@@ -151,7 +151,9 @@ def edgar_quarter_dates(client, company_id: str) -> dict[str, str]:
   실적 문서 = 숫자 수집기가 분기 실적 행(customer_reported_results)을 남긴 6-K·8-K. 빈패스트 6-K 는 제목이 전부
   「FORM 6-K」·doc_type 이 전부 current_report 라(2026-11-10 DB 62건) 목록 칸으로는 실적 공시를 못 가른다 — 분기도
   그 문서가 보고한 기간을 쓴다(ir_lists.results_quarter_dates). 리비안 잠정 범위 8-K(2.02)는 실적 행이 없어 빠진다.
-  새 분기 실적 공시는 숫자 수집기가 읽은 다음 실행부터 날짜가 된다(그 전엔 보류)."""
+  새 분기 실적 공시는 숫자 수집기가 읽은 다음 실행부터 날짜가 된다(그 전엔 보류).
+  숫자 수집기는 «나중 공시 우선» upsert(collect_customer_numbers.py TABLES)라 같은 분기를 다시 보고한 나중 문서가 있으면
+  그 행의 document_id 가 바뀌어 날짜도 그 문서 접수일로 옮겨 간다."""
   res = (client.table('customer_reported_results').select('period,document_id').eq('company_id', company_id)
          .eq('period_grain', 'quarter').execute().data)
   ids = sorted({r['document_id'] for r in res if r['document_id']})

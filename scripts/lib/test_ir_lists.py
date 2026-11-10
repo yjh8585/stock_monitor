@@ -558,7 +558,8 @@ class VinFastTest(unittest.TestCase):
     self.assertEqual(pres['source_id'], 'vingroup.widen.net/s/5jbbztcrrr/2026.11.-corporate-presentation')
     signed = L.vinfast_pdf_url(_text('vinfast_presentation.html'))
     self.assertTrue(signed.startswith('https://previews.eu-west-1.widencdn.net/') and 'sig=' in signed)
-    other = signed.replace('sig.expires=1794283200', 'sig.expires=1799999999')
+    other = signed.replace('sig=FAKE-SIGNATURE', 'sig=OTHER-SIGNATURE')  # 픽스처 서명 값은 가짜(형식만 실물)
+    self.assertNotEqual(signed, other)
     self.assertEqual(L.ir_source_id(signed), L.ir_source_id(other))
 
   def test_edition_date(self):
@@ -588,9 +589,48 @@ class VinFastTest(unittest.TestCase):
       rows = L.fetch_vinfast(MagicMock(), '2026-01-01')
     self.assertTrue(g.call_args.args[1].startswith('https://previews.eu-west-1.widencdn.net/'))
     self.assertEqual(next(r for r in rows if r['doc_type'] == 'presentation')['published_at'], '2026-11-09')
-    with patch.object(L, '_fetch', side_effect=fetch), patch.object(L, 'ir_get', side_effect=L.TooLarge(None)):
+    with patch.object(L, '_fetch', side_effect=fetch), patch.object(L, 'ir_get', side_effect=L.TooLarge(None)), \
+         patch('builtins.print'):
       rows = L.fetch_vinfast(MagicMock(), '2026-01-01')
     self.assertIsNone(next(r for r in rows if r['doc_type'] == 'presentation')['published_at'])
+
+  def _fetch_with_pdf_failure(self, **ir_get_kw) -> tuple[list[dict], str]:
+    pages = {L.VINFAST_IR: _text('vinfast_reports.html'), L.VINFAST_MOBILITY_DAY: _text('vinfast_mobility_day.html'),
+             'https://vingroup.widen.net/s/5jbbztcrrr/2026.11.-corporate-presentation': _text('vinfast_presentation.html')}
+    with patch.object(L, '_fetch', side_effect=lambda s, url, **kw: MagicMock(text=pages[url])), \
+         patch.object(L, 'ir_get', **ir_get_kw), patch('builtins.print') as out:
+      rows = L.fetch_vinfast(MagicMock(), '2026-01-01')
+    return rows, '\n'.join(c.args[0] for c in out.call_args_list)
+
+  def _assert_only_presentation_undated(self, rows: list[dict]):
+    """PDF 한 건이 실패해도 목록 전체(분기 보고서 13 · 행사 1)는 그대로 — 회사 소개 자료만 날짜 없음."""
+    self.assertEqual(len([r for r in rows if r['doc_type'] == 'shareholder_letter']), 13)
+    self.assertEqual(next(r for r in rows if r['doc_type'] == 'investor_day')['published_at'], '2025-11-10')
+    self.assertIsNone(next(r for r in rows if r['doc_type'] == 'presentation')['published_at'])
+
+  def test_pdf_4xx_keeps_list(self):
+    """서명 만료·CDN 403 — ir_get 은 4xx 를 즉시 raise. 목록이 blocked/error 로 죽지 않는다 · 경고에 URL 이 없다."""
+    resp = requests.Response()
+    resp.status_code, resp.url = 403, 'https://previews.eu-west-1.widencdn.net/x.pdf?sig=SECRET'
+    rows, printed = self._fetch_with_pdf_failure(side_effect=requests.HTTPError('403 for url ...sig=SECRET', response=resp))
+    self._assert_only_presentation_undated(rows)
+    self.assertIn('HTTPError', printed)
+    self.assertNotIn('sig', printed)
+
+  def test_pdf_not_a_pdf_keeps_list(self):
+    """PDF 대신 HTML(오류 쪽)이 오거나 빈 응답이어도 날짜만 비운다(pymupdf: HTML = 빈 메타 · 빈 바이트 = 예외)."""
+    for body in (b'<html>Access denied</html>', b''):
+      with self.subTest(body=body):
+        rows, _ = self._fetch_with_pdf_failure(return_value=MagicMock(content=body))
+        self._assert_only_presentation_undated(rows)
+
+  def test_event_date_cell_not_numeric(self):
+    """날짜 칸이 숫자가 아니면 날짜만 None — 목록은 맨 예외로 죽지 않는다."""
+    html = _text('vinfast_mobility_day.html').replace('<span class="start-month">11</span>',
+                                                       '<span class="start-month">Nov</span>')
+    rows = L.parse_vinfast_event(html)
+    self.assertEqual(len(rows), 1)
+    self.assertIsNone(rows[0]['published_at'])
 
 
 class RivianTest(unittest.TestCase):
