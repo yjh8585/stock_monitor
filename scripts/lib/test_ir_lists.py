@@ -37,9 +37,10 @@ def _json(name: str):
 
 def _rows(company: str) -> list[dict]:
   if company == 'vw':  # RSS 는 어댑터처럼 바이트로
-    return L.parse_vw((FIX / 'vw_rss.xml').read_bytes(), _text('vw_results.html'), _text('vw_adhoc.html'))
+    return L.parse_vw((FIX / 'vw_rss.xml').read_bytes(), _text('vw_results.html'), _text('vw_adhoc.html'),
+                      _text('vw_deliveries.html'), _json('vw_gallery.json'))
   if company == 'porsche':
-    return L.parse_porsche(_json('porsche_feed.json'))
+    return L.parse_porsche_all(_json('porsche_feed.json'), _text('porsche_reports.html'))
   if company == 'polaris':
     return L.parse_polaris(_json('polaris_reports.json')['GetFinancialReportListResult'],
                            _json('polaris_events.json')['GetEventListResult'])
@@ -66,6 +67,15 @@ MUST_HIT = {
     ('Presentation 2026 Q3', 'presentation', '2026-10-29'),
     ('Interim Report / Annual Report 2026 Q3', 'periodic', '2026-10-29'),
     ('Presentation 2025 Q4', 'presentation', '2026-03-10'),  # AMC 열 = 전년 연간
+    # 발표자료 갤러리(2026-11-10 실물) — 타일 날짜 그대로
+    ('Volkswagen Group 9M Roadshow Presentation', 'presentation', '2026-11-05'),
+    ('Volkswagen Group 9M 2026 Pre-Close Call', 'presentation', '2026-10-13'),
+    ('China Investor Update 2026 - China Product Strategy', 'investor_day', '2026-04-23'),
+    ('Bridge to 2030 Targets', 'investor_day', '2026-10-12'),
+    ('Battery Strategy Europe', 'investor_day', '2026-10-12'),  # 제목엔 목표 낱말이 없다 — 같은 날 목표 발표로 묶는다
+    ('Volkswagen Group Factbook 2026', 'fact_sheet', '2026-05-05'),
+    # 1분기 인도 보도자료 — 제목에 deliver 가 없다. 인도 표 페이지의 같은 날 표가 근거
+    ('Volkswagen Group maintains stable market share in declining global market in Q1', 'sales_release', '2026-04-13'),
   ],
   'porsche': [
     ('Porsche AG systematically implements its strategic realignment', 'earnings_release', '2026-10-27'),
@@ -73,6 +83,12 @@ MUST_HIT = {
     ('Expected decline in sales due to limited product availability', 'sales_release', '2026-04-10'),  # 1분기 인도
     ('Porsche delivers 279,449 sports cars', 'sales_release', '2026-01-16'),  # EQS-Media
     ('Porsche completes sale of its stakes in Bugatti Rimac', 'guidance', '2026-09-09'),  # 전망 상향이 일반 뉴스로
+    # 보고서 표(열 = 분기 · 날짜 없음) — 같은 분기 EQS 실적 보도일
+    ('Fact Sheet Q4 & Full Year 2025', 'fact_sheet', '2026-03-11'),
+    ('Presentation Q3 2026', 'presentation', '2026-10-27'),
+    ('Pre-Close Call Presentation Q3 2026', 'presentation', '2026-10-27'),
+    ('Presentation H1 2026', 'presentation', None),  # 피드 픽스처에 2분기 실적 보도가 없다 → 보류
+    ('Capital Markets Day 2026', 'investor_day', '2026-10-07'),
   ],
   'polaris': [
     ('Third Quarter 2026 Presentation', 'presentation', '2026-10-27'),
@@ -95,9 +111,11 @@ MUST_HIT = {
 }
 
 MUST_MISS = {
-  'vw': ['Automated vehicle logistics put to the test'],  # 홍보 글
+  # 홍보 글 · 갤러리의 실적 콜 발표자료(실적 행렬의 'Presentation 2026 Q3' 와 같은 문서 — 하나로)
+  'vw': ['Automated vehicle logistics put to the test', '9M 2026 Investor, Analyst and Media Call'],
   'porsche': ['Porsche Mission S', 'Preliminary announcement of the publication',  # 홍보 · EQS-AFR
-              'Porsche sells MHP', 'Possible changes in the Executive Board'],  # 매각(인도 낱말만) · 인사 ad-hoc
+              'Porsche sells MHP', 'Possible changes in the Executive Board',  # 매각(인도 낱말만) · 인사 ad-hoc
+              'Icons of Porsche'],  # 다른 탭(날짜 없는 행사 자료)
   'polaris': ['Annual Meeting', 'Press Release', 'Transcript'],
   'hyundai': ['4분기'],  # isUpcoming — 파일 없음
   'kia': ['AOD', '판매실적', '지역별수출실적'],
@@ -185,6 +203,174 @@ class VwTest(unittest.TestCase):
     self.assertTrue(all(d['period'] == '2027-Q1' for d in got))
 
 
+class VwGalleryTest(unittest.TestCase):
+  """발표자료 갤러리 JSON(2026-11-10 실물 · 2026 갤러리 10쪽)."""
+  PAGES = _json('vw_gallery.json')
+
+  def _gallery(self) -> list[dict]:
+    return [r for p in self.PAGES for r in L.parse_vw_gallery(p)]
+
+  def test_first_page_roadshow(self):
+    rows = L.parse_vw_gallery(self.PAGES[0])
+    self.assertEqual(len(rows), 3)
+    road = next(r for r in rows if 'Roadshow' in r['title'])
+    self.assertEqual((road['doc_type'], road['form'], road['published_at']), ('presentation', 'roadshow', '2026-11-05'))
+    self.assertTrue(road['url'].startswith('https://uploads.vw-mms.de/') and road['url'].endswith('.pdf?1793883086'))
+    self.assertNotIn('?', road['source_id'])  # 쿼리(올린 시각)는 키에 안 쓴다
+
+  def test_china_investor_update_six_are_investor_day(self):
+    """Task 13 이 2026-04-23 China Investor Update 6건을 investor_day 로 기대한다."""
+    rows = [r for r in self._gallery() if 'China Investor Update' in r['title']]
+    self.assertEqual(len(rows), 6)
+    self.assertEqual({(r['doc_type'], r['published_at']) for r in rows}, {('investor_day', '2026-04-23')})
+
+  def test_target_event_grouped_by_date(self):
+    """2026-10-12 목표 발표 5건 — 제목에 목표 낱말이 없는 3건도 같은 날 행사로 묶는다(merge 단계 · parse_vw)."""
+    rows = [r for r in _rows('vw') if r['published_at'] == '2026-10-12' and 'uploads.vw-mms.de' in r['url']]
+    self.assertEqual(len(rows), 5)  # 같은 날 RSS 인도 보도자료(sales_release)는 갤러리 밖이라 묶이지 않는다
+    self.assertEqual({r['doc_type'] for r in rows}, {'investor_day'})
+
+  def test_kinds(self):
+    got = {r['title']: (r['doc_type'], r['form']) for r in self._gallery()}
+    self.assertEqual(got['Volkswagen Group 9M 2026 Pre-Close Call'], ('presentation', 'pre-close-call'))
+    self.assertEqual(got['Q1 2026 Investor, Analyst and Media Call'], ('presentation', 'earnings-call'))
+    self.assertEqual(got['Full Year 2025 Investor & Analyst Call'], ('presentation', 'earnings-call'))
+    self.assertEqual(got['Investor and Analyst Call - Future Plan 2030'][0], 'investor_day')  # 실적 콜 아님
+    self.assertEqual(got['Volkswagen Group Factbook 2026'], ('fact_sheet', 'factbook'))
+    esg = [v for t, v in got.items() if 'Circular Economy' in t]
+    self.assertTrue(esg)
+    self.assertEqual({v[0] for v in esg}, {'other'})  # ESG 회의 자료 = 나머지(D4)
+
+  def test_earnings_call_merged_into_matrix_row(self):
+    """갤러리의 실적 콜 = 실적 행렬의 발표자료와 같은 문서(같은 랜딩 페이지) — 행렬 행 하나만 남는다."""
+    rows = _rows('vw')
+    self.assertEqual(len([r for r in rows if r['title'] == 'Presentation 2026 Q3']), 1)
+    self.assertFalse([r for r in rows if 'Investor, Analyst and Media Call' in r['title']])
+
+  def test_gallery_ids_and_year_pages(self):
+    html = _text('vw_presentations.html')
+    self.assertEqual(L.vw_gallery_ids(html), ['2177435', '2180176'])
+    # 올해 쪽(presentations-15715 · 연도 없는 경로)은 늘 받고, 지난 연도 쪽은 since 의 연도부터
+    self.assertEqual(L.vw_presentation_pages(html, '2025-10-06'), ['/en/presentations-2025-20142'])
+    self.assertEqual(L.vw_presentation_pages(html, '2026-01-01'), [])
+
+  def test_deliveries_dates(self):
+    dates = L.parse_vw_deliveries(_text('vw_deliveries.html'))
+    self.assertIn('2026-04-13', dates)
+    self.assertIn('2026-10-12', dates)  # 파일명 꼴이 다른 표(20261012_…)도 링크 글의 날짜로
+    with self.assertRaises(L.EmptyListError) as cm:
+      L.parse_vw_deliveries('<html></html>')
+    self.assertEqual(str(cm.exception), 'VW 인도 표 0건')
+
+  def _fake_fetch(self, gallery_pages: list[dict], calls: list):
+    def resp(body, content=None):
+      r = MagicMock()
+      r.text, r.content = body, content if content is not None else body.encode('utf-8')
+      return r
+    it = iter(gallery_pages)
+
+    def fetch(session, url, **kw):
+      calls.append((url, kw))
+      if '/item/galleries/' in url:
+        r = MagicMock()
+        r.json.return_value = next(it)
+        return r
+      return resp({L.VW_RSS: '', L.VW_RESULTS: _text('vw_results.html'), L.VW_ADHOC: _text('vw_adhoc.html'),
+                   L.VW_DELIVERIES: _text('vw_deliveries.html'),
+                   L.VW_PRESENTATIONS: '<div up-data="{&quot;url&quot;:&quot;/en/item/galleries/7/documents&quot;}">'
+                   '</div>'}[url], (FIX / 'vw_rss.xml').read_bytes() if url == L.VW_RSS else None)
+    return fetch
+
+  def test_fetch_pages_with_accept_json(self):
+    calls = []
+    pages = [{'html': self.PAGES[0]['html'], 'nextOffset': 3}, {'html': self.PAGES[1]['html'], 'nextOffset': None}]
+    with patch.object(L, '_fetch', side_effect=self._fake_fetch(pages, calls)):
+      rows = L.fetch_vw(MagicMock(), '2026-01-01')
+    gallery = [(u, kw) for u, kw in calls if '/item/galleries/' in u]
+    self.assertEqual([kw['params'] for _, kw in gallery], [{'offset': 0}, {'offset': 3}])
+    self.assertTrue(all(kw['headers'] == {'Accept': 'application/json'} for _, kw in gallery))
+    self.assertTrue([r for r in rows if r['form'] == 'roadshow'])
+
+  def test_empty_gallery_is_error(self):
+    with patch.object(L, '_fetch', side_effect=self._fake_fetch([{'html': '', 'nextOffset': None}], [])):
+      with self.assertRaises(L.EmptyListError) as cm:
+        L.fetch_vw(MagicMock(), '2026-01-01')
+    self.assertEqual(str(cm.exception), 'VW 발표자료 갤러리 7 0건')
+
+
+class PorscheReportsTest(unittest.TestCase):
+  """보고서·발표자료 표(2026-11-10 실물 · 2026·2025 분기 표 + 행사 탭 2026 표)."""
+
+  def _by_url_end(self, tail: str) -> dict:
+    return next(r for r in _rows('porsche') if r['url'].endswith(tail))
+
+  def test_fact_sheet_row_for_task3(self):
+    """Task 3 이 doc_type='fact_sheet' · form='fact-sheet-xlsx' 로 고른다."""
+    r = self._by_url_end('FY-2025-fact-sheet-porsche-ag.xlsx')
+    self.assertEqual((r['doc_type'], r['form'], r['published_at']), ('fact_sheet', 'fact-sheet-xlsx', '2026-03-11'))
+
+  def test_german_folder_is_not_assumed_german(self):
+    """FY25 발표자료는 독일어 폴더(results-and-presentations-de) 아래다 — 경로로 언어를 가르지 않는다."""
+    r = self._by_url_end('FY25%20Presentation.pdf')
+    self.assertIn('results-and-presentations-de', r['url'])
+    self.assertEqual((r['doc_type'], r['published_at']), ('presentation', '2026-03-11'))
+
+  def test_pdf_viewer_links_unwrapped(self):
+    """뷰어 링크(/pdf-viewer.aspx?src=…)를 그대로 쓰면 ir_source_id 가 쿼리를 버려 전부 한 키로 뭉개진다."""
+    rows = L.parse_porsche_reports(_text('porsche_reports.html'))
+    self.assertFalse([r for r in rows if 'pdf-viewer' in r['url']])
+    self.assertEqual(len({r['source_id'] for r in rows}), len(rows))
+    self.assertTrue(all(L.urlsplit(r['url']).netloc == 'investorrelations.porsche.com' for r in rows))  # 뉴스룸 링크 제외
+
+  def test_report_rows_wait_for_feed(self):
+    """표 행은 날짜가 없다 — 분기만 실어 내보내고(parse_porsche_reports) 피드 실적 보도일로 채운다(parse_porsche_all)."""
+    rows = L.parse_porsche_reports(_text('porsche_reports.html'))
+    self.assertTrue(all(r['published_at'] is None and r['_wait'] == 'eqs' for r in rows))
+    h1 = self._by_url_end('H1-2026-Presentation.pdf')
+    self.assertEqual((h1['_quarter'], h1['_wait']), ('2026-Q2', 'eqs'))
+    got, holds = L.resolve_dates([h1], {}, '2026-01-01')
+    self.assertEqual((got, holds), ([], {'eqs': 1}))
+
+  def test_cmd_fixed_path(self):
+    r = next(r for r in _rows('porsche') if r['doc_type'] == 'investor_day')
+    self.assertEqual(r['url'], 'https://investorrelations.porsche.com/~/media/Files/P/porsche-ir/cmd-2026/CapitalMarketsDay2026.pdf')
+
+  def test_empty_table_is_error(self):
+    with self.assertRaises(L.EmptyListError) as cm:
+      L.parse_porsche_reports('<html></html>')
+    self.assertEqual(str(cm.exception), '포르쉐 보고서 표 0건')
+
+
+class NumbersCollectorWantsTest(unittest.TestCase):
+  """목록 드라이런은 새 문서를 DB 에 싣지 않는다 — 새 행을 숫자 수집기의 Doc 꼴로 바꿔 wants 를 직접 본다.
+  발표자료·행사·팩트시트는 지금 대상 밖(pending) · 1분기 인도 보도자료는 대상(Task 3 이 팩트시트를 True 로 바꾼다)."""
+
+  def _doc(self, ticker: str, r: dict):
+    from customer_parsers.base import Doc
+    return Doc(id=0, company_id='x', ticker=ticker, source=r['source'], doc_type=r['doc_type'], form=r['form'],
+               items='', title=r['title'], url=r['url'], published_at=r['published_at'] or '', source_id=r['source_id'])
+
+  def test_new_rows(self):
+    from customer_parsers import porsche, vw
+    for ticker, mod, company in (('VOW3.DE', vw, 'vw'), ('P911.DE', porsche, 'porsche')):
+      new = [r for r in _rows(company) if r['doc_type'] in ('presentation', 'investor_day', 'fact_sheet')]
+      self.assertTrue(new)
+      for r in new:
+        with self.subTest(ticker=ticker, title=r['title']):
+          self.assertFalse(mod.wants(self._doc(ticker, r)))
+    q1 = next(r for r in _rows('vw') if r['title'].startswith('Volkswagen Group maintains stable market share'))
+    self.assertTrue(vw.wants(self._doc('VOW3.DE', q1)))
+
+
+class FetchHeadersTest(unittest.TestCase):
+  def test_default_headers_unchanged_and_merge(self):
+    s = MagicMock()
+    L._fetch(s, 'https://a.example/x')
+    self.assertEqual(s.request.call_args.kwargs['headers'], {'User-Agent': L.BROWSER_UA})
+    L._fetch(s, 'https://a.example/x', headers={'Accept': 'application/json'})
+    self.assertEqual(s.request.call_args.kwargs['headers'], {'User-Agent': L.BROWSER_UA, 'Accept': 'application/json'})
+
+
 class PolarisTest(unittest.TestCase):
   def test_earnings_dates(self):
     dates = {d['period']: d for d in L.parse_polaris_dates(_json('polaris_events.json')['GetEventListResult'])}
@@ -255,7 +441,7 @@ class DatesTest(unittest.TestCase):
     """분기도 날짜도 없는 행 = 안 풀리는 «날짜 없음» — 기다리는 보류와 따로 센다."""
     rows = [L._row('presentation', 'x', 'https://a.example/x.pdf', None, 'f')]
     self.assertEqual(L.resolve_dates(rows, {}, '2026-01-01'), ([], {L.NO_DATE: 1}))
-    self.assertEqual(set(L.HOLD_REASONS), {'dart', 'press', 'rss', 'call'})
+    self.assertEqual(set(L.HOLD_REASONS), {'dart', 'press', 'rss', 'call', 'eqs'})
 
 
 class SourceIdTest(unittest.TestCase):
@@ -288,9 +474,13 @@ class EmptySubListTest(unittest.TestCase):
 
   def test_vw(self):
     rss, res, adhoc = (FIX / 'vw_rss.xml').read_bytes(), _text('vw_results.html'), _text('vw_adhoc.html')
-    self.assertEmpty('VW 보도자료 RSS', L.parse_vw, b'<rss><channel></channel></rss>', res, adhoc)
-    self.assertEmpty('VW 실적 행렬', L.parse_vw, rss, '<html><h2 id="financial-results-2026"></h2></html>', adhoc)
-    self.assertEmpty('VW ad-hoc', L.parse_vw, rss, res, '<html></html>')
+    deliv, gal = _text('vw_deliveries.html'), _json('vw_gallery.json')
+    self.assertEmpty('VW 보도자료 RSS', L.parse_vw, b'<rss><channel></channel></rss>', res, adhoc, deliv, gal)
+    self.assertEmpty('VW 실적 행렬', L.parse_vw, rss, '<html><h2 id="financial-results-2026"></h2></html>', adhoc,
+                     deliv, gal)
+    self.assertEmpty('VW ad-hoc', L.parse_vw, rss, res, '<html></html>', deliv, gal)
+    self.assertEmpty('VW 인도 표', L.parse_vw, rss, res, adhoc, '<html></html>', gal)
+    self.assertEmpty('VW 발표자료 갤러리', L.vw_gallery_ids, '<html></html>')
     self.assertEmpty('VW 실적 일정', L.parse_vw_events, '<html><a href="/en/events/ubs/ics">x</a></html>')
 
   def test_vw_results_ics_that_does_not_parse(self):

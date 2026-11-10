@@ -19,6 +19,7 @@
 GM IR 은 Akamai 가 로컬·Playwright 모두 403 이라 어댑터가 없다 — `probe_gm()` 이 GHA 러너에서 접근만 시험하고
 customer_collect_status(GM, 'ir_list') 에 결과를 남긴다(Task 12 워크플로가 부른다).
 """
+import json
 import re
 import sys
 import unicodedata
@@ -30,6 +31,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
+from requests.utils import requote_uri
 
 from lib.doc_text import html_to_text
 from lib.retry import with_retry
@@ -55,9 +57,11 @@ def _need(label: str, items: list) -> list:
 
 
 def _fetch(session: requests.Session, url: str, *, method: str = 'GET', params: dict | None = None,
-           data: dict | None = None) -> requests.Response:
+           data: dict | None = None, headers: dict | None = None) -> requests.Response:
+  """headers 는 기본 헤더(브라우저 UA)에 덧씌운다 — VW 갤러리가 `Accept: application/json` 을 줘야 JSON 을 낸다."""
   def _once():
-    r = session.request(method, url, params=params, data=data, headers={'User-Agent': BROWSER_UA}, timeout=TIMEOUT_S)
+    r = session.request(method, url, params=params, data=data, headers={'User-Agent': BROWSER_UA, **(headers or {})},
+                        timeout=TIMEOUT_S)
     r.raise_for_status()
     return r
   return with_retry(_once, _label=urlsplit(url).netloc)
@@ -155,21 +159,26 @@ HOLD_REASONS = {
   'press': '같은 분기 경영실적 보도자료가 자료실에 아직 없다',
   'rss': '같은 분기 실적 보도자료가 RSS 에 없다',
   'call': '같은 분기 실적 콜 이벤트가 아직 없다',
+  'eqs': '같은 분기 실적 보도자료가 EQS 피드에 아직 없다',
 }
 NO_DATE = 'nodate'  # 분기도 날짜도 없는 행 — 다음 실행에도 안 풀린다
 
 
 def quarter_dates(prelims: list[dict]) -> dict[str, str]:
   """DART 잠정실적 공시({'title','published_at'}) → {'2026-Q3': '2026-10-29'}. 분기 = 공시 직전 분기, 같은 분기면 이른 날."""
+  return _earliest_by_quarter(p['published_at'] for p in prelims
+                              if _CONSOLIDATED_PRELIM in p['title'].replace(' ', ''))
+
+
+def _earliest_by_quarter(days) -> dict[str, str]:
+  """실적 발표일(YYYY-MM-DD) → {대상 분기: 가장 이른 날}. 대상 분기 = 발표 직전 분기(1~3월 발표 = 전년 4분기)."""
   out: dict[str, str] = {}
-  for p in prelims:
-    if _CONSOLIDATED_PRELIM not in p['title'].replace(' ', ''):
-      continue
-    d = date.fromisoformat(p['published_at'])
+  for day in days:
+    d = date.fromisoformat(day)
     q = (d.month - 1) // 3
     key = f'{d.year - 1}-Q4' if q == 0 else f'{d.year}-Q{q}'
-    if key not in out or p['published_at'] < out[key]:
-      out[key] = p['published_at']
+    if key not in out or day < out[key]:
+      out[key] = day
   return out
 
 
@@ -215,6 +224,8 @@ VW_RSS = f'{VW_BASE}/en/feeds/press-releases'
 VW_RESULTS = f'{VW_BASE}/en/financial-results-18486'
 VW_ADHOC = f'{VW_BASE}/en/ad-hoc'
 VW_EVENTS = f'{VW_BASE}/en/events'
+VW_DELIVERIES = f'{VW_BASE}/en/deliveries-to-customers-15741'
+VW_PRESENTATIONS = f'{VW_BASE}/en/presentations-15715'  # 올해 발표자료(연도 없는 경로) + Key Investor Presentations
 
 _VW_EARN = re.compile(r'\bresults?\b|\boutlook\b', re.I)
 _VW_DELIV = re.compile(r'\bdeliver', re.I)
@@ -276,13 +287,112 @@ def parse_vw_adhoc(html: str) -> list[dict]:
   return _need('VW ad-hoc', out)
 
 
-def parse_vw(rss_xml: str | bytes, results_html: str, adhoc_html: str) -> list[dict]:
-  """RSS + 실적 행렬 + ad-hoc → 행. 같은 보도자료가 RSS·행렬에 둘 다 있으면 하나(행렬의 종류 · RSS 의 제목·날짜).
+_VW_DELIV_TABLE_DATE = re.compile(r'-\s*(\d{4}-\d{2}-\d{2})\s*$')
+
+
+def parse_vw_deliveries(html: str) -> list[str]:
+  """「Deliveries to Customers」 페이지 → 분기 인도 표 PDF 를 올린 날들. 링크 글 끝의 날짜를 읽는다
+  (「… - January - March 2026 - 2026-04-13」 · 파일명 꼴은 회차마다 달라 쓰지 않는다 — 2026-11-10 실측).
+
+  2026-11-10 실측: 이 페이지엔 인도 «보도자료» 링크가 없고 표 PDF 만 있다. 보도자료는 RSS 에만 있고, 1분기 제목엔
+  deliver 낱말이 없어(「maintains stable market share … in Q1」) 제목 판정이 놓친다 — 같은 날 표가 그 근거다(parse_vw)."""
+  out = []
+  for a in BeautifulSoup(html, 'html.parser').select('div.file-attachment a[href]'):
+    m = _VW_DELIV_TABLE_DATE.search(a.get_text(' ', strip=True))
+    if m:
+      out.append(m.group(1))
+  return _need('VW 인도 표', list(dict.fromkeys(out)))
+
+
+# 발표자료 갤러리 타일 제목 → (doc_type, form). 위에서부터 첫 일치(실적 콜 꼴보다 Pre-Close Call 이 먼저).
+# 나머지(ESG 회의·연설문 등)는 other + 타일 종류(D4 — 새 doc_type 을 만들지 않는다).
+_VW_TILE_KINDS = (
+  (re.compile(r'\bRoadshow\b', re.I), 'presentation', 'roadshow'),
+  (re.compile(r'\bPre-Close Call\b', re.I), 'presentation', 'pre-close-call'),
+  (re.compile(r'\bChina Investor Update\b', re.I), 'investor_day', 'china-investor-update'),
+  (re.compile(r'\bInvestor (?:and Analyst )?Update\b|\bCapital Markets Day\b|\bInvestor Day\b', re.I),
+   'investor_day', 'investor-update'),
+  (re.compile(r'\bTargets?\b|\bTarget Picture\b|\bFuture Plan\b', re.I), 'investor_day', 'strategy-update'),
+  (re.compile(r'\bFactbook\b', re.I), 'fact_sheet', 'factbook'),
+  (re.compile(r'\b(?:Q[1-4]|H1|9M|Full Year|FY)\s+20\d\d\b.*\bCall\b', re.I), 'presentation', 'earnings-call'),
+)
+
+
+def _vw_tiles(html: str) -> list[tuple[dict, str | None]]:
+  """갤러리 타일 → (행, 랜딩 페이지 URL). 랜딩 = 실적 행렬이 거는 그 문서의 페이지(공유 버튼의 url) — 같은 문서 합치기용."""
+  out = []
+  for t in BeautifulSoup(html, 'html.parser').select('div.document-tile'):
+    a = t.select_one('.document-tile--text > a[href]')
+    title, tm = t.select_one('.document-tile--title'), t.select_one('.document-tile--description time')
+    if not a or not title or not tm:
+      continue
+    title = title.get_text(' ', strip=True)
+    kind = t.select_one('.document-tile--description span')
+    form = (kind.get_text(strip=True) if kind else 'document').lower()
+    doc_type, form = next(((d, f) for rx, d, f in _VW_TILE_KINDS if rx.search(title)), ('other', form))
+    share = t.select_one('[native-share][up-data]')
+    landing = None
+    if share:
+      try:
+        landing = json.loads(share['up-data']).get('url')
+      except ValueError:
+        landing = None
+    out.append((_row(doc_type, title, a['href'], _us_date(tm.get_text(strip=True)), form), landing))
+  return out
+
+
+def parse_vw_gallery(payload: dict) -> list[dict]:
+  """발표자료 갤러리 JSON 한 쪽(`{"html": 타일, "nextOffset": n|null}`) → 행. 날짜 = 타일의 MM/DD/YYYY 그대로 ·
+  url = uploads.vw-mms.de PDF 직링크(쿼리의 올린 시각은 ir_source_id 가 버린다).
+  같은 날 행사 묶기(목표 발표 5건)와 실적 행렬과의 합치기는 쪽을 다 모은 뒤 parse_vw 가 한다."""
+  return [r for r, _ in _vw_tiles(payload.get('html') or '')]
+
+
+def vw_gallery_ids(html: str) -> list[str]:
+  """발표자료 페이지 → 갤러리 ID(목록 URL 이 `up-data` 에 박혀 있다 — 조사 ir_germany ①)."""
+  return _need('VW 발표자료 갤러리', list(dict.fromkeys(re.findall(r'/en/item/galleries/(\d+)/documents', html))))
+
+
+def vw_presentation_pages(html: str, since: str) -> list[str]:
+  """올해 쪽에 걸린 지난 연도 발표자료 쪽(`/en/presentations-2025-20142`) 중 since 의 연도부터. 연도는 링크에서 읽는다."""
+  pages = re.findall(r'href="(/en/presentations-(\d{4})-\d+)"', html)
+  return list(dict.fromkeys(p for p, y in pages if int(y) >= int(since[:4])))
+
+
+def _vw_gallery_rows(pages: list[dict], matrix_ids: set[str]) -> list[dict]:
+  """갤러리 쪽 전부 → 행. 실적 행렬에 이미 있는 문서(랜딩 페이지가 같은 실적 콜 발표자료)는 뺀다 — 행렬 행이 이미
+  DB 키다. 행사 자료는 같은 날 묶음으로 본다: 2026-10-12 목표 발표 5건 중 3건은 제목에 목표 낱말이 없다."""
+  rows = {}
+  for p in pages:
+    for r, landing in _vw_tiles(p.get('html') or ''):
+      if landing and ir_source_id(landing) in matrix_ids:
+        continue
+      rows.setdefault(r['source_id'], r)
+  event_form = {}
+  for r in rows.values():
+    if r['doc_type'] == 'investor_day':
+      event_form.setdefault(r['published_at'], r['form'])
+  for r in rows.values():
+    if r['doc_type'] == 'other' and r['published_at'] in event_form:
+      r['doc_type'], r['form'] = 'investor_day', event_form[r['published_at']]
+  return list(rows.values())
+
+
+def parse_vw(rss_xml: str | bytes, results_html: str, adhoc_html: str, deliveries_html: str,
+             gallery_pages: list[dict]) -> list[dict]:
+  """RSS + 실적 행렬 + ad-hoc + 인도 표 날짜 + 발표자료 갤러리 → 행.
+  같은 보도자료가 RSS·행렬에 둘 다 있으면 하나(행렬의 종류 · RSS 의 제목·날짜).
 
   행렬에는 날짜가 없다 — 같은 열(연도·분기)의 보도자료가 RSS 에 있으면 그 날짜를 보고서·발표자료에도 쓴다
   (세 문서가 같은 날 나온다). RSS(약 100건 ≈ 2년)에 없으면 `_quarter`(wait='rss')로 내보내 수집기가 범위 밖으로 거른다.
+
+  제목으로 종류를 못 정한 RSS 글이 분기 인도 표를 올린 날과 같은 날이면 인도 보도자료다(1분기 제목엔 deliver 가 없다).
   """
   rss = {r['source_id']: r for r in parse_vw_rss(rss_xml)}
+  deliv_days = set(parse_vw_deliveries(deliveries_html))
+  for r in rss.values():
+    if r['doc_type'] is None and r['published_at'] in deliv_days:
+      r['doc_type'] = 'sales_release'
   cells = parse_vw_results(results_html)
   col_date = {(y, q): rss[ir_source_id(u)]['published_at'] for y, q, t, _, u in cells
               if t == 'earnings_release' and ir_source_id(u) in rss}
@@ -294,11 +404,32 @@ def parse_vw(rss_xml: str | bytes, results_html: str, adhoc_html: str) -> list[d
     out[ir_source_id(url)] = _row(doc_type, title, url, d, 'financial-results', quarter=f'{y}-{q}', wait='rss')
   for r in parse_vw_adhoc(adhoc_html):
     out[r['source_id']] = r
+  for r in _vw_gallery_rows(gallery_pages, {ir_source_id(u) for *_, u in cells}):
+    out.setdefault(r['source_id'], r)
   return list(out.values())
 
 
+def _vw_gallery_pages(session: requests.Session, gallery_id: str) -> list[dict]:
+  """갤러리 하나를 끝까지(`nextOffset` 이 null 이 될 때까지 · 한 쪽 3건). 타일이 하나도 없으면 그 갤러리가 깨진 것."""
+  url, offset, pages = f'{VW_BASE}/en/item/galleries/{gallery_id}/documents', 0, []
+  while offset is not None:
+    p = _fetch(session, url, params={'offset': offset}, headers={'Accept': 'application/json'}).json()
+    pages.append(p)
+    nxt = p.get('nextOffset')
+    if nxt is not None and nxt <= offset:
+      raise ValueError(f'VW 발표자료 갤러리 {gallery_id} 쪽 번호가 앞으로 가지 않는다({offset} → {nxt})')
+    offset = nxt
+  _need(f'VW 발표자료 갤러리 {gallery_id}', [r for p in pages for r in parse_vw_gallery(p)])
+  return pages
+
+
 def fetch_vw(session: requests.Session, since: str) -> list[dict]:
-  return parse_vw(_fetch(session, VW_RSS).content, _fetch(session, VW_RESULTS).text, _fetch(session, VW_ADHOC).text)
+  main = _fetch(session, VW_PRESENTATIONS).text
+  htmls = [main] + [_fetch(session, urljoin(VW_BASE, p)).text for p in vw_presentation_pages(main, since)]
+  ids = list(dict.fromkeys(g for h in htmls for g in vw_gallery_ids(h)))
+  pages = [p for g in ids for p in _vw_gallery_pages(session, g)]
+  return parse_vw(_fetch(session, VW_RSS).content, _fetch(session, VW_RESULTS).text, _fetch(session, VW_ADHOC).text,
+                  _fetch(session, VW_DELIVERIES).text, pages)
 
 
 _VW_EVENT_SLUG = re.compile(r'/en/events/[^"/]*(interim-report|half-yearly-financial-report|annual-media-conference)'
@@ -381,11 +512,95 @@ def parse_porsche(payload: dict) -> list[dict]:
   return out
 
 
+PORSCHE_IR = 'https://investorrelations.porsche.com'
+PORSCHE_REPORTS = f'{PORSCHE_IR}/en/financial-information/reports-and-presentations'
+# CMD 2026 발표자료 — 고정 경로 1건(조사 ir_germany.md · HEAD 200 application/pdf 31.6MB, 2026-11-10 실측).
+# 날짜 근거 = EQS 2026-10-07 보도 「At its Capital Markets Day, Porsche AG presents its strategy ‘Sportwagenschmiede '35’」.
+# 보고서 표의 행사 탭에도 있지만 그 표엔 날짜가 없다. 다음 CMD 는 경로가 달라질 것이라 여기 한 건만 둔다.
+PORSCHE_CMD = (f'{PORSCHE_IR}/~/media/Files/P/porsche-ir/cmd-2026/CapitalMarketsDay2026.pdf',
+               'Capital Markets Day 2026 Presentation', '2026-10-07')
+
+# 보고서 표의 행 이름 → (doc_type, form). 모르는 행은 other(D4) + 'report-table'.
+_P_REPORT_ROWS = {
+  'Conference Calls': ('ir_event', 'conference-call'),
+  'Presentation': ('presentation', 'results-presentation'),
+  'Pre-Close Call Presentation': ('presentation', 'pre-close-call'),
+  'Fact Sheet': ('fact_sheet', 'fact-sheet-xlsx'),  # Task 3 이 이 두 값으로 고른다
+  'Quarterly Statement': ('periodic', 'quarterly-statement'),
+  'Half-Year Financial Report': ('periodic', 'half-year-report'),
+  'Annual & Sustainability Report': ('periodic', 'annual-report'),
+  'Annual Financial Statements': ('periodic', 'annual-financial-statements'),
+  'ESEF Annual Financial Report (XHTML)': ('other', 'esef'),
+  'ESEF Consolidated Financial Report (XHTML)': ('other', 'esef'),
+}
+_P_COLS = {'Q1': 1, 'H1': 2, 'Q3': 3, 'Q4': 4}  # 머리 칸 앞말 → 분기(「Q4 & Full Year」 = 4분기 · 연간)
+
+
+def _porsche_file_url(href: str) -> str:
+  """뷰어 링크(`/pdf-viewer.aspx?gid=…&src=/~/media/…pdf`)는 src 의 실제 파일로 푼다 — 그대로 두면 ir_source_id 가
+  쿼리를 버려 모든 PDF 가 한 키(`/pdf-viewer.aspx`)로 뭉개진다. 파일명의 공백은 %20 으로."""
+  u = urlsplit(urljoin(PORSCHE_IR, href))
+  if u.path.endswith('/pdf-viewer.aspx'):
+    src = (parse_qs(u.query).get('src') or [''])[0]
+    if src:
+      return requote_uri(urljoin(PORSCHE_IR, src))
+  return requote_uri(urljoin(PORSCHE_IR, href))
+
+
+def parse_porsche_reports(html: str) -> list[dict]:
+  """보고서·발표자료 표(연도 탭마다 표 하나 · 행 = 문서 종류 · 열 = 분기) → 행. 표엔 날짜가 없다 — 분기만 실어
+  (`_quarter`, wait='eqs') 내보내고 parse_porsche_all 이 같은 분기 EQS 실적 보도일로 채운다.
+  연도 = 표를 감싼 탭 id(`tab-12026-pane` 의 끝 네 자리). 머리에 Q1 칸이 없는 표(행사 탭 — 날짜 없는 자료)는 버린다.
+  IR 호스트 밖 링크(연차보고서 칸의 뉴스룸 「Online ASR」)는 문서가 아니라 버린다.
+  경로로 언어를 가르지 않는다 — FY25 발표자료·팩트시트는 독일어 폴더(results-and-presentations-de) 아래에 있다."""
+  rows = {}
+  for tb in BeautifulSoup(html, 'html.parser').find_all('table'):
+    pane = tb.find_parent(id=re.compile(r'\d{4}-pane$'))
+    heads = [th.get_text(' ', strip=True) for th in tb.select('thead th')]
+    cols = [next((q for k, q in _P_COLS.items() if h.startswith(k)), None) for h in heads]
+    if not pane or 1 not in cols:
+      continue
+    year = int(re.search(r'(\d{4})-pane$', pane['id']).group(1))
+    for tr in tb.select('tbody tr'):
+      tds = tr.find_all('td')
+      if not tds:
+        continue
+      label = tds[0].get_text(' ', strip=True)
+      doc_type, form = _P_REPORT_ROWS.get(label, ('other', 'report-table'))
+      for td, q, head in zip(tds[1:], cols[1:], heads[1:]):
+        for a in td.find_all('a', href=True) if q else []:
+          url = _porsche_file_url(a['href'])
+          if urlsplit(url).netloc != urlsplit(PORSCHE_IR).netloc:
+            continue
+          r = _row(doc_type, f'{label} {head} {year}', url, None, form, quarter=f'{year}-Q{q}', wait='eqs')
+          rows.setdefault(r['source_id'], r)
+  return _need('포르쉐 보고서 표', list(rows.values()))
+
+
+def parse_porsche_all(payload: dict, reports_html: str) -> list[dict]:
+  """EQS 피드 + 보고서 표 + CMD 고정 1건. 표 행의 날짜 = 같은 분기 EQS 실적 보도일(피드의 earnings_release 중 그
+  분기 가장 이른 날). 없으면 `_quarter` 그대로 — 수집기가 보류로 센다(날짜를 지어내지 않는다)."""
+  feed = parse_porsche(payload)
+  release = _earliest_by_quarter(r['published_at'] for r in feed if r['doc_type'] == 'earnings_release')
+  out = {r['source_id']: r for r in feed}
+  for r in parse_porsche_reports(reports_html):
+    if r['_quarter'] in release:
+      r['published_at'] = release[r.pop('_quarter')]
+      r.pop('_wait')
+    out.setdefault(r['source_id'], r)
+  cmd = _row('investor_day', PORSCHE_CMD[1], PORSCHE_CMD[0], PORSCHE_CMD[2], 'capital-markets-day')
+  out.setdefault(cmd['source_id'], cmd)
+  return list(out.values())
+
+
 def fetch_porsche(session: requests.Session, since: str) -> list[dict]:
-  params = {'companyToken': PORSCHE_EQS_TOKEN, 'lang': 'en', 'from': since, 'till': date.today().isoformat(),
+  # 피드는 since 보다 _RESULTS_LAG_DAYS 앞에서부터 — 범위 안 분기의 실적 보도일이 since 직전일 수 있다(표 행 날짜용).
+  # 그 앞 피드 글은 수집기 resolve_dates 가 since 로 거른다.
+  start = (date.fromisoformat(since) - timedelta(days=_RESULTS_LAG_DAYS)).isoformat()
+  params = {'companyToken': PORSCHE_EQS_TOKEN, 'lang': 'en', 'from': start, 'till': date.today().isoformat(),
             'limit': -1}
   payload = _fetch(session, PORSCHE_FEED, params=params).json()
-  return parse_porsche(payload)
+  return parse_porsche_all(payload, _fetch(session, PORSCHE_REPORTS).text)
 
 
 # ── 폴라리스(Q4 Inc 피드) ─────────────────────────────────────────────────────
