@@ -1,0 +1,25 @@
+<html><head><title>2026.11.-Corporate-Presentation.pdf</title></head><body>
+<script type="text/javascript">
+        window.viewerPdfUrl = 'https://previews.eu-west-1.widencdn.net/preview/53162917/assets/asset-view/e977269c-f1d4-46c0-907e-1dceefc8b3d0/pdf/bnVsbA==/2026.11.-Corporate-Presentation?sig.ver=1&sig.keyId=eu-west-1.20240821&sig.expires=1794283200&sig=rsSugBRVu6uAnE4-U0vCWntLrYPpfGkMw_cX-WsmwHM';
+      window.viewerPdfTitle = '2026.11.-Corporate-Presentation.pdf';
+
+
+      document.addEventListener("webviewerloaded", function () {
+        PDFViewerApplication.initializedPromise.then(function () {
+          PDFViewerApplication.eventBus.on("pagerendered", function handler(event) {
+            try {
+              if (window.chrome && !/Edge/.test(navigator.userAgent) && !event.source.__rerendered) {
+                console.log("Chrome-like browser detected, re-rendering page %d for the first time.", event.pageNumber);
+                var currentScale = event.source.scale;
+                event.source.__rerendered = true;
+                event.source.update(currentScale * 0.99);
+                event.source.update(currentScale);
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          });
+        });
+      });
+    </script>
+</body></html>

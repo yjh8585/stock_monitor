@@ -52,6 +52,11 @@ def _rows(company: str) -> list[dict]:
     return L.parse_mobis(_text('mobis_2026.html'))
   if company == 'kgm':
     return L.parse_kgm(_json('kgm_dataroom.json'))
+  if company == 'vinfast':  # 회사 소개 자료 날짜 = PDF 만든 날(2026-11-10 실물 메타데이터)
+    return L.parse_vinfast(_text('vinfast_reports.html'), _text('vinfast_mobility_day.html'), '2026-11-09')
+  if company == 'rivian':
+    nd = _json('rivian_next_data.json')
+    return L.parse_rivian(nd['investors'], nd['events'])
   raise KeyError(company)
 
 
@@ -108,6 +113,21 @@ MUST_HIT = {
     ('2026년 1분기 경영실적', 'presentation', None),
     ('2026년 2분기 경영실적', 'presentation', None),
   ],
+  # 2026-11-10 실물. 분기 보고서는 날짜 칸이 없다 → EDGAR 실적 문서 접수일(wait='edgar')
+  'vinfast': [
+    ('VinFast Earnings Report Q2/2026', 'shareholder_letter', None),
+    ('VinFast Earnings Report Q4/2025', 'shareholder_letter', None),
+    ('VinFast Corporate Presentation (2026.11.-corporate-presentation)', 'presentation', '2026-11-09'),
+    ('VinFast 2025 Mobility Day Presentation', 'investor_day', '2025-11-10'),  # 제목 연도 + 날짜 칸 11/10
+  ],
+  'rivian': [
+    ('Rivian Q3 2026 Shareholder Presentation', 'shareholder_letter', None),
+    ('Rivian Q4 2025 Shareholder Letter', 'shareholder_letter', None),  # 「Q4 & Full Year」 블록
+    ('Inaugural Autonomy & AI Day (Presentation)', 'investor_day', '2025-12-11'),
+    ('Rivian 2024 Investor Day (Presentation)', 'investor_day', '2024-06-27'),
+    ('Rivian and Volkswagen Group Announce the Launch of their Joint Venture (Shareholder Letter)', 'investor_day',
+     '2024-11-12'),  # VW 합작 덱 — 실물 라벨이 「Shareholder Letter」
+  ],
 }
 
 MUST_MISS = {
@@ -121,6 +141,9 @@ MUST_MISS = {
   'kia': ['AOD', '판매실적', '지역별수출실적'],
   'mobis': ['웹캐스트'],
   'kgm': ['판매실적', '영업보고서'],
+  'vinfast': ['Webcast', 'Newsletter', 'Takeaway', 'Earnings Report Q1/2024 (Restated)'],  # 증권사 리포트는 VinFastTest
+  'rivian': ['Impact', 'Supplier', 'Proxy', 'Letter to Shareholders', 'Annual Meeting', 'Barclays', 'Webcast',
+             'Investor Call'],  # 실물 Investor Call 의 「Shareholder letter」 는 URL 없는 내부 링크
 }
 
 
@@ -385,6 +408,16 @@ class NumbersCollectorWantsTest(unittest.TestCase):
     q1 = next(r for r in _rows('vw') if r['title'].startswith('Volkswagen Group maintains stable market share'))
     self.assertTrue(vw.wants(self._doc('VOW3.DE', q1)))
 
+  def test_vinfast_rivian_links_only(self):
+    """빈패스트·리비안 IR 문서는 전부 링크만 — 숫자 수집기가 받지 않는다(리비안 180MB·431MB PDF 포함)."""
+    from customer_parsers import rivian, vinfast
+    for ticker, mod, company in (('VFS', vinfast, 'vinfast'), ('RIVN', rivian, 'rivian')):
+      rows = _rows(company)
+      self.assertTrue(rows)
+      for r in rows:
+        with self.subTest(ticker=ticker, title=r['title']):
+          self.assertFalse(mod.wants(self._doc(ticker, r)))
+
 
 class FetchHeadersTest(unittest.TestCase):
   def test_default_headers_unchanged_and_merge(self):
@@ -465,7 +498,126 @@ class DatesTest(unittest.TestCase):
     """분기도 날짜도 없는 행 = 안 풀리는 «날짜 없음» — 기다리는 보류와 따로 센다."""
     rows = [L._row('presentation', 'x', 'https://a.example/x.pdf', None, 'f')]
     self.assertEqual(L.resolve_dates(rows, {}, '2026-01-01'), ([], {L.NO_DATE: 1}))
-    self.assertEqual(set(L.HOLD_REASONS), {'dart', 'press', 'rss', 'call', 'eqs'})
+    self.assertEqual(set(L.HOLD_REASONS), {'dart', 'press', 'rss', 'call', 'eqs', 'edgar'})
+
+
+class EdgarDatesTest(unittest.TestCase):
+  """EDGAR 회사(빈패스트·리비안)의 날짜 갈래 — 분기 = 실적 문서가 «보고한 기간»(숫자 수집기가 읽은 값), 날짜 = 그 문서 접수일.
+
+  빈패스트 실물(2026-11-10 DB): 실적 6-K 가 분기 끝 뒤 2~4달에 나온다 — 2분기 실적이 2026-10-19(3분기 끝 뒤),
+  4분기 실적이 2025-04-24. 「분기 끝 뒤 첫 실적 문서」로 고르면 3분기 행이 2분기 실적일을 받는다."""
+  # (보고한 기간, 접수일) — 빈패스트 실물 꼴
+  VFS = [('2025-Q4', '2026-03-16'), ('2026-Q1', '2026-06-08'), ('2026-Q2', '2026-10-19'), ('2024-Q4', '2025-04-24')]
+
+  def test_period_from_reported_results(self):
+    self.assertEqual(L.results_quarter_dates(self.VFS),
+                     {'2025-Q4': '2026-03-16', '2026-Q1': '2026-06-08', '2026-Q2': '2026-10-19', '2024-Q4': '2025-04-24'})
+
+  def test_earliest_after_quarter_end_only(self):
+    """같은 기간을 두 문서가 보고하면 이른 접수일 · 분기 끝 전 접수일은 그 분기 실적일 수 없다 — 버린다."""
+    got = L.results_quarter_dates([('2026-Q2', '2026-10-25'), ('2026-Q2', '2026-10-19'), ('2026-Q3', '2026-09-30')])
+    self.assertEqual(got, {'2026-Q2': '2026-10-19'})
+
+  def test_resolve_edgar_fills_or_holds(self):
+    row = L._row('shareholder_letter', 'x', 'https://a.example/q3.pdf', None, 'f', quarter='2026-Q3', wait='edgar')
+    qdates = L.results_quarter_dates(self.VFS)
+    # 3분기 실적 문서가 아직 없다 — 3분기 끝 뒤에 나온 2분기 실적일(10-19)을 받지 않고 보류
+    self.assertEqual(L.resolve_dates([row], qdates, '2026-01-01'), ([], {'edgar': 1}))
+    got, holds = L.resolve_dates([row], {**qdates, '2026-Q3': '2026-12-02'}, '2026-01-01')
+    self.assertEqual(([r['published_at'] for r in got], holds), (['2026-12-02'], {}))
+
+  def test_rivian_prelim_range_8k_not_used(self):
+    """리비안 2026-07-06 8-K 2.02(잠정 범위) 는 숫자 수집기가 실적 행을 안 남긴다 — 2분기 날짜는 07-30 실적 8-K."""
+    self.assertEqual(L.results_quarter_dates([('2026-Q2', '2026-07-30')]), {'2026-Q2': '2026-07-30'})
+
+
+class VinFastTest(unittest.TestCase):
+  """빈패스트 IR(2026-11-10 실물 — Our Reports 표 · 회사 소개 자료 링크 · Mobility Day 상세)."""
+
+  def test_earnings_reports_wait_for_edgar(self):
+    rows = [r for r in _rows('vinfast') if r['doc_type'] == 'shareholder_letter']
+    self.assertEqual(len(rows), 13)  # Q2/2023 ~ Q2/2026 (재작성 행은 보고서 칸이 비었다)
+    self.assertTrue(all(r['published_at'] is None and r['_wait'] == 'edgar' for r in rows))
+    q2 = next(r for r in rows if r['title'].endswith('Q2/2026'))
+    self.assertEqual(q2['_quarter'], '2026-Q2')
+    self.assertEqual(q2['url'], 'https://vingroup.widen.net/s/xhqtktdtjf/q2-2026-vinfast-auto-earnings-report')
+
+  def test_no_analyst_reports(self):
+    """D9 — 증권사 리포트 원문(IR 첫 쪽 표 · Mobility Day 애널리스트 노트)은 넣지 않는다."""
+    from bs4 import BeautifulSoup
+    analyst = {a['href'] for a in BeautifulSoup(_text('vinfast_reports.html'), 'html.parser').select('table a[href]')
+               if 'Securities' in a.find_parent('table').get_text()}
+    analyst |= {a['href'] for a in BeautifulSoup(_text('vinfast_mobility_day.html'), 'html.parser').select('li a[href]')}
+    self.assertGreaterEqual(len(analyst), 13)
+    self.assertFalse({r['url'] for r in _rows('vinfast')} & analyst)
+
+  def test_presentation_key_is_edition_without_signature(self):
+    """저장 URL = 뷰어 쪽(만료 없음) · 키 = 판 이름이 든 경로. 서명 URL(쿼리만 다름)은 행에 싣지 않는다."""
+    pres = next(r for r in _rows('vinfast') if r['doc_type'] == 'presentation')
+    self.assertEqual(pres['url'], 'https://vingroup.widen.net/s/5jbbztcrrr/2026.11.-corporate-presentation')
+    self.assertEqual(pres['source_id'], 'vingroup.widen.net/s/5jbbztcrrr/2026.11.-corporate-presentation')
+    signed = L.vinfast_pdf_url(_text('vinfast_presentation.html'))
+    self.assertTrue(signed.startswith('https://previews.eu-west-1.widencdn.net/') and 'sig=' in signed)
+    other = signed.replace('sig.expires=1794283200', 'sig.expires=1799999999')
+    self.assertEqual(L.ir_source_id(signed), L.ir_source_id(other))
+
+  def test_edition_date(self):
+    """PDF 만든 날을 쓰되 판 이름의 연·월과 맞을 때만(옛 판 PDF 를 새 판 이름에 붙이지 않는다)."""
+    url = 'https://vingroup.widen.net/s/5jbbztcrrr/2026.11.-corporate-presentation'
+    self.assertEqual(L.vinfast_edition_date(url, "D:20261109134612+07'00'"), '2026-11-09')
+    self.assertIsNone(L.vinfast_edition_date(url, "D:20261009134612+07'00'"))  # 달이 다르다
+    self.assertIsNone(L.vinfast_edition_date(url, ''))
+    self.assertIsNone(L.vinfast_edition_date('https://vingroup.widen.net/s/x/corporate-presentation', 'D:20261109'))
+
+  def test_empty_reports_table_is_error(self):
+    with self.assertRaises(L.EmptyListError) as cm:
+      L.parse_vinfast_reports('<html></html>')
+    self.assertEqual(str(cm.exception), '빈패스트 Our Reports 표 0건')
+
+  def test_fetch_two_step_presentation(self):
+    """뷰어 HTML → 서명 PDF → 만든 날. PDF 받기가 상한에 걸리면 날짜 없이(행은 «날짜 없음»으로 세어진다)."""
+    import fitz
+    doc = fitz.open()
+    doc.new_page()
+    doc.set_metadata({'creationDate': "D:20261109134612+07'00'"})
+    pdf = doc.tobytes()
+    pages = {L.VINFAST_IR: _text('vinfast_reports.html'), L.VINFAST_MOBILITY_DAY: _text('vinfast_mobility_day.html'),
+             'https://vingroup.widen.net/s/5jbbztcrrr/2026.11.-corporate-presentation': _text('vinfast_presentation.html')}
+    fetch = lambda s, url, **kw: MagicMock(text=pages[url])  # noqa: E731
+    with patch.object(L, '_fetch', side_effect=fetch), patch.object(L, 'ir_get', return_value=MagicMock(content=pdf)) as g:
+      rows = L.fetch_vinfast(MagicMock(), '2026-01-01')
+    self.assertTrue(g.call_args.args[1].startswith('https://previews.eu-west-1.widencdn.net/'))
+    self.assertEqual(next(r for r in rows if r['doc_type'] == 'presentation')['published_at'], '2026-11-09')
+    with patch.object(L, '_fetch', side_effect=fetch), patch.object(L, 'ir_get', side_effect=L.TooLarge(None)):
+      rows = L.fetch_vinfast(MagicMock(), '2026-01-01')
+    self.assertIsNone(next(r for r in rows if r['doc_type'] == 'presentation')['published_at'])
+
+
+class RivianTest(unittest.TestCase):
+  """리비안 __NEXT_DATA__(2026-11-10 실물 — /investors 분기 실적·행사 절 + /investors/events 행사 절)."""
+
+  def test_quarter_blocks(self):
+    rows = [r for r in _rows('rivian') if r['doc_type'] == 'shareholder_letter']
+    self.assertEqual(len(rows), 11)  # 픽스처 = 2024 Q1 ~ 2026 Q3
+    self.assertTrue(all(r['published_at'] is None and r['_wait'] == 'edgar' for r in rows))
+    q3 = next(r for r in rows if r['title'] == 'Rivian Q3 2026 Shareholder Presentation')
+    self.assertEqual(q3['_quarter'], '2026-Q3')
+    self.assertTrue(q3['url'].startswith('https://downloads.rivian.com/'))
+
+  def test_events_from_both_pages_once(self):
+    """AI Day 는 두 쪽에 다 있다 — 하나로. 2026 행사(/investors 쪽에만)도 본다."""
+    rows = [r for r in _rows('rivian') if r['doc_type'] == 'investor_day']
+    self.assertEqual(len(rows), 3)
+    nd = _json('rivian_next_data.json')
+    # /investors 쪽 = AI Day · VW 합작(2024-11 까지만 싣는다) — Investor Day 2024 는 /investors/events 에만
+    self.assertEqual(len(L.parse_rivian_events(nd['investors'])), 2)
+
+  def test_next_data_missing_is_error(self):
+    """JS 로만 그리는 쪽으로 바뀌면 조용히 0건이 아니라 멈춘다."""
+    with self.assertRaises(L.EmptyListError):
+      L._next_data('<html><body></body></html>')
+    nd = L._next_data('<script id="__NEXT_DATA__" type="application/json">{"props": {}}</script>')
+    self.assertEqual(nd, {'props': {}})
 
 
 class SourceIdTest(unittest.TestCase):
@@ -671,6 +823,39 @@ class CollectorWiringTest(unittest.TestCase):
     self.assertIn('날짜 보류 1건 — 같은 분기 DART 연결 잠정실적 공시가 아직 없다(다음 실행에 다시 본다)', printed)
     self.assertIn('날짜 없음 1건', printed)
     self.assertIn('다음 실행에도 안 풀린다', printed)
+
+  VFS = {'id': 'u-vfs', 'ticker': 'VFS', 'sec_cik': '1913510', 'dart_corp_code': None}
+
+  def test_edgar_company_dates_from_reported_results(self):
+    """EDGAR 회사 — 날짜 근거 = 숫자 수집기가 실적을 읽은 EDGAR 6-K/8-K 접수일. 보류 문장은 'edgar' 사유."""
+    rows = [L._row('shareholder_letter', 'Q2', 'https://a.example/q2.pdf', None, 'f', quarter='2026-Q2', wait='edgar'),
+            L._row('shareholder_letter', 'Q3', 'https://a.example/q3.pdf', None, 'f', quarter='2026-Q3', wait='edgar')]
+    with patch.dict(ccd.ir_lists.IR_LISTS, {'VFS': lambda s, since: rows}), \
+         patch.object(ccd, 'edgar_quarter_dates', return_value={'2026-Q2': '2026-10-19'}) as eq, \
+         patch.object(ccd, 'prelim_quarter_dates') as pq, patch('builtins.print') as out:
+      got = ccd.ir_rows(MagicMock(), self.VFS, '2026-01-01', MagicMock())
+    eq.assert_called_once()
+    pq.assert_not_called()
+    self.assertEqual([(r['title'], r['published_at']) for r in got], [('Q2', '2026-10-19')])
+    printed = '\n'.join(c.args[0] for c in out.call_args_list)
+    self.assertIn(f'날짜 보류 1건 — {L.HOLD_REASONS["edgar"]}', printed)
+
+  def test_edgar_quarter_dates_query(self):
+    """실적 행(분기) → 문서 id → EDGAR 6-K/8-K 접수일. 다른 출처·없는 문서는 버린다."""
+    client = MagicMock()
+    res = [{'period': '2026-Q2', 'document_id': 7}, {'period': '2026-Q1', 'document_id': 5},
+           {'period': '2026-Q1', 'document_id': None}]
+    docs = [{'id': 7, 'published_at': '2026-10-19'}]  # id 5 = 질의 조건(edgar·6-K/8-K)에 안 걸린 문서
+    t = {'customer_reported_results': MagicMock(), 'customer_documents': MagicMock()}
+    t['customer_reported_results'].select.return_value.eq.return_value.eq.return_value.execute.return_value.data = res
+    t['customer_documents'].select.return_value.in_.return_value.eq.return_value.in_.return_value.execute \
+      .return_value.data = docs
+    client.table.side_effect = lambda name: t[name]
+    self.assertEqual(ccd.edgar_quarter_dates(client, 'u-vfs'), {'2026-Q2': '2026-10-19'})
+    q = t['customer_documents'].select.return_value
+    self.assertEqual(q.in_.call_args.args, ('id', [5, 7]))
+    self.assertEqual(q.in_.return_value.eq.call_args.args, ('source', 'edgar'))
+    self.assertEqual(q.in_.return_value.eq.return_value.in_.call_args.args, ('form', ['6-K', '8-K']))
 
   def test_earnings_dates_failure_keeps_document_status(self):
     """일정 받기가 깨져도 문서는 실리고 상태는 문서 기준 그대로 — 사유에 일정 실패만 덧붙는다."""

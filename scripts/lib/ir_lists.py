@@ -6,8 +6,8 @@
 행 = customer_documents 칸(company_id 는 수집기가 붙인다). source_id = `ir_source_id(url)` 한 곳에서만 만든다
 (호스트 + URL 경로, 쿼리 제외 — 같은 문서가 두 목록(VW RSS·실적 행렬)에 나와도 하나로 합쳐진다. 예외는 그 함수 docstring).
 
-날짜 칸이 없는 목록(현대차·현대모비스 IR · KGM 발표자료 등)은 published_at=None + `_quarter`('2026-Q3') + `_wait`
-(어디서 날짜가 올지)로 내보내고, 수집기가 `resolve_dates` 로 채운다. 못 찾으면 행을 버리지 않고 «보류»로 세어
+날짜 칸이 없는 목록(현대차·현대모비스 IR · KGM 발표자료 · 빈패스트·리비안 분기 보고서 등)은 published_at=None
++ `_quarter`('2026-Q3') + `_wait`(어디서 날짜가 올지)로 내보내고, 수집기가 `resolve_dates` 로 채운다. 못 찾으면 행을 버리지 않고 «보류»로 세어
 알린다(날짜를 지어내지 않는다 — 다음 실행에 근거가 생기면 그때 들어간다). 분기도 날짜도 없는 행은 «날짜 없음»으로
 따로 센다(다음 실행에도 안 풀린다).
 
@@ -152,15 +152,18 @@ def _years(since: str) -> range:
 # 분기 실적은 「연결재무제표기준」 공시만 — 현대차·기아·현대모비스 실물 전부 이 꼴이다.
 _CONSOLIDATED_PRELIM = '연결재무제표기준'
 
-# 보류 사유(`_wait`) → 수집기가 찍는 문장. 'dart' 만 resolve_dates 가 채운다 — 나머지는 어댑터가 같은 응답 안에서
-# 이미 찾아봤고 없었던 것이라, 다음 실행에 원문에 생겨야 풀린다.
+# 보류 사유(`_wait`) → 수집기가 찍는 문장. 'dart'·'edgar' 만 resolve_dates 가 채운다(수집기가 회사의 공시 식별자로
+# 어느 쪽 날짜를 넘길지 고른다) — 나머지는 어댑터가 같은 응답 안에서 이미 찾아봤고 없었던 것이라, 다음 실행에 원문에
+# 생겨야 풀린다.
 HOLD_REASONS = {
   'dart': '같은 분기 DART 연결 잠정실적 공시가 아직 없다',
   'press': '같은 분기 경영실적 보도자료가 자료실에 아직 없다',
   'rss': '같은 분기 실적 보도자료가 RSS 에 없다',
   'call': '같은 분기 실적 콜 이벤트가 아직 없다',
   'eqs': '같은 분기 실적 보도자료가 EQS 피드에 아직 없다',
+  'edgar': '같은 분기 실적을 읽어 낸 EDGAR 실적 공시(6-K·8-K)가 아직 없다',
 }
+_QDATE_WAITS = ('dart', 'edgar')  # resolve_dates 가 qdates 로 채우는 사유
 NO_DATE = 'nodate'  # 분기도 날짜도 없는 행 — 다음 실행에도 안 풀린다
 
 
@@ -187,6 +190,19 @@ def _quarter_end(q: str) -> date:
   return date(y, 12, 31) if n == 4 else date(y, 3 * n + 1, 1) - timedelta(days=1)
 
 
+def results_quarter_dates(pairs) -> dict[str, str]:
+  """EDGAR 회사 — (실적 문서가 보고한 분기 'YYYY-Qn', 그 문서 접수일) → {분기: 가장 이른 접수일}.
+
+  분기는 접수일로 «추정»하지 않고 숫자 수집기가 문서에서 읽은 기간을 쓴다(수집기가 customer_reported_results 로
+  짝을 만든다). 빈패스트 실적 6-K 는 분기 끝 뒤 2~4달에 나와(2026-11-10 DB: 2분기 실적 2026-10-19 · 4분기 실적
+  2025-04-24) «분기 끝 뒤 첫 실적 공시»로 고르면 3분기 행이 2분기 실적일을 받는다. 분기 끝 전 접수일은 버린다."""
+  out: dict[str, str] = {}
+  for q, day in pairs:
+    if day > _quarter_end(q).isoformat() and (q not in out or day < out[q]):
+      out[q] = day
+  return out
+
+
 # 분기 말 + 이 날수 안에 실적이 나온다(국내·독일·미국 실물 최장 = 4분기 3월 초). 이보다 오래된 «날짜 미상» 행은 범위 밖.
 _RESULTS_LAG_DAYS = 100
 
@@ -194,6 +210,8 @@ _RESULTS_LAG_DAYS = 100
 def resolve_dates(rows: list[dict], qdates: dict[str, str], since: str) -> tuple[list[dict], dict[str, int]]:
   """`_quarter` 행에 날짜를 채우고 since 이후만 남긴다. → (행, {보류 사유: 수}).
 
+  qdates = {분기: 날짜} — 'dart'·'edgar' 사유 행만 여기서 채운다(DART 잠정실적 공시일 · EDGAR 실적 문서 접수일 중
+  수집기가 회사에 맞는 쪽을 넘긴다).
   사유 = HOLD_REASONS 키(다음 실행에 다시 본다) 또는 NO_DATE(분기도 날짜도 없음 — 안 풀린다).
   분기가 since 보다 한참 오래된 행은 보류가 아니라 범위 밖이라 조용히 뺀다.
   """
@@ -205,7 +223,7 @@ def resolve_dates(rows: list[dict], qdates: dict[str, str], since: str) -> tuple
       if not q:
         holds[NO_DATE] = holds.get(NO_DATE, 0) + 1
         continue
-      if wait == 'dart':
+      if wait in _QDATE_WAITS:
         r['published_at'] = qdates.get(q)
       if r['published_at'] is None:
         if (_quarter_end(q) + timedelta(days=_RESULTS_LAG_DAYS)).isoformat() < since:
@@ -849,9 +867,213 @@ def fetch_kgm(session: requests.Session, since: str) -> list[dict]:
   return parse_kgm(_fetch(session, KGM_URL).json())
 
 
+# ── 빈패스트(링크만 — 숫자는 EDGAR 6-K) ───────────────────────────────────────
+
+VINFAST_IR = 'https://vinfastauto.us/investor-relations/'
+# Mobility Day 2025 상세 — 고정 1건(조사 ir_foreign.md 가 짚은 IR 전용 행사 발표 · 다른 행사 상세는 열어 보지 않았다).
+# SHORTCUT: 행사 상세 1쪽만 본다 → 다음 투자자 행사가 생기면 행사 목록(/investor-relations/events)에서 상세 쪽을 고르도록
+VINFAST_MOBILITY_DAY = f'{VINFAST_IR}events/vinfast-2025-mobility-day'
+_VF_PERIOD = re.compile(r'Q([1-4])/(\d{4})')
+_VF_EDITION = re.compile(r'/(\d{4})\.(\d{1,2})\.[^/]*$')  # 회사 소개 자료 링크 끝 = 판 이름(`2026.11.-corporate-presentation`)
+_VF_PDF_URL = re.compile(r"viewerPdfUrl\s*=\s*'([^']+)'")
+_PDF_DATE = re.compile(r'D:(\d{4})(\d{2})(\d{2})')
+
+
+def parse_vinfast_reports(html: str) -> list[dict]:
+  """IR 첫 쪽 「Our Reports」 표(Period · Earnings Release · Delivery · Webcast · Earnings Report) → Earnings Report 칸만
+  shareholder_letter(주주서한형 분기 보고서). 실적 보도자료·인도 칸은 SEC 링크(EDGAR 로 이미 받는다) · 웹캐스트는 문서가 아니다.
+
+  표엔 날짜가 없다 — 분기만 실어 wait='edgar'(같은 분기 실적 6-K 접수일). 링크 이름의 날짜(`250410_q424-ec-deck`)는
+  쓰지 않는다: 2024 4분기 실적은 2025-04-24 에 나왔다(2026-11-10 DB) — 올린 파일 이름이 발표일이 아니다."""
+  out = []
+  for tb in BeautifulSoup(html, 'html.parser').find_all('table'):
+    heads = [th.get_text(' ', strip=True) for th in tb.find_all('th')]
+    if 'Period' not in heads or 'Earnings Report' not in heads:
+      continue
+    col = heads.index('Earnings Report')
+    for tr in tb.select('tbody tr'):
+      tds = tr.find_all('td')
+      period = tds[0].get_text(' ', strip=True) if tds else ''
+      m = _VF_PERIOD.fullmatch(period)  # 「Q1/2024 (Restated)」 행은 보고서 칸이 비었다
+      if not m or len(tds) <= col:
+        continue
+      for a in tds[col].find_all('a', href=True):
+        out.append(_row('shareholder_letter', f'VinFast Earnings Report {period}', a['href'], None, 'earnings-report',
+                        quarter=f'{m.group(2)}-Q{m.group(1)}', wait='edgar'))
+  return _need('빈패스트 Our Reports 표', out)
+
+
+def vinfast_presentation_link(html: str) -> str:
+  """IR 첫 쪽 「Investor - Presentation」 버튼 = 회사 소개 자료 뷰어 쪽(widen). 판이 바뀌면 링크 끝 이름이 바뀐다."""
+  a = BeautifulSoup(html, 'html.parser').find('a', string=lambda s: s and s.strip() == 'Investor - Presentation')
+  if not a or not a.get('href'):
+    raise EmptyListError('빈패스트 회사 소개 자료 링크 0건')
+  return a['href']
+
+
+def vinfast_pdf_url(viewer_html: str) -> str | None:
+  """뷰어 HTML 안의 서명된 PDF 주소(`sig.expires` — 만료된다). 행에는 싣지 않고 날짜를 읽을 때만 쓴다."""
+  m = _VF_PDF_URL.search(viewer_html)
+  return m.group(1) if m else None
+
+
+def vinfast_edition_date(viewer_url: str, creation: str) -> str | None:
+  """회사 소개 자료 날짜 = PDF 를 만든 날(메타데이터 CreationDate · 2026-11 판 = 2026-11-09). IR 쪽에는 날짜가 없다.
+  판 이름(링크 끝 `2026.11.`)의 연·월과 같을 때만 쓴다 — 다르면 근거가 어긋난 것이라 날짜 없이 둔다."""
+  m, d = _VF_EDITION.search(urlsplit(viewer_url).path), _PDF_DATE.match(creation or '')
+  if m and d and (int(m.group(1)), int(m.group(2))) == (int(d.group(1)), int(d.group(2))):
+    return f'{d.group(1)}-{d.group(2)}-{d.group(3)}'
+  return None
+
+
+def _pdf_creation(content: bytes) -> str:
+  import fitz  # pymupdf(requirements.txt) — 지역 import: 순수 함수 시험이 fitz 없이 돌게
+  with fitz.open(stream=content, filetype='pdf') as doc:
+    return (doc.metadata or {}).get('creationDate') or ''
+
+
+def parse_vinfast_event(html: str) -> list[dict]:
+  """행사 상세 → 「Details」 칸의 widen 발표 링크 = investor_day. 날짜 = 제목 연도(`VinFast 2025 Mobility Day`) +
+  날짜 칸(start-month·start-date). 본문의 애널리스트 노트 링크(증권사 리포트 원문 · D9)는 보지 않는다."""
+  soup = BeautifulSoup(html, 'html.parser')
+  title = soup.find('h2').get_text(' ', strip=True) if soup.find('h2') else ''
+  year, month, day = re.search(r'\b(20\d\d)\b', title), soup.select_one('.start-month'), soup.select_one('.start-date')
+  published = (f'{year.group(1)}-{int(month.get_text(strip=True)):02d}-{int(day.get_text(strip=True)):02d}'
+               if year and month and day else None)
+  out = [_row('investor_day', f'{title} Presentation', a['href'], published, 'event')
+         for a in soup.select('.events-detail-place a[href]') if urlsplit(a['href']).netloc.endswith('widen.net')]
+  return _need('빈패스트 Mobility Day 발표', out)
+
+
+def parse_vinfast(reports_html: str, event_html: str, presentation_date: str | None) -> list[dict]:
+  """분기 보고서(EDGAR 날짜 대기) + 회사 소개 자료(뷰어 쪽 URL — 만료 없음 · 키 = 판 이름이 든 경로) + Mobility Day.
+  증권사 리포트 원문 표 · 주주 뉴스레터(날짜 칸이 «월»뿐) · 웹캐스트는 싣지 않는다."""
+  link = vinfast_presentation_link(reports_html)
+  edition = urlsplit(link).path.rstrip('/').rsplit('/', 1)[-1]
+  rows = parse_vinfast_reports(reports_html)
+  rows.append(_row('presentation', f'VinFast Corporate Presentation ({edition})', link, presentation_date,
+                   'corporate-presentation'))
+  rows += parse_vinfast_event(event_html)
+  return list({r['source_id']: r for r in rows}.values())
+
+
+def fetch_vinfast(session: requests.Session, since: str) -> list[dict]:
+  """IR 첫 쪽 → 회사 소개 자료 뷰어 → 서명 PDF(만든 날만 읽는다) · Mobility Day 상세. PDF 가 상한을 넘으면 날짜 없이
+  (수집기가 «날짜 없음»으로 센다)."""
+  html = _fetch(session, VINFAST_IR).text
+  link = vinfast_presentation_link(html)
+  pdf, created = vinfast_pdf_url(_fetch(session, link).text), ''
+  if pdf:
+    try:
+      created = _pdf_creation(ir_get(session, pdf).content)
+    except TooLarge:
+      pass
+  return parse_vinfast(html, _fetch(session, VINFAST_MOBILITY_DAY).text, vinfast_edition_date(link, created))
+
+
+# ── 리비안(링크만 — 숫자는 EDGAR 8-K · Next.js __NEXT_DATA__ 의 Contentful 리치텍스트) ──────────
+
+RIVN_BASE = 'https://rivian.com'
+RIVN_INVESTORS = f'{RIVN_BASE}/investors'
+RIVN_EVENTS = f'{RIVN_BASE}/investors/events'
+_RV_LETTER = re.compile(r'Shareholder (Presentation|Letter)', re.I)  # 분기 블록 = 발표자료/주주서한 PDF(EDGAR 99.2 와 같은 글)
+_RV_EVENT_DOC = re.compile(r'Presentation|Shareholder Letter', re.I)  # 행사 = AI Day·Investor Day 발표 · VW 합작 덱
+_RV_LINKS = ('hyperlink', 'asset-hyperlink', 'entry-hyperlink')
+
+
+def _next_data(html: str) -> dict:
+  tag = BeautifulSoup(html, 'html.parser').find('script', id='__NEXT_DATA__')
+  if not tag or not tag.string:
+    raise EmptyListError('리비안 __NEXT_DATA__ 없음')
+  return json.loads(tag.string)
+
+
+def _rt_text(node) -> str:
+  if not isinstance(node, dict):
+    return ''
+  if node.get('nodeType') == 'text':
+    return node.get('value') or ''
+  return ''.join(_rt_text(c) for c in node.get('content') or [])
+
+
+def _rt_links(node) -> list[tuple[str, str]]:
+  """리치텍스트 안 링크 → (글, 절대 URL). 내부 항목 링크(entry-hyperlink — URL 없음)는 버린다."""
+  if not isinstance(node, dict):
+    return []
+  if node.get('nodeType') in _RV_LINKS:
+    uri = (node.get('data') or {}).get('uri')
+    return [(' '.join(_rt_text(node).split()), urljoin(RIVN_BASE, uri))] if uri else []
+  return [x for c in node.get('content') or [] for x in _rt_links(c)]
+
+
+def _rv_items(nd: dict, results: bool) -> list[dict]:
+  """분기 실적 절(anchorTag='results') 또는 그 밖의 절의 블록 리치텍스트 문서들."""
+  secs = ((nd.get('props') or {}).get('pageProps') or {}).get('data', {}).get('sections') or []
+  return [((it.get('description') or {}).get('json') or {}) for s in secs if (s.get('anchorTag') == 'results') == results
+          for it in (s.get('blocks') or {}).get('items') or []]
+
+
+def parse_rivian_quarters(nd: dict) -> list[dict]:
+  """분기 실적 절 — 연도 블록(「2026」) 뒤의 분기 블록(머리 「Q1」…「Q4 & Full Year」) 안 「Shareholder Presentation/Letter」
+  PDF → shareholder_letter. 날짜가 없다 → wait='edgar'(같은 분기 실적 8-K 접수일). 실적 뉴스·10-Q·웹캐스트는 버린다."""
+  out, year = [], None
+  for doc in _rv_items(nd, results=True):
+    text = _rt_text(doc).strip()
+    if re.fullmatch(r'20\d\d', text):
+      year = int(text)
+      continue
+    head = next((_rt_text(b).strip() for b in doc.get('content') or [] if b.get('nodeType', '').startswith('heading')), '')
+    m = re.match(r'Q([1-4])\b', head)
+    if not (m and year):
+      continue
+    for label, url in _rt_links(doc):
+      if _RV_LETTER.fullmatch(label):
+        out.append(_row('shareholder_letter', f'Rivian Q{m.group(1)} {year} {label}', url, None, 'quarterly-results',
+                        quarter=f'{year}-Q{m.group(1)}', wait='edgar'))
+  return _need('리비안 분기 실적 블록', out)
+
+
+def _rv_date(text: str) -> str | None:
+  try:
+    return datetime.strptime(' '.join(text.split()).title(), '%B %d, %Y').date().isoformat()  # 「NOVEMBER 12, 2025」
+  except ValueError:
+    return None
+
+
+def parse_rivian_events(nd: dict) -> list[dict]:
+  """행사 연표(머리6 = 날짜 · 머리3 = 행사 이름 · 다음 문단 = 링크) → 「Presentation」·「Shareholder Letter」 PDF 링크 =
+  investor_day(날짜 = 그 행사 머리의 날짜). 보도자료·웹캐스트·위임장(Download)·URL 없는 내부 링크는 버린다."""
+  out = []
+  for doc in _rv_items(nd, results=False):
+    day, title = None, ''
+    for b in doc.get('content') or []:
+      kind = b.get('nodeType')
+      if kind == 'heading-6':
+        day, title = _rv_date(_rt_text(b)), ''
+      elif kind == 'heading-3':
+        title = ' '.join(_rt_text(b).split())
+      elif title:
+        for label, url in _rt_links(b):
+          if _RV_EVENT_DOC.fullmatch(label):
+            out.append(_row('investor_day', f'{title} ({label})', url, day, 'event'))
+  return out
+
+
+def parse_rivian(investors: dict, events: dict) -> list[dict]:
+  """/investors(분기 실적 + 최근 행사) + /investors/events(행사 전체 — 2026 행사는 /investors 쪽에만) → 행.
+  Impact Report·공급사 행동강령은 두 쪽 리치텍스트 어디에도 링크가 없다(다른 쪽 — 받지 않는다)."""
+  rows = parse_rivian_quarters(investors)
+  rows += _need('리비안 행사 문서', parse_rivian_events(investors) + parse_rivian_events(events))
+  return list({r['source_id']: r for r in rows}.values())
+
+
+def fetch_rivian(session: requests.Session, since: str) -> list[dict]:
+  return parse_rivian(*(_next_data(_fetch(session, u).text) for u in (RIVN_INVESTORS, RIVN_EVENTS)))
+
+
 # ── 등록부 ────────────────────────────────────────────────────────────────────
 
-# 스텔란티스·빈패스트 = EDGAR 로 충분(어댑터 없음) · GM = 접근 차단(아래 probe_gm)
+# 스텔란티스 = EDGAR 로 충분(어댑터 없음) · 빈패스트·리비안 = 링크만(숫자 파서는 EDGAR 만 받는다) · GM = 접근 차단(아래 probe_gm)
 IR_LISTS: dict[str, Callable[[requests.Session, str], list[dict]]] = {
   'VOW3.DE': fetch_vw,
   'P911.DE': fetch_porsche,
@@ -860,6 +1082,8 @@ IR_LISTS: dict[str, Callable[[requests.Session, str], list[dict]]] = {
   '000270': fetch_kia,
   '012330': fetch_mobis,
   '003620': fetch_kgm,
+  'VFS': fetch_vinfast,
+  'RIVN': fetch_rivian,
 }
 
 # customer_earnings_dates 행({'period','event_date','quote','source','source_ref','url'}) — 문서가 아니다.

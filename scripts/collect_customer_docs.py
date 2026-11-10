@@ -145,10 +145,34 @@ def prelim_quarter_dates(client, company_id: str) -> dict[str, str]:
   return ir_lists.quarter_dates(data)
 
 
+def edgar_quarter_dates(client, company_id: str) -> dict[str, str]:
+  """이미 적재된 EDGAR 실적 문서 → {'2026-Q2': 접수일}. 빈패스트·리비안 IR 목록엔 날짜 칸이 없어 이 날을 쓴다.
+
+  실적 문서 = 숫자 수집기가 분기 실적 행(customer_reported_results)을 남긴 6-K·8-K. 빈패스트 6-K 는 제목이 전부
+  「FORM 6-K」·doc_type 이 전부 current_report 라(2026-11-10 DB 62건) 목록 칸으로는 실적 공시를 못 가른다 — 분기도
+  그 문서가 보고한 기간을 쓴다(ir_lists.results_quarter_dates). 리비안 잠정 범위 8-K(2.02)는 실적 행이 없어 빠진다.
+  새 분기 실적 공시는 숫자 수집기가 읽은 다음 실행부터 날짜가 된다(그 전엔 보류)."""
+  res = (client.table('customer_reported_results').select('period,document_id').eq('company_id', company_id)
+         .eq('period_grain', 'quarter').execute().data)
+  ids = sorted({r['document_id'] for r in res if r['document_id']})
+  filed: dict[int, str] = {}
+  for i in range(0, len(ids), _IN_CHUNK):
+    data = (client.table('customer_documents').select('id,published_at').in_('id', ids[i:i + _IN_CHUNK])
+            .eq('source', 'edgar').in_('form', ['6-K', '8-K']).execute().data)
+    filed.update({d['id']: d['published_at'] for d in data})
+  return ir_lists.results_quarter_dates((r['period'], filed[r['document_id']]) for r in res if r['document_id'] in filed)
+
+
 def ir_rows(session, c: dict, since: str, client) -> list[dict]:
-  """IR 어댑터 행 → 날짜 채우기(_quarter) → since 이후 → company_id. 어댑터가 0건이면 목록이 깨진 것이다(error)."""
+  """IR 어댑터 행 → 날짜 채우기(_quarter) → since 이후 → company_id. 어댑터가 0건이면 목록이 깨진 것이다(error).
+  날짜 근거는 회사의 공시 식별자로 고른다 — DART 회사 = 잠정실적 공시일 · EDGAR 회사 = 실적 문서 접수일."""
   raw = require_rows('IR', ir_lists.IR_LISTS[c['ticker']](session, since))
-  qdates = prelim_quarter_dates(client, c['id']) if c['dart_corp_code'] else {}
+  if c['dart_corp_code']:
+    qdates = prelim_quarter_dates(client, c['id'])
+  elif c['sec_cik'] and any(r.get('_wait') == 'edgar' for r in raw):  # 폴라리스(콜 날짜)는 질의하지 않는다
+    qdates = edgar_quarter_dates(client, c['id'])
+  else:
+    qdates = {}
   rows, holds = ir_lists.resolve_dates(raw, qdates, since)
   for wait, n in sorted(holds.items()):
     if wait == ir_lists.NO_DATE:
