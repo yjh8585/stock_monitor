@@ -134,7 +134,15 @@ NATION_LABEL = 'NATION'
 # 정본은 **소스의 최신 표기**로 맞춘다 — 앞으로 들어올 달이 그 표기를 쓰므로 추가 손질이 없다.
 #   실측: 2025-12·2026-01 'Mercedes-Benz' → 2026-02~ 'Mercedes'.
 # 원본 라벨은 data/_cox_inventory_cache/<YYYYMM>.meta.json에 그대로 남는다.
-BRAND_ALIASES = {'mercedes-benz': 'Mercedes'}
+#   실측(2026-11-10 과거분 백필): 축 라벨 대소문자가 달마다 다르다 — 'Nation'/'NATION',
+#   'INFINITI'/'Infiniti', 'MINI'/'Mini'. 🔴 화면은 업계 평균을 brand='NATION' 으로 찾으므로
+#   'Nation' 이면 그달 평균이 조용히 빠진다. 키가 소문자라 한 줄이 모든 대소문자 변형을 흡수한다.
+BRAND_ALIASES = {
+  'mercedes-benz': 'Mercedes',
+  'nation': NATION_LABEL,
+  'infiniti': 'Infiniti',
+  'mini': 'MINI',
+}
 # 차트에 실린 브랜드 수. 실측 2026-04/05 모두 30개(NATION 포함)였다.
 # 절반 이하로 떨어지면 차트 일부만 읽은 것으로 보고 실패 처리한다.
 MIN_BRANDS_EXPECTED = 12

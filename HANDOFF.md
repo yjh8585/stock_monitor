@@ -8,19 +8,41 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-10, **고객사 IR 확장 계획 실행 중 — Task 1~3 완료 · Task 4 수정 1회차 도중 중단 · 미푸시**)
+## 최신 상태 · 재개 지점 (2026-11-10, **API 크레딧 일회성 작업 — DB 반영 끝 · 로컬 커밋 · 미푸시 · wrap-up 미완**)
+
+> 사용자가 PC 를 끄느라 중간 저장한 블록이다. **고객사 IR 확장(바로 아래 블록)은 다른 세션의 진행 중 작업이니 그쪽 재개 지점은 아래를 본다.**
+> 지시 원문·선택·판정 = [`docs/plans/2026-11-10-api-credit_최초지시.md`](./docs/plans/2026-11-10-api-credit_최초지시.md)
+
+**끝난 것(DB 는 이미 운영에 반영 · 캐시 갱신 완료)**
+
+- 증권사 리포트 미요약: 원인은 「작성 가치 없음」이 아니라 선별 점수 문턱(5점) 미달 — 내려받은 파일 정리, 밀린 4편 요약
+- `enrich_customers_websearch.py`: 트리거가 `[{"name":..}]` 객체 배열만 읽는데 문자열 배열을 넘겨 조용히 `[]` 가 되던 버그 수정 · LLM 이 짐작한 고객사 3곳은 원래 값으로 되돌림
+- Cox 딜러 재고일수 과거분 백필(46개월) · 2022-10 은 차급 차트라 제외 · 대소문자 표기 변형(`Nation`·`INFINITI`·`Mini`)을 `BRAND_ALIASES` 로 흡수(시험 70개 통과) · 함정 = `docs/gotchas-data-collection.md` 「Cox 과거분을 다시 읽을 때」
+- 스텔란티스 화면 헤드리스 확인: 최근 24개월 재고 항목 23건 = Cox 21 + 수동 2(24.12·26.06, 수동 우선 설계대로) · 전부 업계 평균 붙음
+- 휴머노이드 기업가치 4건 + 홀리데이 7,000억원(4.6714억 달러)·1X 기준일 2025-01-31 정정 · 애질리티 → 나스닥 AGLT 상장사 전환, 일봉 2026-11-05 부터만(그 전은 SPAC 시세)
+
+**남은 것**
+
+1. `npm run check-all` — lint 통과 · `format:check` 가 실행 도중 고친 `HANDOFF.md` 하나로 exit 1(prettier 로 고쳐 통과) · 그 뒤 단계(typecheck·test)는 안 돌았다. 이 세션 변경은 파이썬·문서뿐(TS 무변경)이지만 **다시 끝까지 돌려 확인**
+2. **푸시 안 함** — master 에 다른 세션의 고객사 커밋(`da1260f` 등, 배포·유료 수집 시작이라 사용자 확인 대기)이 함께 걸려 있어서다. 그쪽 확인이 난 뒤 함께 푸시
+3. AGLT 현재가 수집(`collect_prices_live.py`)은 국내 종목 도는 도중 PC 종료로 끊겼을 수 있다 — 재무·시총(2조 6,739억원)은 들어갔다. 다음 정기 수집이 채운다
+4. wrap-up 의 메모리·보고 단계 마무리
+
+## 이전 상태 · 재개 지점 (2026-11-10, **고객사 IR 확장 계획 실행 중 — Task 1~3 완료 · Task 4 수정 1회차 도중 중단 · 미푸시**)
 
 > 이 세션의 관통 주제: 고객사 2단계 위에 얹는 IR 확장(계획서 `docs/plans/2026-11-10-customers-ir-expansion.md` · Task 1~13 · 결정 기록 `_결정이행.md` D1~D9·E1~E6)을 작업별 서브에이전트(SDD)로 실행. 사용자가 PC 를 꺼서 Task 4 수정 도중 멈췄다.
 
 **결과**: 커밋 `888db50`(계획) · `dd6bd3a`(Codex 대조 반영) · `a13374c`(E6) · Task 1 `c7f386a` · Task 2 `559fd05`·`84ab2b7` · Task 3 `ea02611` · Task 4 `da1260f`(첫 구현 · 검토 「수정 필요」). **푸시 안 함**(원격보다 60여 커밋 앞섬).
 
 **🔴 재개 지점**: SDD 원장 `.superpowers/sdd/2026-11-10-customers-ir-expansion/progress.md`(gitignore) 맨 끝부터. 지금은 `Task 4: fix round 1 dispatched`.
+
 1. Task 4 수정 1회차는 **커밋됨 `98302a7`**(pytest 784 통과 · 마무리 직후 도착). 남은 것 = 그 수정의 범위 좁힌 재검토(`review-package <plan> da1260f 98302a7` → 재검토 프롬프트 = SDD 스킬 `re-review-prompt.md`) → 통과면 원장에 `Task 4: complete`. 수정 지시(재검토 대조용) = Important 1(`fetch_vinfast` PDF 받기 실패가 VFS 목록 전체를 죽임 → `TooLarge`·`requests.RequestException`·PDF 파싱 오류를 잡아 날짜만 비움 + 시험 2건) + Minor 5(`_RESULTS_LAG_DAYS` 100→120 · `edgar_quarter_dates` docstring 한 줄 · `parse_vinfast_event` 날짜 ValueError → None · 픽스처 `sig=` 값 가림 · PDF 만든 날 SHORTCUT 주석). 이어받는 법: 변경을 읽어 지시와 맞는지 보고, 모자라면 새 구현자에게 브리프(`task-4-brief.md`)·보고서(`task-4-report.md`)·이 지시를 주고 끝내게 한 뒤 → 커밋 → 범위 좁힌 재검토(`review-package <plan> da1260f HEAD`).
 2. 그다음 Task 5 → 6 → 7 → 8 → 9 → 10 → 13 → 11 → 최종 검토(Opus 검토 + Codex diff 검토 따로) → Task 12(메인 직접 · Step 0 = `collect_customer_docs.py --backfill` 본 적재 + 숫자 수집 본 실행 · LLM 아끼지 않음).
 
 **사용자 지시·선택 (2026-11-10 · 원문 = `참고/고객사/2026-11-09-customers-page_최초지시.md` 끝 세 절)**: 폭스바겐 중국 동향 = 숫자+문서 목록(Task 13) · 노사 갈등·파업 = 별도 계획서의 새 기능(E5) · 「코덱스 한도 다 차면 재설정해서 사용량 복구할 거니까 코덱스 사용해」(게이트에 걸려도 Codex 를 쓴다 — 메모리 `feedback_use_codex_despite_gate`) · 「프로모션 API 크레딧 … 과거~최신 자료 등 찾거나 정리할 때 지금 최대한 써」 → 과거 2년치 백필+LLM 을 푸시 전 이 PC 에서(E6 · 푸시 뒤 GHA 백필은 불필요해짐).
 
 **비자명한 사실 (재조사 금지)**:
+
 - 목록 드라이런은 새 문서를 DB 에 저장하지 않고 숫자 수집기는 DB 문서만 읽는다 → «새 문서의 숫자 수집 드라이런» 확인은 성립하지 않는다. 시험(`mod.wants`·`parse`)으로 대신하고 실물은 Task 12 Step 0(Codex 대조 · 계획서 Global Constraints 마지막 줄).
 - 공개 레포라 계획서에 «고객사 노조 + 우리 생산량 + 특정 OEM 공장» 원문을 그대로 두면 그 OEM 이 우리 고객임이 드러난다 → 공개 판에서 가림(원문은 `참고/`).
 - 화면(`lib/customers/ir.ts`)은 실적 행 단위를 `bn()` 으로 환산하고 `quarterize` 가 실측 분기 행을 누계 차이보다 우선한다 — 포르쉐 팩트시트(million)와 EQS(billion) 공존은 결함 아님(Task 3 검토).

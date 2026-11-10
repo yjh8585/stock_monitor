@@ -11,6 +11,11 @@
   4. DB UPDATE
 
 대상: TARGET_TICKERS env 또는 모든 parts-top100/domestic 빈 customers 회사
+
+🔴 결과를 그대로 믿지 말 것(2026-11-10 실측, Sonnet 5.5): 남은 대상은 공개 고객 정보가 없는
+   국내 소형 부품사 6곳이었다. 3곳은 「추출 실패」였고 3곳은 출처로 확인되지 않는 OEM 명단
+   (예: 국내 2차 협력사에 벤츠·BMW·테슬라 등 12곳)을 냈다. 그래서 3곳 모두 원래 값([])으로 되돌렸다.
+   돌렸으면 회사마다 기사·공시로 대조한 뒤에만 남긴다.
 """
 import json
 import os
@@ -110,7 +115,10 @@ def main():
             normalized.append(name)
 
       if normalized:
-        client.table('companies').update({'customers': normalized}).eq('id', c['id']).execute()
+        # 🔴 트리거 trg_normalize_customers 는 [{"name": ...}] 객체 배열만 읽는다.
+        #    문자열 배열을 넘기면 이름을 못 꺼내 조용히 [] 로 저장된다(2026-11-10 실측).
+        client.table('companies').update(
+          {'customers': [{'name': n} for n in normalized]}).eq('id', c['id']).execute()
         ok += 1
         logger.info(f'  ✓ {len(normalized)}개: {normalized[:5]}')
       else:

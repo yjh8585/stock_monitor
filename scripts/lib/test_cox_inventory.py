@@ -275,6 +275,15 @@ class NormalizeBrandsTest(unittest.TestCase):
     got = col.normalize_brands(_brands([('Land Rover', 103), ('NATION', 76)]))
     self.assertEqual([b['brand'] for b in got], ['Land Rover', 'NATION'])
 
+  def test_case_variants_normalized(self):
+    """실측(2026-11-10 백필): 축 라벨 대소문자가 달마다 다르다 — 2024-03 'Nation'·'MINI',
+    2022-11~2023-05 'INFINITI', 2026-08 'Mini'. 화면은 brand='NATION' 으로 업계 평균을 찾는다."""
+    got = col.normalize_brands(_brands([('Nation', 72), ('INFINITI', 104), ('Mini', 61), ('MINI', 67)]))
+    self.assertEqual([b['brand'] for b in got], ['NATION', 'Infiniti', 'MINI', 'MINI'])
+
+  def test_case_variants_in_excluded(self):
+    self.assertEqual(col.normalize_excluded(['Mini', 'INFINITI']), ['MINI', 'Infiniti'])
+
   def test_whitespace_stripped(self):
     got = col.normalize_brands(_brands([(' Jeep ', 145)]))
     self.assertEqual(got[0]['brand'], 'Jeep')
