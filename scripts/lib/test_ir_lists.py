@@ -366,7 +366,7 @@ class PorscheReportsTest(unittest.TestCase):
 
 class NumbersCollectorWantsTest(unittest.TestCase):
   """목록 드라이런은 새 문서를 DB 에 싣지 않는다 — 새 행을 숫자 수집기의 Doc 꼴로 바꿔 wants 를 직접 본다.
-  발표자료·행사·팩트시트는 지금 대상 밖(pending) · 1분기 인도 보도자료는 대상(Task 3 이 팩트시트를 True 로 바꾼다)."""
+  발표자료·행사·VW Factbook 은 대상 밖(pending) · 1분기 인도 보도자료와 포르쉐 팩트시트 XLSX(Task 3)는 대상."""
 
   def _doc(self, ticker: str, r: dict):
     from customer_parsers.base import Doc
@@ -380,7 +380,8 @@ class NumbersCollectorWantsTest(unittest.TestCase):
       self.assertTrue(new)
       for r in new:
         with self.subTest(ticker=ticker, title=r['title']):
-          self.assertFalse(mod.wants(self._doc(ticker, r)))
+          want = company == 'porsche' and r['doc_type'] == 'fact_sheet'
+          self.assertEqual(mod.wants(self._doc(ticker, r)), want)
     q1 = next(r for r in _rows('vw') if r['title'].startswith('Volkswagen Group maintains stable market share'))
     self.assertTrue(vw.wants(self._doc('VOW3.DE', q1)))
 

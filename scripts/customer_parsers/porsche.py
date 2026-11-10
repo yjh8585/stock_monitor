@@ -18,7 +18,18 @@
 
 doc_type 에 기대지 않는다(목록 분류가 본문 낱말로 가른다) — 판정은 표 머리·전망 머리로. 「알아봄」인데 그 서식에 늘 있는
 행(실적 표: 매출·영업이익·인도 · 인도 표: Worldwide)이 빠지거나 기간 칸 꼴이 바뀌면 문서를 비워 failed.
+
+팩트시트 XLSX(Task 3 · 목록 어댑터가 doc_type='fact_sheet'·form='fact-sheet-xlsx' 로 낸다 — 이 갈래만 doc_type 으로 고른다.
+받는 길부터 다르다: fetch 가 XLSX 를 열어 시트별 표로 만든다). 실물 2건(Q3 2026 · Q1 2025, 2026-11-10)으로 확인한 꼴:
+- 시트 '01 - Group EBIT'(머리 'million €' · 칸 'Q3 2026' 과 '%' 가 번갈아) · '03 - Sales_deliveries by Region'(머리 'Units').
+  시트마다 위에 분기 단독 블록, 아래에 누계 블록('Q1-Q3 2026' · 'FY 2025')이 있다 → 머리 칸이 «전부» 분기인 첫 블록만 읽는다
+  (Q3 2026 판 누계 블록은 'Q1 2026' 자리에 'Q1 2025' 라고 잘못 적혀 있다).
+- 칸 순서가 판마다 다르다(Q3 2026 판은 최신이 왼쪽 · Q1 2025 판은 오른쪽) → 머리 글로 칸을 찾는다.
+- 셀 값은 원 단위 실수(8052904341.22)이고 표시 형식 '#,##0,,' 이 백만으로 보여 준다 → 글은 표시 형식대로 만든다('8,053').
+- 그 해(머리의 가장 최근 분기의 해) 분기만 낸다 — 전년 분기는 그해 팩트시트가 낸다(정정치는 «나중 공시 우선»으로 덮인다).
+- 인도 = 'Deliveries to customers'(region total — EQS 인도 표 Worldwide 와 같은 값 · 2026 Q1+Q2+Q3 = 178,532).
 """
+import io
 import re
 
 from customer_parsers.base import Doc, Content, ParseResult, ResultRow, VolumeRow, GuidanceRow, to_number
@@ -66,8 +77,12 @@ _CHANGE_MARK = re.compile(r'previous forecast|now expects|is expected to (?:incr
 _LLM_MARK = re.compile(r'\bForecast for 20\d{2}\b|previous forecast', re.I)
 
 
+def _is_fact_sheet(doc: Doc) -> bool:
+  return doc.source == 'ir' and doc.doc_type == 'fact_sheet' and doc.form == 'fact-sheet-xlsx'
+
+
 def wants(doc: Doc) -> bool:
-  return doc.source == 'ir' and doc.doc_type in ('earnings_release', 'sales_release', 'guidance')
+  return (doc.source == 'ir' and doc.doc_type in ('earnings_release', 'sales_release', 'guidance')) or _is_fact_sheet(doc)
 
 
 def llm_wants(doc: Doc, result: ParseResult) -> bool:
@@ -175,7 +190,127 @@ def parse_guidance(text: str) -> tuple[list[GuidanceRow], bool]:
   return out, bool(missed) or (not out and _LLM_MARK.search(text) is not None)
 
 
+# ---------------------------------------------------------------- 팩트시트 XLSX
+_FS_RES_SHEET = re.compile(r'Group EBIT', re.I)
+_FS_DLV_SHEET = re.compile(r'deliveries by Region', re.I)
+_FS_QTR = re.compile(r'Q([1-4]) (20\d{2})\*?')   # '*' = 'Prior-year figures adjusted (IFRS 17)' 각주 표식
+# 표시 형식 정수 — '8,053' · 일부 칸은 구분 기호가 없다(Q1 2025 판 Q3 2022 인도 '75652')
+_FS_INT = re.compile(r'-?\d{1,3}(?:,\d{3})+|-?\d+')
+_FS_MONEY_MAX = 1e6   # 백만 유로 — 넘으면 표시 형식이 바뀌어 원 단위 값이 그대로 왔다(백만 배 틀린 값)
+_NUMFMT = re.compile(r'(#,##0|0)(?:\.(0+))?(,*)')   # '#,##0,,' (끝 쉼표 하나 = ÷1000) · '0.0' · '#,##0.00'
+
+
+def _cell_text(v, fmt: str | None) -> str:
+  """셀 → 엑셀이 보여 주는 글(표시 형식대로). 모르는 형식은 값 그대로."""
+  if v is None:
+    return ''
+  if isinstance(v, str):
+    return v.strip()
+  if isinstance(v, bool) or not isinstance(v, (int, float)):
+    return str(v)
+  m = _NUMFMT.fullmatch((fmt or '').split(';')[0])
+  if m:
+    x = v / 1000 ** len(m.group(3))
+    return f"{x:{',' if m.group(1) == '#,##0' else ''}.{len(m.group(2) or '')}f}"
+  return str(int(v)) if float(v).is_integer() else str(v)
+
+
+def fs_content(sheets: list[tuple[str, list[list[str]]]], raw: bytes = b'') -> Content:
+  """(시트 이름, 표시 글 행) → Content. tables = 시트마다 [[시트 이름], *행](칸 자리 그대로 · 빈 칸 '') ·
+  text = 시트 이름 + 행마다 빈 칸을 뺀 row_text — quote_check 가 대조할 원문."""
+  tables, lines = [], []
+  for title, rows in sheets:
+    tables.append([[title], *rows])
+    lines.append(title)
+    lines += [row_text([c for c in r if c]) for r in rows if any(r)]
+  return Content('\n'.join(lines), tables, raw)
+
+
+def fetch(session, doc: Doc) -> Content:
+  """🔴 모듈 단위 훅 — 포르쉐의 «모든» 문서가 여기로 온다. 팩트시트가 아니면 숫자 수집기의 기본 받기 그대로.
+  팩트시트는 ir_lists.ir_get(50MB 상한 · 넘으면 lib 의 TooLarge)으로 받아 일반 모드로 연다(read_only 단독 결과는 믿지
+  않는다 — AGENTS.md)."""
+  if not _is_fact_sheet(doc):
+    from collect_customer_numbers import fetch_content   # 늦게 — 그 파일은 __main__ 으로 돈다(예외 클래스는 lib 것만)
+    return fetch_content(session, doc)[0]
+  import openpyxl
+  from lib import ir_lists
+  b = ir_lists.ir_get(session, doc.url).content
+  wb = openpyxl.load_workbook(io.BytesIO(b), data_only=True)
+  return fs_content([(ws.title, [[_cell_text(c.value, c.number_format) for c in row] for row in ws.iter_rows()])
+                     for ws in wb.worksheets], b)
+
+
+def _fs_block(rows, unit: str):
+  """머리 칸이 «전부» 분기('Q3 2026')·'%' 인 첫 블록 → ({칸: (연, 분기)}, 블록 행). 없으면 None.
+  블록 끝 = 다음 머리 행(첫 칸이 같은 단위 — 누계 블록)."""
+  for i, row in enumerate(rows):
+    if not row or norm_text(row[0]) != unit:
+      continue
+    heads = {k: _FS_QTR.fullmatch(norm_text(c)) for k, c in enumerate(row) if k and norm_text(c) not in ('', '%')}
+    if not heads or not all(heads.values()):
+      continue
+    cols = {k: (int(m.group(2)), int(m.group(1))) for k, m in heads.items()}
+    if len(set(cols.values())) != len(cols):
+      return None   # 같은 분기 칸이 둘 — 어느 쪽인지 모른다
+    end = next((j for j in range(i + 1, len(rows)) if rows[j] and norm_text(rows[j][0]) == unit), len(rows))
+    return cols, rows[i + 1:end]
+  return None
+
+
+def _fs_cells(block, label: str, year: int) -> dict[int, tuple[float, str]] | None:
+  """{분기: (값, quote)} — 그 해 칸만. None = 라벨 행이 없거나 그 해 칸이 정수 꼴이 아니다.
+  quote = 라벨부터 그 칸까지 빈 칸을 뺀 행 글(text 의 연속 구간)."""
+  cols, rows = block
+  row = next((r for r in rows if r and norm_text(r[0]) == label), None)
+  if row is None:
+    return None
+  out = {}
+  for k, (y, q) in cols.items():
+    if y != year:
+      continue
+    cell = norm_text(row[k]) if k < len(row) else ''
+    if not _FS_INT.fullmatch(cell):
+      return None
+    out[q] = (to_number(cell), row_text([c for c in row[:k + 1] if norm_text(c)]))
+  return out
+
+
+def parse_fact_sheet(tables) -> ParseResult:
+  """분기 단독 매출·영업이익(백만 유로)·인도. 팩트시트는 늘 이 셋이 있다 — 시트·분기 머리·행·칸이 하나라도 어긋나면
+  0행 recognized(= failed · 조용한 0행 금지). 표를 코드가 다 읽는다 → llm_hint 는 늘 False(LLM 에 넘기지 않는다)."""
+  failed = ParseResult(recognized=True)
+  sheets = {t[0][0]: t[1:] for t in tables if t and t[0]}
+  res = next((rows for name, rows in sheets.items() if _FS_RES_SHEET.search(name)), None)
+  dlv = next((rows for name, rows in sheets.items() if _FS_DLV_SHEET.search(name)), None)
+  rb = _fs_block(res, 'million €') if res is not None else None
+  dvb = _fs_block(dlv, 'Units') if dlv is not None else None
+  if rb is None or dvb is None:
+    return failed
+  year = max(rb[0].values())[0]   # 머리의 가장 최근 분기의 해 = 이 팩트시트의 해
+  if {q for y, q in rb[0].values() if y == year} != {q for y, q in dvb[0].values() if y == year}:
+    return failed   # 실적·인도 시트의 그 해 분기가 다르다
+  cells = {lab: _fs_cells(rb, lab, year) for lab in _RES_ROWS}
+  deliv = _fs_cells(dvb, 'Deliveries to customers', year)
+  if deliv is None or any(c is None for c in cells.values()):
+    return failed
+  out = ParseResult(recognized=True)
+  for lab, by_q in cells.items():
+    for q, (v, quote) in sorted(by_q.items()):
+      if abs(v) >= _FS_MONEY_MAX:
+        return failed
+      out.results.append(ResultRow(_RES_ROWS[lab], lab, 'reported', 'quarter', f'{year}-Q{q}', v, 'million', 'EUR',
+                                   quote))
+  for q, (v, quote) in sorted(deliv.items()):
+    if v <= 0:
+      return failed
+    out.volume.append(VolumeRow('deliveries', 'total', 'quarter', f'{year}-Q{q}', round(v), DEF, quote))
+  return out
+
+
 def parse(doc: Doc, content: Content) -> ParseResult:
+  if _is_fact_sheet(doc):
+    return parse_fact_sheet(content.tables)
   text = norm_text(content.text)
   r, dv = parse_results(content.tables), parse_deliveries(content.tables)
   if r is None or dv is None:
@@ -311,6 +446,93 @@ MUST_NOT_RECOGNIZED = [
   ('일반 뉴스', [[['Language:', 'English'], ['ISIN:', 'DE000PAG9113']]], 'Porsche completes sale of its stakes.'),
 ]
 
+# 팩트시트 — 2026-11-10 실물 XLSX 를 표시 형식대로 옮긴 셀(시트 11행부터 · 필요한 행만 · 칸은 앞쪽만 잘랐다)
+_FS_EBIT_Q3_2026 = [
+  ['million €', '', 'Q3 2026', '%', '', 'Q2 2026', '%', '', 'Q1 2026', '%', '', 'Q4 2025', '%', '', 'Q3 2025'],
+  ['Sales revenue', '', '8,053', '100.0', '', '8,830', '100.0', '', '8,400', '100.0', '', '9,408', '100.0', '', '8,706'],
+  ['Operating profit', '', '387', '4.8', '', '753', '8.5', '', '595', '7.1', '', '373', '4.0', '', '-966'],
+  [],
+  ['*) Prior-year figures adjusted (First-time application IFRS 17)'],
+  # 누계 블록 — 'Q1 2025' 칸은 실물의 오기(값은 2026 1분기)
+  ['million €', '', 'Q1-Q3 2026', '%', '', 'Q1-Q2 2026', '%', '', 'Q1 2025', '%', '', 'FY 2025', '%', '', 'Q1-Q3 2025'],
+  ['Sales revenue', '', '25,282', '100.0', '', '17,229', '100.0', '', '8,400', '100.0', '', '36,272', '100.0', '', '26,864'],
+  ['Operating profit', '', '1,735', '6.9', '', '1,348', '7.8', '', '595', '7.1', '', '413', '1.1', '', '40'],
+]
+_FS_DLV_Q3_2026 = [
+  ['Units', '', 'Q3 2026', '', 'Q2 2026', '', 'Q1 2026', '', 'Q4 2025', '', 'Q3 2025'],
+  ['Vehicle sales', '', '55,573', '', '61,955', '', '58,553', '', '67,608', '', '62,913'],
+  ['Deliveries to customers', '', '56,226', '', '61,315', '', '60,991', '', '66,940', '', '66,118'],
+  ['Germany', '', '6,016', '', '7,160', '', '7,778', '', '7,476', '', '6,519'],
+  ['Units', '', 'Q1-Q3 2026', '', 'Q1-Q2 2026', '', 'Q1 2026', '', 'FY 2025', '', 'Q1-Q3 2025'],
+  ['Deliveries to customers', '', '178,532', '', '122,306', '', '60,991', '', '279,449', '', '212,509'],
+]
+FS_Q3_2026 = [('Cover & Content', []), ('01 - Group EBIT', _FS_EBIT_Q3_2026), ('02 - Automotive CF', []),
+              ('03 - Sales_deliveries by Region', _FS_DLV_Q3_2026), ('04 - Sales_deliveries by Model', _FS_DLV_Q3_2026)]
+# Q1 2025 판 — 칸 순서가 거꾸로(가장 오래된 분기가 왼쪽) · 인도 시트에 빈 칸 하나 더(자리 15) · 구분 기호 없는 칸('75652')
+FS_Q1_2025 = [
+  ('01 - Group EBIT', [
+    ['million €', '', 'Q1 2022', '%', '', 'Q2 2022*', '%', '', 'Q3 2022*', '%', '', 'Q4 2022*', '%', '', 'Q1 2023', '%', '',
+     'Q2 2023', '%', '', 'Q3 2023', '%', '', 'Q4 2023', '%', '', 'Q1 2024', '%', '', 'Q2 2024', '%', '', 'Q3 2024', '%',
+     '', 'Q4 2024', '%', '', 'Q1 2025', '%'],
+    ['Sales revenue', '', '8,043', '100.0', '', '9,879', '100.0', '', '8,828', '100.0', '', '10,888', '100.0', '',
+     '10,097', '100.0', '', '10,334', '100.0', '', '9,701', '100.0', '', '10,397', '100.0', '', '9,011', '100.0', '',
+     '10,446', '100.0', '', '9,107', '100.0', '', '11,519', '100.0', '', '8,858', '100.0'],
+    ['Operating profit', '', '1,467', '18.2', '', '2,013', '20.4', '', '1,569', '17.8', '', '1,723', '15.8', '', '1,840',
+     '18.2', '', '2,013', '19.5', '', '1,649', '17.0', '', '1,783', '17.1', '', '1,282', '14.2', '', '1,779', '17.0', '',
+     '974', '10.7', '', '1,602', '13.9', '', '762', '8.6']]),
+  ('03 - Sales_deliveries by Region', [
+    ['Units', '', 'Q1 2022', '', 'Q2 2022', '', 'Q3 2022', '', 'Q4 2022', '', 'Q1 2023', '', 'Q2 2023', '', '', 'Q3 2023',
+     '', 'Q4 2023', '', 'Q1 2024', '', 'Q2 2024', '', 'Q3 2024', '', 'Q4 2024', '', 'Q1 2025'],
+    ['Deliveries to customers', '', '68,426', '', '77,434', '', '75652', '', '88,372', '', '80,767', '', '86,587', '', '',
+     '75,368', '', '77,499', '', '77,640', '', '78,305', '', '70,081', '', '84,692', '', '71,470']]),
+]
+
+
+def _fs_with(sheets, name: str, rows):
+  return [(n, rows if n == name else r) for n, r in sheets]
+
+
+_EBIT, _DLV = '01 - Group EBIT', '03 - Sales_deliveries by Region'
+FS_MUST_HIT = [  # (시트, 기대 {키: 값})
+  (FS_Q3_2026, {('R', 'revenue', '2026-Q3'): (8053.0, 'million'), ('R', 'revenue', '2026-Q2'): (8830.0, 'million'),
+                ('R', 'revenue', '2026-Q1'): (8400.0, 'million'), ('R', 'operating_income', '2026-Q3'): (387.0, 'million'),
+                ('R', 'operating_income', '2026-Q1'): (595.0, 'million'), ('V', 'deliveries', '2026-Q3'): 56226,
+                ('V', 'deliveries', '2026-Q2'): 61315, ('V', 'deliveries', '2026-Q1'): 60991, ('N',): 9, ('H',): False}),
+  # 칸 순서가 거꾸로인 판 — 그 해(2025) 1분기만 · EQS 1분기 보도 전년 칸(€8.86bn · €762m · 71,470)과 같다
+  (FS_Q1_2025, {('R', 'revenue', '2025-Q1'): (8858.0, 'million'), ('R', 'operating_income', '2025-Q1'): (762.0, 'million'),
+                ('V', 'deliveries', '2025-Q1'): 71470, ('N',): 3, ('H',): False}),
+  # 영업손실은 음수 그대로(Q3 2025 '-966') — 2025 칸만 남긴 판
+  (_fs_with(_fs_with(FS_Q3_2026, _EBIT, [[r[0], *r[1:2], *r[11:15]] for r in _FS_EBIT_Q3_2026[:3]]), _DLV,
+            [[r[0], *r[1:2], *r[8:11]] for r in _FS_DLV_Q3_2026[:3]]),
+   {('R', 'operating_income', '2025-Q4'): (373.0, 'million'), ('R', 'operating_income', '2025-Q3'): (-966.0, 'million'),
+    ('V', 'deliveries', '2025-Q4'): 66940, ('V', 'deliveries', '2025-Q3'): 66118, ('N',): 6}),
+]
+FS_MUST_MISS = [  # (시트, 판정(got) → 참, 사유)
+  (FS_Q3_2026, lambda g: not any(k[0] in 'RV' and not k[2].startswith('2026-Q') for k in g), '전년 분기·누계 블록을 읽었다'),
+  (FS_Q1_2025, lambda g: ('R', 'revenue', '2024-Q4') not in g and ('V', 'deliveries', '2022-Q3') not in g,
+   '거꾸로 판의 전년 칸을 읽었다'),
+]
+FS_MUST_RECOGNIZED_EMPTY = [  # 분기 머리를 못 찾거나 늘 있는 행·칸이 어긋나면 0행 parsed 가 아니라 failed
+  ('분기 머리 꼴 변경(3Q26)', _fs_with(FS_Q3_2026, _EBIT, [[c.replace('Q3 2026', '3Q26') for c in r] for r in _FS_EBIT_Q3_2026])),
+  ('분기 블록 없음(누계 블록만)', _fs_with(FS_Q3_2026, _EBIT, _FS_EBIT_Q3_2026[5:])),
+  ('실적 시트 없음', [(n, r) for n, r in FS_Q3_2026 if n != _EBIT]),
+  ('인도 시트 이름 변경', [(n.replace('by Region', 'by Market'), r) for n, r in FS_Q3_2026 if n != '04 - Sales_deliveries by Model']),
+  ('영업이익 행 없음', _fs_with(FS_Q3_2026, _EBIT, [r for r in _FS_EBIT_Q3_2026 if r[:1] != ['Operating profit']])),
+  ('인도 행 없음', _fs_with(FS_Q3_2026, _DLV, [r for r in _FS_DLV_Q3_2026 if r[:1] != ['Deliveries to customers']])),
+  ('표시 형식이 풀려 원 단위 실수', _fs_with(FS_Q3_2026, _EBIT, [_FS_EBIT_Q3_2026[0],
+                                                       ['Sales revenue', '', '8052904341.220001', *_FS_EBIT_Q3_2026[1][3:]],
+                                                       *_FS_EBIT_Q3_2026[2:]])),
+  ('표시 형식이 풀려 원 단위 정수', _fs_with(FS_Q3_2026, _EBIT, [_FS_EBIT_Q3_2026[0],
+                                                       ['Sales revenue', '', '8052904341', *_FS_EBIT_Q3_2026[1][3:]],
+                                                       *_FS_EBIT_Q3_2026[2:]])),
+  ('그 해 칸 빈칸', _fs_with(FS_Q3_2026, _DLV, [_FS_DLV_Q3_2026[0], ['Deliveries to customers', '', '56,226', '', '', '', '60,991']])),
+  ('실적·인도 시트의 그 해 분기가 다름', _fs_with(FS_Q3_2026, _DLV, [[r[0], *r[1:2], *r[4:]] for r in _FS_DLV_Q3_2026[:3]])),
+  ('그 해 칸 글자(n/a)', _fs_with(FS_Q3_2026, _DLV, [_FS_DLV_Q3_2026[0],
+                                                ['Deliveries to customers', '', '56,226', '', 'n/a', '', '60,991']])),
+  # 두 시트 모두 Q2 머리가 Q3 으로 — 분기 집합은 같아도 어느 칸이 Q3 인지 모른다
+  ('같은 분기 칸 둘', [(n, [[c.replace('Q2 2026', 'Q3 2026') for c in x] for x in r]) for n, r in FS_Q3_2026]),
+]
+
 
 def _flatten(r: ParseResult) -> dict:
   out = {('V', x.metric, x.period): x.value for x in r.volume}
@@ -344,4 +566,21 @@ def self_test() -> list[str]:
     res = parse(doc, Content(text=text, tables=tables))
     if res.recognized or res.count():
       errs.append(f'MUST_NOT_RECOGNIZED {name}: {_flatten(res)}')
+  fs_doc = Doc(0, 'test', 'P911.DE', 'ir', 'fact_sheet', 'fact-sheet-xlsx', '', '', '', '2026-10-27')
+  for sheets, want in FS_MUST_HIT:
+    res = parse(fs_doc, fs_content(sheets))
+    got = _flatten(res)
+    for k, v in want.items():
+      if got.get(k) != v:
+        errs.append(f'FS_MUST_HIT {k}: 기대 {v} · 실제 {got.get(k)}')
+    if llm_wants(fs_doc, res):
+      errs.append('FS llm_wants: 팩트시트는 LLM 에 넘기지 않는다')
+  for sheets, ok, why in FS_MUST_MISS:
+    got = _flatten(parse(fs_doc, fs_content(sheets)))
+    if not ok(got):
+      errs.append(f'FS_MUST_MISS {why}: {got}')
+  for name, sheets in FS_MUST_RECOGNIZED_EMPTY:
+    res = parse(fs_doc, fs_content(sheets))
+    if res.count() or not res.recognized:
+      errs.append(f'FS {name}: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
   return errs
