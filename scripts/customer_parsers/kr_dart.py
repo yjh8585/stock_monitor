@@ -1,5 +1,6 @@
 """국내 상장 4사 DART 공정공시 파서 — 월 판매 · 분기 잠정실적 · 연간 가이던스 서식 · IR 개최 일정.
-+ LLM 만 읽는 IR PDF(llm_only — 현대·기아 가이던스 PDF·Investor Day · 모비스 IR 경영실적(수주 목표) · KGM CEO IR 설명회).
++ LLM 만 읽는 IR PDF(llm_only — 현대·기아 가이던스 PDF·Investor Day · 모비스 IR 경영실적(수주 목표) · KGM CEO IR 설명회)
++ 코드가 읽는 모비스 영문 실적 Script(form='script' — 연간 수주 목표 문장 · Task 5).
 
 출처·표본 = 참고/고객사/research/korea.md(2026-11-09 실측) + 계획서 phase2 Task 7 의 채록분.
 본문은 lib.dart_api.document_text(태그 제거·공백 한 칸) 결과를 읽는다.
@@ -87,18 +88,32 @@ _IR = re.compile(
 # 「3분기 경영실적」 을 적는다(20261104800225).
 _IR_PURPOSE = re.compile(r'개최목적\s+(.{0,120}?)(?=\s\d{1,2}\.\s|$)')
 
+# 현대모비스 영문 실적 Script(2Q26~ · 2026-11-11 실물 두 회차 모두 이 문장): 「… representing 13% of the annual order target
+# of USD 8.97 billion.」 — 앞 절의 「reached USD 1.15 billion on a cumulative basis」 는 누계 «실적»이라 읽지 않는다.
+# 같은 Script 의 「annual order plan of USD 11.8 billion, including modules」 는 모듈 포함 다른 범위라 이 정규식 밖이다.
+SCRIPT_FORM = 'script'
+_SCRIPT_TARGET = re.compile(r'annual\s+order\s+target\s+of\s+USD\s*(\d+(?:\.\d+)?)\s*(billion|million)\b', re.I)
+_YEAR = re.compile(r'\b(20\d{2})\b')
+_DOC_QUARTER_YEAR = re.compile(r'\b(20\d{2})\s*[1-4]Q\b')   # 목록 제목 「2026 3Q Business Results Script」
+_PARAGRAPH = re.compile(r'\n\s*\n')
+
+
+def is_mobis_script(doc: Doc) -> bool:
+  """현대모비스 영문 실적 Script(목록 어댑터 parse_mobis_script → form='script') — 수주 목표 문장을 코드가 읽는다(Task 5)."""
+  return doc.source == 'ir' and doc.ticker == MOBIS and doc.form == SCRIPT_FORM
+
 
 def llm_only(doc: Doc) -> bool:
   """코드는 안 읽고 LLM 만 읽는 IR 문서(계획서 「회사별 코드/AI 표」 llm 칸 · Task 11):
-  현대·기아 가이던스 PDF(IR JSON guidanceValue → doc_type guidance) · Investor Day · 현대모비스 IR 경영실적 PDF
-  (수주 목표) · KGM CEO IR 설명회 PDF(releaseList → investor_day). 분기 경영실적 발표자료(presentation)는 대상 밖
-  — 가이던스는 DART 전망 공시를 코드가 읽는다."""
-  return doc.source == 'ir' and (doc.doc_type in ('guidance', 'investor_day')
-                                 or (doc.ticker == MOBIS and doc.doc_type == 'presentation'))
+  현대·기아 가이던스 PDF(IR JSON guidanceValue → doc_type guidance) · Investor Day(현대·기아 CEO Investor Day 포함 · D6) ·
+  현대모비스 IR 경영실적 PDF(수주 목표) · KGM CEO IR 설명회 PDF(releaseList → investor_day). 분기 경영실적 발표자료
+  (presentation)는 대상 밖 — 가이던스는 DART 전망 공시를 코드가 읽는다. 모비스 영문 Script 는 코드가 읽으니 빠진다."""
+  return doc.source == 'ir' and doc.form != SCRIPT_FORM and (
+    doc.doc_type in ('guidance', 'investor_day') or (doc.ticker == MOBIS and doc.doc_type == 'presentation'))
 
 
 def wants(doc: Doc) -> bool:
-  return llm_only(doc) or doc.source == 'dart' and doc.doc_type in (
+  return is_mobis_script(doc) or llm_only(doc) or doc.source == 'dart' and doc.doc_type in (
     'prelim_results', 'earnings_release', 'guidance', 'ir_event')
 
 
@@ -321,9 +336,36 @@ def parse_ir_date(text: str) -> tuple[list[EarningsDate], bool]:
   return [EarningsDate(period, m.group(1), m.group(0))], True
 
 
+def parse_mobis_script(text: str, doc_year: int | None) -> tuple[list[GuidanceRow], bool]:
+  """현대모비스 영문 Script → 연간 수주 목표(order_intake · USD · 코드 행). 연도 = 같은 문단(빈 줄 사이)의 연도가 하나면
+  그것 → 아니면 문서 분기의 연도(doc_year = 목록 제목). 문서 밖 연도는 쓰지 않는다 — 둘 다 없으면 행을 만들지 않는다
+  (알아봤는데 0행 = failed 로 드러난다). 알아봄 = 목표 문장이 있다 — 없는 회차는 not_target."""
+  out = []
+  matches = list(_SCRIPT_TARGET.finditer(text))
+  for m in matches:
+    start = max((p.end() for p in _PARAGRAPH.finditer(text, 0, m.start())), default=0)
+    nxt = _PARAGRAPH.search(text, m.end())
+    years = set(_YEAR.findall(text[start:nxt.start() if nxt else len(text)]))
+    year = int(next(iter(years))) if len(years) == 1 else doc_year
+    if year is None:
+      continue
+    v = float(m.group(1))
+    out.append(GuidanceRow('order_intake', 'annual order target', f'FY{year}', v, v, None, m.group(2).lower(), None,
+                           ' '.join(m.group(0).split()), currency='USD'))
+  return out, bool(matches)
+
+
+def _doc_quarter_year(title: str) -> int | None:
+  m = _DOC_QUARTER_YEAR.search(title or '')
+  return int(m.group(1)) if m else None
+
+
 def parse(doc: Doc, content: Content) -> ParseResult:
   text = content.text
   res = ParseResult()
+  if is_mobis_script(doc):
+    res.guidance, res.recognized = parse_mobis_script(text, _doc_quarter_year(doc.title))
+    return res
   if llm_only(doc):
     return res   # IR 발표자료 — 코드가 읽지 않는다(llm_wants 가 참 · LLM 행이 없으면 not_target)
   if doc.doc_type == 'ir_event':
@@ -486,6 +528,24 @@ MUST_UNRECOGNIZED = [
     'Shareholder Return(TSR) → Total Payout Ratio(TPR) ※ 상세 내용 첨부파일 참조 추진일정 시작일 - 종료일 2030-12-31')),
   ('IR: NDR', lambda: parse_ir_date(MUST_MISS_IR[0])),
 ]
+# 현대모비스 영문 Script — 2026-11-11 실물 PDF(2026 3Q·2Q Earnings Call Script (EN))의 pdf_text 결과 그대로(줄바꿈·빈 줄 포함)
+SCRIPT_3Q26 = ('of KRW 880.7 billion, up 7.8% year\n-over-year, supported by regional selling price \n'
+               'increases and a reduced tariff burden. Total operating profit for the third quarter \n'
+               'increased 17.2% year-over-year to KRW 914.1 billion. \n'
+               'Non-captive orders for Core Parts reached USD 1.15 billion on a cumulative basis through \n'
+               'the third quarter of 2026, representing 13% of the annual order target of USD 8.97 billion.\n \n'
+               'Next, I will discuss R&D Tech Day. In September, we unveiled approximately 60 R&D \n')
+_SCRIPT_2Q26 = ('Non-captive orders for Core Parts reached USD 740 million in the second quarter of 2026, \n'
+                'representing 8.2% of the annual order target of USD 8.97 billion.\n \n')
+# (본문, 문서 분기 연도, 기대 (기간, low, high, 통화, 단위))
+MUST_HIT_SCRIPT = [
+  ('representing 13% of the annual order target of USD 8.97 billion', 2026, ('FY2026', 8.97, 8.97, 'USD', 'billion')),
+  (SCRIPT_3Q26, None, ('FY2026', 8.97, 8.97, 'USD', 'billion')),    # 문단의 연도(「third quarter of 2026」)
+  (_SCRIPT_2Q26, 2027, ('FY2026', 8.97, 8.97, 'USD', 'billion')),   # 가상 — 문단 연도가 문서 연도보다 먼저
+]
+MUST_MISS_SCRIPT = [   # 누계 «실적» — 목표가 아니다
+  'Non-captive orders for Core Parts reached USD 1.15 billion on a cumulative basis through the third quarter of 2026',
+]
 
 
 def _parse_doc_test() -> list[str]:
@@ -499,7 +559,18 @@ def _parse_doc_test() -> list[str]:
   # expects_numbers(P4) — 잠정실적은 참 · IR 개최 공고·가이던스는 거짓
   want = {'prelim_results': True, 'earnings_release': True, 'ir_event': False, 'guidance': False}
   bad = [t for t, w in want.items() if expects_numbers(Doc(**{**doc.__dict__, 'doc_type': t})) != w]
-  return [f'kr_dart expects_numbers 어긋남: {bad}'] if bad else []
+  if bad:
+    return [f'kr_dart expects_numbers 어긋남: {bad}']
+  # 모비스 영문 Script 는 코드가 읽는다(LLM 에 넘기지 않는다) · 국문 경영실적 PDF 는 지금처럼 LLM 만
+  script = Doc(**{**doc.__dict__, 'ticker': MOBIS, 'source': 'ir', 'doc_type': 'presentation', 'form': SCRIPT_FORM,
+                  'title': '2026 3Q Business Results Script'})
+  perf = Doc(**{**script.__dict__, 'form': 'performance'})
+  if not wants(script) or llm_only(script) or not llm_only(perf):
+    return ['kr_dart 모비스 Script 갈래 어긋남(wants·llm_only)']
+  res = parse(script, Content(text=SCRIPT_3Q26))
+  if [g.period for g in res.guidance] != ['FY2026'] or llm_wants(script, res):
+    return [f'kr_dart 모비스 Script parse: {res.guidance} · llm_wants={llm_wants(script, res)}']
+  return []
 
 
 def self_test() -> list[str]:
@@ -549,4 +620,13 @@ def self_test() -> list[str]:
   for text, _ in MUST_HIT_GUIDANCE:
     if not parse_guidance(text)[1]:
       errs.append(f'kr_dart 가이던스 recognized 아님: {text[:30]}')
+  for text, year, want in MUST_HIT_SCRIPT:
+    rows, ok = parse_mobis_script(text, year)
+    got = [(r.period, r.low, r.high, r.currency, r.unit) for r in rows if r.metric == 'order_intake']
+    if got != [want] or not ok:
+      errs.append(f'kr_dart 모비스 Script 수주 목표 {text[:40]!r}: {got} ≠ {want}')
+  for text in MUST_MISS_SCRIPT:
+    rows, ok = parse_mobis_script(text, 2026)
+    if rows or ok:
+      errs.append(f'kr_dart 모비스 Script 오탐(누계 실적): {text[:40]}')
   return errs + _parse_doc_test()

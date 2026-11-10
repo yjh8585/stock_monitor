@@ -415,6 +415,10 @@ def extract(client, doc, text: str, company_label: str, hint: str = '', base_cur
                f'회사: {company_label}\n보고 통화: {base_currency or "모름"}\n문서: {doc.title} ({doc.published_at})\n'
                f'{hint}\n\n--- 원문 ---\n{text[:MAX_CHARS]}'}],
   )
+  # 토큰 실측(D6 — 큰 IR PDF 한 건이 얼마를 쓰는지). 금액 계산은 하지 않는다
+  usage = getattr(msg, 'usage', None)
+  if usage is not None:
+    print(f'    문서 {doc.id} LLM 토큰: 입력 {usage.input_tokens:,} · 출력 {usage.output_tokens:,}')
   if msg.stop_reason in ('max_tokens', 'refusal'):
     print(f'    경고: 문서 {doc.id} LLM 응답 중단({msg.stop_reason}) — LLM 대기로 남긴다')
     raise Incomplete(msg.stop_reason)

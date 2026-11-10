@@ -1,0 +1,921 @@
+{
+ "2026": [
+  {
+   "status": 200,
+   "data": {
+    "list": [
+     {
+      "id": 1849,
+      "language": "ko",
+      "title": "국내 로드쇼 참석",
+      "location": "서울",
+      "host": "한국투자증권, 다올투자증권",
+      "periodStart": "2026-11-04 00:00",
+      "periodEnd": "2026-11-05 00:00",
+      "status": "T",
+      "publicatedAt": "2026-11-02 11:40",
+      "files": []
+     },
+     {
+      "id": 1846,
+      "language": "ko",
+      "title": "2026년 3분기 경영실적 발표",
+      "location": "서울",
+      "host": "컨퍼런스 콜",
+      "periodStart": "2026-10-30 00:00",
+      "periodEnd": "2026-10-30 00:00",
+      "status": "T",
+      "publicatedAt": "2026-10-28 21:01",
+      "files": [
+       {
+        "title": "2026년 3분기 경영실적.pdf",
+        "fileName": "215532275lifm.pdf",
+        "path": "investors/ir-activities/hl/215384488/irli/215532275lifm.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1845,
+      "language": "ko",
+      "title": "거버넌스 NDR 참석",
+      "location": "홍콩",
+      "host": "UBS 증권",
+      "periodStart": "2026-10-07 00:00",
+      "periodEnd": "2026-10-07 00:00",
+      "status": "T",
+      "publicatedAt": "2026-10-28 21:00",
+      "files": []
+     },
+     {
+      "id": 1843,
+      "language": "ko",
+      "title": "CITIC CLSA Investors Forum 참석",
+      "location": "홍콩",
+      "host": "CITIC CLSA 증권",
+      "periodStart": "2026-09-21 00:00",
+      "periodEnd": "2026-09-23 00:00",
+      "status": "T",
+      "publicatedAt": "2026-09-23 22:46",
+      "files": [
+       {
+        "title": "Kia Corporation Investor Presentation.pdf",
+        "fileName": "212366785zmyx.pdf",
+        "path": "investors/ir-activities/gp/212366693/vtqa/212366785zmyx.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1840,
+      "language": "ko",
+      "title": "KB Korea Conference 참석",
+      "location": "서울",
+      "host": "KB증권",
+      "periodStart": "2026-09-09 00:00",
+      "periodEnd": "2026-09-09 00:00",
+      "status": "T",
+      "publicatedAt": "2026-09-11 13:13",
+      "files": [
+       {
+        "title": "Kia Corporation Investor Presentation.pdf",
+        "fileName": "211295634giup.pdf",
+        "path": "investors/ir-activities/vi/211295575/vbjc/211295634giup.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1838,
+      "language": "ko",
+      "title": "해외 NDR 참석 (유럽)",
+      "location": "런던, 에든버러, 취리히",
+      "host": "삼성증권",
+      "periodStart": "2026-09-07 00:00",
+      "periodEnd": "2026-09-10 00:00",
+      "status": "T",
+      "publicatedAt": "2026-09-11 13:09",
+      "files": [
+       {
+        "title": "Kia Corporation Investor Presentation.pdf",
+        "fileName": "211295342yozf.pdf",
+        "path": "investors/ir-activities/lv/211295250/vxzf/211295342yozf.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1836,
+      "language": "ko",
+      "title": "키움 Corporate Day 참석",
+      "location": "서울",
+      "host": "키움증권",
+      "periodStart": "2026-08-31 00:00",
+      "periodEnd": "2026-08-31 00:00",
+      "status": "T",
+      "publicatedAt": "2026-08-27 15:04",
+      "files": [
+       {
+        "title": "Kia Corporation Investor Presentation.pdf",
+        "fileName": "210006201mygk.pdf",
+        "path": "investors/ir-activities/il/210006233/xyau/210006201mygk.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1835,
+      "language": "ko",
+      "title": "Citi Korea Investor Conference 참석",
+      "location": "서울",
+      "host": "Citi 증권",
+      "periodStart": "2026-08-28 00:00",
+      "periodEnd": "2026-08-28 00:00",
+      "status": "T",
+      "publicatedAt": "2026-08-27 15:03",
+      "files": [
+       {
+        "title": "Kia Corporation Investor Presentation.pdf",
+        "fileName": "210006158coxu.pdf",
+        "path": "investors/ir-activities/yv/210006100/aaea/210006158coxu.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1832,
+      "language": "ko",
+      "title": "UBS Korea Summit 참석",
+      "location": "서울",
+      "host": "UBS 증권",
+      "periodStart": "2026-08-25 00:00",
+      "periodEnd": "2026-08-25 00:00",
+      "status": "T",
+      "publicatedAt": "2026-08-27 14:53",
+      "files": [
+       {
+        "title": "Kia Corporation Investor Presentation.pdf",
+        "fileName": "210005535ymwy.pdf",
+        "path": "investors/ir-activities/sf/210005506/zncg/210005535ymwy.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1831,
+      "language": "ko",
+      "title": "해외 NDR 참석 (아시아)",
+      "location": "싱가포르/홍콩",
+      "host": "HSBC 증권",
+      "periodStart": "2026-08-03 00:00",
+      "periodEnd": "2026-08-07 00:00",
+      "status": "T",
+      "publicatedAt": "2026-07-27 15:24",
+      "files": []
+     }
+    ],
+    "pastPaging": {
+     "totalCount": 27,
+     "entriesPerPage": 10,
+     "pagesPerPageGroup": 10,
+     "currentPage": 0
+    }
+   }
+  },
+  {
+   "status": 200,
+   "data": {
+    "list": [
+     {
+      "id": 1829,
+      "language": "ko",
+      "title": "국내 로드쇼 참석",
+      "location": "서울",
+      "host": "미래에셋증권, 한화투자증권",
+      "periodStart": "2026-07-28 00:00",
+      "periodEnd": "2026-07-29 00:00",
+      "status": "T",
+      "publicatedAt": "2026-07-27 14:00",
+      "files": []
+     },
+     {
+      "id": 1826,
+      "language": "ko",
+      "title": "2026년 2분기 경영실적 발표",
+      "location": "서울",
+      "host": null,
+      "periodStart": "2026-07-24 00:00",
+      "periodEnd": "2026-07-24 23:00",
+      "status": "T",
+      "publicatedAt": "2026-07-24 11:05",
+      "files": [
+       {
+        "title": "2026년 2분기 경영실적.pdf",
+        "fileName": "207064803rxmv.pdf",
+        "path": "investors/ir-activities/xd/207050148/imgi/207064803rxmv.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1825,
+      "language": "ko",
+      "title": "CITIC CLSA Northeast Asia Forum 참석",
+      "location": "서울",
+      "host": "CITIC CLSA 증권",
+      "periodStart": "2026-06-24 00:00",
+      "periodEnd": "2026-06-24 00:00",
+      "status": "T",
+      "publicatedAt": "2026-06-24 14:38",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_June 2026_F.pdf",
+        "fileName": "204475061ycrr.pdf",
+        "path": "investors/ir-activities/rb/204475030/mzel/204475061ycrr.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1823,
+      "language": "ko",
+      "title": "2026 BofA Korea Conference 참석",
+      "location": "서울",
+      "host": "BofA 증권",
+      "periodStart": "2026-06-17 00:00",
+      "periodEnd": "2026-06-17 00:00",
+      "status": "T",
+      "publicatedAt": "2026-06-19 11:36",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_June 2026_F.pdf",
+        "fileName": "204032138uygo.pdf",
+        "path": "investors/ir-activities/gq/204032047/jnip/204032138uygo.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1819,
+      "language": "ko",
+      "title": "Macquarie Capital Equities London Conference 참석 (유럽)",
+      "location": "파리,런던",
+      "host": "Macquarie 증권",
+      "periodStart": "2026-06-09 08:00",
+      "periodEnd": "2026-06-12 00:00",
+      "status": "T",
+      "publicatedAt": "2026-06-09 08:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_June 2026_F.pdf",
+        "fileName": "203100988plsq.pdf",
+        "path": "investors/ir-activities/mk/203100799/myor/203100988plsq.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1817,
+      "language": "ko",
+      "title": "UBS Asian Investment Conference 참석(아시아)",
+      "location": "홍콩",
+      "host": "UBS 증권",
+      "periodStart": "2026-05-26 00:00",
+      "periodEnd": "2026-05-28 00:00",
+      "status": "T",
+      "publicatedAt": "2026-05-26 13:45",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_May 2026_260515_F.pdf",
+        "fileName": "202052758llvn.pdf",
+        "path": "investors/ir-activities/qh/202052696/kkfd/202052758llvn.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1815,
+      "language": "ko",
+      "title": "CITIC CLSA Korea Access Day in US 2026 참석(미국)",
+      "location": "보스턴, 뉴욕",
+      "host": "CLSA 증권",
+      "periodStart": "2026-05-26 00:00",
+      "periodEnd": "2026-05-28 00:00",
+      "status": "T",
+      "publicatedAt": "2026-05-26 13:43",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_May 2026_260515_F.pdf",
+        "fileName": "202052614kodw.pdf",
+        "path": "investors/ir-activities/of/202052542/llmd/202052614kodw.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1813,
+      "language": "ko",
+      "title": "해외 컨퍼런스 참석(미국)",
+      "location": "보스턴",
+      "host": "JP Morgan 증권",
+      "periodStart": "2026-05-18 00:00",
+      "periodEnd": "2026-05-19 00:00",
+      "status": "T",
+      "publicatedAt": "2026-05-18 23:00",
+      "files": [
+       {
+        "title": "JP Morgan Conference_PT.pdf",
+        "fileName": "201279210xnia.pdf",
+        "path": "investors/ir-activities/jl/201279146/fbrp/201279210xnia.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1812,
+      "language": "ko",
+      "title": "삼성 Global Investors Conference 참석",
+      "location": "서울",
+      "host": "삼성증권",
+      "periodStart": "2026-05-13 00:00",
+      "periodEnd": "2026-05-13 00:00",
+      "status": "T",
+      "publicatedAt": "2026-05-08 13:52",
+      "files": [
+       {
+        "title": "Kia Investor Presentation_May 2026.pdf",
+        "fileName": "201279068jmka.pdf",
+        "path": "investors/ir-activities/ka/200411506/myvf/201279068jmka.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1810,
+      "language": "ko",
+      "title": "해외 NDR 참석(아시아)",
+      "location": "싱가포르/홍콩",
+      "host": "한국투자증권",
+      "periodStart": "2026-05-11 00:00",
+      "periodEnd": "2026-05-14 00:00",
+      "status": "T",
+      "publicatedAt": "2026-05-08 13:51",
+      "files": [
+       {
+        "title": "Kia Investor Presentation_May 2026.pdf",
+        "fileName": "200747741eltk.pdf",
+        "path": "investors/ir-activities/zl/200411444/khuz/200747741eltk.pdf"
+       }
+      ]
+     }
+    ],
+    "pastPaging": {
+     "totalCount": 27,
+     "entriesPerPage": 10,
+     "pagesPerPageGroup": 10,
+     "currentPage": 1
+    }
+   }
+  },
+  {
+   "status": 200,
+   "data": {
+    "list": [
+     {
+      "id": 1807,
+      "language": "ko",
+      "title": "국내 로드쇼 참석",
+      "location": "서울",
+      "host": "신영증권",
+      "periodStart": "2026-04-27 00:00",
+      "periodEnd": "2026-04-29 00:00",
+      "status": "T",
+      "publicatedAt": "2026-04-24 20:52",
+      "files": []
+     },
+     {
+      "id": 1806,
+      "language": "ko",
+      "title": "2026년 1분기 경영실적 발표",
+      "location": "서울",
+      "host": null,
+      "periodStart": "2026-04-24 00:00",
+      "periodEnd": "2026-04-24 00:00",
+      "status": "T",
+      "publicatedAt": "2026-04-24 14:23",
+      "files": [
+       {
+        "title": "2026년 1분기 경영실적.pdf",
+        "fileName": "199226676scov.pdf",
+        "path": "investors/ir-activities/qc/199203778/aqdb/199226676scov.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1802,
+      "language": "ko",
+      "title": "2026 기아 CEO Investor Day",
+      "location": "서울",
+      "host": "",
+      "periodStart": "2026-04-09 00:00",
+      "periodEnd": "2026-04-09 00:00",
+      "status": "T",
+      "publicatedAt": "2026-04-08 18:24",
+      "files": [
+       {
+        "title": "[KOR] 2026 Kia CEO Investor Day.pdf",
+        "fileName": "197909756ofmh.pdf",
+        "path": "investors/ir-activities/sq/197835788/gufa/197909756ofmh.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1785,
+      "language": "ko",
+      "title": "JPM Korea Corporate Day 2026 참석",
+      "location": "서울",
+      "host": "J.P. 모건",
+      "periodStart": "2026-03-06 00:00",
+      "periodEnd": "2026-03-06 00:00",
+      "status": "T",
+      "publicatedAt": "2026-03-05 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Mar 2026.pdf",
+        "fileName": "197841930njvb.pdf",
+        "path": "investors/ir-activities/oj/hw/pjotsvvs/197841930njvb.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1801,
+      "language": "ko",
+      "title": "해외 NDR 참석(미국)",
+      "location": "보스턴/뉴욕/샌프란시스코",
+      "host": "모건스텐리 증권",
+      "periodStart": "2026-02-23 00:00",
+      "periodEnd": "2026-02-27 00:00",
+      "status": "T",
+      "publicatedAt": "2026-02-25 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Feb 2026.pdf",
+        "fileName": "289493585rmoj.pdf",
+        "path": "investors/ir-activities/uz/mc/trfiabwl/289493585rmoj.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1780,
+      "language": "ko",
+      "title": "해외 NDR 참석(아시아)",
+      "location": "홍콩/싱가포르",
+      "host": "J.P. 모건",
+      "periodStart": "2026-02-10 00:00",
+      "periodEnd": "2026-02-13 00:00",
+      "status": "T",
+      "publicatedAt": "2026-02-10 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Feb 2026.pdf",
+        "fileName": "287169801zcnk.pdf",
+        "path": "investors/ir-activities/gn/oc/vphlirwy/287169801zcnk.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1757,
+      "language": "ko",
+      "title": "2025년 4분기 경영실적 발표",
+      "location": "서울",
+      "host": "컨퍼런스 콜",
+      "periodStart": "2026-01-28 00:00",
+      "periodEnd": "2026-01-28 00:00",
+      "status": "T",
+      "publicatedAt": "2026-01-22 00:00",
+      "files": []
+     }
+    ],
+    "pastPaging": {
+     "totalCount": 27,
+     "entriesPerPage": 10,
+     "pagesPerPageGroup": 10,
+     "currentPage": 2
+    }
+   }
+  },
+  {
+   "status": 400,
+   "error": {
+    "message": "index list not found"
+   }
+  }
+ ],
+ "2025": [
+  {
+   "status": 200,
+   "data": {
+    "list": [
+     {
+      "id": 1784,
+      "language": "ko",
+      "title": "해외 로드쇼 참석(유럽)",
+      "location": "런던",
+      "host": " 파리",
+      "periodStart": "2025-12-01 00:00",
+      "periodEnd": "2025-12-05 00:00",
+      "status": "T",
+      "publicatedAt": "2025-11-30 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Nov 2025.pdf",
+        "fileName": "281121959zors.pdf",
+        "path": "investors/ir-activities/tf/yv/vsvwfhoj/281121959zors.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1772,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "싱가포르",
+      "host": "Morgan Stanley 증권",
+      "periodStart": "2025-11-19 00:00",
+      "periodEnd": "2025-11-20 00:00",
+      "status": "T",
+      "publicatedAt": "2025-11-18 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Nov 2025.pdf",
+        "fileName": "279835156ovkv.pdf",
+        "path": "investors/ir-activities/rh/tb/egnymouq/279835156ovkv.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1765,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "보스턴",
+      "host": " 뉴욕",
+      "periodStart": "2025-11-17 00:00",
+      "periodEnd": "2025-11-20 00:00",
+      "status": "T",
+      "publicatedAt": "2025-11-16 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Nov 2025.pdf",
+        "fileName": "279835001cftt.pdf",
+        "path": "investors/ir-activities/ll/qe/idtesxyj/279835001cftt.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1743,
+      "language": "ko",
+      "title": "국내 로드쇼 참석",
+      "location": "서울",
+      "host": "대신증권",
+      "periodStart": "2025-11-05 00:00",
+      "periodEnd": "2025-11-07 00:00",
+      "status": "T",
+      "publicatedAt": "2025-11-03 00:00",
+      "files": []
+     },
+     {
+      "id": 1789,
+      "language": "ko",
+      "title": "KIS Global Investors Conference 참석",
+      "location": "서울",
+      "host": "한국투자증권",
+      "periodStart": "2025-09-17 00:00",
+      "periodEnd": "2025-09-17 00:00",
+      "status": "T",
+      "publicatedAt": "2025-09-16 00:00",
+      "files": []
+     },
+     {
+      "id": 1777,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "보스턴",
+      "host": " 뉴욕",
+      "periodStart": "2025-09-15 00:00",
+      "periodEnd": "2025-09-18 00:00",
+      "status": "T",
+      "publicatedAt": "2025-09-09 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Sept 2025_F.pdf",
+        "fileName": "274102800znyu.pdf",
+        "path": "investors/ir-activities/zh/iw/nqflfvah/274102800znyu.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1770,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "홍콩",
+      "host": "CITIC CLSA 증권",
+      "periodStart": "2025-09-11 00:00",
+      "periodEnd": "2025-09-11 00:00",
+      "status": "T",
+      "publicatedAt": "2025-09-08 00:00",
+      "files": [
+       {
+        "title": "★Kia Investor Presentation_Sept 2025_F.pdf",
+        "fileName": "274095827xdqs.pdf",
+        "path": "investors/ir-activities/te/if/iankgxdv/274095827xdqs.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1754,
+      "language": "ko",
+      "title": "국내 로드쇼 참석",
+      "location": "서울",
+      "host": "삼성증권",
+      "periodStart": "2025-07-28 00:00",
+      "periodEnd": "2025-07-30 00:00",
+      "status": "T",
+      "publicatedAt": "2025-07-25 00:00",
+      "files": []
+     },
+     {
+      "id": 1748,
+      "language": "ko",
+      "title": "2025년 2분기 경영실적 발표",
+      "location": "서울",
+      "host": "컨퍼런스 콜",
+      "periodStart": "2025-07-25 00:00",
+      "periodEnd": "2025-07-25 00:00",
+      "status": "T",
+      "publicatedAt": "2025-07-24 00:00",
+      "files": []
+     },
+     {
+      "id": 1797,
+      "language": "ko",
+      "title": "경영현황 업데이트 컨퍼런스콜 (국내)",
+      "location": "서울",
+      "host": "컨퍼런스 콜",
+      "periodStart": "2025-07-04 00:00",
+      "periodEnd": "2025-07-04 00:00",
+      "status": "T",
+      "publicatedAt": "2025-07-03 00:00",
+      "files": []
+     }
+    ],
+    "pastPaging": {
+     "totalCount": 26,
+     "entriesPerPage": 10,
+     "pagesPerPageGroup": 10,
+     "currentPage": 0
+    }
+   }
+  },
+  {
+   "status": 200,
+   "data": {
+    "list": [
+     {
+      "id": 1747,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "런던",
+      "host": " 에든버러",
+      "periodStart": "2025-06-17 00:00",
+      "periodEnd": "2025-06-20 00:00",
+      "status": "T",
+      "publicatedAt": "2025-06-16 00:00",
+      "files": [
+       {
+        "title": "Kia Investor Presentation_May.2025.pdf",
+        "fileName": "266430158obfx.pdf",
+        "path": "investors/ir-activities/lr/rc/gpxdacyt/266430158obfx.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1792,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "홍콩",
+      "host": "UBS 증권",
+      "periodStart": "2025-05-27 00:00",
+      "periodEnd": "2025-05-29 00:00",
+      "status": "T",
+      "publicatedAt": "2025-05-26 00:00",
+      "files": []
+     },
+     {
+      "id": 1782,
+      "language": "ko",
+      "title": "제3회 NH투자증권 더C포럼 참석",
+      "location": "서울",
+      "host": "NH 투자증권",
+      "periodStart": "2025-05-23 00:00",
+      "periodEnd": "2025-05-23 00:00",
+      "status": "T",
+      "publicatedAt": "2025-05-22 00:00",
+      "files": []
+     },
+     {
+      "id": 1771,
+      "language": "ko",
+      "title": "2025 BofA Korea Conference 참석",
+      "location": "서울",
+      "host": "BofA 증권",
+      "periodStart": "2025-05-20 00:00",
+      "periodEnd": "2025-05-20 00:00",
+      "status": "T",
+      "publicatedAt": "2025-05-19 00:00",
+      "files": []
+     },
+     {
+      "id": 1762,
+      "language": "ko",
+      "title": "삼성 Global Investor Conference 참석",
+      "location": "서울",
+      "host": "삼성 증권",
+      "periodStart": "2025-05-16 00:00",
+      "periodEnd": "2025-05-16 00:00",
+      "status": "T",
+      "publicatedAt": "2025-05-15 00:00",
+      "files": []
+     },
+     {
+      "id": 1764,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "보스턴/뉴욕/샌프란시스코",
+      "host": "Citi 증권",
+      "periodStart": "2025-05-12 00:00",
+      "periodEnd": "2025-05-16 00:00",
+      "status": "T",
+      "publicatedAt": "2025-05-12 00:00",
+      "files": [
+       {
+        "title": "Kia Investor Presentation_May.2025.pdf",
+        "fileName": "263902401pham.pdf",
+        "path": "investors/ir-activities/db/ri/eyzsbegr/263902401pham.pdf"
+       }
+      ]
+     },
+     {
+      "id": 1733,
+      "language": "ko",
+      "title": "국내 NDR",
+      "location": "서울",
+      "host": "미래에셋증권",
+      "periodStart": "2025-04-28 00:00",
+      "periodEnd": "2025-04-30 00:00",
+      "status": "T",
+      "publicatedAt": "2025-04-27 00:00",
+      "files": []
+     },
+     {
+      "id": 1731,
+      "language": "ko",
+      "title": "2025 1분기 경영실적발표",
+      "location": "서울",
+      "host": "",
+      "periodStart": "2025-04-25 00:00",
+      "periodEnd": "2025-04-25 00:00",
+      "status": "T",
+      "publicatedAt": "2025-04-21 00:00",
+      "files": []
+     },
+     {
+      "id": 1774,
+      "language": "ko",
+      "title": "2025 CEO Investor Day 후속 컨퍼런스 콜",
+      "location": "서울",
+      "host": "Citi 증권",
+      "periodStart": "2025-04-15 00:00",
+      "periodEnd": "2025-04-15 00:00",
+      "status": "T",
+      "publicatedAt": "2025-04-15 00:00",
+      "files": []
+     },
+     {
+      "id": 1751,
+      "language": "ko",
+      "title": "2025 기아 CEO Investor Day",
+      "location": "서울",
+      "host": "",
+      "periodStart": "2025-04-09 00:00",
+      "periodEnd": "2025-04-09 00:00",
+      "status": "T",
+      "publicatedAt": "2025-04-09 00:00",
+      "files": [
+       {
+        "title": "2025 Kia CEO Investor Day Transcript (INT).pdf",
+        "fileName": "260979763yjfw.pdf",
+        "path": "investors/ir-activities/xg/at/owtgcves/260979763yjfw.pdf"
+       },
+       {
+        "title": "2025 Kia CEO Investor Day Presentation (INT).pdf",
+        "fileName": "260973492cpqx.pdf",
+        "path": "investors/ir-activities/xg/at/owtgcves/260973492cpqx.pdf"
+       },
+       {
+        "title": "2025년 기아 CEO Investor Day Transcript (KR).pdf",
+        "fileName": "260978684zjsq.pdf",
+        "path": "investors/ir-activities/xg/at/owtgcves/260978684zjsq.pdf"
+       },
+       {
+        "title": "2025년 기아 CEO Investor Day Presentation (KR).pdf",
+        "fileName": "260973493kjmt.pdf",
+        "path": "investors/ir-activities/xg/at/owtgcves/260973493kjmt.pdf"
+       }
+      ]
+     }
+    ],
+    "pastPaging": {
+     "totalCount": 26,
+     "entriesPerPage": 10,
+     "pagesPerPageGroup": 10,
+     "currentPage": 1
+    }
+   }
+  },
+  {
+   "status": 200,
+   "data": {
+    "list": [
+     {
+      "id": 1735,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "싱가포르",
+      "host": "JP Morgan 증권",
+      "periodStart": "2025-03-17 00:00",
+      "periodEnd": "2025-03-18 00:00",
+      "status": "T",
+      "publicatedAt": "2025-03-13 00:00",
+      "files": []
+     },
+     {
+      "id": 1793,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "런던",
+      "host": "CITIC CLSA 증권",
+      "periodStart": "2025-02-26 00:00",
+      "periodEnd": "2025-02-27 00:00",
+      "status": "T",
+      "publicatedAt": "2025-02-25 00:00",
+      "files": []
+     },
+     {
+      "id": 1776,
+      "language": "ko",
+      "title": "JP Morgan Korea Corporate Day 2025",
+      "location": "서울",
+      "host": "JP Morgan 증권",
+      "periodStart": "2025-02-21 00:00",
+      "periodEnd": "2025-02-21 00:00",
+      "status": "T",
+      "publicatedAt": "2025-02-20 00:00",
+      "files": []
+     },
+     {
+      "id": 1750,
+      "language": "ko",
+      "title": "해외 로드쇼 참석",
+      "location": "홍콩/싱가포르",
+      "host": "NH 투자증권",
+      "periodStart": "2025-02-11 00:00",
+      "periodEnd": "2025-02-13 00:00",
+      "status": "T",
+      "publicatedAt": "2025-02-09 00:00",
+      "files": []
+     },
+     {
+      "id": 1745,
+      "language": "ko",
+      "title": "국내 로드쇼 참석",
+      "location": "서울",
+      "host": "신영증권",
+      "periodStart": "2025-02-03 00:00",
+      "periodEnd": "2025-02-05 00:00",
+      "status": "T",
+      "publicatedAt": "2025-02-03 00:00",
+      "files": []
+     },
+     {
+      "id": 1730,
+      "language": "ko",
+      "title": "2024년 4분기 경영실적 발표",
+      "location": "서울",
+      "host": "",
+      "periodStart": "2025-01-24 00:00",
+      "periodEnd": "2025-01-24 00:00",
+      "status": "T",
+      "publicatedAt": "2025-01-23 00:00",
+      "files": []
+     }
+    ],
+    "pastPaging": {
+     "totalCount": 26,
+     "entriesPerPage": 10,
+     "pagesPerPageGroup": 10,
+     "currentPage": 2
+    }
+   }
+  },
+  {
+   "status": 400,
+   "error": {
+    "message": "index list not found"
+   }
+  }
+ ]
+}

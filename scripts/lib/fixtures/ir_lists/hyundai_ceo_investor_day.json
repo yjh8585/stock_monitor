@@ -1,0 +1,597 @@
+{
+ "cid": {
+  "data": {
+   "list": [
+    {
+     "updateDate": "20260904130550",
+     "year": "2026",
+     "description": "&lt;p style=&#34;&#34;&gt;&amp;nbsp;&lt;/p&gt;",
+     "imageAlt": "2026 CEO Invetor Day",
+     "summaryTitle": "",
+     "sectionMarginYN4": "y",
+     "sectionMarginYN5": "y",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/en/2026/cid-2026-youtube.jpg",
+     "sectionMarginYN1": "y",
+     "youtubeUrl": "https://www.youtube.com/live/KKt3zMyv86U",
+     "displayYN": "Y",
+     "sectionMarginYN2": "y",
+     "sectionMarginYN3": "y",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000022",
+     "sectionImageAlt1": "",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0903/2026 ceo investor day_kor.pdf",
+     "sectionImageAlt2": "",
+     "createDate": "20260904130550",
+     "sectionImageAlt5": "",
+     "sectionImageAlt3": "",
+     "creator": "hipars-wwfrt06",
+     "sectionImageAlt4": "",
+     "sectionPcPath5": "",
+     "updator": "hipars-wwfrt06",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "",
+     "sectionPcPath3": "",
+     "nodeId": "0000000022",
+     "contentsTitle": "2026 CEO Invetor Day",
+     "sectionPcPath2": "",
+     "sectionPcPath1": ""
+    },
+    {
+     "updateDate": "20260904130600",
+     "year": "2025",
+     "description": "&lt;p&gt;2025 CEO Investor Day&lt;/p&gt;",
+     "imageAlt": "2025 CEO Investor Day Image",
+     "summaryTitle": "",
+     "sectionMarginYN4": "y",
+     "sectionMarginYN5": "y",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/en/2025/cid-2025-youtube.jpg",
+     "sectionMarginYN1": "y",
+     "youtubeUrl": "https://www.youtube.com/live/vyrm2NeaUPA",
+     "displayYN": "Y",
+     "sectionMarginYN2": "y",
+     "sectionMarginYN3": "y",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000020",
+     "sectionImageAlt1": "",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2025/2025-cid-ko.pdf",
+     "sectionImageAlt2": "",
+     "createDate": "20251002155145",
+     "sectionImageAlt5": "",
+     "sectionImageAlt3": "",
+     "creator": "hipars-wwfrt01",
+     "sectionImageAlt4": "",
+     "sectionPcPath5": "",
+     "jcr:mixinTypes": [
+      "cq:ReplicationStatus"
+     ],
+     "updator": "hipars-wwfrt06",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "",
+     "sectionPcPath3": "",
+     "nodeId": "0000000020",
+     "contentsTitle": "",
+     "sectionPcPath2": "",
+     "sectionPcPath1": ""
+    },
+    {
+     "updateDate": "20251010092850",
+     "year": "2024",
+     "description": "&lt;p&gt;2024 현대차 CEO Investor Day&lt;/p&gt;",
+     "imageAlt": "2024 CEO Investor Day Image",
+     "summaryTitle": "핵심 요약",
+     "sectionMarginYN4": "n",
+     "sectionMarginYN5": "n",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/en/2024/cid-2024-youtube2.jpg",
+     "sectionMarginYN1": "n",
+     "youtubeUrl": "https://youtu.be/w_vNsv3QLjg",
+     "displayYN": "Y",
+     "sectionMarginYN2": "n",
+     "sectionMarginYN3": "n",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000018",
+     "sectionImageAlt1": "핵심 요약",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/pdf/ko/2024-cid-ko.pdf",
+     "sectionImageAlt2": "핵심 요약",
+     "createDate": "20241002142059",
+     "sectionImageAlt5": "핵심 요약",
+     "sectionImageAlt3": "핵심 요약",
+     "creator": "hipars-wwfrt05",
+     "sectionImageAlt4": "핵심 요약",
+     "sectionPcPath5": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/2024/ir-resources-cid-key-summary-05-2024-pc-ko.webp",
+     "jcr:mixinTypes": [
+      "cq:ReplicationStatus"
+     ],
+     "updator": "hipars-wwfrt01",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/2024/ir-resources-cid-key-summary-04-2024-pc-ko.webp",
+     "sectionPcPath3": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/2024/ir-resources-cid-key-summary-03-2024-pc-ko.webp",
+     "nodeId": "0000000018",
+     "contentsTitle": "",
+     "sectionPcPath2": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/2024/ir-resources-cid-key-summary-02-2024-pc-ko.webp",
+     "sectionPcPath1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/2024/ir-resources-cid-key-summary-01-2024-pc-ko.webp"
+    },
+    {
+     "updateDate": "20241002141735",
+     "year": "2023",
+     "description": "&lt;p&gt;2023 현대차 CEO Investor Day&lt;/p&gt;",
+     "imageAlt": "2023 CEO Investor Day Image",
+     "summaryTitle": "핵심 요약",
+     "sectionMarginYN4": "y",
+     "sectionMarginYN5": "y",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/ceo-investor-day/ir-resources-2023-ceo-investor-day-thumbnail-pc.jpg",
+     "sectionMarginYN1": "y",
+     "youtubeUrl": "https://youtu.be/_MUds7VrD0g",
+     "displayYN": "Y",
+     "sectionMarginYN2": "y",
+     "sectionMarginYN3": "y",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000011",
+     "sectionImageAlt1": "section1 Key Summary Image",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/pdf/ko/2023-cid-ko.pdf",
+     "sectionImageAlt2": "section2 Key Summary Image",
+     "createDate": "20231004165422",
+     "sectionImageAlt5": "section5 Key Summary Image",
+     "sectionImageAlt3": "section3 Key Summary Image",
+     "creator": "hnstar-wwprj02",
+     "sectionImageAlt4": "section4 Key Summary Image",
+     "sectionPcPath5": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/ir-resources-cid-key-summary-05-pc-ko.webp",
+     "jcr:mixinTypes": [
+      "cq:ReplicationStatus"
+     ],
+     "updator": "hipars-wwfrt05",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/ir-resources-cid-key-summary-04-pc-ko.webp",
+     "sectionPcPath3": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/ir-resources-cid-key-summary-03-pc-ko.webp",
+     "nodeId": "0000000011",
+     "contentsTitle": "",
+     "sectionPcPath2": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/ir-resources-cid-key-summary-02-pc-ko.webp",
+     "sectionPcPath1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/summary/ko/ir-resources-cid-key-summary-01-pc-ko.webp"
+    },
+    {
+     "updateDate": "20241002141748",
+     "year": "2022",
+     "description": "&lt;p&gt;2022 현대차 CEO Investor Day&lt;/p&gt;",
+     "imageAlt": "2022 CEO Investor Day Image",
+     "summaryTitle": "",
+     "sectionMarginYN4": "y",
+     "sectionMarginYN5": "y",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/ceo-investor-day/ir-resources-2022-ceo-investor-day-thumbnail-pc.jpg",
+     "sectionMarginYN1": "y",
+     "youtubeUrl": "https://www.youtube.com/watch?v=hcEiiKl3UqQ",
+     "displayYN": "Y",
+     "sectionMarginYN2": "y",
+     "sectionMarginYN3": "y",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000010",
+     "sectionImageAlt1": "",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/pdf/ko/2022-cid-ko.pdf",
+     "sectionImageAlt2": "",
+     "createDate": "20231004162814",
+     "sectionImageAlt5": "",
+     "sectionImageAlt3": "",
+     "creator": "hnstar-wwprj02",
+     "sectionImageAlt4": "",
+     "sectionPcPath5": "",
+     "jcr:mixinTypes": [
+      "cq:ReplicationStatus"
+     ],
+     "updator": "hipars-wwfrt05",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "",
+     "sectionPcPath3": "",
+     "nodeId": "0000000010",
+     "contentsTitle": "",
+     "sectionPcPath2": "",
+     "sectionPcPath1": ""
+    },
+    {
+     "updateDate": "20241002141806",
+     "year": "2020",
+     "description": "&lt;p&gt;2020 현대차 CEO Investor Day&lt;/p&gt;",
+     "imageAlt": "2020 CEO Investor Day",
+     "summaryTitle": "",
+     "sectionMarginYN4": "y",
+     "sectionMarginYN5": "y",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/ceo-investor-day/ir-resources-2020-ceo-investor-day-thumbnail-pc.jpg",
+     "sectionMarginYN1": "y",
+     "youtubeUrl": "https://www.youtube.com/watch?v=A2GsND-ErIY",
+     "displayYN": "Y",
+     "sectionMarginYN2": "y",
+     "sectionMarginYN3": "y",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000009",
+     "sectionImageAlt1": "",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/pdf/ko/2020-cid-ko.pdf",
+     "sectionImageAlt2": "",
+     "createDate": "20231004162646",
+     "sectionImageAlt5": "",
+     "sectionImageAlt3": "",
+     "creator": "hnstar-wwprj02",
+     "sectionImageAlt4": "",
+     "sectionPcPath5": "",
+     "jcr:mixinTypes": [
+      "cq:ReplicationStatus"
+     ],
+     "updator": "hipars-wwfrt05",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "",
+     "sectionPcPath3": "",
+     "nodeId": "0000000009",
+     "contentsTitle": "",
+     "sectionPcPath2": "",
+     "sectionPcPath1": ""
+    },
+    {
+     "updateDate": "20241002141825",
+     "year": "2019",
+     "description": "&lt;p&gt;2019 현대차 CEO Investor Day&lt;/p&gt;",
+     "imageAlt": "2019 CEO Investor Day",
+     "summaryTitle": "",
+     "sectionMarginYN4": "y",
+     "sectionMarginYN5": "y",
+     "pcThumbnailPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/ceo-investor-day/ir-resources-2019-ceo-investor-day-thumbnail-pc.jpg",
+     "sectionMarginYN1": "y",
+     "youtubeUrl": "https://www.youtube.com/watch?v=9SLNeBl1rjU",
+     "displayYN": "Y",
+     "sectionMarginYN2": "y",
+     "sectionMarginYN3": "y",
+     "curPath": "/content/hyundai/ww/data/investorRelations/ceoInvestorDay/ko/0000000008",
+     "sectionImageAlt1": "",
+     "attachmentPath": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-resources/pdf/ko/2019-cid-ko.pdf",
+     "sectionImageAlt2": "",
+     "createDate": "20231004155115",
+     "sectionImageAlt5": "",
+     "sectionImageAlt3": "",
+     "creator": "hnstar-wwprj02",
+     "sectionImageAlt4": "",
+     "sectionPcPath5": "",
+     "jcr:mixinTypes": [
+      "cq:ReplicationStatus"
+     ],
+     "updator": "hipars-wwfrt05",
+     "jcr:primaryType": "nt:unstructured",
+     "sectionPcPath4": "",
+     "sectionPcPath3": "",
+     "nodeId": "0000000008",
+     "contentsTitle": "",
+     "sectionPcPath2": "",
+     "sectionPcPath1": ""
+    }
+   ]
+  },
+  "resultCode": "0000",
+  "message": ""
+ },
+ "events": {
+  "2019": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 5,
+    "list": [
+     {
+      "title": "Hyundai CEO Investor Day - Strategy 2025 ",
+      "category": "C0203",
+      "displayYear": "2019",
+      "displayStartDate": "20191204",
+      "displayEndDate": "20191204",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2019/12/06/ceo-investor-day-part1-kr.pdf"
+     },
+     {
+      "title": "Hyundai CEO Investor Day - 재무 목표",
+      "category": "C0203",
+      "displayYear": "2019",
+      "displayStartDate": "20191204",
+      "displayEndDate": "20191204",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2019/12/06/ceo-investor-day-part2-kr.pdf"
+     },
+     {
+      "title": "CLSA Investors&#39; Forum 참석",
+      "category": "C0202",
+      "displayYear": "2019",
+      "displayStartDate": "20190909",
+      "displayEndDate": "20190909",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2019/09/09/(19-08-20)-hmc-ir-pt-public.pdf"
+     },
+     {
+      "title": "Citi Korea Investor Conference 2019",
+      "category": "C0204",
+      "displayYear": "2019",
+      "displayStartDate": "20190307",
+      "displayEndDate": "20190307",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2019/03/04/(19-02-27)-hmc-ceo-investor-day-final-ko-2019.pdf"
+     },
+     {
+      "title": "현대차 CEO Investor Day",
+      "category": "C0203",
+      "displayYear": "2019",
+      "displayStartDate": "20190227",
+      "displayEndDate": "20190227",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2019/02/27/(19-02-26)-hmc-ceo-investor-day-final-ko.pdf"
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2020": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 3,
+    "list": [
+     {
+      "title": "2020 CEO Investor Day",
+      "category": "C0203",
+      "displayYear": "2020",
+      "displayStartDate": "20201210",
+      "displayEndDate": "20201210",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2020/12/11/(2020-12-11)-ceo-investor-day-kor.pdf"
+     },
+     {
+      "title": "CLSA Investors&#39; Forum",
+      "category": "C0202",
+      "displayYear": "2020",
+      "displayStartDate": "20200908",
+      "displayEndDate": "20200908",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2020/09/10/(september)-hmc-ir-presentation-final.pdf"
+     },
+     {
+      "title": "Citi Korea Investor Conference 2020",
+      "category": "C0202",
+      "displayYear": "2020",
+      "displayStartDate": "20200827",
+      "displayEndDate": "20200827",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2020/08/21/(20-08-14)hmc-ir-presentation-final.pdf"
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2021": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 6,
+    "list": [
+     {
+      "title": "KIS Global Investors Virtual Conference 2021",
+      "category": "C0202",
+      "displayYear": "2021",
+      "displayStartDate": "20211110",
+      "displayEndDate": "20211110",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021/11/10/(21-10-26)2021-3q-pt-kor-final-re.pdf"
+     },
+     {
+      "title": "28th Annual CITIC CLSA Flagship Investors&#39; Forum 2021",
+      "category": "C0202",
+      "displayYear": "2021",
+      "displayStartDate": "20210913",
+      "displayEndDate": "20210913",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021/09/14/(21-07-22)-2021-2q-pt-kor-final.pdf"
+     },
+     {
+      "title": "KIS Global Investors Virtual Conference 2021",
+      "category": "C0202",
+      "displayYear": "2021",
+      "displayStartDate": "20210819",
+      "displayEndDate": "20210819",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021/08/19/(21-07-22)-2021-2q-pt-kor-final.pdf"
+     },
+     {
+      "title": "Citi Pan-Asia Regional Investor Conference 2021 ",
+      "category": "C0202",
+      "displayYear": "2021",
+      "displayStartDate": "20210602",
+      "displayEndDate": "20210602",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021/06/02/(21-04-22)-2021-1q-pt-kor-final.pdf"
+     },
+     {
+      "title": "Citi Korea Investor Conference 2021",
+      "category": "C0202",
+      "displayYear": "2021",
+      "displayStartDate": "20210304",
+      "displayEndDate": "20210304",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021/03/04/(21-01-26)2020-4q-announce-pt-kor.pdf"
+     },
+     {
+      "title": "KIS Global Investors Conference",
+      "category": "C0202",
+      "displayYear": "2021",
+      "displayStartDate": "20210217",
+      "displayEndDate": "20210217",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021/02/17/(21-01-26)-2020-4q-announce-pt-kor.pdf"
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2022": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 3,
+    "list": [
+     {
+      "title": "KIS Global Investors Conference Singapore 2022",
+      "category": "C0202",
+      "displayYear": "2022",
+      "displayStartDate": "20220824",
+      "displayEndDate": "20220825",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2022-q2-kis-conference-ko.pdf"
+     },
+     {
+      "title": "2022 CEO Investor Day",
+      "category": "C0203",
+      "displayYear": "2022",
+      "displayStartDate": "20220302",
+      "displayEndDate": "20220302",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2022-ceo-investor-day-ko.pdf"
+     },
+     {
+      "title": "KIS Global Investors Virtual Conference 2022",
+      "category": "C0202",
+      "displayYear": "2022",
+      "displayStartDate": "20220216",
+      "displayEndDate": "20220216",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2021-q4-kis-conference-ko.pdf"
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2023": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 2,
+    "list": [
+     {
+      "title": "30th CITIC CLSA Investors&#39; Forum",
+      "category": "C0202",
+      "displayYear": "2023",
+      "displayStartDate": "20230911",
+      "displayEndDate": "20230912",
+      "attachFile1": ""
+     },
+     {
+      "title": "2023 CEO Investor Day",
+      "category": "C0203",
+      "displayYear": "2023",
+      "displayStartDate": "20230620",
+      "displayEndDate": "20230620",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2023-ceo-investor-day-ko.pdf"
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2024": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 4,
+    "list": [
+     {
+      "title": "31st CITIC CLSA Investor&#39;s Forum",
+      "category": "C0202",
+      "displayYear": "2024",
+      "displayStartDate": "20240909",
+      "displayEndDate": "20240912",
+      "attachFile1": ""
+     },
+     {
+      "title": "KIS Korea Investors Conference New York 2024",
+      "category": "C0202",
+      "displayYear": "2024",
+      "displayStartDate": "20240904",
+      "displayEndDate": "20240905",
+      "attachFile1": ""
+     },
+     {
+      "title": "2024 CEO Investor Day",
+      "category": "C0202",
+      "displayYear": "2024",
+      "displayStartDate": "20240828",
+      "displayEndDate": "20240828",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2024/2024-cid-ko.pdf"
+     },
+     {
+      "title": "Citi&#39;s 2024 Korea Investor Conference",
+      "category": "C0202",
+      "displayYear": "2024",
+      "displayStartDate": "20240307",
+      "displayEndDate": "20240307",
+      "attachFile1": ""
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2025": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 2,
+    "list": [
+     {
+      "title": "2025 CEO Investor Day",
+      "category": "C0202",
+      "displayYear": "2025",
+      "displayStartDate": "20250918",
+      "displayEndDate": "20250918",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2025/2025-cid-ko.pdf"
+     },
+     {
+      "title": "Samsung Global Investors Conference",
+      "category": "C0202",
+      "displayYear": "2025",
+      "displayStartDate": "20250515",
+      "displayEndDate": "20250516",
+      "attachFile1": ""
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  },
+  "2026": {
+   "data": {
+    "pageNo": 1,
+    "totalCount": 7,
+    "list": [
+     {
+      "title": "CLSA Investors&#39; Forum 2026",
+      "category": "C0202",
+      "displayYear": "2026",
+      "displayStartDate": "20260921",
+      "displayEndDate": "20260922",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0903/2026 ceo investor day_kor.pdf"
+     },
+     {
+      "title": "Citi GEMs Conference 2026",
+      "category": "C0202",
+      "displayYear": "2026",
+      "displayStartDate": "20260909",
+      "displayEndDate": "20260910",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0903/2026 ceo investor day_kor.pdf"
+     },
+     {
+      "title": "2026 KB Financial Group Korea Conference ",
+      "category": "C0202",
+      "displayYear": "2026",
+      "displayStartDate": "20260909",
+      "displayEndDate": "20260910",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0903/2026 ceo investor day_kor.pdf"
+     },
+     {
+      "title": "해외방문 IR (Non-Deal Roadshow)",
+      "category": "C0204",
+      "displayYear": "2026",
+      "displayStartDate": "20260831",
+      "displayEndDate": "20260922",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0826/2026 ceo investor day_kor.pdf"
+     },
+     {
+      "title": "Goldman Sachs Asia Leaders Conference 2026",
+      "category": "C0202",
+      "displayYear": "2026",
+      "displayStartDate": "20260831",
+      "displayEndDate": "20260902",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0826/2026 ceo investor day_kor.pdf"
+     },
+     {
+      "title": "2026 CEO Investor Day",
+      "category": "C0202",
+      "displayYear": "2026",
+      "displayStartDate": "20260826",
+      "displayEndDate": "20260826",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0826/2026 ceo investor day_kor.pdf"
+     },
+     {
+      "title": "Samsung Global Investors Conference",
+      "category": "C0202",
+      "displayYear": "2026",
+      "displayStartDate": "20260512",
+      "displayEndDate": "20260513",
+      "attachFile1": "/content/dam/hyundai/ww/en/images/company/investor-relations/ir-events/pdf/ko/2026/0506/q1-2026-earnings-call-pt-final-ko.pdf"
+     }
+    ]
+   },
+   "resultCode": "0000",
+   "message": ""
+  }
+ }
+}

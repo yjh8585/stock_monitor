@@ -85,8 +85,8 @@ class GuidanceRow:
   basis: str | None
   quote: str
   stated: str | None = None   # 원문이 밝힌 방향 낱말 → raised 등(숫자로 비교 못 할 때만 쓴다)
-  # 금액·주당 값의 통화 — None = 회사 보고 통화(파서 모듈 BASE_CURRENCY). 코드 파서 행은 늘 None, LLM 행만 외화를 적는다
-  # (모비스 수주 목표 'USD 89.7억' · Task 11 수정 1회차)
+  # 금액·주당 값의 통화 — None = 회사 보고 통화(파서 모듈 BASE_CURRENCY). 코드 파서 행은 원문이 외화일 때만 적는다
+  # (모비스 영문 Script 수주 목표 USD · Task 5) · LLM 행도 외화만 적는다(모비스 수주 목표 'USD 89.7억' · Task 11 수정 1회차)
   currency: str | None = None
 
 

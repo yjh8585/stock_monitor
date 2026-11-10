@@ -50,6 +50,13 @@ def _rows(company: str) -> list[dict]:
     return L.parse_kia(_json('kia_2026.json'))
   if company == 'mobis':
     return L.parse_mobis(_text('mobis_2026.html'))
+  if company == 'hyundai_cid':  # CID 목록 + 연도별 과거 IR 이벤트(행사일) — 2026-11-11 실물
+    fx = _json('hyundai_ceo_investor_day.json')
+    return L.parse_hyundai_cid(fx['cid'], L.hyundai_cid_dates(list(fx['events'].values())))
+  if company == 'kia_cid':  # IR 활동 2026·2025 쪽 전부
+    return [r for pages in _json('kia_ir_activity.json').values() for p in pages for r in L.parse_kia_cid(p)]
+  if company == 'mobis_script':
+    return L.parse_mobis_script(_text('mobis_en_performance.html'))
   if company == 'kgm':
     return L.parse_kgm(_json('kgm_dataroom.json'))
   if company == 'vinfast':  # 회사 소개 자료 날짜 = PDF 만든 날(2026-11-10 실물 메타데이터)
@@ -106,6 +113,25 @@ MUST_HIT = {
   ],
   'kia': [('2026년 3분기 경영실적', 'presentation', '2026-10-30')],
   'mobis': [('2026년 3분기 경영실적', 'presentation', None)],
+  # 날짜 = 같은 해 과거 IR 이벤트의 「CEO Investor Day」 행사일(CID 목록엔 행사일 칸이 없다 · createDate 는 올린 날)
+  'hyundai_cid': [
+    ('2026년 CEO Investor Day', 'investor_day', '2026-08-26'),
+    ('2025년 CEO Investor Day', 'investor_day', '2025-09-18'),
+    ('2024년 CEO Investor Day', 'investor_day', '2024-08-28'),
+    ('2023년 CEO Investor Day', 'investor_day', '2023-06-20'),
+    ('2022년 CEO Investor Day', 'investor_day', '2022-03-02'),
+    ('2020년 CEO Investor Day', 'investor_day', '2020-12-10'),
+  ],
+  # 날짜 = 행사일(periodStart) — 공지 시각(publicatedAt 2024-03-29)이 아니다
+  'kia_cid': [
+    ('[KOR] 2026 Kia CEO Investor Day', 'investor_day', '2026-04-09'),
+    ('2025년 기아 CEO Investor Day Presentation (KR)', 'investor_day', '2025-04-09'),
+    ('2025년 기아 CEO Investor Day Transcript (KR)', 'investor_day', '2025-04-09'),
+  ],
+  'mobis_script': [
+    ('2026 3Q Business Results Script', 'presentation', None),
+    ('2026 2Q Business Results Script', 'presentation', None),
+  ],
   'kgm': [
     ('2025년 3분기 경영실적 발표 - (2025.10.29)', 'presentation', '2025-10-29'),  # 제목 날짜 > 올린 날(2025-12-01)
     ('2025년 3분기 경영실적 보도자료', 'earnings_release', '2025-10-30'),  # 연도 없는 제목엔 묶음 연도를 붙인다
@@ -140,6 +166,10 @@ MUST_MISS = {
   'hyundai': ['4분기'],  # isUpcoming — 파일 없음
   'kia': ['AOD', '판매실적', '지역별수출실적'],
   'mobis': ['웹캐스트'],
+  'hyundai_cid': ['Invetor'],  # contentsTitle 칸(오타 실물)은 제목에 쓰지 않는다
+  # 영문판(INT)은 국문판과 같은 자료 · 컨퍼런스·NDR·실적·CID 후속 콜은 이번 범위 밖
+  'kia_cid': ['(INT)', '경영실적', 'CLSA', 'NDR', '후속'],
+  'mobis_script': ['1Q', 'Material'],  # 1Q26 이전 분기는 Script 가 없다 · 영문 실적 PDF(Material)는 받지 않는다
   'kgm': ['판매실적', '영업보고서'],
   'vinfast': ['Webcast', 'Newsletter', 'Takeaway', 'Earnings Report Q1/2024 (Restated)'],  # 증권사 리포트는 VinFastTest
   'rivian': ['Impact', 'Supplier', 'Proxy', 'Letter to Shareholders', 'Annual Meeting', 'Barclays', 'Webcast',
@@ -678,6 +708,144 @@ class SourceIdTest(unittest.TestCase):
     self.assertTrue(rows)
     self.assertTrue(all('fileNm=' in r['url'] for r in rows))
     self.assertEqual(len({r['source_id'] for r in rows}), len(rows))
+
+
+class DomesticCidScriptTest(unittest.TestCase):
+  """Task 5 — 현대·기아 CEO Investor Day(LLM 대상 investor_day) · 모비스 영문 Script(코드 대상 form='script').
+  픽스처 = 2026-11-11 실물(hyundai_ceo_investor_day.json · kia_ir_activity.json · mobis_en_performance.html)."""
+
+  def test_hyundai_cid_rows_2019_to_2026(self):
+    rows = _rows('hyundai_cid')
+    self.assertEqual(sorted(int(r['title'][:4]) for r in rows), [2019, 2020, 2022, 2023, 2024, 2025, 2026])
+    self.assertTrue(all(r['doc_type'] == 'investor_day' and r['form'] == 'ceo-investor-day' for r in rows))
+    new = next(r for r in rows if r['title'].startswith('2026'))
+    # 경로의 공백은 URL 인코딩(「2026 ceo investor day_kor.pdf」) — 키에도 공백이 남지 않는다
+    self.assertTrue(new['url'].endswith('/2026/0903/2026%20ceo%20investor%20day_kor.pdf'), new['url'])
+    self.assertNotIn(' ', new['source_id'])
+
+  def test_hyundai_cid_two_events_in_a_year_has_no_date(self):
+    """2019 는 CID 가 두 번(2월·12월) — 목록의 PDF 하나가 어느 행사 것인지 원문에 없다 → 날짜 없음(지어내지 않는다)."""
+    row = next(r for r in _rows('hyundai_cid') if r['title'].startswith('2019'))
+    self.assertIsNone(row['published_at'])
+    self.assertNotIn('_quarter', row)   # 분기도 없다 → 수집기가 «날짜 없음»으로 센다
+    _, holds = L.resolve_dates([row], {}, '2019-01-01')
+    self.assertEqual(holds, {L.NO_DATE: 1})
+
+  def test_hyundai_cid_year_filter_and_empty(self):
+    fx = _json('hyundai_ceo_investor_day.json')
+    rows = L.parse_hyundai_cid(fx['cid'], {}, years=range(2025, 2027))
+    self.assertEqual(sorted(r['title'][:4] for r in rows), ['2025', '2026'])
+    with self.assertRaises(L.EmptyListError):
+      L.parse_hyundai_cid({'data': {'list': []}, 'resultCode': '0000'}, {})
+    with self.assertRaises(ValueError):
+      L.parse_hyundai_cid({'resultCode': '9999'}, {})
+
+  def test_hyundai_event_dates_need_one_page(self):
+    """과거 IR 이벤트가 한 쪽(rowCount)에 다 안 오면 행사일이 조용히 빠진다 — 멈춘다."""
+    with self.assertRaises(ValueError):
+      L.hyundai_cid_dates([{'data': {'pageNo': 1, 'totalCount': 101, 'list': []}, 'resultCode': '0000'}])
+
+  def test_fetch_hyundai_adds_cid_in_range(self):
+    fx = _json('hyundai_ceo_investor_day.json')
+
+    def fake(session, url, **kw):
+      r = MagicMock()
+      if url == L.HYUNDAI_URL:
+        r.json.return_value = _json('hyundai_2026.json')
+      elif url == L.HYUNDAI_CID_URL:
+        r.json.return_value = fx['cid']
+      else:
+        self.assertEqual(url, L.HYUNDAI_EVENTS_URL)
+        r.json.return_value = fx['events'][str(kw['data']['year'])]
+      return r
+    with patch.object(L, '_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
+      rows = L.fetch_hyundai(MagicMock(), '2025-01-01')
+    cid = [(r['title'], r['published_at']) for r in rows if r['doc_type'] == 'investor_day']
+    self.assertEqual(sorted(cid), [('2025년 CEO Investor Day 발표자료', '2025-09-18'),
+                                   ('2026년 CEO Investor Day 발표자료', '2026-08-26')])
+    self.assertTrue(any(r['doc_type'] == 'presentation' for r in rows))   # 분기 실적 행은 그대로
+
+  def test_kia_cid_korean_pdfs_only(self):
+    rows = _rows('kia_cid')
+    self.assertEqual(len(rows), 3)   # 2026 국문 1 + 2025 국문 발표·원고 2 (영문 INT 2 는 버린다)
+    self.assertTrue(all(r['form'] == 'ir-activity' and r['url'].startswith(L.KIA_FILES) for r in rows))
+
+  def test_kia_cid_bad_payload(self):
+    self.assertEqual(L.parse_kia_cid({'status': 400, 'error': {'message': 'index list not found'}}), [])
+    with self.assertRaises(ValueError):
+      L.parse_kia_cid({'status': 500, 'error': {'message': 'internal'}})
+    with self.assertRaises(ValueError):   # 건수는 있는데 목록이 비었다 — 칸 이름이 바뀐 것
+      L.parse_kia_cid({'status': 200, 'data': {'list': [], 'pastPaging': {'totalCount': 27, 'entriesPerPage': 10}}})
+
+  def test_fetch_kia_pages_through_activity(self):
+    """IR 활동은 10건씩 쪽(page=0 부터)으로 온다 — 2026 CID 는 셋째 쪽(page=2)에 있다. 쪽 수 = totalCount 로 정한다."""
+    pages = _json('kia_ir_activity.json')
+    asked = []
+
+    def fake(session, url, **kw):
+      r = MagicMock()
+      if url == L.KIA_URL:
+        r.json.return_value = {'status': 400, 'error': {'message': 'index list not found'}}
+      else:
+        self.assertEqual(url, L.KIA_ACTIVITY_URL)
+        p = kw['params']
+        asked.append((p['year'], p['page']))
+        r.json.return_value = pages[str(p['year'])][p['page']]
+      return r
+    with patch.object(L, '_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
+      rows = L.fetch_kia(MagicMock(), '2025-01-01')
+    self.assertEqual(asked, [(2025, 0), (2025, 1), (2025, 2), (2026, 0), (2026, 1), (2026, 2)])
+    self.assertEqual(len(rows), 3)
+
+  def test_mobis_script_rows(self):
+    rows = _rows('mobis_script')
+    self.assertEqual([(r['title'], r['_quarter'], r['_wait']) for r in rows],
+                     [('2026 3Q Business Results Script', '2026-Q3', 'dart'),
+                      ('2026 2Q Business Results Script', '2026-Q2', 'dart')])
+    self.assertTrue(all(r['form'] == 'script' and r['doc_type'] == 'presentation' for r in rows))
+
+  def test_mobis_script_key_ignores_file_id(self):
+    """Script 링크엔 fileNm 속성이 없다(2026-11-11 실물) — 키는 분기로 만든 이름 · 요청마다 바뀌는 fileId 와 무관."""
+    html = _text('mobis_en_performance.html')
+    again = L.parse_mobis_script(html.replace('fileId=3Oj3', 'fileId=XXXX'))
+    self.assertEqual([r['source_id'] for r in _rows('mobis_script')], [r['source_id'] for r in again])
+    self.assertNotEqual(_rows('mobis_script')[0]['url'], again[0]['url'])
+
+  def test_mobis_script_unreadable_quarter_stops(self):
+    with self.assertRaises(ValueError):
+      L.parse_mobis_script('<table><tbody><tr><td><p class="b">Business Results</p>'
+                           '<a href="/cmm/fms/PdfFileDown.do?fileId=1&fileSn=0">Script</a></td></tr></tbody></table>')
+
+  def test_fetch_mobis_adds_english_scripts(self):
+    def fake(session, url, **kw):
+      r = MagicMock()
+      r.text = _text('mobis_en_performance.html') if url == L.MOBIS_EN_URL else _text('mobis_2026.html')
+      return r
+    with patch.object(L, '_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2026, 2027)):
+      rows = L.fetch_mobis(MagicMock(), '2026-01-01')
+    self.assertEqual(sum(r['form'] == 'script' for r in rows), 2)
+    self.assertEqual(sum(r['form'] == 'performance' for r in rows), 3)
+
+  def test_numbers_collector_wants(self):
+    """목록 행 → 숫자 수집기 Doc 꼴 → CID 는 LLM 만(llm_only) · Script 는 코드(llm_only 아님) · 국문 실적 PDF 는 지금처럼 LLM."""
+    from customer_parsers import kr_dart
+    from customer_parsers.base import Doc
+
+    def doc(ticker, r):
+      return Doc(id=0, company_id='x', ticker=ticker, source=r['source'], doc_type=r['doc_type'], form=r['form'],
+                 items='', title=r['title'], url=r['url'], published_at=r['published_at'] or '',
+                 source_id=r['source_id'])
+    for ticker, company in (('005380', 'hyundai_cid'), ('000270', 'kia_cid')):
+      for r in _rows(company):
+        with self.subTest(company=company, title=r['title']):
+          self.assertTrue(kr_dart.wants(doc(ticker, r)))
+          self.assertTrue(kr_dart.llm_only(doc(ticker, r)))
+    for r in _rows('mobis_script'):
+      with self.subTest(title=r['title']):
+        self.assertTrue(kr_dart.wants(doc(kr_dart.MOBIS, r)))
+        self.assertFalse(kr_dart.llm_only(doc(kr_dart.MOBIS, r)))
+    kr = _rows('mobis')[0]
+    self.assertTrue(kr_dart.llm_only(doc(kr_dart.MOBIS, kr)))
 
 
 class EmptySubListTest(unittest.TestCase):

@@ -170,6 +170,55 @@ class PorscheFactSheetTests(unittest.TestCase):
     f.assert_called_once()
 
 
+class MobisScriptTests(unittest.TestCase):
+  """Task 5 — 현대모비스 영문 실적 Script(목록 어댑터가 form='script' 로 낸 행)의 연간 수주 목표를 코드가 읽는다.
+  본문 = 2026-11-11 실물 Script PDF 의 pdf_text 결과에서 그 문단만 옮겼다(줄바꿈 자리도 실물 그대로 · PDF 는 저장 안 함)."""
+
+  @classmethod
+  def setUpClass(cls):
+    from customer_parsers import kr_dart
+    cls.K = kr_dart
+
+  def _doc(self, title='2026 3Q Business Results Script', form='script'):
+    return base.Doc(0, 'cid', self.K.MOBIS, 'ir', 'presentation', form, '', title,
+                    'https://www.mobis.com/cmm/fms/PdfFileDown.do?fileId=1&fileSn=0&fileNm=x.pdf', '2026-10-30')
+
+  def test_parse_3q26_target(self):
+    content = base.Content(text=self.K.SCRIPT_3Q26)
+    res = self.K.parse(self._doc(), content)
+    self.assertTrue(res.recognized)
+    self.assertEqual([(g.metric, g.period, g.low, g.high, g.unit, g.currency) for g in res.guidance],
+                     [('order_intake', 'FY2026', 8.97, 8.97, 'billion', 'USD')])
+    self.assertEqual(base.check_vocab(res), [])
+    from lib import quote_check
+    self.assertEqual(quote_check.check_row(res.guidance[0], content.text), (True, 'ok'))
+    self.assertFalse(self.K.llm_wants(self._doc(), res))   # LLM 호출 0
+
+  def test_cumulative_actual_is_not_target(self):
+    res = self.K.parse(self._doc(), base.Content(
+      text='Non-captive orders for Core Parts reached USD 1.15 billion on a cumulative basis through the third quarter '
+           'of 2026'))
+    self.assertEqual((res.guidance, res.recognized), ([], False))   # 목표 문장이 없는 회차 = 대상 아님
+
+  def test_year_from_document_quarter_when_paragraph_has_none(self):
+    res = self.K.parse(self._doc(), base.Content(
+      text='representing 13% of the annual order target of USD 8.97 billion'))
+    self.assertEqual([g.period for g in res.guidance], ['FY2026'])
+
+  def test_no_year_anywhere_is_failed_not_invented(self):
+    """문단에도 문서 제목에도 연도가 없으면 행을 만들지 않는다 — recognized 라 0행 = failed 로 드러난다."""
+    res = self.K.parse(self._doc(title='Business Results Script'), base.Content(
+      text='representing 13% of the annual order target of USD 8.97 billion'))
+    self.assertEqual((res.guidance, res.recognized), ([], True))
+
+  def test_script_routing(self):
+    self.assertTrue(self.K.wants(self._doc()))
+    self.assertFalse(self.K.llm_only(self._doc()))
+    perf = self._doc(title='2026년 3분기 경영실적', form='performance')
+    self.assertTrue(self.K.llm_only(perf))   # 국문 경영실적 PDF 는 지금처럼 LLM
+    self.assertEqual(self.K.parse(perf, base.Content(text=self.K.SCRIPT_3Q26)).count(), 0)
+
+
 class VocabTests(unittest.TestCase):
   def test_base_self_test(self):
     self.assertEqual(base.self_test(), [])

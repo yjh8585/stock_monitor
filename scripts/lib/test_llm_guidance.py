@@ -11,6 +11,7 @@ import sys
 import unittest
 from collections import Counter
 from types import SimpleNamespace
+from unittest.mock import patch
 
 _SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_SCRIPTS))
@@ -82,6 +83,16 @@ class ExtractTests(unittest.TestCase):
     for reason in ('max_tokens', 'refusal'):
       with self.assertRaises(lg.Incomplete):
         lg.extract(_FakeClient([_item()], stop_reason=reason), _DOC, _SRC, 'Acme Motors')
+
+  def test_usage_tokens_printed(self):
+    """D6(Task 5) — 응답의 입력·출력 토큰을 한 줄 찍는다(금액 계산 없음)."""
+    c = _FakeClient([_item()])
+    c.messages = SimpleNamespace(create=lambda **kw: SimpleNamespace(
+      stop_reason='end_turn', usage=SimpleNamespace(input_tokens=123456, output_tokens=789),
+      content=[SimpleNamespace(type='text', text=json.dumps({'items': []}))]))
+    with patch('builtins.print') as out:
+      lg.extract(c, _DOC, _SRC, 'Acme Motors')
+    self.assertIn('입력 123,456 · 출력 789', '\n'.join(str(a.args[0]) for a in out.call_args_list))
 
   def test_bad_json_raises(self):
     with self.assertRaises(json.JSONDecodeError):

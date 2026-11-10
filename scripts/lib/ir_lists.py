@@ -6,7 +6,7 @@
 행 = customer_documents 칸(company_id 는 수집기가 붙인다). source_id = `ir_source_id(url)` 한 곳에서만 만든다
 (호스트 + URL 경로, 쿼리 제외 — 같은 문서가 두 목록(VW RSS·실적 행렬)에 나와도 하나로 합쳐진다. 예외는 그 함수 docstring).
 
-날짜 칸이 없는 목록(현대차·현대모비스 IR · KGM 발표자료 · 빈패스트·리비안 분기 보고서 등)은 published_at=None
+날짜 칸이 없는 목록(현대차·현대모비스 IR(영문 Script 포함) · KGM 발표자료 · 빈패스트·리비안 분기 보고서 등)은 published_at=None
 + `_quarter`('2026-Q3') + `_wait`(어디서 날짜가 올지)로 내보내고, 수집기가 `resolve_dates` 로 채운다. 못 찾으면 행을 버리지 않고 «보류»로 세어
 알린다(날짜를 지어내지 않는다 — 다음 실행에 근거가 생기면 그때 들어간다). 분기도 날짜도 없는 행은 «날짜 없음»으로
 따로 센다(다음 실행에도 안 풀린다).
@@ -115,7 +115,8 @@ def ir_source_id(url: str) -> str:
   """IR 문서의 안정 키 = 호스트 + 경로(쿼리·조각 제외). 호스트를 붙여 회사 사이의 같은 경로 충돌을 막는다.
 
   예외: 현대모비스 다운로드는 경로가 전부 같고 쿼리의 fileId 가 요청마다 바뀐다(2026-11-09 실측) — 서버 파일명
-  `fileNm` 쿼리를 키로 쓴다(어댑터가 URL 에 붙여 둔다 · 서버는 덧붙은 fileNm 을 무시하고 PDF 를 준다). 없으면 멈춘다
+  `fileNm` 쿼리를 키로 쓴다(어댑터가 URL 에 붙여 둔다 · 서버는 덧붙은 fileNm 을 무시하고 PDF 를 준다 · 영문 Script 는
+  서버 파일명이 목록에 없어 분기로 만든 이름 — parse_mobis_script). 없으면 멈춘다
   (경로만으로 키를 만들면 모비스 문서 전부가 한 행으로 뭉개진다)."""
   u = urlsplit(url)
   if u.path.endswith(_MOBIS_DOWNLOAD):
@@ -739,9 +740,54 @@ def parse_hyundai(payload: dict, year: int) -> list[dict]:
   return out
 
 
+HYUNDAI_CID_URL = f'{HYUNDAI_BASE}/wsvc/ww/ceoInvestorDay.list.do'
+HYUNDAI_EVENTS_URL = f'{HYUNDAI_BASE}/wsvc/ww/pastIrEvent.list.do'
+_HYUNDAI_EVENT_ROWS = 100  # 한 해 과거 IR 이벤트 수(2019~2026 실측 최대 37건) — 넘으면 hyundai_cid_dates 가 멈춘다
+_CID = re.compile(r'CEO\s*Investor\s*Day', re.I)
+
+
+def hyundai_cid_dates(payloads: list[dict]) -> dict[int, str]:
+  """과거 IR 이벤트(연도별 응답) → {연도: CID 행사일}. CID 목록엔 행사일 칸이 없다(createDate 는 올린 날 — 2022 행이
+  2023-10-04 처럼 재업로드 날짜다 · 2026-11-11 실물). 그 해 CID 행사가 하나일 때만 — 2019 는 2월·12월 두 번이라
+  목록의 PDF 하나가 어느 행사 것인지 원문에 없다(날짜 없음). 분류 칸은 해마다 다르다(2023 이전 C0203 · 2024~ C0202)."""
+  days: dict[int, set[str]] = {}
+  for p in payloads:
+    if p.get('resultCode') != '0000':
+      raise ValueError(f'현대차 IR 이벤트 응답 코드 {p.get("resultCode")}')
+    data = p.get('data') or {}
+    items = data.get('list') or []
+    if (data.get('totalCount') or 0) > len(items):
+      raise ValueError(f'현대차 IR 이벤트 {data.get("totalCount")}건이 한 쪽({len(items)}건)을 넘는다 — 쪽 넘김 필요')
+    for it in items:
+      d = it.get('displayStartDate') or ''
+      if _CID.search(it.get('title') or '') and len(d) == 8:
+        days.setdefault(int(it['displayYear']), set()).add(f'{d[:4]}-{d[4:6]}-{d[6:]}')
+  return {y: next(iter(s)) for y, s in days.items() if len(s) == 1}
+
+
+def parse_hyundai_cid(payload: dict, dates: dict[int, str], years=None) -> list[dict]:
+  """CEO Investor Day 목록(연도마다 국문 PDF 하나) → investor_day(LLM 이 읽는다 · D6). 날짜 = hyundai_cid_dates
+  (없으면 None — 분기도 없어 수집기가 «날짜 없음»으로 센다). 경로의 공백은 URL 인코딩한다. years = 받을 연도(None = 전부)."""
+  if payload.get('resultCode') != '0000':
+    raise ValueError(f'현대차 CEO Investor Day 응답 코드 {payload.get("resultCode")}')
+  out = []
+  for it in _need('현대차 CEO Investor Day', (payload.get('data') or {}).get('list') or []):
+    y = int(it['year'])
+    if not it.get('attachmentPath') or (years is not None and y not in years):
+      continue
+    out.append(_row('investor_day', f'{y}년 CEO Investor Day 발표자료',
+                    requote_uri(urljoin(HYUNDAI_BASE, it['attachmentPath'])), dates.get(y), 'ceo-investor-day'))
+  return out
+
+
 def fetch_hyundai(session: requests.Session, since: str) -> list[dict]:
-  return [r for y in _years(since)
+  years = _years(since)
+  rows = [r for y in years
           for r in parse_hyundai(_fetch(session, HYUNDAI_URL, method='POST', data={'year': y, 'lang': 'ko'}).json(), y)]
+  dates = hyundai_cid_dates([_fetch(session, HYUNDAI_EVENTS_URL, method='POST', data={
+    'lang': 'ko', 'rowCount': _HYUNDAI_EVENT_ROWS, 'pageNo': 1, 'cate': '', 'year': y}).json() for y in years])
+  cid = _fetch(session, HYUNDAI_CID_URL, method='POST', data={'lang': 'ko'}).json()
+  return rows + parse_hyundai_cid(cid, dates, years)
 
 
 # ── 기아 ──────────────────────────────────────────────────────────────────────
@@ -769,9 +815,53 @@ def parse_kia(payload: dict) -> list[dict]:
   return out
 
 
+KIA_ACTIVITY_URL = 'https://worldwide.kia.com/api/investors/ir-activity'
+_KIA_CID = re.compile(r'CEO\s*Investor\s*Day\s*$', re.I)  # 「2025 CEO Investor Day 후속 컨퍼런스 콜」 은 빠진다
+_KIA_FOREIGN = re.compile(r'[(\[](?:INT|ENG?)[)\]]', re.I)  # 「… Presentation (INT).pdf」 = 국문판과 같은 자료의 영문판
+
+
+def _kia_activity(payload: dict) -> dict | None:
+  """IR 활동 응답의 data(없는 해·마지막 쪽 뒤 = 「index list not found」 → None). 건수는 있는데 목록이 비면 멈춘다."""
+  if 'error' in payload:
+    if (payload.get('error') or {}).get('message') == _KIA_EMPTY_YEAR:
+      return None
+    raise ValueError(f'기아 IR 활동 응답 오류(status {payload.get("status")})')
+  data = payload.get('data') or {}
+  if (data.get('pastPaging') or {}).get('totalCount') and not data.get('list'):
+    raise ValueError('기아 IR 활동 건수는 있는데 목록이 비었다')
+  return data
+
+
+def parse_kia_cid(payload: dict) -> list[dict]:
+  """IR 활동 한 쪽 → CEO Investor Day 행의 국문 PDF(investor_day · LLM 이 읽는다 · D6). 컨퍼런스·NDR 은 이번 범위 밖.
+  날짜 = 행사일(periodStart) — 공지 시각(publicatedAt)은 행사 전이다(2024: 공지 03-29 · 행사 04-05)."""
+  data = _kia_activity(payload)
+  out = []
+  for it in (data or {}).get('list') or []:
+    if not _KIA_CID.search(_nfc(it.get('title') or '')) or not it.get('periodStart'):
+      continue
+    for f in it.get('files') or []:
+      title = _nfc(f.get('title') or '')
+      if (f.get('fileName') or '').lower().endswith('.pdf') and not _KIA_FOREIGN.search(title):
+        out.append(_row('investor_day', re.sub(r'\.pdf$', '', title, flags=re.I), KIA_FILES + f['path'],
+                        it['periodStart'][:10], 'ir-activity'))
+  return out
+
+
 def fetch_kia(session: requests.Session, since: str) -> list[dict]:
-  return [r for y in _years(since)
+  rows = [r for y in _years(since)
           for r in parse_kia(_fetch(session, KIA_URL, params={'language': 'ko', 'year': y, 'page': 1}).json())]
+  for y in _years(since):
+    page = 0
+    while True:  # 10건씩 · page 는 0 부터(2026-11-11 실측 — 마지막 쪽 뒤는 「index list not found」)
+      payload = _fetch(session, KIA_ACTIVITY_URL,
+                       params={'language': 'ko', 'isMobile': 'false', 'year': y, 'page': page}).json()
+      rows += parse_kia_cid(payload)
+      paging = (_kia_activity(payload) or {}).get('pastPaging') or {}
+      if (page + 1) * (paging.get('entriesPerPage') or 10) >= (paging.get('totalCount') or 0):
+        break
+      page += 1
+  return rows
 
 
 # ── 현대모비스(HTML 조각 · 날짜 칸 없음 → DART) ──────────────────────────────
@@ -802,9 +892,38 @@ def parse_mobis(html: str) -> list[dict]:
   return out
 
 
+MOBIS_EN_URL = f'{MOBIS_BASE}/en/ir/irReportLoad.do'
+_MOBIS_EN_PERIOD = re.compile(r'(\d{4})\s*([1-4])Q\b')
+
+
+def parse_mobis_script(html: str) -> list[dict]:
+  """영문 경영실적 표(연도 하나)의 «Script» 링크만 → presentation · form='script'(kr_dart 가 수주 목표를 코드로 읽는다).
+  2Q26 부터만 있다(그 전 분기 행엔 Material 뿐). 영문 Material 은 받지 않는다(국문 실적 PDF 를 이미 받는다).
+  🔴 Script 링크엔 fileNm 속성이 없다(2026-11-11 실물 — Material 에만 있다) → 키 이름을 분기로 만든다
+  ('script-2026-3Q-en.pdf'). 분기를 못 읽으면 키를 못 만드니 멈춘다(조용히 빠지지 않게)."""
+  out = []
+  for tr in BeautifulSoup(html, 'html.parser').select('tbody tr'):
+    title = tr.select_one('p.b')
+    a = next((a for a in tr.select('a[href*="PdfFileDown.do"]') if a.get_text(strip=True) == 'Script'), None)
+    if not title or not a:
+      continue
+    t = _nfc(title.get_text(' ', strip=True))
+    m = _MOBIS_EN_PERIOD.search(t)
+    if not m:
+      raise ValueError(f'현대모비스 영문 Script 분기를 못 읽음: {t}')
+    y, q = m.groups()
+    out.append(_row('presentation', f'{t} Script', _mobis_url(a['href'], f'script-{y}-{q}Q-en.pdf'), None, 'script',
+                    quarter=f'{y}-Q{q}'))
+  return out
+
+
 def fetch_mobis(session: requests.Session, since: str) -> list[dict]:
-  return [r for y in _years(since) for r in parse_mobis(
-    _fetch(session, MOBIS_URL, params={'type': 'performance', 'pageIndex': 1, 'srcYear': y}).text)]
+  rows = []
+  for y in _years(since):
+    params = {'type': 'performance', 'pageIndex': 1, 'srcYear': y}
+    rows += parse_mobis(_fetch(session, MOBIS_URL, params=params).text)
+    rows += parse_mobis_script(_fetch(session, MOBIS_EN_URL, params=params).text)
+  return rows
 
 
 # ── KGM(자료실 JSON 하나에 4종) ───────────────────────────────────────────────
