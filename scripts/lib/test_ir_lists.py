@@ -227,6 +227,37 @@ class VwTest(unittest.TestCase):
     self.assertIsNone(row['published_at'])
     self.assertEqual((row['_quarter'], row['_wait']), ('2025-Q1', 'rss'))
 
+  # 2026-11-11 실물 꼴 — 2026·2025 머리는 h2, 2024~2019 는 h3(아코디언) · 연도 절 안 표 1개.
+  # 두 번째 표(2025 절)는 가정 위반 표본으로 덧붙였다. 마지막 h2 는 연도 절이 아니다.
+  _VW_SECTIONS = (
+    '<h2 id="financial-results-2025">Financial results 2025</h2>'
+    '<table><tr><td>Press Release</td><td><a href="/en/press-releases/a-1">Q1</a></td></tr></table>'
+    '<table><tr><td>Presentation Media</td><td><a href="/en/presentations/b-2">H1</a></td></tr></table>'
+    '<h3 id="financial-results-2024">Financial results 2024</h3>'
+    '<table><tr><td>Press Release</td><td><a href="/en/press-releases/c-3">Q3</a></td></tr></table>'
+    '<h2 id="contact">Contact</h2>'
+    '<table><tr><td>Press Release</td><td><a href="/en/press-releases/d-4">Q1</a></td></tr></table>')
+
+  def test_results_every_table_in_year_section(self):
+    """MUST_HIT: 연도 절의 두 번째 표 · MUST_MISS: h3(2024) 표가 2025 로 붙지 않는다 · 연도 절 밖 표.
+    h3 연도는 아직 읽지 않는다(parse_vw_results SHORTCUT — 갤러리 날짜를 밀어내 보류가 된다)."""
+    got = {(y, q, url.rsplit('/', 1)[-1]) for y, q, _, _, url in L.parse_vw_results(self._VW_SECTIONS)}
+    self.assertEqual(got, {(2025, 'Q1', 'a-1'), (2025, 'Q2', 'b-2')})
+
+  def test_adhoc_results_title_is_earnings_release(self):
+    """MUST_HIT: 제목에 results → earnings_release · MUST_MISS: 「as a result」(단수 · 2024-07-09 실물)는 guidance."""
+    html = ('<a class="vertical-page-list-item" href="/en/ad-hoc/preliminary-results-fiscal-year-2022-15985">'
+            '<time datetime="2023-02-07 21:01:00 +0100"></time>'
+            '<div class="vertical-page-list-item--title"> Preliminary results fiscal year 2022 </div></a>'
+            '<a class="vertical-page-list-item" href="/en/ad-hoc/support-brussels-18495">'
+            '<time datetime="2024-07-09 19:15:00 +0200"></time>'
+            '<div class="vertical-page-list-item--title"> Support for information and consultation process at Brussels '
+            'site resolved, adjustment of annual forecast as a result and other unplanned expenses in the Group '
+            '</div></a>')
+    got = {r['title'].split()[0]: r['doc_type'] for r in L.parse_vw_adhoc(html)}
+    self.assertEqual(got, {'Preliminary': 'earnings_release', 'Support': 'guidance'})
+    self.assertEqual({r['doc_type'] for r in L.parse_vw_adhoc(_text('vw_adhoc.html'))}, {'guidance'})  # 픽스처 4건
+
   def test_events_only_results(self):
     paths = L.parse_vw_events(_text('vw_events.html'))
     self.assertTrue(paths)
@@ -621,15 +652,31 @@ class DatesTest(unittest.TestCase):
     self.assertEqual(L.resolve_dates(rows, {}, '2025-06-01'), ([], {}))
 
   def test_resolve_only_dart_wait_reads_dart(self):
-    """보도자료·RSS·콜을 기다리는 행은 DART 날짜로 채우지 않는다(근거가 다른 날짜를 섞지 않는다)."""
-    rows = [L._row('presentation', 'x', 'https://a.example/x.pdf', None, 'f', quarter='2026-Q3', wait='press')]
-    self.assertEqual(L.resolve_dates(rows, {'2026-Q3': '2026-10-29'}, '2026-01-01'), ([], {'press': 1}))
+    """RSS·콜·EQS 를 기다리는 행은 DART 날짜로 채우지 않는다(근거가 다른 날짜를 섞지 않는다)."""
+    rows = [L._row('presentation', 'x', 'https://a.example/x.pdf', None, 'f', quarter='2026-Q3', wait='rss')]
+    self.assertEqual(L.resolve_dates(rows, {'2026-Q3': '2026-10-29'}, '2026-01-01'), ([], {'rss': 1}))
 
   def test_resolve_counts_rows_without_quarter_or_date(self):
     """분기도 날짜도 없는 행 = 안 풀리는 «날짜 없음» — 기다리는 보류와 따로 센다."""
     rows = [L._row('presentation', 'x', 'https://a.example/x.pdf', None, 'f')]
     self.assertEqual(L.resolve_dates(rows, {}, '2026-01-01'), ([], {L.NO_DATE: 1}))
-    self.assertEqual(set(L.HOLD_REASONS), {'dart', 'press', 'rss', 'call', 'eqs', 'edgar'})
+    self.assertEqual(set(L.HOLD_REASONS), {'dart', 'rss', 'call', 'eqs', 'edgar'})
+
+  def test_correction_does_not_make_quarter_key(self):
+    """[기재정정] 은 원공시를 특정할 수 없어 키를 만들지 않는다 — 다음 분기에 낸 정정이 엉뚱한 분기(2026-Q4)를
+    덮지 않고(MUST_MISS), 원공시 키는 그대로(MUST_HIT)."""
+    prelims = [{'title': '연결재무제표기준영업(잠정)실적(공정공시)', 'published_at': '2026-10-29'},
+               {'title': '[기재정정]연결재무제표기준영업(잠정)실적(공정공시)', 'published_at': '2027-01-10'}]
+    self.assertEqual(L.quarter_dates(prelims), {'2026-Q3': '2026-10-29'})
+
+  def test_dart_date_beats_provisional_list_date(self):
+    """qdate 근거(DART·EDGAR)가 있으면 목록의 임시 날짜(KGM 보도자료 파일 시각)보다 우선 · 없으면 임시 날짜."""
+    rows = [L._row('earnings_release', 'x', 'https://a.example/x.pdf', '2026-07-30', 'f', quarter='2026-Q2')]
+    self.assertEqual(L.resolve_dates(rows, {'2026-Q2': '2026-07-28'}, '2026-01-01')[0][0]['published_at'], '2026-07-28')
+    self.assertEqual(L.resolve_dates(rows, {}, '2026-01-01')[0][0]['published_at'], '2026-07-30')
+    # RSS·콜 사유 행은 날짜가 있으면 분기를 싣지 않는다(목록 날짜가 정본)
+    rss = L._row('earnings_release', 'x', 'https://a.example/x.pdf', '2026-07-30', 'f', quarter='2026-Q2', wait='rss')
+    self.assertNotIn('_quarter', rss)
 
 
 class EdgarDatesTest(unittest.TestCase):
@@ -898,6 +945,24 @@ class DomesticCidScriptTest(unittest.TestCase):
     self.assertEqual(asked, [(2025, 0), (2025, 1), (2025, 2), (2026, 0), (2026, 1), (2026, 2)])
     self.assertEqual(len(rows), 3)
 
+  def test_fetch_kia_results_one_request_per_year(self):
+    """주요실적 API 는 page 를 무시하고 한 해를 통째로 준다(2026-11-11 실측: 2025·2026 의 page 0~3 응답 id 동일 ·
+    2025 = 1~4분기 4건 전부) → 해마다 한 번(page=1). MUST_HIT: 3분기 발표자료 · MUST_MISS: 같은 해 두 번째 요청."""
+    asked = []
+
+    def fake(session, url, **kw):
+      r = MagicMock()
+      if url == L.KIA_URL:
+        asked.append((kw['params']['year'], kw['params']['page']))
+        r.json.return_value = _json('kia_2026.json')
+      else:
+        r.json.return_value = {'status': 400, 'error': {'message': 'index list not found'}}
+      return r
+    with patch.object(L, '_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2026, 2027)):
+      rows = L.fetch_kia(MagicMock(), '2026-01-01')
+    self.assertEqual(asked, [(2026, 1)])
+    self.assertTrue([r for r in rows if '2026년 3분기 경영실적' in r['title']])
+
   def test_mobis_script_rows(self):
     rows = _rows('mobis_script')
     self.assertEqual([(r['title'], r['_quarter'], r['_wait']) for r in rows],
@@ -1024,26 +1089,76 @@ class KgmDateTest(unittest.TestCase):
       {'fileNm': title, 'fileUrl': f'https://web.kg-mobility.com/file/x/{stamp}000_abc.pdf'}]})
     return payload
 
-  def test_2026_q2_waits_for_press_release(self):
-    """2026 2분기 발표자료 = 제목 날짜 없음 · 같은 분기 보도자료 없음 → 보류(올린 날 2026-09-11 을 쓰지 않는다)."""
+  # 2026-11-11 DB 실측 — 숫자 수집기가 본문(kgm_kind)으로 분기 실적이라 가른 DART 영업(잠정)실적 공시의 접수일.
+  # 2025 부터 KGM 분기 실적 제목은 월 판매와 같은 「영업(잠정)실적(공정공시)」 라 제목으로는 못 가른다.
+  KGM_QDATES = {'2025-Q1': '2025-04-24', '2025-Q2': '2025-07-25', '2025-Q3': '2025-10-29',
+                '2026-Q1': '2026-04-24', '2026-Q2': '2026-07-28', '2026-Q3': '2026-11-04'}
+
+  def test_2026_q2_waits_for_dart(self):
+    """2026 2분기 발표자료 = 제목 날짜 없음 · 같은 분기 보도자료 없음 → DART 날짜를 기다린다(올린 날 2026-09-11 을
+    쓰지 않는다)."""
     row = next(r for r in _rows('kgm') if r['title'] == '2026년 2분기 경영실적')
     self.assertIsNone(row['published_at'])
-    self.assertEqual((row['_quarter'], row['_wait']), ('2026-Q2', 'press'))
+    self.assertEqual((row['_quarter'], row['_wait']), ('2026-Q2', 'dart'))
+
+  def test_2026_presentations_take_dart_dates(self):
+    """MUST_HIT: 2026 1·2·3분기 발표자료 = 같은 분기 DART 실적 공시일 · MUST_MISS: 파일 시각(2026-09-11 등)이 아니다."""
+    got, holds = L.resolve_dates(_rows('kgm'), self.KGM_QDATES, '2026-01-01')
+    dated = {r['title']: r['published_at'] for r in got if r['doc_type'] == 'presentation'}
+    self.assertEqual(dated, {'2026년 1분기 경영실적': '2026-04-24', '2026년 2분기 경영실적': '2026-07-28',
+                             '2026년 3분기 경영실적': '2026-11-04'})
+    self.assertEqual(holds, {L.NO_DATE: 2})  # Pressday·CEO IR설명회 — 분기가 없다(항목 6 보고)
 
   def test_2026_q2_takes_same_quarter_press_date(self):
+    """DART 날짜가 아직 없으면 같은 분기 보도자료 날짜 · 생기면 DART 가 우선."""
     rows = L.parse_kgm(self._with_press('2분기 경영실적 보도자료', '20260723110000'))
     row = next(r for r in rows if r['title'] == '2026년 2분기 경영실적')
     self.assertEqual(row['published_at'], '2026-07-23')
+    got, _ = L.resolve_dates([row], self.KGM_QDATES, '2026-01-01')
+    self.assertEqual(got[0]['published_at'], '2026-07-28')
 
-  def test_title_date_beats_press(self):
+  def test_title_date_beats_press_and_dart(self):
     rows = L.parse_kgm(self._with_press('3분기 경영실적 보도자료', '20251031110000'))
     row = next(r for r in rows if r['title'].startswith('2025년 3분기 경영실적 발표'))
     self.assertEqual(row['published_at'], '2025-10-29')
+    got, _ = L.resolve_dates([row], {'2025-Q3': '2025-10-30'}, '2025-01-01')  # 제목 날짜 = 발표일 정본
+    self.assertEqual(got[0]['published_at'], '2025-10-29')
+
+  def test_press_release_prefers_dart_date(self):
+    """MUST_HIT: 보도자료(파일 시각 2025-04-30)도 같은 분기 DART 공시일(2025-04-24)이 있으면 그쪽."""
+    got, _ = L.resolve_dates(_rows('kgm'), self.KGM_QDATES, '2025-01-01')
+    press = {r['title']: r['published_at'] for r in got if r['doc_type'] == 'earnings_release'}
+    self.assertEqual(press['2025년 1분기 경영실적 보도자료'], '2025-04-24')
+    self.assertEqual(press['2025년 4분기 경영실적 보도자료'], '2026-01-28')  # DART 분기 실적 공시 없음 → 파일 시각
+
+  def test_reuploaded_press_stamp_is_not_a_date(self):
+    """2024-12-20 재업로드(2024 2분기 보도자료 · 분기 끝 + 120일 밖) 파일 시각은 날짜가 아니다 — MUST_MISS:
+    --backfill(2024-10-12~)에 2024-12-20 으로 들어오지 않는다 · MUST_HIT: DART 날짜가 있으면 그 날."""
+    row = next(r for r in _rows('kgm') if r['title'] == '2024년 2분기 경영실적 보도자료')
+    self.assertIsNone(row['published_at'])
+    self.assertEqual((row['_quarter'], row['_wait']), ('2024-Q2', 'dart'))
+    # 2024-Q2 끝 + 120일 = 2024-10-28 ≥ 2024-10-12 → 보류(DB 의 DART 공시는 2024-10-28 부터) · 더 늦은 since 면 범위 밖
+    self.assertEqual(L.resolve_dates([row], {}, '2024-10-12'), ([], {'dart': 1}))
+    self.assertEqual(L.resolve_dates([row], {}, '2024-11-01'), ([], {}))
+    got, _ = L.resolve_dates([row], {'2024-Q2': '2024-07-26'}, '2024-01-01')
+    self.assertEqual(got[0]['published_at'], '2024-07-26')
+
+  def test_half_and_annual_press_titles_have_quarters(self):
+    """옛 보도자료 「상반기·반기」 = 2분기 · 「연간」 = 4분기(전부 2024-12 재업로드) — 분기가 있어야 재업로드 시각을 거른다."""
+    for label, q in (('상반기 경영실적 보도자료', '2023-Q2'), ('반기 경영실적 보도자료', '2023-Q2'),
+                     ('연간 경영실적 보도자료', '2023-Q4')):
+      with self.subTest(label=label):
+        payload = _json('kgm_dataroom.json')
+        payload['body']['managementList'].insert(0, {'date': '2023', 'fileList': [
+          {'fileNm': label, 'fileUrl': 'https://web.kg-mobility.com/file/x/20241220103210358_omFfYP.docx'}]})
+        row = next(r for r in L.parse_kgm(payload) if r['title'] == f'2023년 {label}')
+        self.assertIsNone(row['published_at'])
+        self.assertEqual(row['_quarter'], q)
 
   def test_hold_and_no_date_counts(self):
-    """2026 1·2·3분기 = 보도자료 대기 · Pressday·CEO IR설명회 = 분기도 날짜도 없음(싣지 않고 센다)."""
+    """DART 날짜가 없으면 2026 1·2·3분기 = DART 대기 · Pressday·CEO IR설명회 = 분기도 날짜도 없음(싣지 않고 센다)."""
     got, holds = L.resolve_dates(_rows('kgm'), {}, '2026-01-01')
-    self.assertEqual(holds, {'press': 3, L.NO_DATE: 2})
+    self.assertEqual(holds, {'dart': 3, L.NO_DATE: 2})
     self.assertFalse([r for r in got if r['title'].startswith('2026년')])
 
 
@@ -1133,7 +1248,7 @@ class CollectorWiringTest(unittest.TestCase):
       got = ccd.ir_rows(MagicMock(), self.VW, '2026-01-01', client)
     self.assertEqual([r['title'] for r in got], ['ok'])
     printed = '\n'.join(c.args[0] for c in out.call_args_list)
-    self.assertIn('날짜 보류 1건 — 같은 분기 DART 연결 잠정실적 공시가 아직 없다(다음 실행에 다시 본다)', printed)
+    self.assertIn('날짜 보류 1건 — 같은 분기 DART 잠정실적 공시가 아직 없다(다음 실행에 다시 본다)', printed)
     self.assertIn('날짜 없음 1건', printed)
     self.assertIn('다음 실행에도 안 풀린다', printed)
 
@@ -1169,6 +1284,31 @@ class CollectorWiringTest(unittest.TestCase):
     self.assertEqual(q.in_.call_args.args, ('id', [5, 7]))
     self.assertEqual(q.in_.return_value.eq.call_args.args, ('source', 'edgar'))
     self.assertEqual(q.in_.return_value.eq.return_value.in_.call_args.args, ('form', ['6-K', '8-K']))
+
+  def test_dart_quarter_dates_add_reported_results(self):
+    """DART 회사 날짜 = 「연결재무제표기준」 제목 공시 ∪ 숫자 수집기가 분기 실적을 읽은 DART 공시(I002) 접수일.
+    KGM(2025~)은 분기 실적·월 판매 제목이 같아 제목으로 못 가른다 — 2026-11-11 DB 실측 꼴 그대로.
+    MUST_HIT: 2026-Q3 = 2026-11-04 · MUST_MISS: 월 판매(11-02)·정정 공시는 날짜가 되지 않는다."""
+    client = MagicMock()
+    titles = [{'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-11-02'},
+              {'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-11-04'}]
+    res = [{'period': '2026-Q3', 'document_id': 41}, {'period': '2026-Q2', 'document_id': 42}]
+    docs = [{'id': 41, 'published_at': '2026-11-04', 'title': '영업(잠정)실적(공정공시)'},
+            {'id': 42, 'published_at': '2026-10-05', 'title': '[기재정정]영업(잠정)실적(공정공시)'}]
+    t = {'customer_reported_results': MagicMock(), 'customer_documents': MagicMock()}
+    t['customer_documents'].select.return_value.eq.return_value.eq.return_value.eq.return_value.execute \
+      .return_value.data = titles
+    t['customer_reported_results'].select.return_value.eq.return_value.eq.return_value.execute.return_value.data = res
+    t['customer_documents'].select.return_value.in_.return_value.eq.return_value.in_.return_value.execute \
+      .return_value.data = docs
+    client.table.side_effect = lambda name: t[name]
+    self.assertEqual(ccd.prelim_quarter_dates(client, 'u-kgm'), {'2026-Q3': '2026-11-04'})
+    q = t['customer_documents'].select.return_value
+    self.assertEqual(q.in_.return_value.eq.call_args.args, ('source', 'dart'))
+    self.assertEqual(q.in_.return_value.eq.return_value.in_.call_args.args, ('form', ['I002']))
+    # 제목 공시와 겹치면 이른 날(현대·기아·모비스는 두 근거가 같은 공시다)
+    titles[:] = [{'title': '연결재무제표기준영업(잠정)실적(공정공시)', 'published_at': '2026-11-03'}]
+    self.assertEqual(ccd.prelim_quarter_dates(client, 'u-kgm'), {'2026-Q3': '2026-11-03'})
 
   def test_earnings_dates_failure_keeps_document_status(self):
     """일정 받기가 깨져도 문서는 실리고 상태는 문서 기준 그대로 — 사유에 일정 실패만 덧붙는다."""

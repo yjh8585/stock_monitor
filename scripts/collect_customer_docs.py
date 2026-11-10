@@ -137,12 +137,20 @@ def dart_rows(session, c: dict, bgn: str, end: str) -> list[dict]:
 
 
 def prelim_quarter_dates(client, company_id: str) -> dict[str, str]:
-  """이미 적재된 DART 잠정실적 공시 → {'2026-Q3': 공시일}. 현대차·현대모비스 IR 목록엔 날짜 칸이 없어 이 날을 쓴다.
+  """이미 적재된 DART 잠정실적 공시 → {'2026-Q3': 공시일}. 현대차·현대모비스·KGM IR 목록엔 날짜 칸이 없어 이 날을 쓴다.
+
+  두 근거의 합(같은 분기면 이른 날):
+  - 제목이 「연결재무제표기준」 인 공시(ir_lists.quarter_dates) — 현대차·기아·현대모비스.
+  - 숫자 수집기가 분기 실적 행을 남긴 DART 공시(I002) 접수일 — KGM 은 2025 부터 분기 실적도 월 판매와 같은
+    「영업(잠정)실적(공정공시)」 라 제목으로 못 가르고, 숫자 수집기가 본문으로 가른다(kr_dart.kgm_kind · 2026-11-11 DB:
+    2025-Q1~2026-Q3 6분기). 새 분기는 숫자 수집기가 읽은 다음 실행부터 날짜가 된다(그 전엔 보류).
 
   같은 실행에서 DART 출처가 IR 보다 먼저 적재된다(sources 순서) — dry-run 이면 이전 실행분을 본다."""
   data = (client.table('customer_documents').select('title,published_at').eq('company_id', company_id)
           .eq('source', 'dart').eq('doc_type', 'prelim_results').execute().data)
-  return ir_lists.quarter_dates(data)
+  titled = ir_lists.quarter_dates(data)
+  reported = reported_quarter_dates(client, company_id, 'dart', ['I002'])
+  return {q: min(d for d in (titled.get(q), reported.get(q)) if d) for q in titled.keys() | reported.keys()}
 
 
 def edgar_quarter_dates(client, company_id: str) -> dict[str, str]:
@@ -154,14 +162,21 @@ def edgar_quarter_dates(client, company_id: str) -> dict[str, str]:
   새 분기 실적 공시는 숫자 수집기가 읽은 다음 실행부터 날짜가 된다(그 전엔 보류).
   숫자 수집기는 «나중 공시 우선» upsert(collect_customer_numbers.py TABLES)라 같은 분기를 다시 보고한 나중 문서가 있으면
   그 행의 document_id 가 바뀌어 날짜도 그 문서 접수일로 옮겨 간다."""
+  return reported_quarter_dates(client, company_id, 'edgar', ['6-K', '8-K'])
+
+
+def reported_quarter_dates(client, company_id: str, source: str, forms: list[str]) -> dict[str, str]:
+  """숫자 수집기의 분기 실적 행 → 그 문서(source·forms) 접수일 → {분기: 가장 이른 접수일}(ir_lists.results_quarter_dates).
+  DART 정정 공시(제목에 「정정」)는 뺀다 — «나중 공시 우선» 이라 정정이 원공시 행을 가져가면 정정일이 발표일로 둔갑한다
+  (그 분기는 보류로 남는다 · 날짜를 지어내지 않는다)."""
   res = (client.table('customer_reported_results').select('period,document_id').eq('company_id', company_id)
          .eq('period_grain', 'quarter').execute().data)
   ids = sorted({r['document_id'] for r in res if r['document_id']})
   filed: dict[int, str] = {}
   for i in range(0, len(ids), _IN_CHUNK):
-    data = (client.table('customer_documents').select('id,published_at').in_('id', ids[i:i + _IN_CHUNK])
-            .eq('source', 'edgar').in_('form', ['6-K', '8-K']).execute().data)
-    filed.update({d['id']: d['published_at'] for d in data})
+    data = (client.table('customer_documents').select('id,published_at,title').in_('id', ids[i:i + _IN_CHUNK])
+            .eq('source', source).in_('form', forms).execute().data)
+    filed.update({d['id']: d['published_at'] for d in data if '정정' not in (d.get('title') or '')})
   return ir_lists.results_quarter_dates((r['period'], filed[r['document_id']]) for r in res if r['document_id'] in filed)
 
 

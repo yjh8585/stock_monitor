@@ -135,9 +135,11 @@ def _nfc(s: str) -> str:
 
 def _row(doc_type: str, title: str, url: str, published_at: str | None, form: str, *, quarter: str | None = None,
          wait: str = 'dart') -> dict:
+  """날짜가 있어도 사유가 DART·EDGAR(_QDATE_WAITS)면 분기를 실어 둔다 — 그 날짜는 목록의 «임시» 날짜(KGM 보도자료
+  파일 시각 등)이고, 같은 분기 공시일이 있으면 resolve_dates 가 그쪽으로 바꾼다."""
   row = {'source': 'ir', 'source_id': ir_source_id(url), 'doc_type': doc_type, 'form': form, 'items': None,
          'title': _nfc(title), 'url': url, 'published_at': published_at}
-  if published_at is None and quarter:
+  if quarter and (published_at is None or wait in _QDATE_WAITS):
     row['_quarter'] = quarter  # 수집기 resolve_dates 가 날짜로 바꾸고 지운다(DB 칸 아님)
     row['_wait'] = wait  # 날짜가 올 곳 — HOLD_REASONS 키
   return row
@@ -150,15 +152,16 @@ def _years(since: str) -> range:
 # ── 날짜 채우기(수집기가 부른다 · 순수) ───────────────────────────────────────
 
 # 월 판매 공시도 보고서명이 「영업(잠정)실적(공정공시)」라 분기 실적과 섞인다(2026-11-09 DB 실측: 매월 1~4일).
-# 분기 실적은 「연결재무제표기준」 공시만 — 현대차·기아·현대모비스 실물 전부 이 꼴이다.
+# 제목으로 고르는 분기 실적은 「연결재무제표기준」 공시만 — 현대차·기아·현대모비스 실물 전부 이 꼴이다.
+# KGM 은 2025 부터 분기 실적도 월 판매와 같은 제목이라(2026-11-11 DART 실측) 수집기가 숫자 수집기의 분기 실적 행으로
+# 따로 고른다(collect_customer_docs.prelim_quarter_dates).
 _CONSOLIDATED_PRELIM = '연결재무제표기준'
 
 # 보류 사유(`_wait`) → 수집기가 찍는 문장. 'dart'·'edgar' 만 resolve_dates 가 채운다(수집기가 회사의 공시 식별자로
 # 어느 쪽 날짜를 넘길지 고른다) — 나머지는 어댑터가 같은 응답 안에서 이미 찾아봤고 없었던 것이라, 다음 실행에 원문에
 # 생겨야 풀린다.
 HOLD_REASONS = {
-  'dart': '같은 분기 DART 연결 잠정실적 공시가 아직 없다',
-  'press': '같은 분기 경영실적 보도자료가 자료실에 아직 없다',
+  'dart': '같은 분기 DART 잠정실적 공시가 아직 없다',
   'rss': '같은 분기 실적 보도자료가 RSS 에 없다',
   'call': '같은 분기 실적 콜 이벤트가 아직 없다',
   'eqs': '같은 분기 실적 보도자료가 EQS 피드에 아직 없다',
@@ -169,9 +172,12 @@ NO_DATE = 'nodate'  # 분기도 날짜도 없는 행 — 다음 실행에도 안
 
 
 def quarter_dates(prelims: list[dict]) -> dict[str, str]:
-  """DART 잠정실적 공시({'title','published_at'}) → {'2026-Q3': '2026-10-29'}. 분기 = 공시 직전 분기, 같은 분기면 이른 날."""
+  """DART 잠정실적 공시({'title','published_at'}) → {'2026-Q3': '2026-10-29'}. 분기 = 공시 직전 분기, 같은 분기면 이른 날.
+
+  정정 공시([기재정정] 등 제목에 「정정」)는 뺀다 — 입력에 원공시 참조가 없어, 다음 분기에 낸 정정이면 «공시 직전 분기»
+  키가 엉뚱한 분기가 된다. 그 분기의 날짜는 원공시가 이미 준다."""
   return _earliest_by_quarter(p['published_at'] for p in prelims
-                              if _CONSOLIDATED_PRELIM in p['title'].replace(' ', ''))
+                              if _CONSOLIDATED_PRELIM in p['title'].replace(' ', '') and '정정' not in p['title'])
 
 
 def _earliest_by_quarter(days) -> dict[str, str]:
@@ -213,7 +219,7 @@ def resolve_dates(rows: list[dict], qdates: dict[str, str], since: str) -> tuple
   """`_quarter` 행에 날짜를 채우고 since 이후만 남긴다. → (행, {보류 사유: 수}).
 
   qdates = {분기: 날짜} — 'dart'·'edgar' 사유 행만 여기서 채운다(DART 잠정실적 공시일 · EDGAR 실적 문서 접수일 중
-  수집기가 회사에 맞는 쪽을 넘긴다).
+  수집기가 회사에 맞는 쪽을 넘긴다). 그 행에 목록의 임시 날짜가 있어도 qdates 가 우선이다(_row).
   사유 = HOLD_REASONS 키(다음 실행에 다시 본다) 또는 NO_DATE(분기도 날짜도 없음 — 안 풀린다).
   분기가 since 보다 한참 오래된 행은 보류가 아니라 범위 밖이라 조용히 뺀다.
   """
@@ -221,17 +227,16 @@ def resolve_dates(rows: list[dict], qdates: dict[str, str], since: str) -> tuple
   for r in rows:
     r = dict(r)
     q, wait = r.pop('_quarter', None), r.pop('_wait', None)
+    if q and wait in _QDATE_WAITS and qdates.get(q):
+      r['published_at'] = qdates[q]
     if r['published_at'] is None:
       if not q:
         holds[NO_DATE] = holds.get(NO_DATE, 0) + 1
         continue
-      if wait in _QDATE_WAITS:
-        r['published_at'] = qdates.get(q)
-      if r['published_at'] is None:
-        if (_quarter_end(q) + timedelta(days=_RESULTS_LAG_DAYS)).isoformat() < since:
-          continue  # 범위 밖(오래된 분기)
-        holds[wait] = holds.get(wait, 0) + 1
-        continue
+      if (_quarter_end(q) + timedelta(days=_RESULTS_LAG_DAYS)).isoformat() < since:
+        continue  # 범위 밖(오래된 분기)
+      holds[wait] = holds.get(wait, 0) + 1
+      continue
     if r['published_at'] >= since:
       out.append(r)
   return out, holds
@@ -273,11 +278,17 @@ def parse_vw_rss(xml: str | bytes) -> list[dict]:
 
 
 def parse_vw_results(html: str) -> list[tuple[int, str, str, str, str]]:
-  """실적 행렬(연도 × Q1/H1/Q3/AMC) → (연도, 분기, doc_type, 행 이름, 절대 URL). 웹캐스트·이벤트 행은 버린다."""
+  """실적 행렬(연도 × Q1/H1/Q3/AMC) → (연도, 분기, doc_type, 행 이름, 절대 URL). 웹캐스트·이벤트 행은 버린다.
+
+  연도 절 = id 가 `financial-results-YYYY` 인 h2 부터 다음 머리(h2·h3)까지 — 그 안의 표는 전부 본다. 2026-11-11 실물:
+  2026·2025 머리는 h2 · 2024~2019 는 h3(아코디언)라, h3 를 경계로 안 보면 2024 이전 표가 2025 로 잘못 붙는다.
+  SHORTCUT: h3 연도(2024 이전)는 읽지 않는다 — 읽으면 행렬 행이 같은 문서의 갤러리 행(날짜 있음)을 밀어내는데 RSS(≈2년)
+  밖이라 날짜가 없어 보류로 바뀐다(2026-11-11 --backfill 비교: 2024 3분기 실적 콜 발표자료 2024-10-30 → 보류)
+  → 갤러리 타일 날짜를 열 날짜(col_date)로도 쓰면 h3 연도를 읽을 수 있다(2024 정기 보고서 3분기·연간이 더 들어온다)."""
   out, year = [], None
-  for el in BeautifulSoup(html, 'html.parser').find_all(['h2', 'table']):
-    if el.name == 'h2':
-      m = re.fullmatch(r'financial-results-(\d{4})', el.get('id') or '')
+  for el in BeautifulSoup(html, 'html.parser').find_all(['h2', 'h3', 'table']):
+    if el.name != 'table':
+      m = re.fullmatch(r'financial-results-(\d{4})', el.get('id') or '') if el.name == 'h2' else None
       year = int(m.group(1)) if m else None
       continue
     if year is None:
@@ -292,18 +303,24 @@ def parse_vw_results(html: str) -> list[tuple[int, str, str, str, str]]:
         col = a.get_text(strip=True)
         if col in _VW_COLS:
           out.append((year, _VW_COLS[col], doc_type, label, urljoin(VW_BASE, a['href'])))
-    year = None  # 연도 절마다 표 1개
   return _need('VW 실적 행렬', out)
 
 
+# ad-hoc 제목의 실적 표식 — 복수형만(「adjustment of annual forecast as a result」 2024-07-09 실물은 실적이 아니다)
+_VW_ADHOC_RESULTS = re.compile(r'\bresults\b', re.I)
+
+
 def parse_vw_adhoc(html: str) -> list[dict]:
+  """ad-hoc 공시 → guidance(전망 조정·잠정 수치) · 제목에 results 가 있으면 earnings_release(「Preliminary results
+  fiscal year 2022」). 자료실 라벨만 바뀐다 — 숫자는 vw.py 가 본문으로 가른다."""
   out = []
   for a in BeautifulSoup(html, 'html.parser').select('a.vertical-page-list-item[href^="/en/ad-hoc/"]'):
     t = a.find('time')
     title = a.select_one('.vertical-page-list-item--title')
     if t and title and t.get('datetime'):
-      out.append(_row('guidance', title.get_text(' ', strip=True), urljoin(VW_BASE, a['href']), t['datetime'][:10],
-                      'ad-hoc'))
+      text = title.get_text(' ', strip=True)
+      doc_type = 'earnings_release' if _VW_ADHOC_RESULTS.search(text) else 'guidance'
+      out.append(_row(doc_type, text, urljoin(VW_BASE, a['href']), t['datetime'][:10], 'ad-hoc'))
   return _need('VW ad-hoc', out)
 
 
@@ -907,6 +924,8 @@ def parse_kia_cid(payload: dict) -> list[dict]:
 
 
 def fetch_kia(session: requests.Session, since: str) -> list[dict]:
+  # 주요실적 API 는 page 를 무시하고 한 해를 통째로 준다(2026-11-11 실측: 2025·2026 의 page 0~3 응답 id 동일 · 2025 =
+  # 1~4분기 4건 전부) → 해마다 page=1 한 번. collect_kia_sales.py docstring 의 「page=1,2,… 로 분산」 은 이 실측과 다르다.
   rows = [r for y in _years(since)
           for r in parse_kia(_fetch(session, KIA_URL, params={'language': 'ko', 'year': y, 'page': 1}).json())]
   for y in _years(since):
@@ -990,20 +1009,32 @@ KGM_URL = 'https://web.kg-mobility.com/app/display/about/getAboutKGMDataRoomCont
 _KGM_TITLE_DATE = re.compile(r'\((\d{4})\.(\d{1,2})\.(\d{1,2})\)')
 _KGM_FILE_DATE = re.compile(r'/(\d{4})(\d{2})(\d{2})\d*_[^/]+$')
 _KGM_QUARTER = re.compile(r'(\d{4})년\s*(\d)분기')
+# 옛 보도자료 제목(2023 이전)은 「상반기·반기」·「연간」 — 2분기·4분기 실적이다
+_KGM_PRESS_PERIOD = re.compile(r'(\d{4})년\s*(?:(\d)분기|(상반기|반기)|(연간))')
 
 
 def _ymd(m: re.Match) -> str:
   return f'{int(m.group(1))}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
 
 
+def _kgm_press_quarter(title: str) -> str | None:
+  m = _KGM_PRESS_PERIOD.search(title)
+  if not m:
+    return None
+  return f'{m.group(1)}-Q{m.group(2) or (2 if m.group(3) else 4)}'
+
+
 def parse_kgm(payload: dict) -> list[dict]:
   """releaseList(발표자료) → presentation(「CEO IR설명회」 → investor_day) · managementList(경영실적 보도자료) →
   earnings_release. 제목 칸 = `fileNm`(2026-11-09 실물). salesList·businessList 는 버린다.
 
-  날짜:
-  - 보도자료 = 파일명 타임스탬프(보도 당일 올린다 — 2025 실물 4건이 전부 발표 다음 날 안쪽).
-  - 발표자료 = 제목의 「(2025.10.29)」 → 없으면 같은 분기 보도자료의 날짜 → 없으면 보류(wait='press').
-    발표자료 파일명 타임스탬프는 쓰지 않는다 — 재업로드면 한 달 넘게 늦다(2025 3분기: 발표 10-29 · 파일 12-01).
+  날짜(정본 = 같은 분기 DART 실적 공시일 · 수집기가 qdates 로 넘긴다 → resolve_dates 가 아래 임시 날짜를 덮는다):
+  - 보도자료 = 파일명 타임스탬프(보도 당일 올린다 — 2025 실물 4건이 전부 발표 다음 날 안쪽)를 임시 날짜로.
+    🔴 분기 끝 + _RESULTS_LAG_DAYS 뒤에 올린 시각은 재업로드라 날짜로 쓰지 않는다(2026-11-11 실물: 2011~2024 2분기
+    보도자료 수십 건이 2024-12-20·26 에 다시 올라가 있다 — --backfill 이 그 날로 싣던 것).
+  - 발표자료 = 제목의 「(2025.10.29)」(발표일 정본 · DART 보다 우선) → 없으면 같은 분기 보도자료의 날짜(임시) →
+    없으면 보류(wait='dart'). 발표자료 파일명 타임스탬프는 쓰지 않는다 — 재업로드면 한 달 넘게 늦다(2025 3분기:
+    발표 10-29 · 파일 12-01).
   - 분기도 제목 날짜도 없는 발표자료(Pressday·CEO IR설명회)는 «날짜 없음»(수집기가 세어 찍고 싣지 않는다).
   """
   if payload.get('code') != '0000':
@@ -1026,18 +1057,21 @@ def parse_kgm(payload: dict) -> list[dict]:
 
   out, press_dates = [], {}
   for title, url in press:
-    m, d = _KGM_QUARTER.search(title), _KGM_FILE_DATE.search(url)
+    q, d = _kgm_press_quarter(title), _KGM_FILE_DATE.search(url)
     published = _ymd(d) if d else None
-    if m and published:
-      q = f'{m.group(1)}-Q{m.group(2)}'
+    if q and published and published > (_quarter_end(q) + timedelta(days=_RESULTS_LAG_DAYS)).isoformat():
+      published = None  # 재업로드 시각
+    if q and published:
       press_dates[q] = min(press_dates.get(q, published), published)
-    out.append(_row('earnings_release', title, url, published, 'managementList'))
+    out.append(_row('earnings_release', title, url, published, 'managementList', quarter=q, wait='dart'))
   for title, url in releases:
     m, d = _KGM_QUARTER.search(title), _KGM_TITLE_DATE.search(title)
     q = f'{m.group(1)}-Q{m.group(2)}' if m else None
-    published = _ymd(d) if d else press_dates.get(q)
     t = 'investor_day' if 'CEOIR설명회' in title.replace(' ', '') else 'presentation'
-    out.append(_row(t, title, url, published, 'releaseList', quarter=q, wait='press'))
+    if d:  # 제목 날짜 = 발표일 정본 — 분기를 싣지 않아 DART 날짜가 덮지 않는다
+      out.append(_row(t, title, url, _ymd(d), 'releaseList'))
+    else:
+      out.append(_row(t, title, url, press_dates.get(q), 'releaseList', quarter=q, wait='dart'))
   return out
 
 
