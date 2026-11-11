@@ -193,10 +193,17 @@ def reported_quarter_dates(client, company_id: str, source: str, forms: list[str
     if not d:
       continue
     corrected = '정정' in (d.get('title') or '')
-    day = original_filing(d, pool, events.get(r['period'])) if corrected else d['published_at']
+    day = original_filing(d, pool, _event_date(events, r['period'])) if corrected else d['published_at']
     if day:
       pairs.append((r['period'], day))
   return ir_lists.results_quarter_dates(pairs)
+
+
+def _event_date(events: dict[str, str], period: str) -> str | None:
+  """실적 행 분기 → 일정 표 발표일. 4분기 발표는 연간 발표라 일정 키가 'YYYY-FY'(kr_dart.parse_ir_date)."""
+  if period.endswith('-Q4'):
+    return events.get(period) or events.get(f'{period[:4]}-FY')
+  return events.get(period)
 
 
 _DART_HEAD = re.compile(r'^\[[^\]]+\]\s*')  # [기재정정]·[첨부정정] 등 보고서명 머리

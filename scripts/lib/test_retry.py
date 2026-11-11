@@ -110,6 +110,26 @@ class TestWithRetry(unittest.TestCase):
         with_retry(always_down, _attempts=3)
     self.assertEqual(len(calls), 3)
 
+  def test_warning_redacts_url_query(self):
+    """최종 검토 — 재시도 경고(공개 GHA 로그)에 서명 쿼리가 든 URL 이 그대로 찍히면 안 된다."""
+    url = 'https://cdn.example.com/deck.pdf?sig=SECRET123&expires=99'
+    err = requests.exceptions.HTTPError(f'500 Server Error: Internal Server Error for url: {url}',
+                                        response=MagicMock(status_code=500))
+    calls = []
+
+    def flaky():
+      calls.append(1)
+      if len(calls) == 1:
+        raise err
+      return 'ok'
+
+    with patch('lib.retry.time.sleep'), patch('lib.retry.is_transient_error', return_value=True), \
+         patch('lib.retry.logger') as log:
+      self.assertEqual(with_retry(flaky), 'ok')
+    line = log.warning.call_args.args[0]
+    self.assertNotIn('SECRET123', line)
+    self.assertIn('https://cdn.example.com/deck.pdf?…', line)
+
   def test_passes_through_args(self):
     with patch('lib.retry.time.sleep'):
       self.assertEqual(with_retry(lambda a, b=0: a + b, 1, b=2), 3)

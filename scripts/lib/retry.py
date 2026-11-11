@@ -9,6 +9,7 @@ collect_dart_audit.py의 _is_transient_error를 따른다 — 그쪽은 OpenDart
 
 🔴 재시도해도 끝내 실패하면 그대로 raise한다. 진짜 장애는 워크플로 실패로 드러나야 한다.
 """
+import re
 import time
 from typing import Any, Callable, TypeVar
 
@@ -65,6 +66,14 @@ def is_transient_error(e: Exception) -> bool:
   return any(marker in msg for marker in _TRANSIENT_MESSAGE_MARKERS)
 
 
+_URL_QUERY = re.compile(r'(https?://[^\s?#\'"]+)\?[^\s\'"]*')
+
+
+def redact_query(text: str) -> str:
+  """문장 속 URL 의 쿼리를 '?…' 로 — 빈패스트 PDF 서명(sig)처럼 쿼리에 든 자격을 로그에 남기지 않는다."""
+  return _URL_QUERY.sub(r'\1?…', text)
+
+
 def with_retry(
   fn: Callable[..., T],
   *args: Any,
@@ -92,6 +101,7 @@ def with_retry(
   """
   prefix = f'{_label} ' if _label else ''
   last: Exception | None = None
+  # 🔴 경고 문장은 공개 GHA 로그에 남는다 — 예외 문장의 URL 쿼리(서명 sig·토큰)를 가린다(redact_query · 최종 검토)
 
   for i in range(_attempts):
     try:
@@ -103,7 +113,7 @@ def with_retry(
       wait = _backoff * (2 ** i)
       logger.warning(
         f'{prefix}일시적 오류 — {wait:.0f}s 후 재시도 '
-        f'({i + 1}/{_attempts - 1}) [{type(e).__name__}: {e}]'
+        f'({i + 1}/{_attempts - 1}) [{type(e).__name__}: {redact_query(str(e))}]'
       )
       time.sleep(wait)
 

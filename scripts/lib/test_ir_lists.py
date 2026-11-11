@@ -451,6 +451,20 @@ class PorscheReportsTest(unittest.TestCase):
     got, holds = L.resolve_dates([h1], {}, '2026-01-01')
     self.assertEqual((got, holds), ([], {'eqs': 1}))
 
+  def test_forecast_adhoc_does_not_take_report_date(self):
+    """최종 검토 — 전망 변경 ad-hoc(제목 Forecast · 본문 실적 세 낱말 없음)이 같은 분기 실적 보도보다 먼저 나와도
+    표 행 날짜는 실적 보도일이다."""
+    body = '<p>Sales revenue rose. Operating return on sales was 10%. Operating profit fell.</p>'
+    payload = {'items': [
+      {'_eqs': {'news_type': 'EQS-Ad-hoc'}, 'title': 'Porsche AG: Forecast adjusted', 'url': 'https://x/a',
+       'date_published': '2026-07-10T18:00:00Z', 'content_html': '<p>The company adjusts its forecast.</p>'},
+      {'_eqs': {'news_type': 'EQS-News'}, 'title': 'Porsche AG: first half', 'url': 'https://x/b',
+       'date_published': '2026-07-29T05:00:00Z', 'content_html': body}]}
+    rows = L.parse_porsche_all(payload, _text('porsche_reports.html'))
+    h1 = next(r for r in rows if r['url'].endswith('H1-2026-Presentation.pdf'))
+    self.assertEqual(h1['published_at'], '2026-07-29')
+    self.assertEqual(next(r for r in rows if r['url'] == 'https://x/a')['doc_type'], 'earnings_release')  # 목록 분류는 그대로
+
   def test_cmd_fixed_path(self):
     r = next(r for r in _rows('porsche') if r['doc_type'] == 'investor_day')
     self.assertEqual(r['url'], 'https://investorrelations.porsche.com/~/media/Files/P/porsche-ir/cmd-2026/CapitalMarketsDay2026.pdf')
@@ -1890,6 +1904,13 @@ class DartReportedDatesTest(unittest.TestCase):
     docs = [self._doc(60, '2025-04-24', title), self._doc(61, '2025-04-25', f'[기재정정]{title}')]
     client = _fake_client(self._tables(docs, [self._res('2025-Q1', 61)], events={'2025-Q1': '2025-04-24'}))
     self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {'2025-Q1': '2025-04-24'})
+
+  def test_q4_correction_uses_fy_event(self):
+    """4분기 실적 발표일은 일정 표에 'YYYY-FY' 로 있다(kr_dart.parse_ir_date) — 실적 행 'YYYY-Q4' 가 그 키를 찾는다."""
+    title = '영업(잠정)실적(공정공시)'
+    docs = [self._doc(70, '2026-01-28', title), self._doc(71, '2026-02-10', f'[기재정정]{title}')]
+    client = _fake_client(self._tables(docs, [self._res('2025-Q4', 71)], events={'2025-FY': '2026-01-28'}))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {'2025-Q4': '2026-01-28'})
 
   def test_original_filing_pure(self):
     corr = {'title': '[기재정정] 영업(잠정)실적(공정공시)', 'published_at': '2026-12-10'}

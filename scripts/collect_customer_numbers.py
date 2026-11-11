@@ -410,12 +410,16 @@ def _close_error(args) -> str | None:
 
 
 def close_doc(client, args) -> int:
-  """--close → 문서 하나를 not_target + 「수동 닫음: <사유>」. 반환 = exit 코드(문서 없음 2).
-  finish 를 타지 않으므로 회사 상태 표(닫힌 실패 문서 수)는 다음 정기 실행에 고쳐진다."""
+  """--close → 문서 하나를 not_target + 「수동 닫음: <사유>」. 반환 = exit 코드(문서 없음 · parsed 문서 2).
+  finish 를 타지 않으므로 회사 상태 표(닫힌 실패 문서 수)는 다음 정기 실행에 고쳐진다.
+  🔴 parsed 문서는 닫지 않는다 — 상태만 바뀌고 검증 숫자는 화면에 남아 둘이 어긋난다(최종 검토 · 받기 실패 문서용 명령)."""
   from lib import db
   got = client.table('customer_documents').select('id,parse_status').eq('id', args.close).execute().data
   if not got:
     print(f'문서 없음: {args.close}')
+    return 2
+  if got[0]['parse_status'] == 'parsed':
+    print(f'문서 {args.close} 는 parsed — 숫자가 실려 있어 닫지 않는다(다시 읽으려면 --reparse)')
     return 2
   note = f'{NOTE_CLOSED}{args.note}'[:_NOTE_MAX]
   if args.dry_run:
@@ -661,8 +665,10 @@ class _CompanyRun:
       retry = None
       notes.insert(0, NOTE_LLM_METRIC_ONLY)
       self._store(doc, payloads(doc, res, checks, llm_ids), llm_ran=True)
+      self.outcomes['stored_unverified'] += 1   # 옛 LLM 행을 갈아 꼈다 — finish 가 방향을 다시 매긴다(최종 검토)
     if retry:
-      return self._llm_retry(doc, res, checks, notes, status, note, retry, llm_attempts, sha, v_values, v_dates)
+      return self._llm_retry(doc, res, checks, notes, status, note, retry, llm_attempts, sha, v_values, v_dates,
+                             llm_ids or set())
     llm_missed = llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res)
     if llm_missed:
       # LLM 이 읽어야 할 문서인데 이번에 못 돌았다(--no-llm·키 없음) — 판정이 무엇이든(not_target·failed·parsed) 닫지 않고
@@ -700,11 +706,18 @@ class _CompanyRun:
       return NOTE_LLM_UNVERIFIED
     return None
 
-  def _llm_retry(self, doc, res, checks, notes, status, judged, reason, attempts, sha, v_values, v_dates) -> None:
-    """재시도 대기(pending · llm_attempts+1) 또는 상한이면 닫기. 코드 값 행은 어느 쪽이든 적재한다(멱등)."""
+  def _llm_retry(self, doc, res, checks, notes, status, judged, reason, attempts, sha, v_values, v_dates,
+                 llm_ids: set[int]) -> None:
+    """재시도 대기(pending · llm_attempts+1) 또는 상한이면 닫기. 코드 값 행은 어느 쪽이든 적재한다(멱등).
+    🔴 상한에서 사유가 «LLM 행 대조 실패»(LLM 은 돌았다)면 이번 LLM 행을 미검증으로 싣고 옛 LLM 행을 지운다 — 안 그러면
+    다시 처리한 문서의 옛 verified 행(잘못된 지표 · customer_guidance 345 꼴)이 화면에 남는다(최종 검토). LLM 예외(돌지 못함)는
+    옛 행을 그대로 둔다(다시 만들 수 없다)."""
     attempts += 1
     code_ok = status == 'parsed'   # (a) 코드 행이 있어 parsed 로 판정된 문서
-    if code_ok:
+    if attempts >= LLM_MAX_ATTEMPTS and reason == NOTE_LLM_UNVERIFIED:
+      self._store(doc, payloads(doc, res, checks, llm_ids), llm_ran=True)
+      self.outcomes['stored_unverified'] += 1
+    elif code_ok:
       # 코드 행만 싣는다(LLM 은 실패했다) — llm_ran=False 라 선삭제가 옛 LLM 행을 지우지 않는다
       self._store(doc, payloads(doc, res, checks, set()), llm_ran=False)
       self.verified['values'] += v_values
@@ -789,7 +802,8 @@ class _CompanyRun:
     o = self.outcomes
     # 가이던스를 쓴 문서(parsed · LLM 재시도·LLM 대기 중 코드 행을 실은 문서)가 하나라도 있으면 다시 매긴다 — 실은
     # 가이던스가 0행이어도 선삭제가 옛 행을 지웠을 수 있고, 그러면 뒤 문서가 옛 기준으로 매긴 방향을 그대로 들고 남는다
-    moved = self._directions() if o['parsed'] or o['llm_retry'] or o['llm_wait_parsed'] else 0
+    moved = (self._directions()
+             if o['parsed'] or o['llm_retry'] or o['llm_wait_parsed'] or o['stored_unverified'] else 0)
     parse_failed, blocked = o['failed'], o['blocked']
     fetch_failed = o['fetch_failed'] + o['fetch_retry']
     closed = closed_failures(self.client, self.cid)

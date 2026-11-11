@@ -55,7 +55,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - **목록에 넣는 것 ≠ 숫자로 읽는 것** — IR 목록 행은 자료실 링크로 다 보이지만, 숫자 수집은 파서의 `wants` 가 참인 것만 받는다. 새로 숫자로 읽는 IR 문서는 포르쉐 팩트시트 · 모비스 영문 Script · GM 미국 Deliveries PDF · 현대·기아 CEO Investor Day(LLM)뿐이고 나머지(덱·서한·갤러리·보고서·회사 소개)는 링크만.
 - **새 문서 종류를 만들지 않는다(D4)** — 가까운 `doc_type` + `form` 에 세부 종류(`fact-sheet-xlsx`·`script`·`ceo-investor-day`·`ir-activity`·`us-deliveries`·`china-investor-update`·`pre-close-call` 등).
 - **IR 문서 받기 상한 50MB(D2)** — `ir_lists.MAX_IR_BYTES`·`TooLarge`·`ir_get` 한곳(숫자 수집기·파서 자체 받기·GM Chrome 받기가 같이 쓴다). 넘으면 `not_target` + note 「크기 초과(N MB) — 링크만」 · exit 0 · 상태 사유 「크기 초과 n건」.
-- **수동 닫기** `collect_customer_numbers.py --close DOC_ID --note "사유"` — 영구 받기 실패 문서를 `not_target` + 「수동 닫음: 사유」로. 문서 상태 칸은 이 스크립트만 쓴다는 약속의 연장 · 인자 오류·문서 없음은 exit 2.
+- **수동 닫기** `collect_customer_numbers.py --close DOC_ID --note "사유"` — 영구 받기 실패 문서를 `not_target` + 「수동 닫음: 사유」로. 문서 상태 칸은 이 스크립트만 쓴다는 약속의 연장 · 인자 오류·문서 없음·parsed 문서는 exit 2(parsed 를 닫으면 상태만 바뀌고 숫자가 화면에 남는다).
 - **새 지표 키** — `eps_diluted`·`automotive_operating_cash_flow`(GM) · `special_items`·`operating_margin_adjusted`(VW 전망 · E2 는 3개가 아니라 4개) · `china_jv_operating_result`(VW 실적 · 누계 기간이 실적 표 누계와 같을 때만). DB 변경 없음(`base.METRICS` + `llm_guidance._METRIC_WORDS` 한 줄씩).
 - **새 지역 키** — `customer_volume_ir.region` 의 `us`(GM 미국 분기 인도 총계)·`china`(VW 중국 인도 — 전체 인도가 가장 큰 표의 `China` 행만 · BEV 표의 `China` 는 안 읽는다). 화면 라벨 = `lib/customers/format.ts` `VOLUME_REGION`(`미국`·`중국`).
 - **실적 일정 출처** — 회사마다 하나: DART(국내 4곳) · EDGAR(리비안·스텔란티스·빈패스트) · IR(폴라리스 이벤트 · VW ICS · 포르쉐 EQS-AFR · GM 실적 콜 상세). 2026-11-11 실측 65행에서 두 출처 이상인 회사가 0이라 우선순위 상수는 두지 않았다 — 같은 회사에 출처를 하나 더 붙이면 그때 우선순위를 정한다.

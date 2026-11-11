@@ -147,7 +147,8 @@ def _row(doc_type: str, title: str, url: str, published_at: str | None, form: st
 
 
 def _years(since: str) -> range:
-  return range(int(since[:4]), date.today().year + 1)
+  # 서울 달력 — GHA(UTC)가 1월 1일 0~9시(KST)에 돌면 date.today() 로는 새해를 못 본다(최종 검토)
+  return range(int(since[:4]), seoul_today().year + 1)
 
 
 def seoul_today() -> date:
@@ -633,10 +634,15 @@ def parse_porsche_reports(html: str) -> list[dict]:
 
 
 def parse_porsche_all(payload: dict, reports_html: str) -> list[dict]:
-  """EQS 피드 + 보고서 표 + CMD 고정 1건. 표 행의 날짜 = 같은 분기 EQS 실적 보도일(피드의 earnings_release 중 그
-  분기 가장 이른 날). 없으면 `_quarter` 그대로 — 수집기가 보류로 센다(날짜를 지어내지 않는다)."""
+  """EQS 피드 + 보고서 표 + CMD 고정 1건. 표 행의 날짜 = 같은 분기 EQS 실적 보도일(본문에 실적 세 낱말
+  _P_EARN_BODY 가 다 있는 글 중 그 분기 가장 이른 날). 없으면 `_quarter` 그대로 — 수집기가 보류로 센다(날짜를 지어내지 않는다).
+  🔴 earnings_release 분류 전체를 쓰지 않는다 — 제목 「Forecast」로 실적에 든 전망 변경 ad-hoc(2025-09-19 실물 · 본문 세 낱말
+  없음)이 그 분기 실적 보도보다 먼저 나오면 팩트시트 발표일을 선점한다(최종 검토)."""
   feed = parse_porsche(payload)
-  release = _earliest_by_quarter(r['published_at'] for r in feed if r['doc_type'] == 'earnings_release')
+  release = _earliest_by_quarter(
+    it['date_published'][:10] for it in payload.get('items') or []
+    if (it.get('_eqs') or {}).get('news_type') in _PORSCHE_KINDS
+    and all(rx.search(html_to_text(it.get('content_html') or '')) for rx in _P_EARN_BODY))
   out = {r['source_id']: r for r in feed}
   for r in parse_porsche_reports(reports_html):
     if r['_quarter'] in release:

@@ -110,7 +110,14 @@ class ExtractTests(unittest.TestCase):
                               ('capex', '투자계획(자동차부문)', 'trillion', '17.8조 / 16.0조 / -1.0~0.5조'),
                               ('free_cash_flow', 'FCF(금융제외)', 'trillion', '16.0조 / -1.0~0.5조 / -1.0~0.5조'),
                               ('aoi_margin', 'Adj. operating income margin', 'text',
-                               'Adj. operating income (3) margin Low-Single Digit %')):
+                               'Adj. operating income (3) margin Low-Single Digit %'),
+                              # 최종 검토 — 파서 실물 표현(gm.py · vw.py)과 같은 LLM 행은 통과해야 한다
+                              ('eps_diluted', 'Diluted EPS', 'per_share', 'Diluted earnings per common share $ 9.72-10.72'),
+                              ('automotive_operating_cash_flow', 'Auto OCF', 'billion',
+                               'Net automotive cash provided by operating activities $ 17.3-20.3'),
+                              ('special_items', 'Special effects', 'billion',
+                               'Special effects totaling around 10 billion euros'),
+                              ('sales_units', '판매 목표', 'units', '1.2 million units')):
       self.assertIsNone(lg.metric_mismatch(row(m, label, unit, q)), q)
     for q in lg.NUMBERS_ONLY_HIT:
       self.assertTrue(lg.numbers_only(q), q)

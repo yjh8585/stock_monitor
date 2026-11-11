@@ -389,9 +389,11 @@ _METRIC_WORDS = {k: re.compile(p, re.I) for k, p in {
   'deliveries': r'\bdeliver|인도', 'sales_units': r'\bsales\b|판매',
   'net_income': r'net\s+(?:income|earnings|profit)|순\s*이익', 'net_income_parent': r'net\s+(?:income|earnings|profit)|순\s*이익',
   'aoi': r'\bAOI\b|operating\s+income', 'operating_result_bsi': r'operating\s+result',
-  'eps_diluted': r'\bEPS\b|earnings\s+per\s+share|주당',
-  'automotive_operating_cash_flow': r'operating\s+cash\s*flow|cash\s+flows?\s+from\s+operating',
-  'special_items': r'special\s+items',
+  # 파서 실물 라벨(gm.py · vw.py)과 같은 낱말 — 'Diluted earnings per common share' · 'Net automotive cash provided by
+  # operating activities' · VW 'Special effects'(최종 검토)
+  'eps_diluted': r'\bEPS\b|earnings\s+per\s+(?:common\s+)?share|주당',
+  'automotive_operating_cash_flow': r'operating\s+cash\s*flow|cash\s+(?:flows?\s+from|provided\s+by)\s+operating',
+  'special_items': r'special\s+(?:items|effects)',
   'china_jv_operating_result': r'operating\s+result',   # Task 13 — 각주 원문 'share of the operating result'
   'operating_margin_adjusted': r'return\s+on\s+sales|operating\s+(?:income\s+|profit\s+)?margin|영업\s*이익\s*률',
 }.items()}
@@ -402,7 +404,8 @@ MISMATCH_NO_RULE = 'metric_unverifiable'
 # 숫자·단위뿐인 quote(표 한 칸 — '$7.15B to $7.30B')에서 허용하는 낱말 — 단위·배수·통화·범위 연결어만(Task 10 수정 2회차).
 # 🔴 좁게 둔다: 여기에 일반 낱말이 들어가면 그 quote 는 라벨로 판정돼 «라벨만 맞춘 엉뚱한 키»(총주주환원율 반례)가 샌다.
 _UNIT_WORDS = frozenset(('b', 'bn', 'm', 'mn', 'k', 'billion', 'million', 'trillion', 'thousand', 'to',
-                         'usd', 'eur', 'krw', '조', '억', '만', '원', '조원', '억원', '백만원', '달러'))
+                         'usd', 'eur', 'krw', '조', '억', '만', '원', '조원', '억원', '백만원', '달러',
+                         'units', 'unit', '대', '만대'))   # 대수 지표(base.UNITS 'units') 표 칸 — 최종 검토
 _LETTER_WORD = re.compile(r'[A-Za-z]+|[가-힣]+')
 # 키 낱말 사이에 낀 각주 표지('Adj. operating income (3) margin' — 274) — 낱말 검사 전에 지운다(연도 '(2026)' 은 안 지운다)
 _FOOTNOTE = re.compile(r'\s*\(\d{1,2}\)')
@@ -688,7 +691,8 @@ METRIC_MISMATCH_MISS = [
   ('operating_margin', 'Operating margin', 'percent', '총주주환원율 35%+ 달성'),   # 라벨만 키에 맞춘 꼴(Codex 반례)
 ]
 # 숫자·단위뿐인 quote(라벨로 판정) — 실물 표 칸(customer_guidance 303·304·313·314)
-NUMBERS_ONLY_HIT = ['$7.15B to $7.30B', '17.8조 / 16.0조 / -1.0~0.5조', '$1.60 to $1.70', '16.0조 / -1.0~0.5조 / -1.0~0.5조']
+NUMBERS_ONLY_HIT = ['$7.15B to $7.30B', '17.8조 / 16.0조 / -1.0~0.5조', '$1.60 to $1.70', '16.0조 / -1.0~0.5조 / -1.0~0.5조',
+                    '1.2 million units', '1200000대']
 NUMBERS_ONLY_MISS = ['총주주환원율 35%+ 달성', 'Revenue increased 12%']
 # 버리면 안 되는 실물 라벨(2026-11-11 DB customer_guidance 의 그 키 라벨 전부 — 코드·LLM 행 · 값은 싣지 않는다).
 # (metric, metric_label, unit, quote) — quote 가 빈 행은 라벨로 판정된다(빈 quote = 숫자·단위뿐 · 수정 2회차)

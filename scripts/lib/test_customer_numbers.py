@@ -365,8 +365,9 @@ class LlmPathTests(unittest.TestCase):
     stored = _upserted_guidance(ws)
     self.assertEqual([(g['metric'], g['verified'], g['verify_note']) for g in stored],
                      [('capex', False, 'metric_mismatch:metric_word_missing')])
-    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0) as d:
       self.assertEqual(run.finish('ACME', 1), 1)
+    d.assert_called_once()   # 옛 LLM 행을 갈아 꼈으니 방향을 다시 매긴다(최종 검토)
     # 인용 대조 실패가 섞이면 재시도 대기 그대로
     bad = base.GuidanceRow('revenue', 'Revenue', 'FY2026', 9.0, 9.5, None, 'billion', None, 'not in source text at all')
     run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
@@ -402,6 +403,32 @@ class LlmPathTests(unittest.TestCase):
       self.assertTrue(last['parse_note'].startswith(ccn.NOTE_LLM_GAVE_UP))
       with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
         self.assertEqual(run.finish('ACME', 1), 1)
+
+  def test_llm_cap_unverified_replaces_old_llm_rows(self):
+    """🔴 최종 검토 — 상한에서 사유가 «LLM 행 대조 실패»(LLM 은 돌았다)면 이번 LLM 행을 미검증으로 싣고 옛 LLM 행을 지운다
+    (llm_ran=True) · 방향 재계산. LLM 예외(돌지 못함)는 옛 LLM 행을 지우지 않는다(실을 것도 없다)."""
+    mism = base.GuidanceRow('capex', 'Revenue', 'FY2026', 1.0, 1.2, None, 'billion', None,
+                            'deliveries of 5,000 to 6,000 vehicles and revenue of $1.0 to $1.2 billion')
+    bad = base.GuidanceRow('revenue', 'Revenue', 'FY2026', 9.0, 9.5, None, 'billion', None, 'not in source text at all')
+    run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
+    with patch('lib.llm_guidance.extract', return_value=_ok([mism, bad])), \
+         patch.object(ccn, 'existing_pubs', return_value={}), \
+         patch.object(run, '_store', wraps=run._store) as store:
+      run.process(_DOC, None, None, 2)
+    self.assertEqual(_status_patches(ws)[-1]['parse_status'], 'failed')
+    self.assertEqual(store.call_args.kwargs['llm_ran'], True)
+    stored = _upserted_guidance(ws)
+    self.assertEqual(sorted((g['metric'], g['extractor'], g['verified']) for g in stored),
+                     [('capex', 'llm', False), ('revenue', 'llm', False)])
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0) as d:
+      run.finish('ACME', 1)
+    d.assert_called_once()
+    run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
+    with patch('lib.llm_guidance.extract', side_effect=RuntimeError('x')), \
+         patch.object(ccn, 'existing_pubs', return_value={}), \
+         patch.object(run, '_store', wraps=run._store) as store:
+      run.process(_DOC, None, None, 2)
+    store.assert_not_called()
 
   def test_llm_success_resets_attempts(self):
     """재시도 끝에 LLM 이 제대로 돌면 llm_attempts 를 0 으로."""
@@ -1044,6 +1071,12 @@ class CloseTests(unittest.TestCase):
     ws.table.return_value.update.assert_called_once_with({'parse_status': 'not_target',
                                                           'parse_note': '수동 닫음: 사이트에서 내려감'})
     ws.table.return_value.update.return_value.eq.assert_called_once_with('id', 5)
+
+  def test_parsed_doc_not_closed(self):
+    """최종 검토 — parsed 문서를 닫으면 상태만 바뀌고 검증 숫자는 화면에 남는다 → exit 2 · 쓰지 않는다."""
+    with patch('lib.db.WriteSession') as wsc, patch('builtins.print'):
+      self.assertEqual(ccn.close_doc(self._client([{'id': 5, 'parse_status': 'parsed'}]), self._args()), 2)
+    wsc.assert_not_called()
 
   def test_dry_run_does_not_write(self):
     with patch('lib.db.WriteSession') as wsc, patch('builtins.print') as out:

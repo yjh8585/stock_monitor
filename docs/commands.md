@@ -82,7 +82,7 @@ UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케�
 | `collect_customer_numbers.py` | 정상 · LLM 재시도 대기 포함 | 파싱 실패 · LLM 3회 상한 failed · 내용 받기 실패(일시 오류 포함) | 자가 시험 실패 · 인자 오류 |
 
 - 차단(두 스크립트 모두)·`ANTHROPIC_API_KEY` 누락·서식 미인식(숫자 수집)은 exit 0 이지만 GHA 에선 `::warning::` 으로 실행 요약에 노랗게 뜬다.
-- 숫자 수집: **50MB 상한 초과(`too_large`)는 exit 0** — 문서를 `not_target`(「크기 초과 — 링크만」)으로 닫고 상태 사유에 「크기 초과 n건」. **`--close DOC_ID --note` 의 인자 오류(`--note` 없음 · `--reparse`·`--add-file` 동반 · `--close` 없이 `--note`)와 문서 없음은 exit 2.** 값 행이 전부 LLM 행이고 그 전부가 «지표 불일치»인 문서는 재시도 없이 failed(exit 1 · 「LLM 3회 상한」과 같은 끝) — 검증된 코드 값 행이 하나라도 있으면 parsed(exit 0)이고 불일치 LLM 행만 `verified=False` 로 남는다.
+- 숫자 수집: **50MB 상한 초과(`too_large`)는 exit 0** — 문서를 `not_target`(「크기 초과 — 링크만」)으로 닫고 상태 사유에 「크기 초과 n건」. **`--close DOC_ID --note` 의 인자 오류(`--note` 없음 · `--reparse`·`--add-file` 동반 · `--close` 없이 `--note`)와 문서 없음 · parsed 문서(숫자가 실려 있다 — `--reparse` 로)는 exit 2.** LLM 3회 상한이 «LLM 행 대조 실패»로 끝나면 그 LLM 행을 미검증으로 싣고 옛 LLM 행을 지운다(다시 처리한 문서의 옛 verified 행이 화면에 남지 않게). 값 행이 전부 LLM 행이고 그 전부가 «지표 불일치»인 문서는 재시도 없이 failed(exit 1 · 「LLM 3회 상한」과 같은 끝) — 검증된 코드 값 행이 하나라도 있으면 parsed(exit 0)이고 불일치 LLM 행만 `verified=False` 로 남는다.
 - 목록 수집: 실적 일정 받기의 401·403 은 차단(exit 0 · `::warning::`) · GM IR 에서 러너에 Chrome 이 없으면 error(사유 「Chrome 없음」 · exit 1).
 - 숫자 수집 exit 1 은 «이번 실행에서 새로 생긴» 실패만이다. 이미 닫힌 failed 문서는 상태 표 `parse_failed`(사유 「닫힌 실패 문서 N건」)로만 남는다.
 - 정기 실행은 `--since` 를 주지 않는다(짧으면 EDGAR 0건이 error). 정본 = 두 스크립트 docstring.
