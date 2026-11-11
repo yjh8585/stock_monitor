@@ -37,7 +37,9 @@ from customer_parsers.common import uncovered_marks
 from lib.doc_text import norm_text, row_text
 
 TICKERS = ('P911.DE',)
-# 보도자료에 인도 정의 각주가 없다(실물 11건 확인) — 발표 방식만 적는다(1분기 외에는 누계로만 발표)
+# 보도자료에 인도 정의 각주가 없다(실물 11건 확인) — 발표 방식만 적는다.
+# EQS 보도자료의 인도는 1분기 외에는 누계로만 나오고, 분기 단독 인도는 IR 팩트시트 XLSX(parse_fact_sheet)에서 읽는다.
+# 아래 DEF 문구(화면 정의 칸)는 팩트시트 행에도 쓰이는데 아직 「누계로만 발표」라고 적혀 있다 — 문구 변경은 적재값이 바뀌어 메인 판단.
 DEF = '포르쉐 AG 그룹 고객 인도(대 단위 · 1분기 외에는 누계로만 발표)'
 _GROUP = 'Porsche AG Group'
 _HEAD = re.compile(r'(Q1|Q1-Q2|H1|Q1-Q3|9M|FY|Fiscal year) ?(20\d{2})')
