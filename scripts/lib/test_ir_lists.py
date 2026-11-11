@@ -12,6 +12,7 @@ import pathlib
 import sys
 import unicodedata
 import unittest
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -1238,6 +1239,16 @@ _GM_EMPTY_LIST = ('<div class="nir-widget--list "><article class="lfg-no-content
                   'More news releases are coming soon.</article></div>')
 
 
+def _gm_sales_emptied(html: str) -> str:
+  """판매 목록 실물에서 기사만 빼고 빈 표식을 넣는다 — 연도 선택(올해)은 그대로 둔다."""
+  from bs4 import BeautifulSoup
+  soup = BeautifulSoup(html, 'html.parser')
+  box = soup.select_one('div.nir-widget--list')
+  box.clear()
+  box.append(BeautifulSoup(_GM_EMPTY_LIST, 'html.parser').select_one('article'))
+  return str(soup)
+
+
 def _ok(*bodies):
   return [(200, b.encode('utf-8') if isinstance(b, str) else b) for b in bodies]
 
@@ -1324,6 +1335,43 @@ class GmListTest(unittest.TestCase):
     with patch.object(L, '_chrome_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
       with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
         L.fetch_gm(MagicMock(), '2025-10-07')
+
+  def test_may_be_empty_only_before_first_release(self):
+    """(순수) 기본 목록의 빈 표식 허용 = 서울 기준 그해 1월 15일 «전»만 · 경계 하루 전/당일 · 지난 해가 기본으로 보이면 허용 안 함."""
+    self.assertEqual(L.GM_FIRST_SALES_BY, (1, 15))
+    for today, want in ((date(2026, 1, 1), True), (date(2026, 1, 14), True), (date(2026, 1, 15), False),
+                        (date(2026, 4, 2), False), (date(2026, 8, 1), False)):
+      with self.subTest(today=today):
+        self.assertEqual(L.gm_sales_may_be_empty(2026, today), want)
+    self.assertFalse(L.gm_sales_may_be_empty(2025, date(2026, 1, 3)))
+
+  def _fetch_with_empty_current(self, today):
+    """기본(2026) 목록 = 빈 표식 · 2025 목록 = 정상 픽스처 · since 2025-06-27 — Codex 재현 조건."""
+    sales = _text('gm_sales_list.html')
+    calls = []
+
+    def fake(urls):
+      calls.append(list(urls))
+      if urls[0] == L.GM_IR_URL:
+        return _ok(_text('gm_quarterly_results.html'), _gm_sales_emptied(sales))
+      if 'year' in urls[0]:
+        return _ok(sales.replace('2026', '2025'))
+      return _ok(*[_text('gm_sales_detail.html')] * len(urls))
+    with patch.object(L, '_chrome_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
+      L.fetch_gm(MagicMock(), '2025-06-27', today=today)
+    return calls
+
+  def test_current_year_empty_in_second_half_stops(self):
+    """수정 2회차(Codex 재현) — 8월에 올해 목록이 빈 표식이면 2025 Deliveries 만 내고 넘어가지 않고 멈춘다."""
+    with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+      self._fetch_with_empty_current(date(2026, 8, 1))
+
+  def test_current_year_empty_threshold_boundary(self):
+    """경계 — 1월 14일은 0건 정상(지난 해 보도의 상세만 받는다) · 1월 15일 당일은 멈춘다."""
+    calls = self._fetch_with_empty_current(date(2026, 1, 14))
+    self.assertEqual(len(calls[-1]), 2)  # 2025-07-01 · 2025-10-01 상세(since 2025-06-27)
+    with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+      self._fetch_with_empty_current(date(2026, 1, 15))
 
   def test_fetch_gm_stages(self):
     """1회 = 결과 페이지 + 기본 판매 목록 · 2회 = since 가 걸친 다른 해 목록 · 3회 = since 이후 미국 판매 상세."""

@@ -25,7 +25,7 @@ import re
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Callable
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
@@ -148,6 +148,11 @@ def _row(doc_type: str, title: str, url: str, published_at: str | None, form: st
 
 def _years(since: str) -> range:
   return range(int(since[:4]), date.today().year + 1)
+
+
+def seoul_today() -> date:
+  """오늘(서울 달력) — GHA 러너는 UTC 라 date.today() 는 연초 9시간이 밀린다(lib/currentYear 와 같은 취지)."""
+  return datetime.now(timezone(timedelta(hours=9))).date()
 
 
 # ── 날짜 채우기(수집기가 부른다 · 순수) ───────────────────────────────────────
@@ -1608,12 +1613,24 @@ def _gm_pages(urls: list[str]) -> list[str]:
   return [chrome_body(status, body).decode('utf-8', errors='replace') for status, body in _chrome_fetch(urls)]
 
 
-def fetch_gm(session: requests.Session, since: str) -> list[dict]:
+# 한 해 판매 목록의 첫 미국 판매 보도 = 전년 4분기·연간 보도(1월 초). 근거 = 픽스처 gm_sales_list.html(2026 목록 실물)의
+# 미국 보도일 01-05 · 04-01 · 07-01 · 10-01 — 분기 끝 다음 달 첫 영업일 무렵이다. 새해 연휴가 끼어도 1월 둘째 주 안이라
+# 여유를 두고 1월 15일(월, 일). 이날(서울 달력) 전에만 기본 목록의 빈 표식을 정상으로 본다 — 그 뒤엔 누락이라 멈춘다.
+GM_FIRST_SALES_BY = (1, 15)
+
+
+def gm_sales_may_be_empty(shown_year: int, today: date) -> bool:
+  """(순수) 기본 판매 목록(shown_year)이 비어도 정상인가 — 그해 첫 미국 판매 보도가 나올 수 있는 시점 전일 때만."""
+  return today < date(shown_year, *GM_FIRST_SALES_BY)
+
+
+def fetch_gm(session: requests.Session, since: str, *, today: date | None = None) -> list[dict]:
   # Chrome 기동 3회: ① 결과 페이지 + 기본(올해) 판매 목록 ② since 가 걸친 다른 해 목록 ③ since 이후 미국 판매 상세
   results, sales = _gm_pages([GM_IR_URL, GM_SALES])
   shown = gm_sales_shown_year(sales)
   others = [gm_sales_year_url(sales, y) for y in _years(since) if y != shown]
-  items = parse_gm_sales(sales, may_be_empty=True)  # 올해 목록만 «빈 목록» 표식을 허용(1월 첫 보도 전)
+  # 기본 목록의 빈 표식은 1월 첫 보도 전에만 허용(하반기에 빈 표식이면 그해 분기 누락이 숨는다 · Task 8 수정 2회차)
+  items = parse_gm_sales(sales, may_be_empty=gm_sales_may_be_empty(shown, today or seoul_today()))
   for h in (_gm_pages(others) if others else []):
     items += parse_gm_sales(h)
   items = [it for it in items if it[2] >= since]
