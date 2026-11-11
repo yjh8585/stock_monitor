@@ -611,6 +611,17 @@ UNIQUE: (source, note_date)
 
 `customer_accounts`(명단) + 2단계 6종(`customer_*`). 전부 RLS on·정책 없음 → `confidentialDb`. 이름·키·칸 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 
+#### 고객사 요약 2종 (사외비 · 20261111000001)
+
+API(LLM)로 만든 요약. 코드 검사기를 통과해야 `status='ok'` 이고 검사 실패 행은 화면에 안 보인다. 전부 RLS on·정책 없음 → `confidentialDb`. `trg_skip_identical_update` 미부착(요약기가 매번 `updated_at` 을 넣는다).
+
+| 표                       | PK                          | 칸 요약                                                                                                               |
+| ------------------------ | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `customer_doc_summaries` | `doc_id`(→ 문서 cascade)    | `status`·`importance`·`lines`·`evidence`·`pages`(캡처 키)·`c_materials`·`check_note`·`model`·`prompt_version`·토큰 수 |
+| `customer_news_weekly`   | (`company_id`,`week_start`) | `week_start` = KST 월요일 · `status`(ok·check_failed·empty)·`lines`·`links`·`news_count`·토큰 수                      |
+
+**버킷 `customer-doc-pages`** (비공개, public=false, 정책 없음 → service_role 전용): 요약 근거 쪽 PNG(`<company_id>/<doc_id>/p<쪽>.png`). PDF 문서만 렌더한다.
+
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
 | 컬럼          | 타입        | 설명                                                                                                   |
@@ -883,7 +894,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
 | **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
 | **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, 고객사 7종(`customer_*`, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20260715). `management-excel`·`org-charts` 버킷도 service_role 전용(비공개) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, 고객사 9종(`customer_*`, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20261111). `management-excel`·`org-charts`·`customer-doc-pages` 버킷도 service_role 전용(비공개) |
 | **백업 테이블** | 일회성 백업(`*_dropped_*`·`*_reverted_*`)도 **만들 때 RLS를 켠다**. 2026-08-25에 남긴 2개가 RLS 없이 public 에 있어 anon 키로 읽히고 있었고 Security Advisor 가 ERROR 로 잡았다(20260907000002 로 차단) |
 | **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |

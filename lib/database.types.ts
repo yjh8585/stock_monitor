@@ -428,6 +428,109 @@ export type Database = {
           },
         ];
       };
+      customer_doc_summaries: {
+        Row: {
+          c_materials: Json;
+          check_note: string | null;
+          company_id: string;
+          created_at: string;
+          doc_id: number;
+          evidence: Json;
+          importance: string | null;
+          importance_reason: string | null;
+          input_tokens: number;
+          lines: Json;
+          model: string;
+          output_tokens: number;
+          pages: Json;
+          prompt_version: string;
+          source_sha: string | null;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          c_materials?: Json;
+          check_note?: string | null;
+          company_id: string;
+          created_at?: string;
+          doc_id: number;
+          evidence?: Json;
+          importance?: string | null;
+          importance_reason?: string | null;
+          input_tokens?: number;
+          lines?: Json;
+          model: string;
+          output_tokens?: number;
+          pages?: Json;
+          prompt_version: string;
+          source_sha?: string | null;
+          status: string;
+          updated_at?: string;
+        };
+        Update: {
+          c_materials?: Json;
+          check_note?: string | null;
+          company_id?: string;
+          created_at?: string;
+          doc_id?: number;
+          evidence?: Json;
+          importance?: string | null;
+          importance_reason?: string | null;
+          input_tokens?: number;
+          lines?: Json;
+          model?: string;
+          output_tokens?: number;
+          pages?: Json;
+          prompt_version?: string;
+          source_sha?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'customer_doc_summaries_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_doc_summaries_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_doc_summaries_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'humanoid_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_doc_summaries_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_doc_summaries_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_doc_summaries_doc_id_fkey';
+            columns: ['doc_id'];
+            isOneToOne: true;
+            referencedRelation: 'customer_documents';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       customer_documents: {
         Row: {
           company_id: string;
@@ -692,6 +795,90 @@ export type Database = {
             columns: ['document_id'];
             isOneToOne: false;
             referencedRelation: 'customer_documents';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      customer_news_weekly: {
+        Row: {
+          check_note: string | null;
+          company_id: string;
+          created_at: string;
+          input_tokens: number;
+          lines: Json;
+          links: Json;
+          model: string;
+          news_count: number;
+          output_tokens: number;
+          prompt_version: string;
+          status: string;
+          updated_at: string;
+          week_start: string;
+        };
+        Insert: {
+          check_note?: string | null;
+          company_id: string;
+          created_at?: string;
+          input_tokens?: number;
+          lines?: Json;
+          links?: Json;
+          model: string;
+          news_count?: number;
+          output_tokens?: number;
+          prompt_version: string;
+          status: string;
+          updated_at?: string;
+          week_start: string;
+        };
+        Update: {
+          check_note?: string | null;
+          company_id?: string;
+          created_at?: string;
+          input_tokens?: number;
+          lines?: Json;
+          links?: Json;
+          model?: string;
+          news_count?: number;
+          output_tokens?: number;
+          prompt_version?: string;
+          status?: string;
+          updated_at?: string;
+          week_start?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'customer_news_weekly_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_news_weekly_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_news_weekly_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'humanoid_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_news_weekly_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_news_weekly_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
             referencedColumns: ['id'];
           },
         ];

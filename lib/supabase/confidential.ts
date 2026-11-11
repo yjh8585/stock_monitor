@@ -41,6 +41,7 @@ import { createSupabaseAdminClient } from './admin';
  * - customer_accounts: 고객사 페이지 명단·손익 고객명 매핑 (migration 20261109000003)
  * - customer_documents · customer_guidance · customer_volume_ir · customer_reported_results ·
  *   customer_earnings_dates · customer_collect_status: 고객사 공식 문서와 거기서 뽑은 숫자·수집 상태 (migration 20261109000004)
+ * - customer_doc_summaries · customer_news_weekly: 고객사 문서 요약·뉴스 주간 요약 (migration 20261111000001)
  */
 export const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -62,6 +63,8 @@ export const CONFIDENTIAL_TABLES = [
   'customer_reported_results',
   'customer_earnings_dates',
   'customer_collect_status',
+  'customer_doc_summaries',
+  'customer_news_weekly',
 ] as const;
 
 /**
