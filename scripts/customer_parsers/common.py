@@ -79,3 +79,27 @@ def dedupe_first(rows: list, key) -> list:
     seen.add(k)
     out.append(r)
   return out
+
+
+# EDGAR 8-K Item 2.02 문단(다음 Item 머리까지 · 머리가 없으면 2,000자) — 'Item 2.02 of this Form 8-K' 같은 뒤쪽 언급은
+# 머리가 아니라 첫 일치만 쓴다
+_ITEM_202 = re.compile(r'Item\s+2\.02\b')
+_NEXT_ITEM = re.compile(r'Item\s+(?!2\.02\b)\d\.\d{2}\b')
+# 분기 잠정 «범위» 공시의 Item 2.02 문장(실물 2건 — 폴라리스 2025-10-14 'preview on its preliminary results' ·
+# 리비안 2026-07-06 'certain preliminary and unaudited estimates')
+_PRELIM_202 = re.compile(r'preliminary (?:results|and unaudited estimates)', re.I)
+
+
+def edgar_202_expects_numbers(doc, content) -> bool:
+  """EDGAR 8-K Item 2.02(실적 발표)이고 분기 잠정 «범위» 공시가 아니면 참 — 파서 expects_numbers 훅용(Task 10 항목 2).
+  잠정 범위는 코드가 일부러 안 읽어 not_target 이 정상인데, 2.02 만 보면 「서식 미인식」 경고가 뜬다. 제목·items 로는
+  못 가르고(폴라리스는 9.01 이 있다) Item 2.02 문단의 문장에만 근거가 있다 — 첨부 보도자료의 'preliminary' 는 보지 않는다."""
+  if doc.source != 'edgar' or '2.02' not in (doc.items or '').split(','):
+    return False
+  text = content.text if content is not None else ''
+  head = _ITEM_202.search(text)
+  if head is None:
+    return True
+  nxt = _NEXT_ITEM.search(text, head.end())
+  para = text[head.start():nxt.start() if nxt else head.start() + 2000]
+  return _PRELIM_202.search(para) is None

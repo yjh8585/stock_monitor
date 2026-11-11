@@ -776,7 +776,7 @@ class FinishStatusTests(unittest.TestCase):
     self.assertEqual((last2['parse_status'], last2['parse_note']), ('not_target', None))
     # 파서가 판정을 정하면(kr_dart 잠정실적 등) 그것을 쓴다
     mod3 = _mod(parse=lambda d, c: base.ParseResult())
-    mod3.expects_numbers = lambda d: True
+    mod3.expects_numbers = lambda d, c: True
     run3, ws3 = _run(mod3)
     run3.process(_DOC, None, None)
     self.assertEqual(_doc_patches(ws3)[-1]['parse_note'], ccn.NOTE_UNRECOGNIZED)

@@ -119,12 +119,12 @@ def wants(doc: Doc) -> bool:
     'prelim_results', 'earnings_release', 'guidance', 'ir_event')
 
 
-def expects_numbers(doc: Doc) -> bool:
+def expects_numbers(doc: Doc, content: Content | None = None) -> bool:
   """숫자가 반드시 있어야 하는 문서(오케스트레이터가 not_target 이면 「서식 미인식」 으로 드러낸다 · 최종 검토 P4) —
   DART 영업(잠정)실적 공정공시(분기 잠정실적·월 판매 · doc_type prelim_results/earnings_release) · 현대모비스 영문 Script
   (실물 2회차 모두 수주 목표 문장이 있다 — 문구가 바뀌어 못 읽으면 조용히 닫히지 않고 경고 · 결정 E7 2026-11-11).
   IR 개최 공고(NDR 등)·가이던스(중장기는 LLM 몫)는 숫자 없는 not_target 이 정상이라 빠진다.
-  실측(2026-11-10): prelim_results 110건 전부 parsed."""
+  실측(2026-11-10): prelim_results 110건 전부 parsed. content(본문)는 훅 서명을 맞추려 받기만 한다(EDGAR 파서용)."""
   return is_mobis_script(doc) or doc.source == 'dart' and doc.doc_type in ('prelim_results', 'earnings_release')
 
 

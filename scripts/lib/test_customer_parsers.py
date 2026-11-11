@@ -524,5 +524,38 @@ class VocabTests(unittest.TestCase):
     self.assertEqual(base.check_vocab(base.ParseResult(guidance=[g])), ['guidance 값 없음'])
 
 
+class PreliminaryRange202Tests(unittest.TestCase):
+  """Task 10 항목 2 — 분기 잠정 «범위»만 낸 EDGAR 8-K Item 2.02(폴라리스 문서 15 · 리비안 문서 117)는 숫자를 기대하지
+  않는다(expects_numbers 거짓 → 「서식 미인식」 경고 없음). 근거는 Item 2.02 문단의 실물 문장(제목·items 로는 못 가른다)."""
+  # 실물 Item 2.02 문단 앞부분(2026-11-11 EDGAR 원문)
+  PII_15 = ('Item 2.02 Results of Operations and Financial Condition. On October 13, 2025, Polaris Inc. (the "Company") '
+            'issued a press release announcing its decision to separate the Indian Motorcycle business (the "Indian '
+            'Motorcycle Business") from its portfolio and into a standalone business (the "Transaction"). The press '
+            'release included the Company\'s preview on its preliminary results for the third quarter ended September '
+            '30, 2025. A copy of the Company\'s press release is furnished as Exhibit 99.1. '
+            'Item 2.06 Material Impairments. ...')
+  RIVN_117 = ('Item 2.02 - Results of Operations and Financial Condition. Set forth below are certain preliminary and '
+              'unaudited estimates of selected financial information of Rivian Automotive, Inc. (the "Company") as of '
+              'and for the three months ended June 30, 2026.')
+  # 정상 실적 8-K — 첨부 보도자료(Item 9.01 뒤)에 'preliminary results' 가 있어도 Item 2.02 문단 밖이라 참
+  NORMAL = ('Item 2.02 Results of Operations and Financial Condition. On October 28, 2026, the Company issued a press '
+            'release announcing its financial results for the third quarter ended September 30, 2026. '
+            'Item 9.01 Financial Statements and Exhibits. Exhibit 99.1 Press release. Revenue was $1.9 billion. '
+            'These preliminary results are unaudited.')
+
+  def _doc(self, ticker, items='2.02,9.01'):
+    return base.Doc(0, 'test', ticker, 'edgar', 'earnings_release', '8-K', items, '8-K', '', '2026-10-28')
+
+  def test_preliminary_range_202_not_expected(self):
+    from customer_parsers import polaris, rivian
+    for mod, ticker, text, items in ((polaris, 'PII', self.PII_15, '2.02,2.06,5.02,9.01'),
+                                     (rivian, 'RIVN', self.RIVN_117, '2.02')):
+      with self.subTest(ticker=ticker):
+        self.assertFalse(mod.expects_numbers(self._doc(ticker, items), base.Content(text=text)))
+        self.assertTrue(mod.expects_numbers(self._doc(ticker), base.Content(text=self.NORMAL)))
+        # 2.02 가 없는 8-K(임원 변경 등)는 원래대로 거짓
+        self.assertFalse(mod.expects_numbers(self._doc(ticker, '5.02,9.01'), base.Content(text=self.NORMAL)))
+
+
 if __name__ == '__main__':
   unittest.main()

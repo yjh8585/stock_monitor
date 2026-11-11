@@ -27,7 +27,7 @@ import re
 
 from customer_parsers.base import (Doc, Content, ParseResult, ResultRow, VolumeRow, GuidanceRow, EarningsDate,
                                    numeric_cells, month_name_date, QUARTER_WORDS)
-from customer_parsers.common import quarter_from_date_text, parse_range, dedupe_first
+from customer_parsers.common import quarter_from_date_text, parse_range, dedupe_first, edgar_202_expects_numbers
 from lib.doc_text import norm_text, row_text
 
 TICKERS = ('RIVN',)
@@ -60,6 +60,12 @@ _DATE = re.compile(r'on ' + _MONTH + r' (\d{1,2})(?:st|nd|rd|th)?, (\d{4}),? aft
 
 def wants(doc: Doc) -> bool:
   return doc.source == 'edgar' and doc.doc_type in ('earnings_release', 'sales_release', 'current_report')
+
+
+def expects_numbers(doc: Doc, content: Content) -> bool:
+  """EDGAR 8-K Item 2.02 — 단 분기 잠정 «범위» 공시(2026-07-06 'certain preliminary and unaudited estimates')는 코드가
+  일부러 안 읽으니 거짓(「서식 미인식」 오탐 · Task 10 항목 2)."""
+  return edgar_202_expects_numbers(doc, content)
 
 
 def _label(row):

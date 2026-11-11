@@ -30,7 +30,7 @@
 import re
 
 from customer_parsers.base import Doc, Content, ParseResult, ResultRow, GuidanceRow, numeric_cells
-from customer_parsers.common import quarter_from_date_text, word_or_number, money
+from customer_parsers.common import quarter_from_date_text, word_or_number, money, edgar_202_expects_numbers
 from lib.doc_text import norm_text, row_text
 
 TICKERS = ('PII',)
@@ -80,6 +80,12 @@ LLM_HINT = ('연간(full year) Sales·Adjusted EPS 전망 범위만. 🔴 분기
 
 def wants(doc: Doc) -> bool:
   return llm_only(doc) or doc.source == 'edgar' and doc.doc_type == 'earnings_release'
+
+
+def expects_numbers(doc: Doc, content: Content) -> bool:
+  """EDGAR 8-K Item 2.02 — 단 분기 잠정 «범위» 공시(2025-10-14 'preview on its preliminary results')는 코드가 일부러 안
+  읽으니 거짓(「서식 미인식」 오탐 · Task 10 항목 2)."""
+  return edgar_202_expects_numbers(doc, content)
 
 
 def parse_results(tables) -> tuple[list[ResultRow], bool]:

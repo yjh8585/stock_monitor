@@ -213,14 +213,15 @@ def judge(res, verified_values: int, verified_dates: int, llm_rows: int = 0) -> 
   return 'parsed', None
 
 
-def _expects_numbers(mod, doc) -> bool:
-  """숫자가 반드시 있어야 하는 문서인가(최종 검토 P4) — 파서 모듈의 expects_numbers(doc)가 있으면 그것(kr_dart: 잠정실적·
-  월 판매), 없으면 EDGAR 8-K Item 2.02(실적 발표) 문서. 거짓인 not_target(NDR·임원 변경 8-K 등)은 그대로 조용하다.
-  ⚠️ 2.02 라도 분기 잠정 «범위»만 낸 8-K(폴라리스 2025-10-14 · 리비안 2026-07-06)는 코드가 일부러 안 읽는다 — 그런
-  문서가 새로 오면 이 표식이 한 번 뜬다(사람이 보고 넘기면 된다 · 닫힌 문서라 다음 실행엔 안 뜬다)."""
+def _expects_numbers(mod, doc, content) -> bool:
+  """숫자가 반드시 있어야 하는 문서인가(최종 검토 P4) — 파서 모듈의 expects_numbers(doc, content)가 있으면 그것(kr_dart:
+  잠정실적·월 판매 · 폴라리스·리비안: 2.02 중 분기 잠정 «범위» 공시 제외), 없으면 EDGAR 8-K Item 2.02(실적 발표) 문서.
+  거짓인 not_target(NDR·임원 변경 8-K 등)은 그대로 조용하다. 분기 잠정 «범위»만 낸 8-K(폴라리스 2025-10-14 · 리비안
+  2026-07-06)는 코드가 일부러 안 읽어 예전엔 이 표식이 한 번 떴다 — 두 파서 훅이 Item 2.02 문단의 'preliminary' 문장으로
+  가른다(Task 10 항목 2 · 제목·items 로는 못 가른다). 다른 회사의 같은 꼴은 여전히 한 번 뜬다(사람이 보고 넘긴다)."""
   hook = getattr(mod, 'expects_numbers', None)
   if hook is not None:
-    return bool(hook(doc))
+    return bool(hook(doc, content))
   return doc.source == 'edgar' and '2.02' in (doc.items or '').split(',')
 
 
@@ -665,7 +666,7 @@ class _CompanyRun:
         self.verified['dates'] += v_dates
         self.outcomes['llm_wait_parsed'] += 1   # finish 가 방향을 다시 매기는 근거
       return self._keep_pending(doc, NOTE_LLM_WAIT, prev_note, 'llm_wait')
-    if status == 'not_target' and _expects_numbers(self.mod, doc):
+    if status == 'not_target' and _expects_numbers(self.mod, doc, content):
       # 숫자가 반드시 있어야 하는 문서인데 코드가 서식을 못 알아봤다 — 조용한 not_target 이 아니라 흔적을 남긴다(P4)
       note = NOTE_UNRECOGNIZED
       self.outcomes['unrecognized'] += 1
