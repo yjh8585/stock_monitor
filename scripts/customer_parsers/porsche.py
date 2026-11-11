@@ -6,6 +6,7 @@
   '€595 million'(1분기 영업이익 · 2025 9M 판 '€40 million') — 단위를 칸에서 읽는다. 인도 '178,532'.
   분기 값은 발표하지 않는다(1분기만 분기) → 누계로 담고 분기는 조회 계층이 뺄셈 · 표시는 「누계 차이로 계산」.
   EQS html 은 바깥 표(머리 덩어리 + 같은 행 복사)와 안쪽 표가 겹쳐 나온다 → 머리 행은 앞 두 행 안에서 찾는다.
+  2024~2025 상반기 판(2026-11-11 백필 실물): 매출 'Turnover' · 인도 'Deliveries' · 대수에 독일식 천 단위 점('71.470').
 - 인도 보도자료: 머리 'Porsche Deliveries | January – September', 둘째 행 '2025 | 2026 | Difference'(전년이 «앞» 칸)
   → 올해 칸 위치를 연도 행에서 찾는다. 행 'Worldwide'. 1~3월은 분기, 1~6·1~9월은 누계, 1~12월은 연간.
 - 전망: 'The forecast is based on the following figures: Group sales revenue of between 35 and 36 billion euros. Group
@@ -45,7 +46,16 @@ _GROUP = 'Porsche AG Group'
 _HEAD = re.compile(r'(Q1|Q1-Q2|H1|Q1-Q3|9M|FY|Fiscal year) ?(20\d{2})')
 _MONTHS = {'Q1': 3, 'Q1-Q2': 6, 'H1': 6, 'Q1-Q3': 9, '9M': 9, 'FY': 12, 'Fiscal year': 12}
 _MONEY = re.compile(r'€ ?([\d.,]+) (billion|million)')
-_RES_ROWS = {'Sales revenue': 'revenue', 'Operating profit': 'operating_income'}
+# 'Turnover' = 2025 1분기·2024 연간 판의 매출 라벨 · 인도 라벨 'Deliveries' = 2024 9M·연간 판
+_RES_ROWS = {'Sales revenue': 'revenue', 'Turnover': 'revenue', 'Operating profit': 'operating_income'}
+_RES_DELIV = ('Deliveries to customers', 'Deliveries')
+# 대수 칸 — 천 단위 구분이 쉼표('71,470')거나 독일식 점('71.470', 2025 상반기까지) · 소수 꼴은 몇 대인지 모른다(None)
+_UNITS = re.compile(r'\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+|\d+')
+
+
+def _units(cell: str) -> int | None:
+  c = norm_text(cell)
+  return int(re.sub(r'[.,]', '', c)) if _UNITS.fullmatch(c) else None
 _DELIV_HEAD = re.compile(r'Porsche Deliveries')
 _DELIV_SPAN = re.compile(r'January - (March|June|September|December)')
 _SPAN_MONTHS = {'March': 3, 'June': 6, 'September': 9, 'December': 12}
@@ -125,11 +135,11 @@ def parse_results(tables) -> ParseResult | None:
           return None
         r.results.append(ResultRow(_RES_ROWS[lab], lab, 'reported', grain, period, to_number(b.group(1)), b.group(2),
                                    'EUR', row_text(row)))
-      elif lab == 'Deliveries to customers':
-        v = to_number(cell)
+      elif lab in _RES_DELIV:
+        v = _units(cell)
         if v is None:
           return None
-        r.volume.append(VolumeRow('deliveries', 'total', grain, period, round(v), DEF, row_text(row)))
+        r.volume.append(VolumeRow('deliveries', 'total', grain, period, v, DEF, row_text(row)))
     if {x.metric for x in r.results} != set(_RES_ROWS.values()) or not r.volume:
       return None
     return r
@@ -152,12 +162,12 @@ def parse_deliveries(tables) -> ParseResult | None:
     year = years[col]
     world = next((x for x in rows[i + 2:] if norm_text(x[0]) == 'Worldwide'), None)
     # Worldwide 행 = 라벨 + 연도 행 칸 수(칸이 빠지면 올해 칸 자리가 밀린다) · 인도는 양수
-    v = to_number(world[col + 1]) if world and len(world) == len(years) + 1 else None
-    if v is None or v <= 0:
+    v = _units(world[col + 1]) if world and len(world) == len(years) + 1 else None
+    if not v:   # None(천 단위 꼴 아님 · 음수 괄호) 또는 0
       return None
     months = _SPAN_MONTHS[sm.group(1)]
     grain, period = _period({3: 'Q1', 6: 'H1', 9: 'Q1-Q3', 12: 'FY'}[months], year)
-    return ParseResult(volume=[VolumeRow('deliveries', 'total', grain, period, round(v), DEF, row_text(world))],
+    return ParseResult(volume=[VolumeRow('deliveries', 'total', grain, period, v, DEF, row_text(world))],
                        recognized=True)
   return ParseResult()
 
@@ -198,6 +208,7 @@ _FS_DLV_SHEET = re.compile(r'deliveries by Region', re.I)
 _FS_QTR = re.compile(r'Q([1-4]) (20\d{2})\*?')   # '*' = 'Prior-year figures adjusted (IFRS 17)' 각주 표식
 # 표시 형식 정수 — '8,053' · 일부 칸은 구분 기호가 없다(Q1 2025 판 Q3 2022 인도 '75652')
 _FS_INT = re.compile(r'-?\d{1,3}(?:,\d{3})+|-?\d+')
+_FS_RES_LABELS = ('Sales revenue', 'Operating profit')   # 팩트시트 라벨(보도자료의 옛 'Turnover' 는 없다 — 늘 있는 행)
 _FS_MONEY_MAX = 1e6   # 백만 유로 — 넘으면 표시 형식이 바뀌어 원 단위 값이 그대로 왔다(백만 배 틀린 값)
 _NUMFMT = re.compile(r'(#,##0|0)(?:\.(0+))?(,*)')   # '#,##0,,' (끝 쉼표 하나 = ÷1000) · '0.0' · '#,##0.00'
 
@@ -292,7 +303,7 @@ def parse_fact_sheet(tables) -> ParseResult:
   year = max(rb[0].values())[0]   # 머리의 가장 최근 분기의 해 = 이 팩트시트의 해
   if {q for y, q in rb[0].values() if y == year} != {q for y, q in dvb[0].values() if y == year}:
     return failed   # 실적·인도 시트의 그 해 분기가 다르다
-  cells = {lab: _fs_cells(rb, lab, year) for lab in _RES_ROWS}
+  cells = {lab: _fs_cells(rb, lab, year) for lab in _FS_RES_LABELS}
   deliv = _fs_cells(dvb, 'Deliveries to customers', year)
   if deliv is None or any(c is None for c in cells.values()):
     return failed
@@ -401,6 +412,20 @@ MUST_HIT = [  # (표, 본문, 기대 {키: 값} · ('N',) = 값 행 수 · ('H',
    '', {('V', 'deliveries', '2026-Q1'): 60991, ('N',): 1}),
   ([[['Porsche Deliveries', 'January – December'], ['2024', '2025', 'Difference'],
      ['Worldwide', '310,718', '279,449', '-10%']]], '', {('V', 'deliveries', '2025'): 279449, ('N',): 1}),
+  # 2024~2025 상반기 판(2026-11-11 백필 실물) — 라벨 'Turnover'·'Deliveries' · '€ 28.56 billion'(띄어 씀) ·
+  # 대수에 독일식 천 단위 점('71.470' = 71,470 — 소수로 읽으면 71 대)
+  ([[['Porsche AG Group', 'Q1-Q3 2024', 'Q1-Q3 2023', 'Change'], ['Sales revenue', '€ 28.56 billion', '€ 30.13 billion', '-5.2%'],
+     ['Operating profit', '€ 4.04 billion', '€ 5.50 billion', '-26.7%'], ['Operating return on sales', '14.1%', '18.3%'],
+     ['Deliveries', '226,026', '242,722', '-6.9%']]],
+   '', {('R', 'revenue', '2024-9M'): (28.56, 'billion'), ('V', 'deliveries', '2024-9M'): 226026, ('N',): 3}),
+  ([[['Porsche AG Group', 'FY 2024', 'FY 2023', 'Change'], ['Turnover', '€40.08 billion', '€40.53 billion', '-1.1%'],
+     ['Operating profit', '€5.64 billion', '€7.28 billion', '-22.6%'], ['Deliveries', '310,718', '320,221', '-3.0%']]],
+   '', {('R', 'revenue', '2024'): (40.08, 'billion'), ('V', 'deliveries', '2024'): 310718, ('N',): 3}),
+  ([[['Porsche AG Group', 'Q1 2025', 'Q1 2024', 'Alteration'], ['Turnover', '€8.86 billion', '€9.01 billion', '-1.7%'],
+     ['Operating profit', '€0.76 billion', '€1.28 billion', '-40.6%'], ['Deliveries to customers', '71.470', '77.640', '-7.9%']]],
+   '', {('R', 'revenue', '2025-Q1'): (8.86, 'billion'), ('V', 'deliveries', '2025-Q1'): 71470, ('N',): 3}),
+  ([[['Porsche Deliveries', 'January - June'], ['2024', '2025', 'Difference'], ['Worldwide', '155.945', '146.391', '-6%']]],
+   '', {('V', 'deliveries', '2025-6M'): 146391, ('N',): 1}),
 ]
 MUST_MISS = [  # (표, 본문, 판정(got) → 참, 사유)
   # 'Operating return on sales 6.9%' 표 행 · 'operating return on sales of 6.9 per cent' 실적 문장은 전망이 아니다
@@ -432,6 +457,9 @@ MUST_RECOGNIZED_EMPTY = [
   ('인도 표 Worldwide 칸 하나 늘어 밀림', [[DELIV_9M[0], DELIV_9M[1], ['Worldwide', '1)', '212,509', '178,532', '-16%']]], ''),
   ('인도 표 Worldwide 음수', [[DELIV_9M[0], DELIV_9M[1], ['Worldwide', '212,509', '(178,532)', '-16%']]], ''),
   ('인도 표 기간 칸 꼴 변경', [[['Porsche Deliveries', 'Q1-Q3'], *DELIV_9M[1:]]], ''),
+  # 대수 칸이 천 단위 꼴이 아니다(소수 두 자리) — 몇 대인지 모른다
+  ('인도 표 Worldwide 소수', [[DELIV_9M[0], DELIV_9M[1], ['Worldwide', '212,509', '178.53', '-16%']]], ''),
+  ('실적 표 인도 칸 소수', [[*RES_9M[:4], ['Deliveries to customers', '178.53', '212,509']]], G_9M),
 ]
 LLM_WANTS = [
   ('9M 5항목 다 뽑음', [RES_9M], G_9M, False),
