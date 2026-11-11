@@ -178,7 +178,7 @@ class PendingTests(unittest.TestCase):
       res.guidance.append(g)
       return {id(g)}
     with patch.object(run, '_llm', side_effect=fake_llm), \
-         patch.object(ccn, 'verify', side_effect=lambda res, text: {id(g): (True, None) for g in res.guidance}), \
+         patch.object(ccn, 'verify', side_effect=lambda res, text, llm_ids=(): {id(g): (True, None) for g in res.guidance}), \
          patch.object(ccn, 'existing_pubs', return_value={}):
       run.process(_DOC, None, None)
     self.assertEqual(run.outcomes['parsed'], 1)

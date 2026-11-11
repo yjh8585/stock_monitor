@@ -17,12 +17,14 @@
   · 파서 제외 — 파서 LLM_DROP(빈패스트 이륜차)
   · 규모 — quote 의 값 숫자에 붙은 배수 낱말(조·억·만·천·billion·B·M·in thousands …)로 구한 원문 절대값 ≠ low×단위
   · text 숫자 · 비율 단위 — unit='text' 인데 숫자 / 비율 지표에 percent 가 아닌 단위
-  · 지표 불일치 — 비율 지표가 아닌 키에 % 값 · 그 키의 낱말이 라벨·quote 어디에도 없다(metric_mismatch · 총주주환원율→FCF)
   · 통화 — 값 바로 옆에 보고 통화가 아닌 통화 표지가 있는데 currency 가 비었다
   · 과거 연도 — year < 문서 발행 연도(과거 실적 오독 · 상태 행 other 는 제외) · 범위 뒤집힘 — low > high (최종 검토 P9)
   stated 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·increase·reaffirm·lower·trim·withdraw·상향·올린·유지·낮춘 …)이
   없으면 stated 만 지운다
   (행은 남긴다 · 사유 'stated 근거 없음' — 방향 계산이 withdrawn 을 숫자보다 먼저 쓰므로 · 최종 검토 P2).
+  지표 불일치(metric_mismatch — 비율 지표가 아닌 키에 % 값 · 그 키의 낱말이 라벨·quote 어디에도 없다 · 낱말 규칙이 없는
+  키 · 총주주환원율→FCF)는 버리지 않고 건수만 센다 — 오케스트레이터 verify 가 인용 대조 실패처럼 verified=False +
+  행 사유로 싣는다(Task 10 수정 1회차 · 사라지면 무엇이 틀렸는지 DB 에 안 남는다).
   단 원문 'N억' 을 billion·trillion·text 로 적은 행만은 N×100 million 으로 환산한다(fix_eok — 억은 정의상 1e8 이라 배수
   낱말이 확실히 읽힐 때만 · 모비스 IR 에서 프롬프트에 규칙을 적어도 3회 중 3회 반복된 오류라 버리면 그 문서 값을 매번 잃는다).
 - 키·본문은 출력하지 않는다(경고는 문서 id 와 글자 수만).
@@ -367,8 +369,9 @@ def stated_supported(g: GuidanceRow) -> bool:
 # 어휘 밖 지표(총주주환원율 35%+)를 가까운 키(free_cash_flow)에 밀어 넣고, 숫자는 원문에 있어 인용 대조를 통과했다
 # (customer_guidance 345). 낱말은 키의 뜻 + DB 실물 라벨(METRIC_MISMATCH_KEEP)에서만 — 한국어는 활용 없는 명사뿐이고
 # 띄어쓰기 변이만 \s*.
-# SHORTCUT: 실물 라벨이 아직 없는 키(net_income·aoi·operating_result_bsi·Task 9 의 4종 등)는 낱말 검사를 하지 않는다(% 검사만)
-#   → 그 키의 LLM 행이 쌓이면 라벨을 보고 한 줄씩 더한다.
+# 실물 라벨이 아직 없는 키(net_income·aoi·operating_result_bsi·Task 9 의 4종)는 키 이름의 뜻에서만 낱말을 뽑았다 —
+# 그 키의 LLM 행이 쌓이면 라벨을 보고 넓힌다. 🔴 표에 없는 키(base.METRICS 에 새로 든 키)는 «확인 불가»로 본다
+# (metric_mismatch → verified=False) — 규칙이 없다고 검사를 건너뛰면 그 키로 아무 숫자나 통과한다(수정 1회차).
 _FCF = r'free\s+cash\s*flows?|\bFCF\b|잉여\s*현금'
 _REVENUE = r'revenue|\bsales\b|매출'
 _METRIC_WORDS = {k: re.compile(p, re.I) for k, p in {
@@ -384,24 +387,37 @@ _METRIC_WORDS = {k: re.compile(p, re.I) for k, p in {
   'capex': r'capital\s+expenditure|\bcapex\b|investment|투자', 'investment_ratio': r'investment|투자',
   'bev_share': r'\bBEV\b|electric|전기차', 'order_intake': r'\border|수주',
   'deliveries': r'\bdeliver|인도', 'sales_units': r'\bsales\b|판매',
+  'net_income': r'net\s+(?:income|earnings|profit)|순\s*이익', 'net_income_parent': r'net\s+(?:income|earnings|profit)|순\s*이익',
+  'aoi': r'\bAOI\b|operating\s+income', 'operating_result_bsi': r'operating\s+result',
+  'eps_diluted': r'\bEPS\b|earnings\s+per\s+share|주당',
+  'automotive_operating_cash_flow': r'operating\s+cash\s*flow|cash\s+flows?\s+from\s+operating',
+  'special_items': r'special\s+items',
+  'operating_margin_adjusted': r'return\s+on\s+sales|operating\s+(?:income\s+|profit\s+)?margin|영업\s*이익\s*률',
 }.items()}
+MISMATCH_PERCENT = 'percent_on_non_ratio'
+MISMATCH_WORD = 'metric_word_missing'
+MISMATCH_NO_RULE = 'metric_unverifiable'
 
 
-def metric_mismatch(g: GuidanceRow) -> bool:
-  """LLM 행의 metric 키가 라벨·quote 와 안 맞는다 — (a) 비율 지표가 아닌 키에 % 값 (b) 그 키의 낱말이 라벨에도 quote 에도 없다."""
+def metric_mismatch(g: GuidanceRow) -> str | None:
+  """LLM 행의 metric 키가 라벨·quote 와 안 맞는 사유(None = 맞다) — (a) 비율 지표가 아닌 키에 % 값 (b) 낱말 규칙이 없는 키
+  (c) 그 키의 낱말이 라벨에도 quote 에도 없다. other 는 검사 밖."""
   if g.metric == 'other':
-    return False
+    return None
   if g.unit == 'percent' and g.metric not in PERCENT_METRICS:
-    return True
+    return MISMATCH_PERCENT
   words = _METRIC_WORDS.get(g.metric)
-  return words is not None and not (words.search(g.metric_label or '') or words.search(g.quote or ''))
+  if words is None:
+    return MISMATCH_NO_RULE
+  return None if words.search(g.metric_label or '') or words.search(g.quote or '') else MISMATCH_WORD
 
 
 REASON_PAST_YEAR = '과거 연도'
 REASON_RANGE = '범위 뒤집힘'
 REASON_METRIC = '지표 불일치'
 STATED_CLEARED = 'stated 근거 없음'   # 버림이 아니라 고침(행은 남고 stated 만 None) — '억→million 환산' 과 같은 갈래
-NOT_DROPPED = frozenset({'억→million 환산', STATED_CLEARED})   # why 의 키 중 «버림 수»에 안 넣는 것
+# why 의 키 중 «버림 수»에 안 넣는 것 — 지표 불일치는 남겨서 verify 가 verified=False 로 싣는다
+NOT_DROPPED = frozenset({'억→million 환산', STATED_CLEARED, REASON_METRIC})
 
 
 def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.Pattern | None = None,
@@ -430,8 +446,7 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
       if fixed is not g:
         why['억→million 환산'] += 1
         g = fixed
-      reason = (unit_mismatch(g) or (REASON_METRIC if metric_mismatch(g) else None)
-                or ('규모' if scale_mismatch(g) else None))
+      reason = unit_mismatch(g) or ('규모' if scale_mismatch(g) else None)
     if reason is None:
       if g.unit not in MONEY_UNITS or g.currency == base_currency:
         g = replace(g, currency=None) if g.currency else g   # 비금액·보고 통화 = None(칸 뜻: None = 회사 보고 통화)
@@ -443,6 +458,8 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
     if not stated_supported(g):
       why[STATED_CLEARED] += 1
       g = replace(g, stated=None)
+    if metric_mismatch(g):
+      why[REASON_METRIC] += 1   # 버리지 않는다 — 행마다의 판정은 오케스트레이터 verify(verified=False + 사유)
     out.append(g)
   return out, why
 
@@ -728,14 +745,18 @@ def self_test() -> list[str]:
       errs.append(f'CURRENCY 어긋남: {unit} {lo} {cur} {base} {q[:30]}')
   errs += [f'DROP_MISS 안 걸림: {q[:50]}' for q in DROP_MISS
            if screen([row('deliveries', 406498, 406498, 'units', q)], None, _DROP_PROBE)[1].get('파서 제외') != 1]
-  for want_dropped, cases in ((True, METRIC_MISMATCH_MISS), (False, METRIC_MISMATCH_KEEP)):
+  for want_flag, cases in ((True, METRIC_MISMATCH_MISS), (False, METRIC_MISMATCH_KEEP)):
     for m, label, unit, q in cases:
-      g = replace(row(m, None, None, unit, q, label), value_text=None if unit != 'text' else 'x')
-      if unit != 'text':
-        g = replace(g, low=1.0, high=1.0)
-      kept, why = screen([g])
-      if bool(why.get(REASON_METRIC)) != want_dropped or len(kept) == want_dropped:
-        errs.append(f'METRIC_MISMATCH_{"MISS" if want_dropped else "KEEP"} 어긋남: {m} {label}')
+      if bool(metric_mismatch(row(m, 1.0, 1.0, unit, q, label))) != want_flag:
+        errs.append(f'METRIC_MISMATCH_{"MISS" if want_flag else "KEEP"} 어긋남: {m} {label}')
+  if metric_mismatch(row('no_such_metric', 1, 1, 'billion', 'revenue of 1 billion', 'Revenue')) != MISMATCH_NO_RULE:
+    errs.append('규칙 없는 키가 «확인 불가»로 안 걸림')
+  no_rule = [m for m in METRICS if m != 'other' and m not in _METRIC_WORDS]
+  if no_rule:
+    errs.append(f'낱말 규칙 없는 지표 키(LLM 행이 전부 verified=False 가 된다): {no_rule}')
+  kept, why = screen([row('free_cash_flow', 35, 35, 'percent', METRIC_MISMATCH_MISS[0][3], '총주주환원율')])
+  if len(kept) != 1 or why.get(REASON_METRIC) != 1:
+    errs.append(f'지표 불일치 행이 버려지거나 안 셈: {len(kept)} {dict(why)}')
   if screen([row('other', 30, 30, 'percent', '배당성향 30%')])[1].get('숫자 other') != 1:
     errs.append('숫자 other 가 안 걸림')
   for want_kept, cases in ((True, STATED_HIT), (False, STATED_MISS)):

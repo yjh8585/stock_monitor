@@ -231,10 +231,18 @@ def closed_failures(client, company_id: str) -> int:
              .eq('parse_status', 'failed').execute().data)
 
 
-def verify(res, text: str) -> dict:
-  """행 id → (verified, note). 값 행은 check_row, 일정은 check_date_row(원문 = content.text)."""
-  from lib import quote_check
+def verify(res, text: str, llm_ids: set[int] = frozenset()) -> dict:
+  """행 id → (verified, note). 값 행은 check_row, 일정은 check_date_row(원문 = content.text).
+  LLM 가이던스 행(llm_ids)은 대조를 통과해도 지표 키가 라벨·quote 와 안 맞으면(llm_guidance.metric_mismatch — 총주주환원율
+  35% 를 free_cash_flow 로 · 낱말 규칙 없는 키) verified=False · note 'metric_mismatch:<사유>'(Task 10 수정 1회차 —
+  거르기에서 버리지 않고 대조 실패처럼 남긴다)."""
+  from lib import llm_guidance, quote_check
   out = {id(r): quote_check.check_row(r, text) for r in value_rows(res)}
+  for g in res.guidance:
+    if id(g) in llm_ids and out[id(g)][0]:
+      why = llm_guidance.metric_mismatch(g)
+      if why:
+        out[id(g)] = (False, f'metric_mismatch:{why}')
   out.update({id(d): quote_check.check_date_row(d, text) for d in res.dates})
   return out
 
@@ -633,7 +641,7 @@ class _CompanyRun:
       self.dropped += len(dropped)
       notes.append(f'어휘·기간 형식 밖 {len(dropped)}행 버림: ' + '; '.join(dropped[:5]))
     res.dedupe()  # 코드 행이 먼저 들어 있어 같은 키면 코드 우선
-    checks = verify(res, content.text)
+    checks = verify(res, content.text, llm_ids or set())
     v_values = sum(checks[id(r)][0] for r in value_rows(res))
     v_dates = sum(checks[id(d)][0] for d in res.dates)
     llm_n = sum(id(g) in llm_ids for g in res.guidance) if llm_ids else 0

@@ -78,6 +78,27 @@ class ExtractTests(unittest.TestCase):
     self.assertEqual([checks[id(g)][0] for g in res.guidance], [True, False])
     self.assertEqual(checks[id(res.guidance[1])][1], 'quote_not_in_source')
 
+  def test_metric_mismatch_stored_unverified(self):
+    """⑪ 지표 키가 라벨·quote 와 안 맞는 LLM 행(345 꼴 — 총주주환원율 35% 를 free_cash_flow · 규칙이 늦게 생긴
+    operating_margin_adjusted)은 버리지 않고 verify 가 verified=False + 행 사유로 남긴다(숫자 대조는 통과한다 · Task 10
+    수정 1회차). 문서 note 의 건수(why)는 그대로 · 코드 행(llm_ids 밖)은 이 검사를 받지 않는다."""
+    src = _SRC + ' •총주주환원율 35%+ 달성'
+    q = '•총주주환원율 35%+ 달성'
+    c = _FakeClient([_item(), _item(metric='free_cash_flow', metric_label='총주주환원율', low=35, high=35,
+                                    unit='percent', quote=q),
+                     _item(metric='operating_margin_adjusted', metric_label='Adjusted margin', low=35, high=35,
+                           unit='percent', quote=q)])
+    rows, why = lg.extract(c, _DOC, src, 'Acme Motors')
+    self.assertEqual(len(rows), 3)   # 버리지 않는다
+    self.assertEqual(why, Counter({lg.REASON_METRIC: 2}))
+    res = base.ParseResult(guidance=rows)
+    checks = ccn.verify(res, src, {id(g) for g in rows})
+    self.assertEqual([checks[id(g)][0] for g in rows], [True, False, False])
+    self.assertEqual([checks[id(g)][1] for g in rows[1:]], ['metric_mismatch:percent_on_non_ratio',
+                                                           'metric_mismatch:metric_word_missing'])
+    code = ccn.verify(res, src)   # llm_ids 없음 = 전부 코드 행
+    self.assertEqual([code[id(g)][0] for g in rows], [True, True, True])
+
   def test_max_tokens_raises_not_empty(self):
     """③ 응답이 잘리면(max_tokens·refusal) 빈 목록이 아니라 Incomplete — 빈 목록이면 «전망 없음»으로 문서가 닫힌다."""
     for reason in ('max_tokens', 'refusal'):
