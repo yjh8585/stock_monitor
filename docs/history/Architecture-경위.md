@@ -59,3 +59,7 @@
 ## `trg_skip_identical_update` — 실측 배경 (2026-08-03)
 
 실측 배경(2026-08-03): `exchange_rates` 8,165행에 누적 UPDATE 521만 회(행당 638회), `market_series_daily` 27,784행에 1,822만 회. WAL이 하루 1.65GB씩 생성돼 Supabase Free 용량 초과의 주원인이 됐다.
+
+## `/humanoid/reports` 상세 — 드롭다운에도 제외 배열을 넘기게 된 경위 (2026-10-31)
+
+출처 쪽을 빠뜨려 감춘 경영표준 글의 출처 이름이 드롭다운에 새었다(2026-10-31).
