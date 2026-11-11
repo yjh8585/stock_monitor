@@ -7,6 +7,7 @@
 - 연결 손익: 'Three Months Ended <날짜>' 머리 + 'Combined' 칸의 Operating income (loss)
 - 도매 판매: 행 라벨이 정확히 GMNA·GMI·Total 인 표(대수 천 대 · fleet 표는 'Total fleet sales' 라 빠진다)
 - 가이던스: 머리 행에 'Updated 2026 guidance' 또는 '2027 Guidance'(4분기 판) 칸이 있는 표
+  + 같은 연도의 전망 대조표('Year Ending December 31, <연도>')에서 장부상 4종(순이익·EPS-diluted·영업현금흐름·설비투자 · Task 9)
 
 함정(실측):
   - 4분기 판(2025-01·2026-01)은 실적 요약 머리에 괄호가 없다 — '$M except per share amounts'.
@@ -45,6 +46,19 @@ GUIDANCE_ROWS = (  # (라벨 정규식, metric, 단위)
 # 전망 표 머리를 알아봤는데 이 지표가 하나라도 빠지면 라벨이 바뀐 것 — 문서를 failed 로(최종 검토 P5 · 실적 쪽
 # RESULT_REQUIRED 와 같은 방식). 실측: 2024-10~2026-10 전망 표 8편 모두 3지표가 다 있다(2026-11-10 DB)
 GUIDANCE_REQUIRED = tuple(m for _, m, _ in GUIDANCE_ROWS)
+# 장부상(reported) 연간 전망 4종(Task 9) — «있으면 뽑는다»(GUIDANCE_REQUIRED 밖 · 없어도 failed 아님).
+# 실측(2024-10~2026-10 EX-99.1 8편 · 2026-11-11): 전망 대조표(머리 'Year Ending December 31, <연도>' — 실적 대조표는
+# 'Years Ended')가 8편 모두에 있고 라벨은 아래 «|» 뒤 이름이다. 전망 표 안에도 앞 이름 행이 있는 판(2024-10·2025-01·2026-01·
+# 2026-04)은 전망 표 행이 먼저다. 4분기 판은 새 해 EPS 대조표가 없어 전망 표 'EPS-diluted' 행뿐이고, 설비투자는
+# 대조표('Less: Capital expenditures')에만 있다(4분기 판 본문 문장 'anticipated capital spending of …' 와 같은 값).
+GUIDANCE_EXTRA_ROWS = (  # (라벨 정규식, metric, 단위) — 라벨 = 전망 표 이름 | 대조표 이름
+  (r'Net income attributable to stockholders$', 'net_income_parent', 'billion'),
+  (r'(?:Automotive operating cash flow|Net automotive cash provided by operating activities)$',
+   'automotive_operating_cash_flow', 'billion'),
+  (r'(?:EPS-diluted|Diluted earnings per common share)$', 'eps_diluted', 'per_share'),
+  (r'(?:Less: )?Capital expenditures$', 'capex', 'billion'),
+)
+_RECON_HEAD = re.compile(r'^Year Ending\s+December 31, (20\d{2})$')
 # 이 칸을 못 찾으면 실적 요약 라벨이 바뀐 것 — 문서를 failed 로 드러낸다(빠진 칸만 조용히 비지 않게)
 RESULT_REQUIRED = ('revenue', 'ebit_adjusted')
 # 4분기 판(2025-01·2026-01 실물)은 괄호 없이 '$M except per share amounts'
@@ -198,16 +212,36 @@ def parse_guidance(tables) -> tuple[list[GuidanceRow], bool]:
     for row in rows[1:]:
       if len(row) != len(head) + 1:
         continue
-      for rx, metric, unit in GUIDANCE_ROWS:
+      for rx, metric, unit, basis in ([(*x, 'adjusted') for x in GUIDANCE_ROWS]
+                                      + [(*x, 'reported') for x in GUIDANCE_EXTRA_ROWS]):
         if re.match(rx, _label(row)):
           rng = parse_range(row[col + 1])
           if rng:
-            out.append(GuidanceRow(metric, _label(row), f'FY{year}', rng[0], rng[1], None, unit, 'adjusted',
+            out.append(GuidanceRow(metric, _label(row), f'FY{year}', rng[0], rng[1], None, unit, basis,
                                    row_text(row)))
     if not set(GUIDANCE_REQUIRED) <= {x.metric for x in out}:
       return [], True
-    return out, True
+    return out + parse_guidance_recon(tables, year, {x.metric for x in out}), True
   return [], False
+
+
+def parse_guidance_recon(tables, year: str, have: set[str]) -> list[GuidanceRow]:
+  """전망 대조표 중 전망 표와 같은 연도 표(4분기 판의 지난해 최종 대조표는 건너뛴다)에서 GUIDANCE_EXTRA_ROWS 중
+  아직 없는(have 밖) 지표 — 값 = 라벨 다음 첫 칸('Updated(a) | Previous' 의 Updated · 4분기 판은 칸이 하나)."""
+  out = []
+  for rows in tables:
+    m = _RECON_HEAD.match(norm_text(rows[0][0])) if rows and rows[0] else None
+    if not m or m.group(1) != year:
+      continue
+    for row in rows[1:]:
+      for rx, metric, unit in GUIDANCE_EXTRA_ROWS:
+        rng = parse_range(row[1]) if len(row) > 1 and metric not in have and re.match(rx, _label(row)) else None
+        if rng:
+          # 'Less: ' 는 대조표의 빼기 표시라 이름에서 뗀다(quote 는 행 원문 그대로)
+          out.append(GuidanceRow(metric, _label(row).removeprefix('Less: '), f'FY{year}', rng[0], rng[1], None, unit,
+                                 'reported', row_text(row)))
+          have.add(metric)
+  return out
 
 
 def apply_stated(rows: list[GuidanceRow], text: str) -> list[GuidanceRow]:
@@ -266,6 +300,48 @@ _SUMMARY_2026Q3 = [['($M) except per share amounts', 'September 30, 2026', 'Sept
 _OP_2026Q3 = [['Three Months Ended September 30, 2026'],
               ['Automotive', 'GM Financial', 'Reclassifications/Eliminations', 'Combined'],
               ['Operating income (loss)', '2,938', '660', '—', '3,598']]
+# 전망 표 + 전망 대조표 — 2026-10-20 실물(doc 196 · 3분기 판) 표 6·9·10·11. 대조표 머리 'Year Ending December 31, 2026'
+# 다음 행 'Updated(a) | Previous' — 이번 값은 라벨 다음 첫 칸
+GUIDE_2026Q3 = [['Updated 2026 guidance', 'Previous 2026 guidance'],
+                 ['EBIT-adjusted', '$14.5 billion - $15.5 billion', '$14.0 billion - $16.0 billion'],
+                 ['Adjusted automotive free cash flow', '$11.5 billion - $12.5 billion', '$9.5 billion - $11.5 billion'],
+                 ['EPS-diluted-adjusted', '$12.75 - $13.75', '$12.00 - $14.00']]
+RECON_2026Q3 = [
+  [['Year Ending December 31, 2026'], ['Updated(a)', 'Previous'],
+   ['Net income attributable to stockholders', '$ 8.9-9.5', '$ 8.4-9.8'], ['Income tax expense', '2.0-2.4', '2.2-2.8'],
+   ['Automotive interest (income) expense, net', '(0.1)', '(0.1)'], ['Adjustments', '3.7', '3.5'],
+   ['EBIT-adjusted', '$ 14.5-15.5', '$ 14.0-16.0']],
+  [['Year Ending December 31, 2026'], ['Updated(a)', 'Previous'],
+   ['Diluted earnings per common share', '$ 9.72-10.72', '$ 8.98-10.98'], ['Adjustments', '3.03', '3.02'],
+   ['EPS-diluted-adjusted', '$ 12.75-13.75', '$ 12.00-14.00']],
+  [['Year Ending December 31, 2026'], ['Updated(a)', 'Previous'],
+   ['Net automotive cash provided by operating activities', '$ 17.3-20.3', '$ 15.4-19.4'],
+   ['Less: Capital expenditures', '10.0-12.0', '10.0-12.0'], ['Adjustments', '4.2', '4.1'],
+   ['Adjusted automotive free cash flow', '$ 11.5-12.5', '$ 9.5-11.5']]]
+# 4분기 판 — 2026-01-27 실물(doc 206) 표 6·10~14. 전망 표 안에 순이익·영업현금흐름·EPS-diluted 행이 있고, 대조표는
+# 지난해 최종(2025) 3장 + 새 해(2026) 2장이다(새 해 EPS 대조표 없음 · 머리에 'Updated | Previous' 행 없음 · 공백 2칸)
+GUIDE_2026Q4 = [['Final 2025 Guidance', '2025 Results', '2026 Guidance'],
+                ['Net income attributable to stockholders', '$7.7 billion - $8.3 billion', '$2.7 billion',
+                 '$10.3 billion - $11.7 billion'],
+                ['EBIT-adjusted', '$12.0 billion - $13.0 billion', '$12.7 billion', '$13.0 billion - $15.0 billion'],
+                ['Automotive operating cash flow', '$19.2 billion - $21.2 billion', '$18.7 billion',
+                 '$19.0 billion - $23.0 billion'],
+                ['Adjusted automotive free cash flow', '$10.0 billion - $11.0 billion', '$10.6 billion',
+                 '$9.0 billion - $11.0 billion'],
+                ['EPS-diluted', '$8.30 - $9.05', '$3.27', '$11.00 - $13.00'],
+                ['EPS-diluted-adjusted', '$9.75 - $10.50', '$10.60', '$11.00 - $13.00']]
+RECON_2026Q4 = [
+  [['Year Ending  December 31, 2025'], ['Net income attributable to stockholders', '$ 7.7-8.3'],
+   ['Income tax expense', '1.8-2.2'], ['Automotive interest income, net', '(0.1)'], ['Adjustments(a)', '2.6'],
+   ['EBIT-adjusted', '$ 12.0-13.0']],
+  [['Year Ending  December 31, 2025'], ['Net automotive cash provided by operating activities', '$ 19.2-21.2'],
+   ['Less: Capital expenditures', '10.0-11.0'], ['Adjustments(a)', '0.8'], ['Adjusted automotive free cash flow', '$ 10.0-11.0']],
+  [['Year Ending  December 31, 2025'], ['Diluted earnings per common share', '$ 8.30-9.05'], ['Adjustments(a)', '1.45'],
+   ['EPS-diluted-adjusted', '$ 9.75-10.50']],
+  [['Year Ending  December 31, 2026'], ['Net income attributable to stockholders', '$ 10.3-11.7'],
+   ['Income tax expense', '2.6-3.2'], ['Automotive interest expense, net', '0.1'], ['EBIT-adjusted(a)', '$ 13.0-15.0']],
+  [['Year Ending  December 31, 2026'], ['Net automotive cash provided by operating activities', '$ 19.0-23.0'],
+   ['Less: Capital expenditures', '10.0-12.0'], ['Adjusted automotive free cash flow(a)', '$ 9.0-11.0']]]
 MUST_HIT = [
   ([[['Three Months Ended'],
      ['($M) except per share amounts', 'September 30, 2026', 'September 30, 2025', 'Change', '% Change'],
@@ -346,6 +422,16 @@ MUST_HIT = [
      ['GMNA', '793', '827'], ['GMI', '106', '85'], ['Total', '899', '912']], _OP_2026Q1],
    {('V', 'total', '2026-Q1'): 899000, ('V', 'north_america', '2026-Q1'): 793000,
     ('R', 'operating_income', '2026-Q1'): 2926.0}),
+  # 전망 대조표의 장부상 연간 전망 4종(Task 9) — 3분기 판(doc 196): 전망 표는 3행뿐 · 대조표 'Updated' 칸
+  ([GUIDE_2026Q3, *RECON_2026Q3],
+   {('G', 'ebit_adjusted', 'FY2026'): (14.5, 15.5), ('G', 'net_income_parent', 'FY2026'): (8.9, 9.5),
+    ('G', 'eps_diluted', 'FY2026'): (9.72, 10.72), ('G', 'automotive_operating_cash_flow', 'FY2026'): (17.3, 20.3),
+    ('G', 'capex', 'FY2026'): (10.0, 12.0)}),
+  # 4분기 판(doc 206): 순이익·영업현금흐름·EPS-diluted 는 전망 표 행 · 설비투자는 새 해 대조표 · 지난해 최종 대조표는 안 읽는다
+  ([GUIDE_2026Q4, *RECON_2026Q4],
+   {('G', 'ebit_adjusted', 'FY2026'): (13.0, 15.0), ('G', 'net_income_parent', 'FY2026'): (10.3, 11.7),
+    ('G', 'eps_diluted', 'FY2026'): (11.0, 13.0), ('G', 'automotive_operating_cash_flow', 'FY2026'): (19.0, 23.0),
+    ('G', 'capex', 'FY2026'): (10.0, 12.0), ('G', 'capex', 'FY2025'): None, ('G', 'net_income_parent', 'FY2025'): None}),
 ]
 # 「알아봤는데 0행」 이어야 하는 표본 — 라벨이 바뀐 것이 not_target 으로 조용히 닫히지 않고 failed 로 드러나는지
 MUST_RECOGNIZED_EMPTY = [

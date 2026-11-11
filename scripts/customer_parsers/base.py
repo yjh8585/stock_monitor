@@ -150,7 +150,11 @@ METRICS = (
   'ebit_adjusted', 'aoi', 'aoi_margin', 'adjusted_ebitda', 'adjusted_sales', 'eps_adjusted', 'operating_result_bsi',
   'adjusted_automotive_fcf', 'industrial_fcf', 'free_cash_flow', 'automotive_net_cash_flow', 'automotive_net_liquidity',
   'automotive_ncf_margin', 'automotive_ebitda_margin', 'investment_ratio', 'capex', 'bev_share', 'order_intake',
-  'deliveries', 'sales_units', 'other')
+  'deliveries', 'sales_units',
+  # Task 9 — 지표 밖 연간 전망: 조정 전 희석 EPS(per_share) · 자동차 부문 영업현금흐름 · 특수항목 총액 · 특수항목 조정 영업이익률.
+  # 각각 독립 지표라 화면 METRIC_FAMILY(같은 지표의 다른 이름 묶음)에 넣지 않는다
+  'eps_diluted', 'automotive_operating_cash_flow', 'special_items', 'operating_margin_adjusted',
+  'other')
 VOLUME_METRICS = ('shipments', 'deliveries', 'production', 'wholesale', 'sales')   # DB CHECK 와 같음
 UNITS = ('million', 'billion', 'trillion', 'per_share', 'percent', 'units', 'text')
 RESULT_UNITS = ('million', 'billion', 'per_share')                                  # DB CHECK 와 같음

@@ -86,7 +86,7 @@ SYSTEM = """너는 자동차 회사 공식 문서에서 «회사가 이번 문�
   외화도 같다: 'USD 89.7억'·'89.7억 달러' → 8970, unit=million(억은 billion 이 아니다).
 - currency: 금액·주당 값의 통화가 아래 «보고 통화»와 다르면 그 통화(KRW·USD·EUR·VND), 보고 통화이거나 금액이 아니면 null.
 - 비율 지표(revenue_growth·operating_margin·aoi_margin·automotive_ncf_margin·automotive_ebitda_margin·investment_ratio·
-  bev_share)는 unit 이 percent 또는 text 일 때만 쓴다. 투자 «금액»은 capex.
+  bev_share·operating_margin_adjusted)는 unit 이 percent 또는 text 일 때만 쓴다. 투자 «금액»은 capex.
 - 감소 전망('down 1 to 4 percent')처럼 부호가 원문 수와 달라지는 것은 숫자로 바꾸지 말고 value_text 에 원문 그대로.
 - basis 는 원문이 조정(adjusted·non-GAAP·before special items)이라고 밝혔으면 adjusted, 장부상(reported·IFRS·GAAP)이면
   reported, 밝히지 않았으면 null.
@@ -146,7 +146,7 @@ def has_quarter_mark(quote: str, values: tuple = ()) -> bool:
 
 # ---------------------------------------------------------------- 숫자 토큰 + 배수 낱말
 PERCENT_METRICS = frozenset(('revenue_growth', 'operating_margin', 'aoi_margin', 'automotive_ncf_margin',
-                             'automotive_ebitda_margin', 'investment_ratio', 'bev_share'))
+                             'automotive_ebitda_margin', 'investment_ratio', 'bev_share', 'operating_margin_adjusted'))
 SCALE = {'million': 1e6, 'billion': 1e9, 'trillion': 1e12, 'units': 1.0, 'percent': 1.0, 'per_share': 1.0}
 MONEY_UNITS = ('million', 'billion', 'trillion', 'per_share')
 _EOK = 1e8

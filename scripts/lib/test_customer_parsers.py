@@ -328,6 +328,148 @@ class GmUsDeliveriesTests(unittest.TestCase):
     f.assert_called_once()
 
 
+class GuidanceExtraTests(unittest.TestCase):
+  """Task 9 — 지표 밖 연간 전망 6개(GM 4 · VW 2). 새 키 = eps_diluted · automotive_operating_cash_flow · special_items ·
+  operating_margin_adjusted(+ 기존 net_income_parent · capex).
+  GM 본문 = 2026-10-20(doc 196 · 3분기 판)·2026-01-27(doc 206 · 4분기 판) EX-99.1 의 html_to_text 결과에서 그 구간만 옮겼다."""
+  # doc 196 — 전망 대조표 구간
+  GM_TEXT_Q3 = (
+    'Guidance Reconciliations The following table reconciles expected Net income attributable to stockholders to '
+    'expected EBIT-adjusted (dollars in billions): Year Ending December 31, 2026 Updated(a) Previous Net income '
+    'attributable to stockholders $ 8.9-9.5 $ 8.4-9.8 Income tax expense 2.0-2.4 2.2-2.8 Automotive interest (income) '
+    'expense, net (0.1) (0.1) Adjustments 3.7 3.5 EBIT-adjusted $ 14.5-15.5 $ 14.0-16.0 __________ (a) Refer to the '
+    'reconciliation of Net income (loss) attributable to stockholders to EBIT-adjusted and segment profit (loss) for '
+    'adjustment details. These expected financial results do not include the potential impact of future adjustments '
+    'related to special items . The following table reconciles expected EPS-diluted to expected EPS-diluted-adjusted: '
+    'Year Ending December 31, 2026 Updated(a) Previous Diluted earnings per common share $ 9.72-10.72 $ 8.98-10.98 '
+    'Adjustments 3.03 3.02 EPS-diluted-adjusted $ 12.75-13.75 $ 12.00-14.00 __________ (a) Refer to the reconciliation '
+    'of diluted earnings per common share to EPS-diluted-adjusted for adjustment details. These expected financial '
+    'results do not include the potential impact of future adjustments related to special items. The following table '
+    'reconciles expected automotive net cash provided by operating activities to expected adjusted automotive free '
+    'cash flow (dollars in billions): Year Ending December 31, 2026 Updated(a) Previous Net automotive cash provided by '
+    'operating activities $ 17.3-20.3 $ 15.4-19.4 Less: Capital expenditures 10.0-12.0 10.0-12.0 Adjustments 4.2 4.1 '
+    'Adjusted automotive free cash flow $ 11.5-12.5 $ 9.5-11.5')
+  # doc 206 — 전망 표 + 새 해 대조표 구간
+  GM_TEXT_Q4 = (
+    'Final 2025 Guidance 2025 Results 2026 Guidance Net income attributable to stockholders $7.7 billion - $8.3 billion '
+    '$2.7 billion $10.3 billion - $11.7 billion EBIT-adjusted $12.0 billion - $13.0 billion $12.7 billion $13.0 billion - '
+    '$15.0 billion Automotive operating cash flow $19.2 billion - $21.2 billion $18.7 billion $19.0 billion - $23.0 '
+    'billion Adjusted automotive free cash flow $10.0 billion - $11.0 billion $10.6 billion $9.0 billion - $11.0 billion '
+    'EPS-diluted $8.30 - $9.05 $3.27 $11.00 - $13.00 EPS-diluted-adjusted $9.75 - $10.50 $10.60 $11.00 - $13.00 '
+    "GM's 2026 financial guidance also includes anticipated capital spending of $10.0 billion - $12.0 billion. "
+    '2026 Guidance Reconciliations The following table reconciles expected automotive net cash provided by operating '
+    'activities to expected adjusted automotive free cash flow (dollars in billions): Year Ending December 31, 2026 '
+    'Net automotive cash provided by operating activities $ 19.0-23.0 Less: Capital expenditures 10.0-12.0 Adjusted '
+    'automotive free cash flow(a) $ 9.0-11.0')
+  NEW = ('net_income_parent', 'eps_diluted', 'automotive_operating_cash_flow', 'capex')
+
+  @classmethod
+  def setUpClass(cls):
+    from customer_parsers import gm, vw
+    cls.G, cls.V = gm, vw
+
+  def _gm(self, tables, text=''):
+    doc = base.Doc(0, 'cid', 'GM', 'edgar', 'earnings_release', '8-K', '2.02,9.01', '8-K', '', '2026-10-20')
+    return self.G.parse(doc, base.Content(text=text, tables=tables))
+
+  def _rows(self, res):
+    return {g.metric: (g.metric_label, g.low, g.high, g.unit, g.basis, g.period) for g in res.guidance
+            if g.metric in self.NEW}
+
+  def test_new_keys_in_vocab_and_llm_schema(self):
+    from lib import llm_guidance
+    new = ('eps_diluted', 'automotive_operating_cash_flow', 'special_items', 'operating_margin_adjusted')
+    self.assertLessEqual(set(new), set(base.METRICS))
+    self.assertLessEqual(set(new), set(llm_guidance.SCHEMA['properties']['items']['items']['properties']['metric']['enum']))
+    # 빠뜨리면 LLM 행의 % 단위 검사(비율 단위)가 이 키를 놓친다
+    self.assertIn('operating_margin_adjusted', llm_guidance.PERCENT_METRICS)
+
+  def test_gm_q3_reconciliation_rows(self):
+    """3분기 판 — 전망 표는 필수 3행뿐, 장부상 4지표는 전망 대조표('Year Ending December 31, 2026')의 Updated 칸."""
+    from lib import quote_check
+    res = self._gm([self.G.GUIDE_2026Q3, *self.G.RECON_2026Q3], self.GM_TEXT_Q3)
+    self.assertEqual(self._rows(res), {
+      'net_income_parent': ('Net income attributable to stockholders', 8.9, 9.5, 'billion', 'reported', 'FY2026'),
+      'eps_diluted': ('Diluted earnings per common share', 9.72, 10.72, 'per_share', 'reported', 'FY2026'),
+      'automotive_operating_cash_flow': ('Net automotive cash provided by operating activities', 17.3, 20.3, 'billion',
+                                         'reported', 'FY2026'),
+      'capex': ('Capital expenditures', 10.0, 12.0, 'billion', 'reported', 'FY2026')})
+    self.assertEqual(len(res.guidance), 7)
+    self.assertEqual(base.check_vocab(res), [])
+    for g in res.guidance:
+      if g.metric in self.NEW:
+        with self.subTest(metric=g.metric):
+          self.assertEqual(quote_check.check_row(g, self.GM_TEXT_Q3)[0], True)
+
+  def test_gm_q4_guidance_table_rows_and_new_year_reconciliation(self):
+    """4분기 판(머리 'Final 2025 Guidance | 2025 Results | 2026 Guidance') — 순이익·영업현금흐름·EPS-diluted 는 전망 표의
+    '2026 Guidance' 칸, 설비투자는 새 해 대조표. 지난해 최종(2025) 대조표에서 FY2025 행을 만들지 않는다."""
+    from lib import quote_check
+    res = self._gm([self.G.GUIDE_2026Q4, *self.G.RECON_2026Q4], self.GM_TEXT_Q4)
+    self.assertEqual(self._rows(res), {
+      'net_income_parent': ('Net income attributable to stockholders', 10.3, 11.7, 'billion', 'reported', 'FY2026'),
+      'eps_diluted': ('EPS-diluted', 11.0, 13.0, 'per_share', 'reported', 'FY2026'),
+      'automotive_operating_cash_flow': ('Automotive operating cash flow', 19.0, 23.0, 'billion', 'reported', 'FY2026'),
+      'capex': ('Capital expenditures', 10.0, 12.0, 'billion', 'reported', 'FY2026')})
+    self.assertEqual({g.period for g in res.guidance}, {'FY2026'})
+    self.assertEqual(len(res.guidance), 7)
+    for g in res.guidance:
+      if g.metric in self.NEW:
+        with self.subTest(metric=g.metric):
+          self.assertEqual(quote_check.check_row(g, self.GM_TEXT_Q4)[0], True)
+
+  def test_gm_required_stays_three(self):
+    """새 행은 «있으면 뽑는다» — 필수(GUIDANCE_REQUIRED)는 3지표 그대로라 3행뿐인 과거 판(대조표 없음)도 parsed 감."""
+    self.assertEqual(self.G.GUIDANCE_REQUIRED, ('ebit_adjusted', 'adjusted_automotive_fcf', 'eps_adjusted'))
+    res = self._gm([self.G.GUIDE_2026Q3])
+    self.assertEqual(sorted(g.metric for g in res.guidance), ['adjusted_automotive_fcf', 'ebit_adjusted', 'eps_adjusted'])
+    self.assertTrue(res.recognized)
+    # 대조표 라벨이 바뀌어도 문서는 실패가 아니다(그 행만 빠진다)
+    renamed = [[[c.replace('Diluted earnings per common share', 'Diluted EPS') for c in r] for r in t]
+               for t in self.G.RECON_2026Q3]
+    res = self._gm([self.G.GUIDE_2026Q3, *renamed])
+    self.assertNotIn('eps_diluted', self._rows(res))
+    self.assertEqual(len(res.guidance), 6)
+
+  def test_gm_reconciliation_without_guidance_table_is_ignored(self):
+    """전망 표(연도의 근거)가 없으면 대조표만으로 행을 만들지 않는다 — 'Years Ended' 실적 대조표와도 섞이지 않게."""
+    res = self._gm(self.G.RECON_2026Q3)
+    self.assertEqual((res.guidance, res.recognized), ([], False))
+
+  def test_vw_adhoc_special_items_and_adjusted_margin(self):
+    from lib import quote_check
+    doc = base.Doc(0, 'cid', 'VOW3.DE', 'ir', 'guidance', 'ad-hoc', '', '', '', '2026-09-18')
+    res = self.V.parse(doc, base.Content(text=self.V.ADHOC))
+    got = {g.metric: g for g in res.guidance}
+    si, adj = got['special_items'], got['operating_margin_adjusted']
+    self.assertEqual((si.low, si.high, si.unit, si.period, si.value_text), (10.0, 10.0, 'billion', 'FY2026', 'around 10 billion'))
+    self.assertEqual((adj.low, adj.high, adj.unit, adj.basis, adj.value_text),
+                     (4.0, 4.0, 'percent', 'adjusted', 'about 4 percent'))
+    self.assertEqual((got['operating_margin'].low, got['operating_margin'].high), (None, 1.0))   # 기존 칸 그대로
+    self.assertEqual(base.check_vocab(res), [])
+    for g in (si, adj):
+      with self.subTest(metric=g.metric):
+        self.assertEqual(quote_check.check_row(g, self.V.ADHOC)[0], True)
+
+  def test_direction_for_new_key_compares_values(self):
+    """방향 판정은 metric 단위 — 새 키도 같은 규칙(GM 2026-07-21 doc 199 → 2026-10-20 doc 196 대조표 실물 값)."""
+    from lib import guidance_direction
+    rows = [
+      {'id': 1, 'metric': 'eps_diluted', 'period': 'FY2026', 'published_at': '2026-07-21', 'document_id': 199,
+       'extractor': 'code', 'low': 8.98, 'high': 10.98, 'value_text': None, 'stated': None, 'unit': 'per_share',
+       'currency': 'USD'},
+      {'id': 2, 'metric': 'eps_diluted', 'period': 'FY2026', 'published_at': '2026-10-20', 'document_id': 196,
+       'extractor': 'code', 'low': 9.72, 'high': 10.72, 'value_text': None, 'stated': None, 'unit': 'per_share',
+       'currency': 'USD'},
+      {'id': 3, 'metric': 'capex', 'period': 'FY2026', 'published_at': '2026-07-21', 'document_id': 199,
+       'extractor': 'code', 'low': 10.0, 'high': 12.0, 'value_text': None, 'stated': None, 'unit': 'billion',
+       'currency': 'USD'},
+      {'id': 4, 'metric': 'capex', 'period': 'FY2026', 'published_at': '2026-10-20', 'document_id': 196,
+       'extractor': 'code', 'low': 10.0, 'high': 12.0, 'value_text': None, 'stated': None, 'unit': 'billion',
+       'currency': 'USD'}]
+    self.assertEqual(dict(guidance_direction.assign(rows)), {1: 'initiated', 2: 'raised', 3: 'initiated', 4: 'maintained'})
+
+
 class VocabTests(unittest.TestCase):
   def test_base_self_test(self):
     self.assertEqual(base.self_test(), [])

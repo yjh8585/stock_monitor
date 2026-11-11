@@ -11,7 +11,8 @@
 - 특수항목 전 영업이익: '8.8 billion EUR Operating Result before special items in 9M 2026' (누계) · 연간 판은
   'before special effects in 2025'(기간 낱말 없음 = 연간). 1분기·2025 9M 판에는 없다(늘 있는 칸 아님).
 - 전망: 'Outlook for 2026' · 'Adjusted Outlook for 2026' · 'Outlook for fiscal year 2025 as of …' 문단 5항목
-  (매출 · 영업이익률 · 투자 비율 · 순현금흐름 · 순유동성) + ad-hoc 'updates its forecast for fiscal year 2026' 문단.
+  (매출 · 영업이익률 · 투자 비율 · 순현금흐름 · 순유동성) + ad-hoc 'updates its forecast for fiscal year 2026' 문단
+  (2026-09-18 판은 특수항목 총액·특수항목 조정 영업이익률도 — Task 9).
   매출은 반기까지 증감률(revenue_growth) → 9개월부터 금액(revenue) — metric 이 달라 방향 비교 대상이 아니다.
   '(previously: …)'·'previous forecast …' 는 이전 값이라 뽑지 않는다(방향은 guidance_direction 이 직전 검증 행과 비교).
   보고서 KPI 표의 'Original Forecast' 열은 읽지 않는다(이번 전망만 — 같은 날짜 두 행이 생기면 방향이 꼬인다).
@@ -80,7 +81,17 @@ _G = (  # (정규식, metric, 회사 라벨, 단위, basis, 항목 묶음) — �
   (re.compile(r'net liquidity in the Automotive Division is (?:still )?expected to (?:range |amount to |be )?'
               + _RANGE_WORD + ' ' + _EUR + _BN + r'(?: (?:and|to) ' + _EUR + r'([\d.]+))? billion', re.I),
    'automotive_net_liquidity', 'Automotive net liquidity', 'billion', None, 'liquidity'),
+  # 특수항목 총액·특수항목 조정 영업이익률(Task 9) — 실물은 ad-hoc 2026-09-18(doc 1527) 1건뿐(실적 보도자료 Outlook 문단엔
+  # 없다 · 2026-11-11 확인). 'previous forecast' 처럼 이전 값이 아니라 이번 연간 전망이다
+  (re.compile(r'Special effects totaling ' + _RANGE_WORD + ' ' + _EUR + _BN + r'(?: (?:and|to) ' + _EUR + r'([\d.]+))? '
+              r'billion', re.I),
+   'special_items', 'Special effects', 'billion', None, 'special'),
+  (re.compile(r'Adjusted for (?:the )?special (?:effects|items), the operating return on sales (?:for the full year 20\d{2} )?'
+              r'would amount to (about|around|between|up to) ([\d.]+)(?: (?:and|to) ([\d.]+))? percent', re.I),
+   'operating_margin_adjusted', 'Operating return on sales adjusted for special effects', 'percent', 'adjusted',
+   'margin_adjusted'),
 )
+_APPROX = ('around', 'about')   # 근사 낱말 — 숫자는 그대로 두고 원문 구절을 value_text 로
 # 전망 변경 표식(실물 문장꼴에서 뽑음) — ad-hoc 'now expects' · 'previous forecast' · 'continues to expect' ·
 # 'is still expected', 반기 판 '(previously: …)'. 전망 구간 안 이 표식 문장은 뽑은 행 quote 가 덮어야 한다
 _CHANGE_MARK = re.compile(r'now (?:expects|targets|anticipates|projects)|previous forecast|previously:|continues to expect|'
@@ -212,9 +223,9 @@ def parse_outlook(text: str) -> tuple[list[GuidanceRow], bool]:
         m = rx.search(body)
         if m and group not in found:
           lo, hi = _range(m.group(1), m.group(2), m.group(3))
-          # 'around' 는 근사 — 숫자는 그대로 두고 원문 구절('around €315 billion')을 value_text 로 남겨 화면이 「약」을 붙인다
-          # (전망을 단정으로 바꾸지 않기 · Task 15 Codex 대조). 구절은 quote 의 꼬리라 quote_check 를 그대로 통과한다
-          approx = m.group(0)[m.start(1) - m.start(0):] if m.group(1).lower() == 'around' else None
+          # 'around'·'about' 은 근사 — 숫자는 그대로 두고 원문 구절('around €315 billion')을 value_text 로 남겨 화면이
+          # 「약」을 붙인다(전망을 단정으로 바꾸지 않기 · Task 15 Codex 대조). 구절은 quote 의 꼬리라 quote_check 를 그대로 통과한다
+          approx = m.group(0)[m.start(1) - m.start(0):] if m.group(1).lower() in _APPROX else None
           found[group] = GuidanceRow(metric, label, f'FY{year}', lo, hi, approx, unit, basis, m.group(0))
       tm = _G_TEXT.search(body)
       if tm and 'revenue' not in found:
@@ -361,9 +372,12 @@ MUST_HIT = [  # (표, 본문, 기대 {키: 값} · ('N',) = 값 행 수)
                   ('G', 'operating_margin', 'FY2025'): (2.0, 3.0), ('G', 'investment_ratio', 'FY2025'): (12.0, 13.0),
                   ('G', 'automotive_net_cash_flow', 'FY2025'): (0.0, 0.0),
                   ('G', 'automotive_net_liquidity', 'FY2025'): (30.0, 30.0), ('N',): 5, ('H',): False}),
+  # 특수항목 총액(special_items)·특수항목 조정 영업이익률(operating_margin_adjusted)도 연간 전망 문장이다(Task 9)
   ([], ADHOC, {('G', 'revenue', 'FY2026'): (315.0, 315.0), ('G', 'operating_margin', 'FY2026'): (None, 1.0),
                ('G', 'automotive_net_cash_flow', 'FY2026'): (3.0, 6.0),
-               ('G', 'automotive_net_liquidity', 'FY2026'): (32.0, 34.0), ('N',): 4, ('H',): False}),
+               ('G', 'automotive_net_liquidity', 'FY2026'): (32.0, 34.0),
+               ('G', 'special_items', 'FY2026'): (10.0, 10.0), ('G', 'operating_margin_adjusted', 'FY2026'): (4.0, 4.0),
+               ('N',): 6, ('H',): False}),
   # 반기 판 — 퍼센트 칸 '–6,3'·'–9.5'(독일식·en dash)여도 칸 위치로 읽는다
   ([[['Q2', 'H1'], ['2026', '2025', '%', '2026', '2025', '%'],
      ['Vehicle sales (units)', '2,043', '2,263', '-9.7', '3,997', '4,363', '-8,4'],
@@ -411,7 +425,8 @@ MUST_MISS = [  # (표, 본문, 판정(got) → 참이어야 함, 사유)
    '브랜드 그룹 표에서 영업이익을 읽었다'),
   # '(previously: range of 0 to +3 percent)' 는 이전 값 — 이번 값(-3~0)만
   ([], OUT_H1, lambda g: g.get(('G', 'revenue_growth', 'FY2026')) == (-3.0, 0.0), '반기 판에서 이전 매출 전망을 읽었다'),
-  # ad-hoc 의 'previous forecast 4.0 to 5.5' · 'midpoint … -3 to 0 percent' · 조정 영업이익률 'about 4 percent' 는 이번 전망 아님
+  # ad-hoc 의 'previous forecast 4.0 to 5.5' · 'midpoint … -3 to 0 percent' 는 이번 전망 아님 · 조정 영업이익률
+  # 'about 4 percent' 는 operating_margin 칸의 값이 아니다(operating_margin_adjusted 칸 — MUST_HIT)
   ([], ADHOC, lambda g: g.get(('G', 'operating_margin', 'FY2026')) == (None, 1.0)
    and ('G', 'revenue_growth', 'FY2026') not in g, 'ad-hoc 에서 이전·조정 값을 읽었다'),
   # 전망 문단 끝('continues to pursue its objective') 뒤 브랜드 그룹 문단의 문장은 그룹 전망이 아니다 — 문단에서 빠진
@@ -470,6 +485,8 @@ APPROX_SAMPLES = [
   (OUT_9M, 'automotive_net_cash_flow', None),                  # 'between €3 billion and €6 billion'
   (OUT_9M, 'operating_margin', None),                          # 'up to 1 percent'
   (OUT_2025, 'automotive_net_liquidity', 'around EUR 30 billion'),
+  (ADHOC, 'special_items', 'around 10 billion'),               # 'Special effects totaling around 10 billion euros'
+  (ADHOC, 'operating_margin_adjusted', 'about 4 percent'),     # 'about' 도 근사 — 'would amount to about 4 percent'
 ]
 
 
