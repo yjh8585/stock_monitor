@@ -101,6 +101,15 @@ class Pages(unittest.TestCase):
     self.assertIsNone(cdp.render_page(b, 3))
     self.assertIsNone(cdp.render_page(b'not a pdf', 1))
 
+  def test_source_text_tables_are_three_deep(self):
+    # Content.tables = [표[행[칸]]] — 행 목록으로 읽으면 AttributeError(EDGAR·XLSX 실측 2026-11-12)
+    c = Content('body', [[['Revenue', '4,213'], ['Deliveries', '42,000']], [['Margin', '5%']]], b'<html>')
+    text, is_pdf, n = scd.source_text(c)
+    self.assertFalse(is_pdf)
+    self.assertEqual(n, 0)
+    self.assertIn('Revenue | 4,213', text)
+    self.assertIn('Margin | 5%', text)
+
 
 class SummarizeDoc(unittest.TestCase):
   def setUp(self):

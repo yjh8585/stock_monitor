@@ -106,7 +106,7 @@ def source_text(content) -> tuple[str, bool, int]:
   if raw[:5] == b'%PDF-':
     text, pages = page_marked_text(raw)
     return text, True, pages
-  rows = '\n'.join(row_text(r) for r in content.tables or [])
+  rows = '\n'.join(row_text(r) for t in content.tables or [] for r in t)   # tables = [표[행[칸]]] — 세 겹
   return (content.text or '') + ('\n' + rows if rows else ''), False, 0
 
 
