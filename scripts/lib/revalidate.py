@@ -110,6 +110,8 @@ COLUMN_TO_TAGS = {
     'customer_reported_results': ['customer_reported_results'],
     'customer_earnings_dates': ['customer_earnings_dates'],
     'customer_collect_status': ['customer_collect_status'],
+    'customer_doc_summaries': ['customer_doc_summaries'],
+    'customer_news_weekly': ['customer_news_weekly'],
     'pnl_cost_structure': ['pnl_cost_structure'],
     'pnl_fixed_variable': ['pnl_fixed_variable'],
     'pnl_plan': ['pnl_plan'],

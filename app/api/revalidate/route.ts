@@ -62,6 +62,8 @@ const ALL_TAGS = [
   'customer_reported_results',
   'customer_earnings_dates',
   'customer_collect_status',
+  'customer_doc_summaries',
+  'customer_news_weekly',
   'pnl_cost_structure',
   'pnl_fixed_variable',
   'pnl_plan',

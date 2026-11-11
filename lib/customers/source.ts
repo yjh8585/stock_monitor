@@ -5,7 +5,7 @@
 import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
-import { currentYear } from '@/lib/currentYear';
+import { currentYear, todaySeoul } from '@/lib/currentYear';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
 import { fetchPnlEntries } from '@/lib/pnl/source';
@@ -21,6 +21,15 @@ import { priceReturns } from './prices';
 import { groupMonthToSaleRows } from './volume';
 import { revenueKrw, type RateRow } from './krw';
 import { guidanceSignal, type SignalColor } from './signals';
+import {
+  byRecent,
+  pickRecentImportant,
+  toDocSummary,
+  toNewsWeek,
+  type DocSummary,
+  type NewsWeek,
+  type RecentDoc,
+} from './summaries';
 import {
   buildVolumeSeries,
   droppedCurrencies,
@@ -67,6 +76,8 @@ export interface CustomerOverviewIr {
   /** 그 변경이 속한 카드의 신호등 색(상세 카드와 같은 판정). 변경이 없으면 null. */
   guidanceSignal: SignalColor | null;
   earningsDates: EarningsDateRow[];
+  /** 「최근 중요 문서」 — 요약 ok · 중요도 상 · 게시일 30일 안 중 가장 최근(pickRecentImportant). 없으면 null. */
+  recentDoc: RecentDoc | null;
 }
 
 export interface CustomersOverview {
@@ -115,6 +126,10 @@ export interface CustomerIr {
   reported: ReportedRow[];
   earningsDates: EarningsDateRow[];
   collectStatus: CollectStatusItem[];
+  /** 공식 문서 요약 — status ok · 최신순 · 최대 30. */
+  docSummaries: DocSummary[];
+  /** 주간 뉴스 요약 — status ok · 최근 4주(최신순). */
+  newsWeeks: NewsWeek[];
 }
 
 export interface CustomerDetail {
@@ -346,16 +361,21 @@ export async function getCustomersOverview(): Promise<CustomersOverview> {
   cacheTag('customer_reported_results');
   cacheTag('customer_earnings_dates');
   cacheTag('customer_collect_status');
+  cacheTag('customer_doc_summaries');
   // exchange_rates 태그는 일부러 안 단다 — 환율 수집이 매시간 돌아 태그를 달면 이 무거운 캐시가 매시간 버려진다
   // (docs/isr-write-optimization.md ⑤ 와 같은 꼴). 원화 칸은 끝난 분기의 평균 환율이라 cacheLife('days') 로 충분하다.
   const accounts = await fetchAccounts();
   const ids = accounts.map((a) => a.company_id);
-  const [{ rows, windowLabel }, guidance, dates, reported] = await Promise.all([
+  const [{ rows, windowLabel }, guidance, dates, reported, importantDocs] = await Promise.all([
     buildRows(accounts),
     fetchGuidance(ids),
     fetchEarningsDates(ids),
     fetchReportedMany(ids),
+    fetchImportantDocSummaries(ids),
   ]);
+  // SHORTCUT: 「30일 안」 판정이 캐시 시점의 오늘이라 cacheLife('days') 동안 하루쯤 늦게 빠질 수 있다
+  //   → 정확히 하려면 후보 목록을 넘기고 화면이 todaySeoul() 로 고른다(「다음 실적」 nextEarnings 꼴).
+  const today = todaySeoul();
   // 실적 칸은 상세와 같은 규칙(결정 R6) — 해외는 회사 공시 우선, 국내는 financials 그대로.
   const picked = rows.map((x) => {
     const id = x.row.company_id;
@@ -397,7 +417,8 @@ export async function getCustomersOverview(): Promise<CustomersOverview> {
           reportCurrencyOf(reported.get(x.row.company_id) ?? [])
         ),
         earnings,
-        dates.get(x.row.company_id) ?? []
+        dates.get(x.row.company_id) ?? [],
+        recentDocOf(pickRecentImportant(importantDocs.get(x.row.company_id) ?? [], today))
       ),
     })),
   };
@@ -410,16 +431,30 @@ export async function getCustomersOverview(): Promise<CustomersOverview> {
 function overviewIr(
   hit: ReturnType<typeof latestGuidanceChangeWithCard>,
   earnings: CustomerEarnings,
-  earningsDates: EarningsDateRow[]
+  earningsDates: EarningsDateRow[],
+  recentDoc: RecentDoc | null
 ): CustomerOverviewIr {
-  if (!hit) return { guidanceChange: null, guidanceSignal: null, earningsDates };
+  if (!hit) return { guidanceChange: null, guidanceSignal: null, earningsDates, recentDoc };
   const fy = Number(hit.card.period.replace(/^FY/, ''));
   const prior = earnings.annual.find((p) => p.fiscal_year === fy - 1) ?? null;
   return {
     guidanceChange: hit.change,
     guidanceSignal: guidanceSignal(hit.card, prior, earnings.currency).color,
     earningsDates,
+    recentDoc,
   };
+}
+
+function recentDocOf(d: DocSummary | null): RecentDoc | null {
+  return d
+    ? {
+        docId: d.docId,
+        docType: d.docType,
+        title: d.title,
+        publishedAt: d.publishedAt,
+        reason: d.importanceReason,
+      }
+    : null;
 }
 
 /** 통화별 원화 일별 환율(전전년 1월부터 — 최근 분기 환산에 충분). 정렬 = PK(base, quote, rate_date) — quote 는 KRW 하나. */
@@ -596,6 +631,61 @@ async function fetchCollectStatus(companyId: string): Promise<CollectStatusItem[
   return data ?? [];
 }
 
+const DOC_SUMMARY_COLS =
+  'doc_id,company_id,importance,importance_reason,lines,pages,customer_documents(doc_type,title,url,published_at)';
+
+/** 공식 문서 요약 — status ok 만(check_failed 는 화면에 안 낸다 · 틀린 요약보다 빈칸). 정렬 = PK(doc_id). */
+async function fetchDocSummaryRows(companyIds: string[], importance?: 'high') {
+  return fetchAllPages('customer_doc_summaries', (from, to) => {
+    let q = confidentialDb
+      .from('customer_doc_summaries')
+      .select(DOC_SUMMARY_COLS)
+      .in('company_id', companyIds)
+      .eq('status', 'ok');
+    if (importance) q = q.eq('importance', importance);
+    return q.order('doc_id', { ascending: true }).range(from, to);
+  });
+}
+
+async function fetchDocSummaries(companyId: string): Promise<DocSummary[]> {
+  const rows = await fetchDocSummaryRows([companyId]);
+  return rows
+    .flatMap((r) => {
+      const d = toDocSummary(r);
+      return d ? [d] : [];
+    })
+    .sort(byRecent)
+    .slice(0, 30);
+}
+
+/** 요약 표용 — 회사별 중요도 상 요약(「최근 중요 문서」 후보). */
+async function fetchImportantDocSummaries(
+  companyIds: string[]
+): Promise<Map<string, DocSummary[]>> {
+  const out = new Map<string, DocSummary[]>();
+  if (companyIds.length === 0) return out;
+  for (const r of await fetchDocSummaryRows(companyIds, 'high')) {
+    const d = toDocSummary(r);
+    if (d) out.set(r.company_id, [...(out.get(r.company_id) ?? []), d]);
+  }
+  return out;
+}
+
+async function fetchNewsWeeks(companyId: string): Promise<NewsWeek[]> {
+  const { data, error } = await confidentialDb
+    .from('customer_news_weekly')
+    .select('week_start,lines,links')
+    .eq('company_id', companyId)
+    .eq('status', 'ok')
+    .order('week_start', { ascending: false })
+    .limit(4);
+  if (error) throw new Error(`customer_news_weekly 조회 실패: ${error.message}`);
+  return (data ?? []).flatMap((r) => {
+    const w = toNewsWeek(r);
+    return w ? [w] : [];
+  });
+}
+
 /**
  * 해외 회사 실적 칸 고르기(pickEarnings)의 서버 래퍼 — 화면은 이것을 부른다.
  * 실적 통화와 달라 버린 회사 행이 있으면 경고 한 줄(회사 id·통화만 — 금액 없음). 버리면 그 칸이 조용히 시장 값으로 돌아간다.
@@ -633,19 +723,32 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
   cacheTag('customer_reported_results');
   cacheTag('customer_earnings_dates');
   cacheTag('customer_collect_status');
+  cacheTag('customer_doc_summaries');
+  cacheTag('customer_news_weekly');
   const account = (await fetchAccounts()).find((a) => a.slug === slug);
   if (!account) return null;
   const id = account.company_id;
-  const [companies, documents, guidance, volume, reported, dates, collectStatus] =
-    await Promise.all([
-      fetchCompanies([id]),
-      fetchDocuments(id),
-      fetchGuidance([id]),
-      fetchVolume(id),
-      fetchReported(id),
-      fetchEarningsDates([id]),
-      fetchCollectStatus(id),
-    ]);
+  const [
+    companies,
+    documents,
+    guidance,
+    volume,
+    reported,
+    dates,
+    collectStatus,
+    docSummaries,
+    newsWeeks,
+  ] = await Promise.all([
+    fetchCompanies([id]),
+    fetchDocuments(id),
+    fetchGuidance([id]),
+    fetchVolume(id),
+    fetchReported(id),
+    fetchEarningsDates([id]),
+    fetchCollectStatus(id),
+    fetchDocSummaries(id),
+    fetchNewsWeeks(id),
+  ]);
   const company = companies.get(id);
   if (!company) return null; // hidden·병합된 회사 — getCustomerDetail 과 같은 판정
   const guidanceRows = guidance.get(id) ?? [];
@@ -660,6 +763,8 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
     reported,
     earningsDates: dates.get(id) ?? [],
     collectStatus,
+    docSummaries,
+    newsWeeks,
   };
 }
 
