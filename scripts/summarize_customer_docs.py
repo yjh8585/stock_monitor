@@ -226,6 +226,8 @@ def summarize_doc(llm, row: dict, company: str, content, sha: str | None, *, dry
         print(f'    문서 {row["id"]} {_page_fail_note(p["page"], why)} — key 없이 남김')
         notes.append(_page_fail_note(p['page'], why))
       pages.append({'page': int(p['page']), 'caption': p['caption'], 'key': key})
+  elif is_pdf:   # 검사 실패 — 캡처 없이 고른 쪽·캡션만 남긴다(--recheck 가 통과시키면 그때 캡처 · 화면은 ok 행만 읽는다)
+    pages = [{'page': p.get('page'), 'caption': p.get('caption'), 'key': None} for p in r['pages']]
 
   out = {
     'doc_id': row['id'], 'company_id': row['company_id'], 'status': status,

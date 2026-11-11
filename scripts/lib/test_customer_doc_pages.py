@@ -154,6 +154,9 @@ class SummarizeDoc(unittest.TestCase):
     self.assertEqual(self.uploads, [])                       # 검사 실패면 캡처하지 않는다
     self.assertEqual(ws.writes[0][1]['status'], 'check_failed')
     self.assertIn('숫자', ws.writes[0][1]['check_note'])
+    # 고른 쪽·캡션은 key 없이 남긴다 — 검사기를 고친 뒤 --recheck 가 통과시키면 그때 캡처한다
+    # (소급 2026-11-12: pages=[] 로 저장해 재검사로 ok 가 된 PDF 6건의 쪽을 되살릴 수 없었다)
+    self.assertEqual(ws.writes[0][1]['pages'], [{'page': 2, 'caption': '지역별 인도 표', 'key': None}])
 
   def test_upload_failure_keeps_page_without_key(self):
     # Codex 지적 8(2026-11-12): 실패한 쪽을 지우면 복구 대상에서 사라진다 → key=None 으로 남기고 사유를 check_note 에
