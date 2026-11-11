@@ -17,6 +17,7 @@
   · 파서 제외 — 파서 LLM_DROP(빈패스트 이륜차)
   · 규모 — quote 의 값 숫자에 붙은 배수 낱말(조·억·만·천·billion·B·M·in thousands …)로 구한 원문 절대값 ≠ low×단위
   · text 숫자 · 비율 단위 — unit='text' 인데 숫자 / 비율 지표에 percent 가 아닌 단위
+  · 지표 불일치 — 비율 지표가 아닌 키에 % 값 · 그 키의 낱말이 라벨·quote 어디에도 없다(metric_mismatch · 총주주환원율→FCF)
   · 통화 — 값 바로 옆에 보고 통화가 아닌 통화 표지가 있는데 currency 가 비었다
   · 과거 연도 — year < 문서 발행 연도(과거 실적 오독 · 상태 행 other 는 제외) · 범위 뒤집힘 — low > high (최종 검토 P9)
   stated 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·increase·reaffirm·lower·trim·withdraw·상향·올린·유지·낮춘 …)이
@@ -339,9 +340,14 @@ def to_rows(items: list[dict]) -> list[GuidanceRow]:
 # withdrawn 을 숫자보다 먼저 쓰므로, 근거 낱말 없는 stated 는 지운다(행은 남긴다). 영어는 \b 로 낱말 머리만
 # ('execution' 속 cut · 'flower' 속 lower 를 안 잡게) · 한국어는 명사(상향·하향·유지·철회)와 동사 활용형을 낱낱이
 # (올려·올린·높여·높인 / 낮춰·낮춘·내려·내린 — 어간 「올리」「낮추」는 활용하면 글자가 바뀌어 부분 일치로 안 걸린다 · 잔여 Minor 3).
+# raised 의 올림 낱말 중 rais 만 단독으로 근거다 — increas·boost·상향·올린 …은 실적 문장('Revenue increased 12%' ·
+# '매출을 올린 분기')에도 쓰여, 같은 quote 에 전망 낱말이 함께 있을 때만 근거로 본다(Task 10). 전망 낱말은 명사라 활용형이
+# 없다 · plan 은 'plant' 를 안 잡게 낱말 끝까지.
+_RAISE_ALONE = re.compile(r'\brais(?:e|ed|es|ing)\b', re.I)
+_RAISE_WORD = re.compile(r'\bincreas|\bboost|\bupgrad|\blift(?:s|ed|ing)?\b|상향|올려|올린|높여|높인', re.I)
+_OUTLOOK_WORD = re.compile(r'\bguidance|\boutlook|\bforecast|\btarget|\bexpect|\bplan(?:s|ned)?\b|\brange|\bprojection|'
+                           r'전망|목표|가이던스|계획', re.I)
 _STATED_WORDS = {
-  'raised': re.compile(r'\brais(?:e|ed|es|ing)\b|\bincreas|\bboost|\bupgrad|\blift(?:s|ed|ing)?\b|'
-                       r'상향|올려|올린|높여|높인', re.I),
   'maintained': re.compile(r'\b(?:re)?affirm|\b(?:re)?confirm|\bmaintain|\breiterat|\bunchanged\b|'
                            r'\bcontinu(?:e|es|ed|ing) to expect|\bremains?\s+(?:in\s+line|on\s+track)|유지|재확인', re.I),
   'lowered': re.compile(r'\blower(?:s|ed|ing)?\b|\breduc|\bcut(?:s|ting)?\b|\bdecreas|\btrim(?:s|med|ming)?\b|'
@@ -351,11 +357,49 @@ _STATED_WORDS = {
 
 
 def stated_supported(g: GuidanceRow) -> bool:
-  return g.stated is None or bool(_STATED_WORDS[g.stated].search(g.quote or ''))
+  q = g.quote or ''
+  if g.stated == 'raised':
+    return bool(_RAISE_ALONE.search(q) or (_RAISE_WORD.search(q) and _OUTLOOK_WORD.search(q)))
+  return g.stated is None or bool(_STATED_WORDS[g.stated].search(q))
+
+
+# metric 키 → 라벨 또는 quote 에 있어야 하는 낱말(Task 10). 프롬프트가 «맞는 지표가 없으면 만들지 말라»고 해도 LLM 이
+# 어휘 밖 지표(총주주환원율 35%+)를 가까운 키(free_cash_flow)에 밀어 넣고, 숫자는 원문에 있어 인용 대조를 통과했다
+# (customer_guidance 345). 낱말은 키의 뜻 + DB 실물 라벨(METRIC_MISMATCH_KEEP)에서만 — 한국어는 활용 없는 명사뿐이고
+# 띄어쓰기 변이만 \s*.
+# SHORTCUT: 실물 라벨이 아직 없는 키(net_income·aoi·operating_result_bsi·Task 9 의 4종 등)는 낱말 검사를 하지 않는다(% 검사만)
+#   → 그 키의 LLM 행이 쌓이면 라벨을 보고 한 줄씩 더한다.
+_FCF = r'free\s+cash\s*flows?|\bFCF\b|잉여\s*현금'
+_REVENUE = r'revenue|\bsales\b|매출'
+_METRIC_WORDS = {k: re.compile(p, re.I) for k, p in {
+  'revenue': _REVENUE, 'revenue_growth': _REVENUE, 'adjusted_sales': r'\bsales\b',
+  'operating_income': r'operating\s+(?:income|profit)|영업\s*이익',
+  'operating_margin': r'return\s+on\s+sales|operating\s+(?:income\s+|profit\s+)?margin|영업\s*이익\s*률',
+  'aoi_margin': r'\bAOI\b|operating\s+income\s+margin',
+  'ebit_adjusted': r'\bEBIT\b', 'adjusted_ebitda': r'\bEBITDA\b', 'automotive_ebitda_margin': r'\bEBITDA\b',
+  'eps_adjusted': r'\bEPS\b|earnings\s+per\s+share|주당',
+  'free_cash_flow': _FCF, 'adjusted_automotive_fcf': _FCF, 'industrial_fcf': _FCF,
+  'automotive_net_cash_flow': r'net\s+cash\s*flow', 'automotive_ncf_margin': r'net\s+cash\s*flow',
+  'automotive_net_liquidity': r'liquidity',
+  'capex': r'capital\s+expenditure|\bcapex\b|investment|투자', 'investment_ratio': r'investment|투자',
+  'bev_share': r'\bBEV\b|electric|전기차', 'order_intake': r'\border|수주',
+  'deliveries': r'\bdeliver|인도', 'sales_units': r'\bsales\b|판매',
+}.items()}
+
+
+def metric_mismatch(g: GuidanceRow) -> bool:
+  """LLM 행의 metric 키가 라벨·quote 와 안 맞는다 — (a) 비율 지표가 아닌 키에 % 값 (b) 그 키의 낱말이 라벨에도 quote 에도 없다."""
+  if g.metric == 'other':
+    return False
+  if g.unit == 'percent' and g.metric not in PERCENT_METRICS:
+    return True
+  words = _METRIC_WORDS.get(g.metric)
+  return words is not None and not (words.search(g.metric_label or '') or words.search(g.quote or ''))
 
 
 REASON_PAST_YEAR = '과거 연도'
 REASON_RANGE = '범위 뒤집힘'
+REASON_METRIC = '지표 불일치'
 STATED_CLEARED = 'stated 근거 없음'   # 버림이 아니라 고침(행은 남고 stated 만 None) — '억→million 환산' 과 같은 갈래
 NOT_DROPPED = frozenset({'억→million 환산', STATED_CLEARED})   # why 의 키 중 «버림 수»에 안 넣는 것
 
@@ -386,7 +430,8 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
       if fixed is not g:
         why['억→million 환산'] += 1
         g = fixed
-      reason = unit_mismatch(g) or ('규모' if scale_mismatch(g) else None)
+      reason = (unit_mismatch(g) or (REASON_METRIC if metric_mismatch(g) else None)
+                or ('규모' if scale_mismatch(g) else None))
     if reason is None:
       if g.unit not in MONEY_UNITS or g.currency == base_currency:
         g = replace(g, currency=None) if g.currency else g   # 비금액·보고 통화 = None(칸 뜻: None = 회사 보고 통화)
@@ -569,6 +614,10 @@ STATED_HIT = [   # stated 가 그대로 남아야 한다
   ('raised', '영업이익률 목표를 높인 7~8%'),
   ('lowered', '연간 판매 목표를 400만 대로 낮춰 잡았다'),
   ('lowered', '투자 계획을 내린 15조 원'),
+  # Task 10 — 올림 낱말(increas·boost·상향·올려 …)은 같은 quote 의 전망 낱말과 함께일 때만
+  ('raised', '연간 매출 목표를 상향'),
+  ('raised', '전망을 올려'),
+  ('raised', '투자 계획을 상향'),
 ]
 STATED_MISS = [  # stated 를 지워야 한다(행은 남는다)
   ('raised', 'The Company now expects 2026 adjusted sales to be between $7.55 billion to $7.60 billion versus prior '
@@ -578,6 +627,9 @@ STATED_MISS = [  # stated 를 지워야 한다(행은 남는다)
   ('lowered', 'Disciplined cost execution supports 2026 operating margin of 5%'),   # execution 속 'cut'
   ('raised', 'The Company lowered its 2026 sales guidance to $7.0 billion'),          # 낱말이 다른 방향
   ('lowered', 'Acme Motors raised its 2026 deliveries outlook to 70,000 vehicles'),
+  # Task 10 — 실적 문장의 '늘었다'(전망 낱말 없음)는 raised 근거가 아니다
+  ('raised', 'Revenue increased 12% year over year to $5.2 billion.'),
+  ('raised', '판매가 늘어 매출을 올린 분기'),
 ]
 # (year, low, high, 발행 연도) → 버려지나(최종 검토 P9 — 과거 실적 오독 · 범위 뒤집힘)
 SHAPE_CASES = [
@@ -594,6 +646,63 @@ STATUS_PAST_KEEP = ['Stellantis confirms that it achieved its 2025 financial gui
 # 파서 LLM_DROP 을 screen 이 쓰는지(장치 시험 — 빈패스트 정규식 자체의 실물 시험은 vinfast.self_test)
 _DROP_PROBE = re.compile(r'scooter', re.I)
 DROP_MISS = ['For the full year 2025, the Company delivered 406,498 e-scooters and e-bikes, representing a 473% increase.']
+# (metric, metric_label, unit, quote) — 어휘 밖 지표를 가까운 키에 밀어 넣은 LLM 행(Task 10 — customer_guidance 345 ·
+# 문서 1740 현대 CID: 총주주환원율을 free_cash_flow 로 · 대조는 통과했다)
+METRIC_MISMATCH_MISS = [
+  ('free_cash_flow', '총주주환원율', 'percent', '•총주주환원율 35%+ 달성 (’25~’27년) '),
+  ('free_cash_flow', '총주주환원율', 'trillion', '•총주주환원율 35%+ 달성'),   # 단위가 맞아도 낱말이 없으면
+  ('revenue', 'Group sales revenue', 'percent', 'Group sales revenue growth of 5%'),   # 금액 지표에 % 값
+]
+# 버리면 안 되는 실물 라벨(2026-11-11 DB customer_guidance 의 그 키 라벨 전부 — 코드·LLM 행 · 값은 싣지 않는다).
+# (metric, metric_label, unit, quote) — quote 는 라벨에 낱말이 있으면 비워 둔다(라벨 또는 quote 중 하나면 통과)
+METRIC_MISMATCH_KEEP = [
+  ('free_cash_flow', 'FCF(금융제외)', 'trillion', ''),
+  ('free_cash_flow', 'Guidance', 'trillion', 'FCF (금융제외)\n-1.0조 ~ 0.5조'),   # 라벨에 없고 quote 에 있는 꼴
+  ('adjusted_automotive_fcf', 'Adjusted automotive free cash flow', 'billion', ''),
+  ('industrial_fcf', 'Industrial free cash flows', 'billion', ''),
+  ('adjusted_ebitda', 'Adj. EBITDA', 'million', ''),
+  ('adjusted_ebitda', 'Adjusted EBITDA', 'billion', ''),
+  ('adjusted_sales', 'Adjusted sales', 'billion', ''),
+  ('aoi_margin', 'AOI margin', 'percent', ''),
+  ('aoi_margin', 'AOI margin %', 'text', ''),
+  ('aoi_margin', 'Adj. operating income margin', 'text', ''),
+  ('aoi_margin', 'Adjusted operating income margin', 'text', ''),
+  ('automotive_ebitda_margin', 'Automotive EBITDA margin', 'percent', ''),
+  ('automotive_ncf_margin', 'Automotive net cashflow margin', 'percent', ''),
+  ('automotive_ncf_margin', 'Automotive net cash flow margin (lower end of range)', 'percent', ''),
+  ('automotive_net_cash_flow', 'Automotive net cash flow', 'billion', ''),
+  ('automotive_net_liquidity', 'Automotive net liquidity', 'billion', ''),
+  ('bev_share', 'Automotive BEV share', 'percent', ''),
+  ('capex', 'Capital Expenditures', 'billion', ''),
+  ('capex', '투자계획', 'trillion', ''),
+  ('capex', '자동차부문 투자계획', 'trillion', ''),
+  ('capex', '투자계획(자동차부문)', 'trillion', ''),
+  ('deliveries', 'Vehicles Delivered', 'units', ''),
+  ('deliveries', '2026 global delivery target of electric vehicles', 'units', ''),
+  ('deliveries', 'FY2025 global deliveries target (at least double)', 'text', ''),
+  ('deliveries', 'Global EV deliveries for full year 2026', 'units', ''),
+  ('ebit_adjusted', 'EBIT-adjusted', 'billion', ''),
+  ('eps_adjusted', 'Adjusted EPS', 'per_share', ''),
+  ('eps_adjusted', 'EPS-diluted-adjusted', 'per_share', ''),
+  ('investment_ratio', 'Automotive investment ratio', 'percent', ''),
+  ('operating_income', '영업이익 목표', 'trillion', ''),
+  ('operating_income', '영업이익', 'trillion', ''),
+  ('operating_margin', 'Group operating return on sales', 'percent', ''),
+  ('operating_margin', 'Group return on sales (upper end of range)', 'percent', ''),
+  ('operating_margin', '영업이익률 (이상)', 'percent', ''),
+  ('operating_margin', '중장기(2030년) 영업이익률 목표', 'text', ''),
+  ('order_intake', 'Non-captive 수주 ’26년 목표', 'million', ''),
+  ('revenue', 'Group sales revenue', 'billion', ''),
+  ('revenue', 'Total Company Sales', 'billion', ''),
+  ('revenue', '매출액 목표', 'trillion', ''),
+  ('revenue_growth', 'Group sales revenue growth', 'percent', ''),
+  ('revenue_growth', 'Net revenues', 'text', ''),
+  ('revenue_growth', 'Net Revenue Growth', 'text', ''),
+  ('revenue_growth', 'Sales growth', 'percent', ''),
+  ('revenue_growth', '연결 기준 매출액 성장률(전년대비)', 'percent', ''),
+  ('sales_units', '판매목표(대수)', 'units', ''),
+  ('sales_units', '판매 목표', 'units', ''),
+]
 
 
 def self_test() -> list[str]:
@@ -619,6 +728,14 @@ def self_test() -> list[str]:
       errs.append(f'CURRENCY 어긋남: {unit} {lo} {cur} {base} {q[:30]}')
   errs += [f'DROP_MISS 안 걸림: {q[:50]}' for q in DROP_MISS
            if screen([row('deliveries', 406498, 406498, 'units', q)], None, _DROP_PROBE)[1].get('파서 제외') != 1]
+  for want_dropped, cases in ((True, METRIC_MISMATCH_MISS), (False, METRIC_MISMATCH_KEEP)):
+    for m, label, unit, q in cases:
+      g = replace(row(m, None, None, unit, q, label), value_text=None if unit != 'text' else 'x')
+      if unit != 'text':
+        g = replace(g, low=1.0, high=1.0)
+      kept, why = screen([g])
+      if bool(why.get(REASON_METRIC)) != want_dropped or len(kept) == want_dropped:
+        errs.append(f'METRIC_MISMATCH_{"MISS" if want_dropped else "KEEP"} 어긋남: {m} {label}')
   if screen([row('other', 30, 30, 'percent', '배당성향 30%')])[1].get('숫자 other') != 1:
     errs.append('숫자 other 가 안 걸림')
   for want_kept, cases in ((True, STATED_HIT), (False, STATED_MISS)):
