@@ -1214,9 +1214,8 @@ class CollectorWiringTest(unittest.TestCase):
     self.assertEqual([s[0] for s in ccd.sources(self.HMC, '2026-01-01', '2026-11-09')], ['dart_list', 'ir_list'])
 
   def test_ir_rows_resolve_and_company_id(self):
-    client = MagicMock()
-    chain = client.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value
-    chain.execute.return_value.data = DatesTest.PRELIMS
+    client = _fake_client({'customer_documents': [
+      {**p, 'company_id': 'u-hmc', 'source': 'dart', 'doc_type': 'prelim_results'} for p in DatesTest.PRELIMS]})
     with patch.dict(ccd.ir_lists.IR_LISTS, {'005380': lambda s, since: _rows('hyundai')}):
       fetch = dict((c, f) for c, _, f in ccd.sources(self.HMC, '2026-01-01', '2026-11-09', client))['ir_list']
       rows = fetch(MagicMock())
@@ -1275,7 +1274,8 @@ class CollectorWiringTest(unittest.TestCase):
            {'period': '2026-Q1', 'document_id': None}]
     docs = [{'id': 7, 'published_at': '2026-10-19'}]  # id 5 = 질의 조건(edgar·6-K/8-K)에 안 걸린 문서
     t = {'customer_reported_results': MagicMock(), 'customer_documents': MagicMock()}
-    t['customer_reported_results'].select.return_value.eq.return_value.eq.return_value.execute.return_value.data = res
+    t['customer_reported_results'].select.return_value.eq.return_value.eq.return_value.eq.return_value.execute \
+      .return_value.data = res
     t['customer_documents'].select.return_value.in_.return_value.eq.return_value.in_.return_value.execute \
       .return_value.data = docs
     client.table.side_effect = lambda name: t[name]
@@ -1284,31 +1284,8 @@ class CollectorWiringTest(unittest.TestCase):
     self.assertEqual(q.in_.call_args.args, ('id', [5, 7]))
     self.assertEqual(q.in_.return_value.eq.call_args.args, ('source', 'edgar'))
     self.assertEqual(q.in_.return_value.eq.return_value.in_.call_args.args, ('form', ['6-K', '8-K']))
-
-  def test_dart_quarter_dates_add_reported_results(self):
-    """DART 회사 날짜 = 「연결재무제표기준」 제목 공시 ∪ 숫자 수집기가 분기 실적을 읽은 DART 공시(I002) 접수일.
-    KGM(2025~)은 분기 실적·월 판매 제목이 같아 제목으로 못 가른다 — 2026-11-11 DB 실측 꼴 그대로.
-    MUST_HIT: 2026-Q3 = 2026-11-04 · MUST_MISS: 월 판매(11-02)·정정 공시는 날짜가 되지 않는다."""
-    client = MagicMock()
-    titles = [{'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-11-02'},
-              {'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-11-04'}]
-    res = [{'period': '2026-Q3', 'document_id': 41}, {'period': '2026-Q2', 'document_id': 42}]
-    docs = [{'id': 41, 'published_at': '2026-11-04', 'title': '영업(잠정)실적(공정공시)'},
-            {'id': 42, 'published_at': '2026-10-05', 'title': '[기재정정]영업(잠정)실적(공정공시)'}]
-    t = {'customer_reported_results': MagicMock(), 'customer_documents': MagicMock()}
-    t['customer_documents'].select.return_value.eq.return_value.eq.return_value.eq.return_value.execute \
-      .return_value.data = titles
-    t['customer_reported_results'].select.return_value.eq.return_value.eq.return_value.execute.return_value.data = res
-    t['customer_documents'].select.return_value.in_.return_value.eq.return_value.in_.return_value.execute \
-      .return_value.data = docs
-    client.table.side_effect = lambda name: t[name]
-    self.assertEqual(ccd.prelim_quarter_dates(client, 'u-kgm'), {'2026-Q3': '2026-11-04'})
-    q = t['customer_documents'].select.return_value
-    self.assertEqual(q.in_.return_value.eq.call_args.args, ('source', 'dart'))
-    self.assertEqual(q.in_.return_value.eq.return_value.in_.call_args.args, ('form', ['I002']))
-    # 제목 공시와 겹치면 이른 날(현대·기아·모비스는 두 근거가 같은 공시다)
-    titles[:] = [{'title': '연결재무제표기준영업(잠정)실적(공정공시)', 'published_at': '2026-11-03'}]
-    self.assertEqual(ccd.prelim_quarter_dates(client, 'u-kgm'), {'2026-Q3': '2026-11-03'})
+    rq = t['customer_reported_results'].select.return_value.eq.return_value.eq.return_value
+    self.assertEqual(rq.eq.call_args.args, ('verified', True))  # 미검증 실적 행은 날짜 근거가 아니다
 
   def test_earnings_dates_failure_keeps_document_status(self):
     """일정 받기가 깨져도 문서는 실리고 상태는 문서 기준 그대로 — 사유에 일정 실패만 덧붙는다."""
@@ -1391,6 +1368,106 @@ class CollectorWiringTest(unittest.TestCase):
     self.assertEqual((table, conflict), ('customer_earnings_dates', 'company_id,period'))
     self.assertEqual([(r['company_id'], r['period']) for r in sent], [('u-vw', '2027-Q1')])
     self.assertRegex(sent[0]['published_at'], r'^\d{4}-\d{2}-\d{2}$')
+
+
+class _FakeTable:
+  """postgrest 질의 사슬(select·eq·in_·execute)을 메모리 행에 «실제로» 적용한다 — 질의 조건이 결과를 바꾸는지 본다."""
+
+  def __init__(self, rows: list[dict]):
+    self.rows = rows
+
+  def select(self, cols: str):  # 칸은 그대로 둔다 — 뒤의 eq·in_ 가 고르지 않은 칸으로도 거른다(postgrest 와 같다)
+    return self
+
+  def eq(self, col: str, val):
+    return _FakeTable([r for r in self.rows if r.get(col) == val])
+
+  def in_(self, col: str, vals):
+    return _FakeTable([r for r in self.rows if r.get(col) in vals])
+
+  def execute(self):
+    return MagicMock(data=[dict(r) for r in self.rows])
+
+
+def _fake_client(tables: dict[str, list[dict]]) -> MagicMock:
+  client = MagicMock()
+  client.table.side_effect = lambda name: _FakeTable(tables.get(name, []))
+  return client
+
+
+class DartReportedDatesTest(unittest.TestCase):
+  """DART 회사 날짜 근거 = 「연결재무제표기준」 제목 공시 ∪ 숫자 수집기가 «검증» 분기 실적을 읽은 DART 공시(I002) 접수일.
+  행 꼴은 2026-11-11 DB 실물(KGM 2025~ 분기 실적·월 판매 제목이 같다 · 기아 정정 실적 공시 제목)."""
+  CO = 'u-kgm'
+  SALES = '영업(잠정)실적(공정공시)'
+
+  def _doc(self, i: int, day: str, title: str = SALES) -> dict:
+    return {'id': i, 'company_id': self.CO, 'source': 'dart', 'form': 'I002', 'doc_type': 'prelim_results',
+            'title': title, 'published_at': day}
+
+  def _res(self, period: str, doc_id: int, verified: bool = True) -> dict:
+    return {'company_id': self.CO, 'period_grain': 'quarter', 'period': period, 'metric': 'revenue',
+            'document_id': doc_id, 'verified': verified}
+
+  def _tables(self, docs, res, volume_doc_ids=()) -> dict:
+    return {'customer_documents': docs, 'customer_reported_results': res,
+            'customer_volume_ir': [{'company_id': self.CO, 'document_id': i} for i in volume_doc_ids]}
+
+  def test_reported_results_give_kgm_dates(self):
+    """MUST_HIT: 2026-Q3 = 실적 공시 11-04 · MUST_MISS: 같은 제목 월 판매(11-02)는 날짜가 되지 않는다."""
+    docs = [self._doc(40, '2026-11-02'), self._doc(41, '2026-11-04')]
+    client = _fake_client(self._tables(docs, [self._res('2026-Q3', 41)], volume_doc_ids=[40]))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {'2026-Q3': '2026-11-04'})
+
+  def test_titled_and_reported_take_earlier(self):
+    """제목 공시와 겹치면 이른 날(현대·기아·모비스는 두 근거가 같은 공시다)."""
+    docs = [self._doc(41, '2026-11-04'), self._doc(43, '2026-11-03', '연결재무제표기준영업(잠정)실적(공정공시)')]
+    client = _fake_client(self._tables(docs, [self._res('2026-Q3', 41)]))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {'2026-Q3': '2026-11-03'})
+
+  def test_unverified_results_are_not_dates(self):
+    """[검토 Important 2] 원문 대조에 실패한(verified=false) 실적 행만 있으면 그 분기 날짜를 채우지 않는다."""
+    docs = [self._doc(41, '2026-11-04')]
+    client = _fake_client(self._tables(docs, [self._res('2026-Q3', 41, verified=False)]))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {})
+    got, holds = L.resolve_dates(_rows('kgm'), ccd.prelim_quarter_dates(client, self.CO), '2026-01-01')
+    self.assertNotIn('2026년 3분기 경영실적', [r['title'] for r in got])
+    self.assertEqual(holds.get('dart'), 3)
+
+  def test_correction_keeps_original_date(self):
+    """[검토 Important 3] 원공시(11-04) 적재 → 정정(12-10)이 실적 행 참조를 갈아 낀 상태 → 다음 목록 수집에도 원공시
+    날짜. 같은 제목 월 판매(10-01·11-02·12-01 — 물량 행이 걸린 문서)를 원공시로 고르지 않는다."""
+    docs = [self._doc(30, '2026-10-01'), self._doc(31, '2026-11-02'), self._doc(41, '2026-11-04'),
+            self._doc(32, '2026-12-01'), self._doc(50, '2026-12-10', f'[기재정정]{self.SALES}'),
+            self._doc(20, '2026-07-28')]  # 2분기 실적(분기 끝 전) — 3분기 원공시가 아니다
+    before = _fake_client(self._tables(docs, [self._res('2026-Q3', 41)], volume_doc_ids=[30, 31, 32]))
+    after = _fake_client(self._tables(docs, [self._res('2026-Q3', 50)], volume_doc_ids=[30, 31, 32]))
+    self.assertEqual(ccd.prelim_quarter_dates(before, self.CO), {'2026-Q3': '2026-11-04'})
+    self.assertEqual(ccd.prelim_quarter_dates(after, self.CO), {'2026-Q3': '2026-11-04'})
+    got, _ = L.resolve_dates(_rows('kgm'), ccd.prelim_quarter_dates(after, self.CO), '2026-01-01')
+    self.assertEqual(next(r for r in got if r['title'] == '2026년 3분기 경영실적')['published_at'], '2026-11-04')
+
+  def test_correction_with_consolidated_title(self):
+    """기아 실물 꼴 — 「[기재정정]연결재무제표기준…」 → 머리를 뗀 같은 제목의 원공시."""
+    title = '연결재무제표기준영업(잠정)실적(공정공시)'
+    docs = [self._doc(60, '2025-04-24', title), self._doc(61, '2025-04-25', f'[기재정정]{title}')]
+    client = _fake_client(self._tables(docs, [self._res('2025-Q1', 61)]))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {'2025-Q1': '2025-04-24'})
+
+  def test_correction_without_original_has_no_date(self):
+    """원공시를 못 찾으면(적재 안 됨 · 같은 제목 후보가 월 판매뿐) 정정일을 쓰지 않고 날짜를 비운다."""
+    docs = [self._doc(31, '2026-11-02'), self._doc(50, '2026-12-10', f'[기재정정]{self.SALES}')]
+    client = _fake_client(self._tables(docs, [self._res('2026-Q3', 50)], volume_doc_ids=[31]))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {})
+
+  def test_original_filing_pure(self):
+    corr = {'title': '[기재정정] 영업(잠정)실적(공정공시)', 'published_at': '2026-12-10'}
+    pool = [{'id': 1, 'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-11-04'},
+            {'id': 2, 'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-12-01'},
+            {'id': 3, 'title': '[기재정정]영업(잠정)실적(공정공시)', 'published_at': '2026-11-20'},
+            {'id': 4, 'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-12-11'}]  # 정정 뒤
+    self.assertEqual(ccd.original_filing('2026-Q3', corr, pool, {2}), '2026-11-04')
+    self.assertIsNone(ccd.original_filing('2026-Q3', corr, pool, {1, 2}))
 
 
 if __name__ == '__main__':

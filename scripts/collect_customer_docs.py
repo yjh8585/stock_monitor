@@ -166,18 +166,56 @@ def edgar_quarter_dates(client, company_id: str) -> dict[str, str]:
 
 
 def reported_quarter_dates(client, company_id: str, source: str, forms: list[str]) -> dict[str, str]:
-  """숫자 수집기의 분기 실적 행 → 그 문서(source·forms) 접수일 → {분기: 가장 이른 접수일}(ir_lists.results_quarter_dates).
-  DART 정정 공시(제목에 「정정」)는 뺀다 — «나중 공시 우선» 이라 정정이 원공시 행을 가져가면 정정일이 발표일로 둔갑한다
-  (그 분기는 보류로 남는다 · 날짜를 지어내지 않는다)."""
+  """숫자 수집기의 «검증» 분기 실적 행 → 그 문서(source·forms) 접수일 → {분기: 가장 이른 접수일}
+  (ir_lists.results_quarter_dates). 미검증 행(원문 대조 실패)은 날짜 근거가 아니다.
+
+  🔴 실적 표 키엔 document_id 가 없어 «나중 공시 우선»으로 정정 공시가 원공시 참조를 갈아 낀다 — 정정일은 발표일이
+  아니므로 참조 문서가 정정(제목에 「정정」)이면 원공시를 찾아 그 접수일을 쓴다(original_filing). 못 찾으면 그 행은
+  날짜 근거에서 빠진다(지어내지 않는다)."""
   res = (client.table('customer_reported_results').select('period,document_id').eq('company_id', company_id)
-         .eq('period_grain', 'quarter').execute().data)
+         .eq('period_grain', 'quarter').eq('verified', True).execute().data)
   ids = sorted({r['document_id'] for r in res if r['document_id']})
-  filed: dict[int, str] = {}
+  docs: dict[int, dict] = {}
   for i in range(0, len(ids), _IN_CHUNK):
     data = (client.table('customer_documents').select('id,published_at,title').in_('id', ids[i:i + _IN_CHUNK])
             .eq('source', source).in_('form', forms).execute().data)
-    filed.update({d['id']: d['published_at'] for d in data if '정정' not in (d.get('title') or '')})
-  return ir_lists.results_quarter_dates((r['period'], filed[r['document_id']]) for r in res if r['document_id'] in filed)
+    docs.update({d['id']: d for d in data})
+  pool, sales = [], set()
+  if any('정정' in (d.get('title') or '') for d in docs.values()):  # 정정이 있을 때만 원공시 후보를 읽는다
+    pool = (client.table('customer_documents').select('id,published_at,title').eq('company_id', company_id)
+            .eq('source', source).in_('form', forms).execute().data)
+    sales = {v['document_id'] for v in client.table('customer_volume_ir').select('document_id')
+             .eq('company_id', company_id).execute().data}
+  pairs = []
+  for r in res:
+    d = docs.get(r['document_id'])
+    if not d:
+      continue
+    day = original_filing(r['period'], d, pool, sales) if '정정' in (d.get('title') or '') else d['published_at']
+    if day:
+      pairs.append((r['period'], day))
+  return ir_lists.results_quarter_dates(pairs)
+
+
+_DART_HEAD = re.compile(r'^\[[^\]]+\]\s*')  # [기재정정]·[첨부정정] 등 보고서명 머리
+
+
+def _bare_title(title: str) -> str:
+  return _DART_HEAD.sub('', title.strip()).replace(' ', '')
+
+
+def original_filing(period: str, correction: dict, pool: list[dict], sales_ids: set) -> str | None:
+  """(순수) 정정 공시 → 같은 보고서의 원공시 접수일. 원공시 = 머리([기재정정] 등)를 뗀 제목이 같고 · 그 분기 끝 뒤 ·
+  정정보다 이른 공시 중 가장 늦은 것 · 월 판매 공시(물량 행이 걸린 문서 = sales_ids)는 뺀다.
+
+  2026-11-11 DB 실측: 정정 실적 공시는 기아 1건(「[기재정정]연결재무제표기준영업(잠정)실적(공정공시)」 2025-04-25)뿐.
+  KGM 은 분기 실적과 월 판매의 제목이 같아(「영업(잠정)실적(공정공시)」) 제목만으로는 월 판매를 고른다 — KGM DART 잠정
+  공시 32건 = 물량 행 25(월 판매) · 실적 행 7 · 겹침 0 이라 물량 행으로 월 판매를 가른다. 후보가 없으면 None."""
+  bare, end = _bare_title(correction['title']), ir_lists._quarter_end(period).isoformat()
+  cands = [d['published_at'] for d in pool
+           if d['id'] not in sales_ids and '정정' not in (d.get('title') or '')
+           and _bare_title(d.get('title') or '') == bare and end < d['published_at'] < correction['published_at']]
+  return max(cands, default=None)
 
 
 def ir_rows(session, c: dict, since: str, client) -> list[dict]:
