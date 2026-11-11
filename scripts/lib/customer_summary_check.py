@@ -6,23 +6,31 @@ check_failed 로 남긴다.
 
 숫자 대조(unmatched_numbers) — 요약 숫자마다 원문에 «표시 자릿수 반올림 안»의 짝이 있어야 한다:
 - 원문 토큰 = lib/llm_guidance.number_tokens. 🔴 그 함수는 문서 첫 표 머리 배수('in millions')를 단위 없는 모든 수에 씌운다
-  → 원문 후보값은 «n×배수» 와 «n(배수 없음)» 둘 다로 보고, 문서 안 «모든» 표 머리 배수(_HEADERS — 「단위 : 십억원」 포함)도
-  각각 씌워 본다(국문 IR 은 첫 머리가 「천대」이고 금액 표가 「십억원」 — 2026-11-12 드라이런 실측).
+  → «자체 단위 낱말이 없는» 원문 수만 후보값을 «n×배수» 와 «n(배수 없음)» 둘 다로 보고, 문서 안 «모든» 표 머리 배수
+  (_HEADERS — 「단위 : 십억원」 포함)도 각각 씌워 본다(국문 IR 은 첫 머리가 「천대」이고 금액 표가 「십억원」 — 2026-11-12
+  드라이런 실측). 단위가 박힌 수($4,213 million)는 그 배수 값 하나뿐(요약 「4,213달러」가 통과했다 — Codex 2026-11-12).
   SHORTCUT: 후보가 넓어진 만큼 틀린 값이 표 어딘가의 수와 우연히 맞아 통과할 수 있다(실측 28쪽 자료에서 「35.0조」 통과)
   → 줄의 지표 낱말과 표 행을 짝짓는 대조로 좁힐 수 있다(지금은 «원문에 그 수가 있다»까지만 본다).
 - 🔴 원문의 쪽 표식 [p.N] 은 대조 전에 지운다(요약 7% 가 쪽 표식 7 로 통과했다 — Codex 대조 2026-11-12).
-- 요약 수 뒤가 %·%p 면 원문 짝도 %·percent·per cent·pts·ppt·bp 가 붙은 수여야 한다(bp 는 ÷100).
+- 요약 수 뒤가 %·%p·bp 면 원문 짝도 %·percent·per cent·pts·ppt·bp 가 붙은 수여야 한다. 원문 bp 는 ÷100 한 값만,
+  요약 bp 도 ÷100 해서 맞춘다(50bp ↔ 0.5%p · 50bp ≠ 50%p).
 - 요약 「N분기」는 원문의 분기 표기(Q3·3Q·third quarter·3분기·three months ended September)와만 맞춘다 —
-  맨 숫자 3 과 맞추면 4% 의 4 가 「4분기」를 통과시킨다. 「1~3분기」는 누적 표기(nine months·YTD·누적)나 두 끝 분기 표기.
-- 「N월」은 영어 달 이름이나 같은 수. 2자리 연도(FY26·'25·3Q25)는 20xx 로도 본다. 4자리 연도도 예외 없이 원문에 있어야 한다.
+  맨 숫자 3 과 맞추면 4% 의 4 가 「4분기」를 통과시킨다. 「a~b분기」는 원문 누적 구간과 시작·끝이 같아야 한다
+  (nine months·9M = 1~3 · six months·H1·1H = 1~2 · YTD·누적 = 같은 원문의 분기 표기 n 으로 1~n · 끝을 모르면 지적)
+  — 아니면 두 끝 분기 표기가 둘 다 원문에 있어야 한다.
+- 「N년」·「FY」 꼴 연도는 원문 연도 표기(FY·CY·년·year·fiscal·Q/H/9M 옆·날짜 — _SRC_YEAR)에서 뽑은 후보와만 맞춘다.
+  2자리 연도(FY26·'25·3Q25·1H26)는 20xx 로 본다. 「N월」은 영어 달 이름이나 같은 수.
 통화(currency_problems) — 요약 줄의 「수+통화 낱말」(달러·유로·원·엔·위안·파운드)이 원문 어딘가에 그 통화로 나와야 한다.
+  원문 원화 근거는 수 뒤의 원·₩·KRW·단위 머리(십억원 …)만(맨 「원」은 원가·임직원에 걸린다).
+줄 — 빈 줄·공백만인 줄은 지적, 줄 수 3~5 는 내용 있는 줄로 센다. 근거 인용이 쪽 경계를 넘으면 시작 쪽으로 고치고, 쪽 번호가
+  1..쪽 수 밖이면 지적. 뉴스 empty=true 인데 줄·링크·관련 기사 수가 있으면 지적(재요청).
 부호(±)는 검사하지 않는다(지시서로만).
 번역투(translationese_problems) — verify_translationese.scan + 그 검사기가 안 잡는 표현(EXTRA_RULES). 「를 통해」는 흔해서 뺐다.
 """
 import re
 
 from lib import customer_summary_prompt as sp
-from lib.llm_guidance import _JOIN, number_tokens
+from lib.llm_guidance import _JOIN, _own_mult, number_tokens
 
 # ---------------------------------------------------------------- 원문 정리
 _PAGE_MARK = re.compile(r'\[p\.(\d+)\]')
@@ -46,6 +54,22 @@ def _page_segments(text: str) -> list[tuple[int, str]]:
           for i, m in enumerate(marks)]
 
 
+def _start_page(segments: list[tuple[int, str]], q: str) -> int | None:
+  """여러 쪽에 걸친 인용의 시작 쪽 — 쪽 글을 공백 하나로 이은 글에서 q 가 시작하는 자리의 쪽(없으면 None)."""
+  joined, starts = '', []
+  for pg, seg in segments:
+    if not seg:
+      continue
+    if joined:
+      joined += ' '
+    starts.append((len(joined), pg))
+    joined += seg
+  at = joined.find(q)
+  if at < 0:
+    return None
+  return [pg for pos, pg in starts if pos <= at][-1]
+
+
 # ---------------------------------------------------------------- 원문 쪽 후보
 _SRC_PCT = re.compile(r'\)?\s*(?:%|percent\b|per\s?cent\b|percentage\s+points?\b|pts?\b|ppts?\b|bps?\b|basis\s+points?\b'
                       r'|퍼센트|포인트)', re.I)
@@ -61,7 +85,27 @@ _HEADERS = re.compile(
   r'|(?:€|\$|£|\bEUR|\bUSD)\s?(million|billion|mn|bn)\b', re.I)
 _HEADER_MULT = {'천': 1e3, '만': 1e4, '백만': 1e6, '십억': 1e9, '억': 1e8, '조': 1e12, 'thousand': 1e3, 'million': 1e6,
                 'mn': 1e6, 'billion': 1e9, 'bn': 1e9}
-_YEAR2_BEFORE = re.compile(r"(?:\bFY|\bCY|['’]|\b[1-4]Q|\bQ[1-4]\s?|\bH[12]\s?)$", re.I)
+_YEAR2_BEFORE = re.compile(r"(?:\bFY|\bCY|['’]|\b[1-4]Q|\bQ[1-4]\s?|\bH[12]\s?|\b[12]H)$", re.I)
+# 연도 표기 — 「N년」·「FY」 꼴 요약 연도는 이 후보와만 맞춘다(금액 2,027 이 「2027년」 근거가 되면 안 된다 — Codex 2026-11-12).
+# SHORTCUT: 「in 2026」·「2026E」처럼 표기가 약한 연도는 후보가 아니다 → 정상 요약이 막히면 여기 꼴을 더한다
+_Y4 = r'((?:19|20)\d{2})(?!\d)'
+_MONTH_NAMES = (r'(?:january|february|march|april|may|june|july|august|september|october|november|december'
+                r'|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?')
+_PERIOD = (r'(?:Q[1-4]|[1-4]Q|H[12]|[12]H|9M|6M|3M|(?:first|second|third|fourth)[- ]quarter|quarter|'
+           r'(?:first|second)[- ]half|nine[- ]months|six[- ]months)')
+_SRC_YEAR = (
+  re.compile(r"(?<![A-Za-z])(?:FY|CY)\s?['’]?" + _Y4, re.I),
+  re.compile(r'(?<!\d)' + _Y4 + r'\s*년'),
+  re.compile(r'\b(?:fiscal|year)(?:\s+(?:year|of))?\s+' + _Y4, re.I),
+  re.compile(r'\b' + _Y4 + r'\s+(?:fiscal\s+)?year\b', re.I),
+  re.compile(r'\b' + _PERIOD + r"(?:\s+of)?\s*['’]?\s*" + _Y4, re.I),
+  re.compile(r'\b' + _Y4 + r'\s*' + _PERIOD + r'\b', re.I),
+  re.compile(r'\b' + _MONTH_NAMES + r'\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?' + _Y4, re.I),
+  re.compile(r'\b\d{1,2}\s+' + _MONTH_NAMES + r',?\s+' + _Y4, re.I),
+  # 날짜 — 「2026-09」·「2026/09」·「2026.10.28」(점 하나 「2026.10」은 금액 2026.10 과 못 가른다)
+  re.compile(r'(?<![\d.,])' + _Y4 + r'(?:[-/]\d{1,2}(?!\d)|\.\s?\d{1,2}\.\s?\d{1,2}(?!\d))'),
+  re.compile(r'(?<![\d.,])\d{1,2}[-./]\d{1,2}[-./]' + _Y4),
+)
 
 _ORD = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, '1st': 1, '2nd': 2, '3rd': 3, '4th': 4}
 _Q_PATTERNS = (
@@ -72,12 +116,16 @@ _Q_PATTERNS = (
 )
 _Q_MONTHS_ENDED = re.compile(r'three[- ]months?\s+ended\s+(March|June|September|December)', re.I)
 _QEND = {'march': 1, 'june': 2, 'september': 3, 'december': 4}
+# 누적 구간 (시작 분기, 끝 분기) — 요약 「a~b분기」는 이 구간 하나와 시작·끝이 같아야 한다(Codex 2026-11-12: 「2~3분기」가
+# nine months 로, 「1~4분기」가 Q3 YTD 로 통과했다).
 # SHORTCUT: 누적 표기는 흔한 꼴만(nine months·YTD·누적·상반기 …) → 다른 꼴이 정상 요약을 막으면 여기에 더한다
-_CUMULATIVE = {
-  2: re.compile(r'six[- ]months|first[- ]half|\bH1\b|\b6M\b|상반기|1\s*[~～\-–]\s*2\s*분기', re.I),
-  3: re.compile(r'nine[- ]months|\b9M\b|1\s*[~～\-–]\s*3\s*분기', re.I),
-  4: re.compile(r'twelve[- ]months|full[- ]year|\bFY\b|연간|1\s*[~～\-–]\s*4\s*분기', re.I),
-}
+_CUMULATIVE = (
+  ((1, 2), re.compile(r'six[- ]months|first[- ]half|\bH1\b|\b1H(?:\d{2})?\b|\b6M(?:\d{2})?\b|상반기', re.I)),
+  ((1, 3), re.compile(r'nine[- ]months|\b9M(?:\d{2})?\b', re.I)),
+  ((1, 4), re.compile(r'twelve[- ]months|full[- ]year|\bFY\b|연간', re.I)),
+)
+_KO_Q_RANGE = re.compile(r'([1-4])\s*[~～\-–]\s*([1-4])\s*분기')
+# YTD·누적은 끝 분기를 스스로 말하지 않는다 — 같은 원문의 분기 표기(Qn·n분기)를 끝으로 본다(없으면 구간 없음)
 _YTD = re.compile(r'year[- ]to[- ]date|\bYTD\b|누적', re.I)
 _MONTHS = {m: i + 1 for i, names in enumerate([
   ('january', 'jan'), ('february', 'feb'), ('march', 'mar'), ('april', 'apr'), ('may',), ('june', 'jun'),
@@ -98,32 +146,44 @@ class _Source:
     for i in range(len(toks) - 2, -1, -1):              # '3 and 5 per cent' — 앞 수가 뒤 % 를 이어받는다
       if not pct[i] and pct[i + 1] and _JOIN.fullmatch(t[toks[i].end:toks[i + 1].start]):
         pct[i] = True
+    # 자체 단위 낱말(million·억·% …)이 붙은 수 — 범위 잇기로 뒤 수의 낱말을 이어받은 것 포함(number_tokens 와 같은 규칙)
+    own = [_own_mult(t[k.end:k.end + 16]) for k in toks]
+    for i in range(len(toks) - 2, -1, -1):
+      if own[i] is None and own[i + 1] is not None and _JOIN.fullmatch(t[toks[i].end:toks[i + 1].start]):
+        own[i] = own[i + 1]
     heads = {_HEADER_MULT[next(g for g in m.groups() if g).lower()] for m in _HEADERS.finditer(t)}
-    for k, p in zip(toks, pct):
-      vals = {k.n * k.mult, k.n} | {k.n * h for h in heads}
+    self.years = {int(m.group(1)) for pat in _SRC_YEAR for m in pat.finditer(t)}
+    for k, p, o in zip(toks, pct, own):
       if p and _SRC_BP.match(t[k.end:k.end + 24]):
-        vals.add(k.n / 100)
+        vals = {k.n / 100}                              # bp 는 %p 로 바꾼 값만(50bp 가 50%p 의 근거가 되면 안 된다)
+      elif o is not None:
+        vals = {k.n * o}                                # 단위가 박힌 수 — 배수를 지우지 않는다($4,213 million ≠ 4,213달러)
+      else:
+        vals = {k.n, k.n * k.mult} | {k.n * h for h in heads}   # 표 머리 배수를 이어받은 수만 배수 없는 값도 후보
       if k.n < 100 and k.n == int(k.n) and _YEAR2_BEFORE.search(t[max(0, k.start - 4):k.start]):
-        vals.add(2000 + k.n)
+        self.years.add(2000 + int(k.n))
       self.cands.extend((v, p) for v in vals)
     self.quarters = {int(m.group(1)) if m.group(1).isdigit() else _ORD[m.group(1).lower()]
                      for pat in _Q_PATTERNS for m in pat.finditer(t)}
     self.quarters |= {_QEND[m.group(1).lower()] for m in _Q_MONTHS_ENDED.finditer(t)}
     self.months = {_MONTHS[m.group(1).lower()] for m in _MONTH_WORD.finditer(t)}
+    self.cumulative = {span for span, pat in _CUMULATIVE if pat.search(t)}
+    self.cumulative |= {(int(m.group(1)), int(m.group(2))) for m in _KO_Q_RANGE.finditer(t)}
+    if _YTD.search(t):
+      self.cumulative |= {(1, q) for q in self.quarters}
 
   def has_value(self, v: float, tol: float, need_pct: bool) -> bool:
     eps = max(abs(v) * 1e-9, 1e-9)
     return any(abs(c - v) <= tol + eps for c, p in self.cands if p or not need_pct)
 
-  def has_cumulative(self, end_q: int) -> bool:
-    pat = _CUMULATIVE.get(end_q)
-    return bool(_YTD.search(self.text) or (pat and pat.search(self.text)))
-
 
 # ---------------------------------------------------------------- 요약 쪽 토큰
 _SUM_PCT = re.compile(r'\)?\s*(?:%|퍼센트)')
+_SUM_BP = re.compile(r'\s*(?:bps?(?![a-z])|베이시스\s*포인트)', re.I)
 _SUM_QUARTER = re.compile(r'\s*분기')
 _SUM_MONTH = re.compile(r'\s*월(?!요일)')
+_SUM_YEAR_AFTER = re.compile(r'\s*년')
+_SUM_FY_BEFORE = re.compile(r'(?<![A-Za-z])(?:FY|CY)\s?$', re.I)
 
 
 def _decimals(s: str) -> int:
@@ -139,25 +199,38 @@ def _unmatched(summary_text: str, src: _Source) -> list[str]:
   toks = number_tokens(s)
   n = len(toks)
   pct = [bool(_SUM_PCT.match(s[k.end:k.end + 4])) for k in toks]
+  bp = [bool(_SUM_BP.match(s[k.end:k.end + 8])) for k in toks]
   quarter = [bool(_SUM_QUARTER.match(s[k.end:k.end + 4])) for k in toks]
+  year_after = [bool(_SUM_YEAR_AFTER.match(s[k.end:k.end + 3])) for k in toks]
   joined = [i + 1 < n and bool(_JOIN.fullmatch(s[toks[i].end:toks[i + 1].start])) for i in range(n)]
   for i in range(n - 2, -1, -1):
     if joined[i] and pct[i + 1]:
       pct[i] = True
+    if joined[i] and bp[i + 1]:
+      bp[i] = True
+    if joined[i] and year_after[i + 1]:                 # 「2026~2027년」 — 앞 수도 연도
+      year_after[i] = True
   out = []
   skip = set()
   for i, k in enumerate(toks):
     if i in skip:
       continue
     raw = s[k.start:k.end]
-    if joined[i] and quarter[i + 1]:                    # 「1~3분기」 — 누적 표기 또는 두 끝 분기 표기
+    if joined[i] and quarter[i + 1]:                    # 「1~3분기」 — 누적 구간(시작·끝 같게) 또는 두 끝 분기 표기
       a, b = int(k.n), int(toks[i + 1].n)
-      if not (src.has_cumulative(b) or {a, b} <= src.quarters):
+      if not ((a, b) in src.cumulative or {a, b} <= src.quarters):
         out.append(_frag(s, k.start, toks[i + 1].end))
       skip.add(i + 1)
       continue
     if quarter[i]:
       if int(k.n) not in src.quarters:
+        out.append(_frag(s, k.start, k.end))
+      continue
+    # 연도 — 「2026년」·「FY2026」·「FY26」은 원문 연도 표기 후보와만(일반 수와 맞추지 않는다)
+    fy = bool(_SUM_FY_BEFORE.search(s[max(0, k.start - 3):k.start]))
+    if k.n == int(k.n) and ',' not in raw and ((year_after[i] and 1900 <= k.n <= 2099) or (fy and k.n < 2100)):
+      y = int(k.n) + (2000 if k.n < 100 else 0)
+      if y not in src.years:
         out.append(_frag(s, k.start, k.end))
       continue
     if _SUM_MONTH.match(s[k.end:k.end + 4]) and 1 <= k.n <= 12:
@@ -166,7 +239,9 @@ def _unmatched(summary_text: str, src: _Source) -> list[str]:
       continue
     v = k.n * k.mult
     tol = 0.5 * 10 ** -_decimals(raw) * k.mult
-    if not src.has_value(v, tol, pct[i]):
+    if bp[i]:                                           # 요약 bp 는 %p 로 바꿔 % 문맥 원문과 맞춘다
+      v, tol = v / 100, tol / 100
+    if not src.has_value(v, tol, pct[i] or bp[i]):
       out.append(_frag(s, k.start, k.end))
   return out
 
@@ -181,8 +256,11 @@ _SUM_CURRENCY = re.compile(r'\d[\d,.]*\s*(?:[천백]?\s*(?:조|억|만)\s*)?(달
 _SRC_CURRENCY = {
   '달러': re.compile(r'\$|\bUSD\b|\bdollars?\b|달러', re.I),
   '유로': re.compile(r'€|\bEUR\b|\beuros?\b|유로', re.I),
+  # 원화 근거는 «수 뒤에 붙은 원»·₩·KRW·단위 머리(십억원·억원·조원·백만원)만 — 맨 「원」은 원가·임직원에 걸린다(Codex 2026-11-12).
   # 국문 기사는 「영업익 2.5조」처럼 원을 생략한다 — 다른 통화 낱말이 붙지 않은 조·억 금액도 원으로 본다
-  '원': re.compile(r'₩|\bKRW\b|\bwon\b|원|\d\s*[조억](?!\s*(?:달러|유로|엔|위안|파운드))', re.I),
+  '원': re.compile(r'₩|\bKRW\b|\d[\d,.]*\s*(?:[천백]?\s*(?:조|억|만)\s*|천\s*)?원'
+                  r'|\d[\d,.]*\s*(?:trillion|billion|million|tn|bn|mn)?\s*won\b'
+                  r'|(?:십억|백만|천만|억|조)\s*원|\d\s*[조억](?!\s*(?:달러|유로|엔|위안|파운드))', re.I),
   '엔': re.compile(r'¥|\bJPY\b|\byen\b|엔화|\d\s*엔', re.I),
   '위안': re.compile(r'\bCNY\b|\bRMB\b|\byuan\b|위안', re.I),
   '파운드': re.compile(r'£|\bGBP\b|\bpounds?\s+sterling\b|파운드', re.I),
@@ -243,8 +321,12 @@ def translationese_problems(text: str) -> list[str]:
 # ---------------------------------------------------------------- 공통 줄 검사
 def _line_problems(lines: list, source_text: str, src: _Source) -> list[str]:
   out = []
-  if not sp.LINE_MIN <= len(lines) <= sp.LINE_MAX:
-    out.append(f'줄 수 {len(lines)}개({sp.LINE_MIN}~{sp.LINE_MAX}줄이어야 한다)')
+  blank = sum(1 for line in lines if not line.strip())
+  if blank:
+    out.append(f'빈 줄 {blank}개(내용 없는 줄은 빼고 {sp.LINE_MIN}~{sp.LINE_MAX}줄을 채울 것)')
+  valid = len(lines) - blank
+  if not sp.LINE_MIN <= valid <= sp.LINE_MAX:
+    out.append(f'줄 수 {valid}개({sp.LINE_MIN}~{sp.LINE_MAX}줄이어야 한다)')
   for i, line in enumerate(lines, 1):
     if len(line) > sp.LINE_CHARS:
       out.append(f'글자 상한: {i}줄째 {len(line)}자({sp.LINE_CHARS}자 이내)')
@@ -288,9 +370,13 @@ def check_doc(result: dict, source_text: str, is_pdf: bool, page_count: int) -> 
       e['page'] = None
       continue
     found = [pg for pg, seg in segments if q in seg]
+    if not found:                                       # 쪽 경계([p.N])를 넘는 인용 — 시작 쪽으로(Codex 2026-11-12)
+      found = [pg for pg in [_start_page(segments, q)] if pg is not None]
     if found and e.get('page') not in found:
       notes.append(f'근거 쪽 {e.get("page")}→{found[0]}')
       e['page'] = found[0]
+    if not 1 <= int(e.get('page') or 0) <= page_count:
+      problems.append(f'근거 쪽 번호 {e.get("page")} 이 범위 밖(1~{page_count})')
 
   if r.get('importance') == 'high' and grounded == 0:
     r['importance'] = 'mid'
@@ -307,10 +393,16 @@ def check_doc(result: dict, source_text: str, is_pdf: bool, page_count: int) -> 
 
 # ---------------------------------------------------------------- 뉴스
 def check_news(result: dict, items: list[dict]) -> tuple[dict, list[str]]:
-  """(고친 결과, 지적 목록). empty=true 면 줄 검사를 하지 않는다."""
+  """(고친 결과, 지적 목록). empty=true 면 줄 검사 대신 «줄·링크·관련 기사 수가 모두 비었나»만 본다
+  (모순이면 지적 → 재요청 — 안 보면 그 주가 empty 로 굳어 다시 안 집힌다 · Codex 2026-11-12)."""
   r = {**result, 'lines': [str(x).strip() for x in result.get('lines') or []],
        'link_ids': list(dict.fromkeys(int(x) for x in result.get('link_ids') or []))}
   if r.get('empty'):
+    filled = sum(1 for line in r['lines'] if line)
+    rc = int(r.get('relevant_count') or 0)
+    if filled or r['link_ids'] or rc > 0:
+      return r, [f'empty 모순: empty=true 인데 요약 줄 {filled}개 · 링크 {len(r["link_ids"])}개 · 관련 기사 {rc}건'
+                 '(관련 기사가 없으면 셋 다 비우고, 있으면 empty=false)']
     return r, []
   source_text = '\n'.join(f"{it.get('title') or ''}\n{it.get('summary') or ''}" for it in items)
   problems = _line_problems(r['lines'], source_text, _Source(source_text))
@@ -327,6 +419,24 @@ def check_news(result: dict, items: list[dict]) -> tuple[dict, list[str]]:
   return r, problems
 
 
+# ---------------------------------------------------------------- 지적 갈래(정기 로그용)
+# (지적 문구 머리, 갈래 이름) — 위에서부터 첫 일치. 정기 실행 로그엔 이름과 건수만 찍는다(숫자 값·본문 조각·근거 인용 없음).
+_KINDS = (
+  ('숫자', '숫자'), ('통화', '통화'), ('번역투', '번역투'), ('빈 줄', '빈 줄'), ('줄 수', '줄 수'), ('글자', '글자'),
+  ('근거', '근거'), ('쪽', '쪽'), ('PDF', '쪽'), ('링크', '링크'), ('대표 링크', '링크'), ('empty 모순', 'empty 모순'),
+  ('empty 가 아닌데', '관련 기사 수'),
+)
+
+
+def problem_kinds(problems: list[str]) -> str:
+  """지적 목록 → 「숫자 2 · 통화 1」(처음 나온 순서). 표에 없는 문구는 「기타」."""
+  counts: dict[str, int] = {}
+  for p in problems:
+    name = next((nm for head, nm in _KINDS if p.startswith(head)), '기타')
+    counts[name] = counts.get(name, 0) + 1
+  return ' · '.join(f'{k} {v}' for k, v in counts.items())
+
+
 # ---------------------------------------------------------------- 자가 시험
 def self_test() -> list[str]:
   """검사기가 살아 있는지 — 실패 목록(빈 목록이면 통과). 요약기 main 이 DB 접속 전에 돈다(실패 exit 2)."""
@@ -339,6 +449,14 @@ def self_test() -> list[str]:
       fails.append(f'틀린 숫자를 통과시켰다: {bad}')
   if not currency_problems('매출은 42.1억 유로였다.', src):
     fails.append('통화 불일치를 통과시켰다')
+  # Codex 1회차 검토(2026-11-12) 대표 반례 — 단위 배수 지우기 · bp↔%p · 금액을 연도로 · 원가의 원
+  for bad, s in (('매출은 4,213달러였다.', src), ('이익률은 50%p 올랐다.', 'Margin increased 50 bps.'),
+                 ('2027년 매출은 20.3억 달러다.', 'FY2026 revenue was $2,027 million.'),
+                 ('1~4분기 매출은 100억 달러였다.', 'Q3 YTD revenue was $10 billion.')):
+    if not unmatched_numbers(bad, s):
+      fails.append(f'틀린 숫자를 통과시켰다: {bad}')
+  if not currency_problems('매출은 42.1억 원이었다.', 'Revenue was $4,213 million. 원가를 설명했다.'):
+    fails.append('원가의 「원」을 원화 근거로 봤다')
   for want, sample in EXTRA_MUST_HIT:
     if not any(p.startswith(f'번역투: {want}') for p in translationese_problems(sample)):
       fails.append(f'번역투 안 걸림 [{want}] {sample}')

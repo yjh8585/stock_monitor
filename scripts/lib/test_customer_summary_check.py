@@ -14,7 +14,7 @@ sys.path.insert(0, str(_SCRIPTS))
 
 from lib import customer_summary_prompt as sp  # noqa: E402
 from lib.customer_summary_check import (  # noqa: E402
-  check_doc, check_news, currency_problems, self_test, translationese_problems, unmatched_numbers)
+  check_doc, check_news, currency_problems, problem_kinds, self_test, translationese_problems, unmatched_numbers)
 
 SRC = ("[p.6] Revenue was $4,213 million in Q3 2026, up from $3,980 million in Q3 2025. We now expect FY2026 "
        "adjusted operating margin of 4% to 5%, down from 5% to 6%. [p.7] Regional deliveries table")
@@ -87,6 +87,44 @@ class Numbers(unittest.TestCase):
     src_en = '(€ million) Sales revenue 4,213 ... deliveries (in thousand units) 829'
     self.assertEqual(unmatched_numbers('매출은 42.1억 유로, 인도는 82.9만 대였다.', src_en), [])
 
+  # ── Codex 1회차 검토 지적(2026-11-12) 반례 ──
+  def test_own_unit_keeps_multiplier(self):
+    # 지적 1: 수에 단위 낱말이 붙어 있으면 그 배수를 지우지 않는다(배수 지우기는 표 머리를 이어받은 수만)
+    self.assertTrue(unmatched_numbers('매출은 4,213달러였다.', 'Revenue was $4,213 million.'))
+    self.assertEqual(unmatched_numbers('매출은 42.1억 달러였다.', 'Revenue was $4,213 million.'), [])
+    self.assertEqual(unmatched_numbers('매출 4,213', '(in millions) Revenue 4,213'), [])
+
+  def test_bp_vs_percent_point(self):
+    # 지적 2: bp 는 ÷100 한 값만 · 요약의 bp 도 비율 문맥이어야 한다
+    self.assertTrue(unmatched_numbers('이익률은 50%p 올랐다.', 'Margin increased 50 bps.'))
+    self.assertTrue(unmatched_numbers('50bp 올랐다.', 'Production rose 50 units.'))
+    self.assertEqual(unmatched_numbers('이익률이 50bp 올랐다.', 'Margin increased 50 bps.'), [])
+    self.assertEqual(unmatched_numbers('이익률이 0.5%p 올랐다.', 'Margin increased 50 bps.'), [])
+
+  def test_year_only_from_year_notation(self):
+    # 지적 3: 금액 2,027 이 「2027년」의 근거가 되면 안 된다
+    src = 'FY2026 revenue was $2,027 million.'
+    self.assertTrue(unmatched_numbers('2027년 매출은 20.3억 달러다.', src))
+    self.assertEqual(unmatched_numbers('2026년 매출은 20.3억 달러다.', src), [])
+    self.assertTrue(unmatched_numbers('FY2027 매출은 20.3억 달러다.', src))
+    self.assertEqual(unmatched_numbers('FY2026 매출은 20.3억 달러다.', src), [])
+
+  def test_year_notation_forms(self):
+    for src in ('three months ended September 30, 2026', 'Q3 2026 results', '2026 Q3 results', 'H1 2026',
+                '9M 2026', 'fiscal year 2026', 'Fiscal 2026 outlook', '2026년 매출 전망', '2026.10.28 공시',
+                '2026-09-30', 'September 2026'):
+      self.assertEqual(unmatched_numbers('2026년 실적', src), [], src)
+
+  def test_cumulative_start_and_end(self):
+    # 지적 5: 누적 구간은 시작·끝 분기를 원문과 맞춘다
+    self.assertTrue(unmatched_numbers('1~4분기 매출은 100억 달러였다.', 'Q3 YTD revenue was $10 billion.'))
+    self.assertEqual(unmatched_numbers('1~3분기 매출은 100억 달러였다.', 'Q3 YTD revenue was $10 billion.'), [])
+    self.assertTrue(unmatched_numbers('1~3분기 매출은 100억 달러였다.', 'YTD revenue was $10 billion.'))   # 끝을 모른다
+    self.assertTrue(unmatched_numbers('2~3분기 매출은 100억 달러였다.', 'nine months revenue was $10 billion.'))
+    self.assertEqual(unmatched_numbers('1~3분기 매출은 100억 달러였다.', 'nine months revenue was $10 billion.'), [])
+    self.assertEqual(unmatched_numbers('1~2분기 매출은 100억 달러였다.', '1H26 revenue was $10 billion.'), [])
+    self.assertEqual(unmatched_numbers('1~3분기 매출은 100억 달러였다.', '9M revenue was $10 billion.'), [])
+
 
 class Currency(unittest.TestCase):
   def test_euro_on_dollar_source(self):
@@ -99,6 +137,16 @@ class Currency(unittest.TestCase):
   def test_won_word_not_currency(self):
     # 「원문」·「원가」의 원은 통화가 아니다
     self.assertEqual(currency_problems('3분기 원가가 늘었다고 원문은 밝혔다.', SRC), [])
+
+  def test_won_word_in_source_not_krw(self):
+    # 지적 4: 원문의 「원가」·「임직원」은 원화 근거가 아니다
+    for src in ('Revenue was $4,213 million. 원가를 설명했다.', 'Revenue was $4,213 million. 임직원 수를 밝혔다.'):
+      self.assertTrue(currency_problems('매출은 42.1억 원이었다.', src), src)
+
+  def test_won_in_source_forms(self):
+    for src in ('매출 1,234원', '(단위 : 십억원) 매출액 31,617', '매출 4,213억원', 'KRW 1.2 trillion', '₩1.2 trillion',
+                'revenue of 1.2 trillion won', '영업이익 2.5조'):
+      self.assertEqual(currency_problems('매출은 1.2조 원이었다.', src), [], src)
 
 
 class Translationese(unittest.TestCase):
@@ -180,6 +228,29 @@ class CheckDoc(unittest.TestCase):
     self.assertEqual(len(p), 1)
     self.assertIn('통화', p[0])
 
+  def test_evidence_across_page_boundary(self):
+    # 지적 9: 쪽 경계를 넘는 인용은 시작 쪽으로 보정한다
+    src = '[p.1] We will close [p.2] plants'
+    r, p = check_doc(_ok(evidence=[{'quote': 'will close plants', 'page': 99}], pages=[]), src, True, 2)
+    self.assertEqual(r['evidence'][0]['page'], 1)
+    self.assertFalse(any(x.startswith('근거') for x in p))
+    self.assertIn('근거 쪽 99→1', r['check_note'])
+
+  def test_evidence_page_out_of_range(self):
+    # 쪽 표식이 쪽 수보다 크면(보정 뒤에도 범위 밖) 지적
+    src = '[p.1] intro [p.3] We will close plants'
+    _, p = check_doc(_ok(evidence=[{'quote': 'We will close plants', 'page': 3}], pages=[]), src, True, 2)
+    self.assertTrue(any(x.startswith('근거 쪽 번호') for x in p))
+
+  def test_blank_lines(self):
+    # 지적 10: 빈 줄·공백만인 줄은 지적 · 유효 줄 수로 3~5 검사
+    _, p = check_doc(_ok(lines=['', '', '']), SRC, True, 12)
+    self.assertTrue(any(x.startswith('빈 줄') for x in p))
+    self.assertTrue(any(x.startswith('줄 수 0개') for x in p))
+    _, p = check_doc(_ok(lines=_ok()['lines'] + ['   ']), SRC, True, 12)
+    self.assertTrue(any(x.startswith('빈 줄') for x in p))
+    self.assertFalse(any(x.startswith('줄 수') for x in p))
+
   def test_c_materials_page_cleared(self):
     r, p = check_doc(_ok(c_materials=[{'kind': 'region', 'page': 99, 'note': '지역별 인도'}]), SRC, True, 12)
     self.assertEqual((r['c_materials'][0]['page'], p), (None, []))
@@ -220,6 +291,17 @@ class CheckNews(unittest.TestCase):
   def test_empty_ok(self):
     self.assertEqual(check_news({'lines': [], 'link_ids': [], 'empty': True, 'relevant_count': 0}, self.ITEMS)[1], [])
 
+  def test_empty_contradiction(self):
+    # 지적 6: empty=true 인데 줄·링크·관련 기사 수가 있으면 지적(재요청 대상)
+    _, p = check_news({'lines': self.LINES, 'link_ids': [999], 'empty': True, 'relevant_count': 1}, self.ITEMS)
+    self.assertTrue(any(x.startswith('empty 모순') for x in p))
+    for body in ({'lines': ['가나자동차 노조가 파업했다.'], 'link_ids': [], 'relevant_count': 0},
+                 {'lines': [], 'link_ids': [1], 'relevant_count': 0},
+                 {'lines': [], 'link_ids': [], 'relevant_count': 2}):
+      _, p = check_news({**body, 'empty': True}, self.ITEMS)
+      self.assertTrue(any(x.startswith('empty 모순') for x in p), body)
+    self.assertEqual(check_news({'lines': ['  '], 'link_ids': [], 'empty': True, 'relevant_count': 0}, self.ITEMS)[1], [])
+
   def test_line_count(self):
     _, p = check_news(self._r(lines=self.LINES[:2]), self.ITEMS)
     self.assertTrue(any('줄 수' in x for x in p))
@@ -242,6 +324,30 @@ class Prompt(unittest.TestCase):
 
   def test_retry_lists_problems(self):
     self.assertIn('줄 수 2개', sp.retry_message(['줄 수 2개(3~5줄)']))
+
+
+class ProblemKinds(unittest.TestCase):
+  def test_counts_names_only(self):
+    # 지적 11: 정기 로그엔 갈래 이름과 건수만 — 숫자 값·본문 조각은 안 나간다
+    probs = ['숫자 원문 없음: 1줄째 「매출 45억 달러」', '숫자 원문 없음: 2줄째 「7%」', '통화: 「유로」가 원문에 없다 — 매출',
+             '쪽 번호 40 이 범위 밖(1~12)', '근거 인용이 원문에 없다(그대로 복사할 것): 「x」', '번역투: 에 있어서 — 영향에 있어서']
+    got = problem_kinds(probs)
+    self.assertEqual(got, '숫자 2 · 통화 1 · 쪽 1 · 근거 1 · 번역투 1')
+    self.assertNotIn('45', got)
+    self.assertEqual(problem_kinds([]), '')
+
+  def test_every_message_has_a_kind(self):
+    # 검사기가 내는 지적 문구가 전부 이름 표에 걸리는지(「기타」가 나오면 표에 줄을 더한다)
+    _, p1 = check_doc(_ok(lines=['', '3분기 매출은 45억 유로였다' + '고' * sp.LINE_CHARS, '관세 영향에 있어서 늘었다.'],
+                          evidence=[{'quote': '없는 문장', 'page': 6}], pages=[{'page': 40, 'caption': 'x'}] * 4),
+                      SRC, True, 12)
+    _, p2 = check_doc(_ok(), SRC, False, 0)
+    _, p3 = check_news({'lines': ['a'] * 3, 'link_ids': [999], 'empty': False, 'relevant_count': 0}, CheckNews.ITEMS)
+    _, p4 = check_news({'lines': ['a'] * 3, 'link_ids': [1], 'empty': False, 'relevant_count': 3}, CheckNews.ITEMS)
+    _, p5 = check_news({'lines': ['a'], 'link_ids': [], 'empty': True, 'relevant_count': 0}, CheckNews.ITEMS)
+    for p in (p1, p2, p3, p4, p5):
+      self.assertTrue(p)
+      self.assertNotIn('기타', problem_kinds(p), p)
 
 
 class SelfTest(unittest.TestCase):
