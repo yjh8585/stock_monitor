@@ -18,10 +18,10 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 3. **화면** `lib/customers/`(`source.ts` 서버 조회 · `ir.ts`·`earnings.ts`·`volume.ts` 순수 계산) → `components/customers/`. **`verified=true` 행만** 나간다. 해외 실적은 `pickCustomerEarnings` 가 칸마다 출처를 고른다(아래 「실적 화면 규칙」).
 4. **정기 실행** GHA `collect-customer-docs.yml`(평일 1회 · 회사별 matrix job · 목록 → 숫자 순서). 2026-11-10 사용자 승인으로 커밋. 첫 실행 전 GitHub Secret `SEC_USER_AGENT`(연락처 있는 UA) 등록. 종료 코드 규약 = 파일 머리 주석 · `docs/commands.md`.
    **비용**(2026-11-11 실측 · Task 12): 러너는 공개 레포라 0원 · 돈이 드는 곳은 숫자 수집기의 LLM(`llm_guidance.extract` 한곳 · 새 문서 중 `llm_wants` 만)뿐이다. 32회 실측 = 호출당 입력 3천~5.2만 · 출력 9~1.4천 토큰 · 평균 약 $0.03. LLM 이 읽은 문서는 2년치 44건(연 약 22건) → **연 약 $0.6**(재시도 3회 상한을 다 써도 약 $2 · 입력 12만 자·출력 16,000 상한을 매번 채우는 이론 최댓값 약 $20). 새 문서가 없는 날은 호출 0.
-5. **요약**(B 묶음 · 2026-11-12) — 문서 `scripts/summarize_customer_docs.py` → `customer_doc_summaries`(+ 쪽 캡처 버킷 `customer-doc-pages`) · 뉴스 `scripts/summarize_customer_news.py` → `customer_news_weekly`(주 1개 · 그 주 기사 최신 150건). 규칙·금지·출력 정본 = `scripts/lib/customer_summary_prompt.py` · 검사 = `scripts/lib/customer_summary_check.py`(통과 못 하면 `check_failed` 로 남고 화면엔 안 보인다). 쪽 캡처 렌더·업로드가 실패하면 요약은 `ok` 로 두고 그 쪽만 `pages[].key = null`(사유는 `check_note`) — 화면·프록시는 그 쪽을 건너뛰고, 복구는 `summarize_customer_docs.py --retry-pages`(API 호출 0).
+5. **요약**(B 묶음 · 2026-11-12) — 문서 `scripts/summarize_customer_docs.py`(원문 받기는 `collect_customer_numbers.doc_content` 를 그대로 부른다 — 사본을 만들지 말 것) → `customer_doc_summaries`(+ 쪽 캡처 버킷 `customer-doc-pages`) · 뉴스 `scripts/summarize_customer_news.py` → `customer_news_weekly`(주 1개 · 그 주 기사 최신 150건). 규칙·금지·출력 정본 = `scripts/lib/customer_summary_prompt.py` · 검사 = `scripts/lib/customer_summary_check.py`(통과 못 하면 `check_failed` 로 남고 화면엔 안 보인다). 쪽 캡처 렌더·업로드가 실패하면 요약은 `ok` 로 두고 그 쪽만 `pages[].key = null`(사유는 `check_note`) — 화면·프록시는 그 쪽을 건너뛰고, 복구는 `summarize_customer_docs.py --retry-pages`(API 호출 0).
    🔴 **정기 실행은 새 문서만**(게시일 최근 14일 · 요약 행 없음)이고 뉴스는 지난 완결 주 하나 · `--backfill`(소급)은 사용자 승인 뒤 로컬 수동(비용 관문). 원문 받기 401·403·404·크기 초과는 경고(exit 0) — 행이 안 생겨 14일 창 안에서 다음 실행이 다시 집는다. GHA 배선(문서 수집 워크플로의 「요약」 step · 주간 뉴스 워크플로)은 **사용자 승인 대기**(2026-11-12 — 인프라 파일 게이트).
 
-## 표 7개 — 전부 사외비
+## 표 9개 — 전부 사외비
 
 전부 RLS on + 정책 없음 → service_role 전용(`confidentialDb` · 명단 정본 = `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES`). 캐시 태그 = 표 이름. `customer_collect_status`(`checked_at` 이 매번 바뀌어 제외) 외 2단계 5개는 `trg_skip_identical_update` 부착([`Architecture.md`](../Architecture.md) §7-J — 같은 값 upsert 는 0행 반환).
 
@@ -33,7 +33,12 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - `customer_earnings_dates` — 다음 실적 발표일. PK (`company_id`, `period`) · 기간은 `YYYY-Qn`·연간 `YYYY-FY`
 - `customer_collect_status` — 수집기별 마지막 상태·화면용 사유(`blocked`「차단」·`parse_failed`「읽기 실패」·`error`「오류」 면 라벨과 사유를 화면에 보인다 — `ok`·`no_new` 만 조용하다). PK (`company_id`, `collector`)
 
-마이그레이션 = `20261109000003`(명단) · `20261109000004`(6종 + `companies.sec_cik`) · `20261109000005`(`currency`·`llm_attempts`).
+- `customer_doc_summaries`(B · 20261111000001) — 문서 요약. PK `doc_id`(→ `customer_documents` cascade) · `status`·`importance`·`lines`·`evidence`·`pages`(쪽·캡션·캡처 키)·`c_materials`·`check_note`·`model`·`prompt_version`·토큰 수
+- `customer_news_weekly`(B · 20261111000001) — 뉴스 주간 요약. PK (`company_id`, `week_start`) · `week_start` = KST 월요일 · `status`(ok·check_failed·empty)·`lines`·`links`·`news_count`·토큰 수
+
+요약 2종은 API(LLM)가 만들고 검사기를 통과해야 `status='ok'` 다(검사 실패 행은 화면에 안 보인다). 요약기가 매번 `updated_at` 을 넣어 `trg_skip_identical_update` 는 붙이지 않는다. **버킷 `customer-doc-pages`**(비공개 · 정책 없음 → service_role 전용) = 요약 근거 쪽 PNG(`<company_id>/<doc_id>/p<쪽>.png` · PDF 문서만) · 열람은 인증 프록시 `/api/customers/doc-page/[docId]/[page]` 로만.
+
+마이그레이션 = `20261109000003`(명단) · `20261109000004`(6종 + `companies.sec_cik`) · `20261109000005`(`currency`·`llm_attempts`) · `20261111000001`(요약 2종 + 버킷).
 
 ## 회사별 출처 — 코드 / LLM
 
@@ -94,6 +99,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - `quote_check.py`(인용·숫자 대조기 — 순수 함수, agents 규칙 이식. 고객사 파서가 뽑은 행의 quote 가 원문에 있고 값이 그 quote 안에 있는지 본다 → `check_row`·일정은 `check_date_row`. 🔴 **코드 행도 LLM 행도 이걸 지나야 `verified=true`** · 자가 시험 `self_test()`(MUST_HIT·MUST_MISS·DATE_HIT·DATE_MISS — 한국어 띄어쓰기 변이는 통과·활용형은 실패로 고정)를 본 실행 «전에» 부를 것)
 - `guidance_direction.py`(가이던스 방향 raised·maintained·lowered·initiated·withdrawn — 같은 회사·metric·period 의 직전 «verified» 행과 숫자로 비교하는 순수 함수, `test_guidance_direction.py`. 🔴 **LLM 이 방향을 정하지 않는다** · 가운데값 상대 차 0.5% 이내는 maintained(범위 좁히기도 maintained — 원문 낱말보다 숫자가 우선) · 호출은 `collect_customer_numbers.py` 가 회사마다 전부 다시 매긴다)
 - `llm_guidance.py`(고객사 가이던스 LLM 추출 — 코드 파서가 못 뽑는 칸(파서의 `llm_wants`)만. 모델 상수 `MODEL`(env `CUSTOMER_GUIDANCE_MODEL`, 기본 `claude-sonnet-5-5`) 한곳 · 구조화 출력 `SCHEMA` · `test_llm_guidance.py`. 🔴 **코드 우선**(같은 문서·metric·period 의 코드 행이 있으면 LLM 행을 버린다) · LLM 행도 `quote_check` 를 지나야 verified · 응답 중단(max_tokens·refusal)은 빈 목록이 아니라 예외(문서는 LLM 대기로 남는다) · 🔴 `quote_check` 는 배수 아무것으로나 수를 맞춰 보므로 규모·통화·기간이 틀린 행도 통과한다 → `screen` 이 돌려주기 전에 거른다(분기·반기 표지 · 원문 배수 낱말로 구한 절대값 ≠ low×단위 · 값에 붙은 외화 표지인데 `currency` 빈칸(값 뒤 괄호 환산은 그 값의 통화가 아니다) · CAGR · 숫자 `other` · 파서 `LLM_DROP` · 문서 발행 연도보다 앞선 해(숫자 지표만 — 상태 행 `other` 는 남긴다) · low > high) — 원문 'N억' 을 billion 으로 적은 행만 million 으로 환산. 🔴 `stated` 는 인용 대조 밖이라 quote 에 그 낱말 어간(raise·increase·reaffirm·lower·trim·withdraw·상향·올린·유지·낮춘 … — 한국어 동사는 활용형을 낱낱이)이 없으면 `stated` 만 지운다(방향 계산이 `withdrawn` 을 숫자보다 먼저 쓴다). 거른 수는 문서 note 「LLM 거름」)
+- `customer_summary_prompt.py`·`customer_summary_check.py`(문서·뉴스 요약 지시서 정본 · 검사기. 🔴 **검사기가 잡는 규칙은 지시서에도 같은 말로 적고, 지시서를 바꾸면 `PROMPT_VERSION` 을 올린다**) · `customer_doc_pages.py`(요약용 PDF 쪽 표식 글 · 지정 쪽 렌더 · 비공개 버킷 `customer-doc-pages` 업로드)
 
 ## 수집 함정 (2026-11-09~10 실측)
 
@@ -113,6 +119,13 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - **국내 월 판매 공시도 이름이 「영업(잠정)실적」이다** — 실적 공시와 이름으로 못 가른다. KGM 은 본문(「매출액 당해실적」)으로 가르고, IR 날짜는 같은 분기 «연결» 잠정실적 공시일 또는 숫자 수집기가 분기 실적을 읽은 DART 공시일로 채운다(KGM 은 2025 부터 분기 실적 제목에 「연결재무제표기준」이 없다). KGM 자료실 파일 시각은 2024-12 재업로드분이 섞여 분기 끝 + 120일 밖이면 날짜로 쓰지 않는다.
 - **같은 날 같은 지표의 전망 공시가 둘이면 방향 비교를 하지 않는다**(현대 판매목표 두 공시가 방향이 갈렸다) · **지표가 바뀐 전망은 방향을 매기지 않는다**(VW 매출 전망이 증감률 `revenue_growth` → 금액 `revenue` 으로 바뀜 — 화면은 「전망 기준 변경」).
 
+### 요약(B) 함정 (2026-11-12 소급 실측)
+
+- **`doc_text` 의 `Content.tables` 는 `[표[행[칸]]]` 세 겹이다** — 행 목록(두 겹)으로 읽으면 표가 있는 HTML·XLSX 원문(EDGAR 실적 보도자료·포르쉐 팩트시트)에서 `AttributeError` 로 죽는다. 표가 없는 PDF 로만 시험하면 안 걸린다(`b8125d4` · 회귀 시험 있음).
+- **뉴스는 `NEWS_RETENTION_DAYS`(60일)가 지나면 지워진다** → 뉴스 주간 요약 소급은 약 10주가 끝이다(보존 연장은 하지 않기로 함 · 결정이행 B5). 기사 수가 적은 회사(포르쉐 60일 17건)는 빈 주(`empty`)가 생긴다 — 요약기가 아니라 뉴스 수집 질의 쪽 문제다.
+- **IR 받기 상한(`ir_lists.MAX_IR_BYTES` 50MB)을 넘는 PDF 는 `TooLarge` 경고로 끝나고 요약이 없다**(리비안 주주서한 5건) — 실패가 아니라 exit 0 경고다(401·403·404 도 같은 갈래). 상한을 올리려면 Storage·메모리 비용을 먼저 잰다.
+- **검사기 오탐 3갈래가 소급 17건을 막았다** — ① 쉼표 없는 4자리 연도(「2027년까지」)를 금액 후보로만 봤다 ② 표 머리에만 단위가 있는 표(「€ million」·「(%)」) ③ % 칸. 고친 뒤 저장된 결과를 API 없이 다시 검사하는 길이 `summarize_customer_docs.py --recheck` 다(원문 sha 가 바뀐 행은 건너뛴다). 검사기를 고치면 이것부터 돌린다.
+
 ## 남은 일 (2026-11-11 IR 확장 기준)
 
 **3단계로 넘긴 것**
@@ -125,3 +138,9 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 
 - 중국 인도(`region='china'`)는 MarkLines 비교 차트에 섞지 않고 **따로 분기 막대 차트**(`CustomerVolumeCompare` → `CompanyTimeSeriesChart` 를 `hideModeToggle`·`seriesLabel` 선택 인자로 재사용 · 점 = `ir.regionQuarterCharts`)로 보인다. 차트를 그리는 지역은 `REGION_CHART_REGIONS`(지금 `china` 뿐) — GM 북미 같은 다른 지역 계열은 분기 표의 줄로만 남는다.
 - 중국 합작사 영업 결과 몫은 실적 표 아래 **한 줄**(가장 최근 기간 + 전년 같은 기간 · `ir.latestChinaJv`)이다. 연결 실적 밖 값이라 실적 표 칸·차트에는 넣지 않는다. 파서는 같은 문장 앞 절 «equity-accounted companies in China …;» 이 있을 때만 이 행을 만든다(다른 합작사 설명을 중국 값으로 싣지 않게).
+
+**요약(B) — 남은 것 (2026-11-12)**
+
+- 정기 실행(GHA)은 **승인 대기** — `collect-customer-docs.yml` 에 문서 요약 단계 추가 · `summarize-customer-news.yml` 신설. 그때까지는 로컬 수동 실행(명령 = [`docs/commands.md`](./commands.md)).
+- 검사 실패로 남은 것: 문서 1건 · 뉴스 1주(VW 2026-10-19 주). 화면엔 안 보인다.
+- Codex 검토에서 기록만 하고 안 고친 것(사소): 상세 30개 제한과 「최근 중요 문서」 앵커가 어긋날 수 있다 · 검사기 `SHORTCUT:` 5곳(`grep -n SHORTCUT: scripts/lib/customer_summary_check.py` — 표 머리 배수 넓힘 · % 머리 문서의 비-% 수 · 약한 연도 표기 · 누적 표기 · 표 안 금액 2027 을 연도로 통과) · 뉴스의 인과 서술은 기계 검사 밖 · 404 문서는 14일 창 동안 매일 경고 · `recentDoc` 30일 판정은 캐시 시점 기준.
