@@ -11,18 +11,14 @@ export default async function CustomersPage() {
   const user = await getCurrentUser();
   if (!user || !canAccess('/customers', user.role)) redirect('/');
   const { rows, windowLabel } = await getCustomersOverview();
+  // 제목·탭은 app/customers/layout.tsx 가 그린다.
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-6 py-4 border-b border-border shrink-0">
-        <h1 className="text-lg font-semibold">고객사</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          상장 고객사 요약 · 우리 매출 비중(손익 연결 최근 12개월) · 주가 · 최근 분기 실적(현지
-          통화) · 가이던스 변경 · 다음 실적 · 사외비
-        </p>
-      </div>
-      <div className="flex-1 overflow-auto p-4">
-        <CustomersOverviewTable rows={rows} windowLabel={windowLabel} today={todaySeoul()} />
-      </div>
+    <div className="h-full overflow-auto p-4 space-y-2">
+      <p className="text-xs text-muted-foreground">
+        우리 매출 비중(손익 연결 최근 12개월) · 주가 · 최근 분기 실적 · 가이던스 변경 · 다음 실적 ·
+        회사 이름을 누르면 상세로 이동
+      </p>
+      <CustomersOverviewTable rows={rows} windowLabel={windowLabel} today={todaySeoul()} />
     </div>
   );
 }

@@ -17,9 +17,47 @@ import {
   seoulDate,
   toUnit,
   volumeSeriesLabel,
+  guidanceChangeText,
+  metricKo,
 } from './format';
-import type { GuidanceCard, GuidanceRowTs, ReportedRow } from './ir';
+import type { GuidanceCard, GuidanceChange, GuidanceRowTs, ReportedRow } from './ir';
 import type { CustomerEarningsPoint } from './types';
+
+describe('guidanceChangeText — 요약 표 가이던스 변경 문구(A6)', () => {
+  const base: GuidanceChange = {
+    metric: 'deliveries',
+    metric_label: 'Vehicles Delivered',
+    direction: 'lowered',
+    period: 'FY2026',
+    published_at: '2026-05-01',
+    withdrawn_at: null,
+    before: { low: 62000, high: 67000, unit: 'units', value_text: null },
+    after: { low: 58000, high: 63000, unit: 'units', value_text: null },
+    currency: null,
+    doc_type: null,
+  };
+  it('한국어 지표 이름 + 방향 + 이전 → 새 값', () => {
+    expect(guidanceChangeText(base)).toBe('인도 대수 전망 하향: 62,000~67,000대 → 58,000~63,000대');
+  });
+  it('이전 값이 없으면 새 값만', () => {
+    expect(guidanceChangeText({ ...base, direction: 'raised', before: null })).toBe(
+      '인도 대수 전망 상향: 58,000~63,000대'
+    );
+  });
+  it('숫자 없이 원문 구절만 있으면 그 구절', () => {
+    expect(
+      guidanceChangeText({
+        ...base,
+        metric: 'aoi_margin',
+        before: { low: null, high: null, unit: 'text', value_text: 'mid-single digit' },
+        after: { low: null, high: null, unit: 'text', value_text: 'low-single digit' },
+      })
+    ).toBe('조정 영업이익률(AOI) 전망 하향: mid-single digit → low-single digit');
+  });
+  it('표에 없는 지표는 회사 원문 이름', () => {
+    expect(metricKo('unknown_metric', 'Widget count')).toBe('Widget count');
+  });
+});
 
 describe('pctText', () => {
   it('기존 동작 유지', () => {

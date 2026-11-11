@@ -79,6 +79,8 @@ export interface GuidanceRowTs {
   quote: string;
   published_at: string;
   verified: boolean;
+  /** 이 행을 낸 문서 종류(customer_documents.doc_type) — 요약 표 「(날짜 문서종류)」. 조회가 안 실으면 없음. */
+  doc_type?: string | null;
 }
 /** 한 FY 의 전망 — 최신 행 + 이력. */
 export interface GuidanceTarget {
@@ -193,17 +195,70 @@ export function guidanceStatusNotes(rows: GuidanceRowTs[]): GuidanceRowTs[] {
     .sort((a, b) => a.published_at.localeCompare(b.published_at));
 }
 
+/** 전망 값 하나 — 요약 표 「이전 → 새 값」 재료. */
+export interface GuidanceValue {
+  low: number | null;
+  high: number | null;
+  unit: string;
+  value_text: string | null;
+}
+
 export interface GuidanceChange {
+  metric: string;
   metric_label: string;
   direction: 'raised' | 'lowered';
   period: string;
   published_at: string;
   /** 그 FY 가 이후 철회됐으면 날짜(요약 표에서 상향·하향 대신 「철회됨」). */
   withdrawn_at: string | null;
+  /** 같은 카드 이력의 바로 앞 전망. 앞 행이 없으면 null. */
+  before: GuidanceValue | null;
+  after: GuidanceValue;
+  /** 카드 통화(null = 회사 보고 통화). */
+  currency: string | null;
+  /** 변경을 낸 문서 종류(customer_documents.doc_type). 모르면 null. */
+  doc_type: string | null;
 }
+
+/** 높낮이로 좋고 나쁨을 가르지 않는 가이던스 지표(투자·특별 요인 등) — 신호등은 회색 · 요약 「최근 변경」 후보에서 뺀다. */
+export const NEUTRAL_GUIDANCE_METRICS: ReadonlySet<string> = new Set([
+  'capex',
+  'investment_ratio',
+  'special_items',
+  'other',
+]);
+
+/**
+ * 같은 날 여러 카드가 바뀌었을 때 요약 표에 올릴 순서 — 이익률·매출 → 이익 → 물량 → 그 밖(현금흐름 등).
+ * 기준이 없으면 카드 배열 끝(대개 설비투자)이 뽑혀, 상향 소식이 「설비투자 하향」으로 가려졌다(2026-11-11 검토 실측).
+ */
+const CHANGE_PRIORITY: readonly (readonly string[])[] = [
+  [
+    'operating_margin',
+    'operating_margin_adjusted',
+    'aoi_margin',
+    'revenue',
+    'revenue_growth',
+    'adjusted_sales',
+  ],
+  [
+    'operating_income',
+    'ebit_adjusted',
+    'adjusted_ebitda',
+    'net_income_parent',
+    'eps_diluted',
+    'eps_adjusted',
+  ],
+  ['deliveries', 'sales_units', 'order_intake'],
+];
+const changeRank = (metric: string) => {
+  const i = CHANGE_PRIORITY.findIndex((g) => g.includes(metric));
+  return i < 0 ? CHANGE_PRIORITY.length : i;
+};
 
 /**
  * 요약 표 「최근 가이던스 변경」 — 카드와 같은 기준(latestGuidance 의 대표 FY)의 이력 중 가장 최근 상향·하향 1건.
+ * 투자·특별 요인은 후보에서 뺀다. 같은 날이면 CHANGE_PRIORITY 순.
  * 먼 목표(longer_term)만 바뀌었으면 null(= 「변경 없음」) — 먼 목표의 변경은 개별 페이지에서만 보인다.
  */
 export function latestGuidanceChange(
@@ -211,19 +266,58 @@ export function latestGuidanceChange(
   year: number,
   baseCurrency: string | null = null
 ): GuidanceChange | null {
+  return latestGuidanceChangeWithCard(rows, year, baseCurrency)?.change ?? null;
+}
+
+/** latestGuidanceChange + 그 변경이 속한 카드 — 요약 표 화살표 색을 카드 신호등으로 매길 때(2026-11-11 사용자 선택). */
+export function latestGuidanceChangeWithCard(
+  rows: GuidanceRowTs[],
+  year: number,
+  baseCurrency: string | null = null
+): { change: GuidanceChange; card: GuidanceCard } | null {
   const ok = rows.filter((r) => r.verified);
-  const last = latestGuidance(ok, year, baseCurrency)
-    .flatMap((c) => c.history)
-    .filter((r) => r.direction === 'raised' || r.direction === 'lowered')
-    .sort((a, b) => a.published_at.localeCompare(b.published_at))
+  const value = (r: GuidanceRowTs): GuidanceValue => ({
+    low: r.low,
+    high: r.high,
+    unit: r.unit,
+    value_text: r.value_text,
+  });
+  const hit = latestGuidance(ok, year, baseCurrency)
+    .flatMap((c) =>
+      c.history.map((r, i) => ({
+        r,
+        prev: i > 0 ? c.history[i - 1] : null,
+        currency: c.currency,
+        card: c,
+      }))
+    )
+    .filter(
+      ({ r }) =>
+        (r.direction === 'raised' || r.direction === 'lowered') &&
+        !NEUTRAL_GUIDANCE_METRICS.has(r.metric)
+    )
+    .sort(
+      (a, b) =>
+        a.r.published_at.localeCompare(b.r.published_at) ||
+        changeRank(b.r.metric) - changeRank(a.r.metric)
+    )
     .at(-1);
-  if (!last) return null;
+  if (!hit) return null;
+  const last = hit.r;
   return {
-    metric_label: last.metric_label,
-    direction: last.direction as GuidanceChange['direction'],
-    period: last.period,
-    published_at: last.published_at,
-    withdrawn_at: withdrawnAt(ok, last.period, last.published_at),
+    change: {
+      metric: last.metric,
+      metric_label: last.metric_label,
+      direction: last.direction as GuidanceChange['direction'],
+      period: last.period,
+      published_at: last.published_at,
+      withdrawn_at: withdrawnAt(ok, last.period, last.published_at),
+      before: hit.prev ? value(hit.prev) : null,
+      after: value(last),
+      currency: hit.currency,
+      doc_type: last.doc_type ?? null,
+    },
+    card: hit.card,
   };
 }
 

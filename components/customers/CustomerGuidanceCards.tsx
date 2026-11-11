@@ -7,12 +7,24 @@ import {
   guidanceDirection,
   latestActual,
   mergeGuidanceChains,
+  METRIC_INFO,
+  metricKo,
   periodText,
   rangeText,
   STATED_LABEL,
   toUnit,
   type DirectionTone,
 } from '@/lib/customers/format';
+import { guidanceSignal, SIGNAL_LABEL, type SignalColor } from '@/lib/customers/signals';
+import type { CustomerEarningsPoint } from '@/lib/customers/types';
+
+/** 신호등 색(A10) — 기존 상승·하락 토큰(emerald·rose)에 노랑(amber)만 더한다. 카드 왼쪽 띠 + 점. */
+const SIGNAL: Record<SignalColor, { bar: string; dot: string; label: string }> = {
+  red: { bar: 'border-l-rose-600', dot: 'bg-rose-600', label: SIGNAL_LABEL.red },
+  yellow: { bar: 'border-l-amber-500', dot: 'bg-amber-500', label: SIGNAL_LABEL.yellow },
+  green: { bar: 'border-l-emerald-600', dot: 'bg-emerald-600', label: SIGNAL_LABEL.green },
+  gray: { bar: 'border-l-border', dot: 'bg-muted-foreground/40', label: SIGNAL_LABEL.gray },
+};
 
 // 색은 기존 상승·하락 토큰(pctClass 와 같은 emerald·rose) — 새 색을 정의하지 않는다.
 const TONE: Record<DirectionTone, string> = {
@@ -28,6 +40,9 @@ interface Props {
   notes: GuidanceRowTs[];
   /** 「최근 실적」 한 줄 재료 — 서버에서만 쓴다(원본을 화면에 뿌리지 않는다). */
   reported: ReportedRow[];
+  /** 신호등의 「전년 실적」 — 상세 실적 표와 같은 연간 점(회사 공시 우선)과 그 통화. */
+  annual: CustomerEarningsPoint[];
+  earningsCurrency: string | null;
 }
 
 const AI_TITLE = '원문에서 AI 가 뽑고 검증을 통과한 값';
@@ -122,24 +137,45 @@ function Card({
   predecessors,
   notes,
   reported,
+  annual,
+  earningsCurrency,
 }: {
   card: GuidanceCard;
   predecessors: GuidanceCard[];
   notes: GuidanceRowTs[];
   reported: ReportedRow[];
+  annual: CustomerEarningsPoint[];
+  earningsCurrency: string | null;
 }) {
   const cur = card.current;
   const actual = latestActual(reported, card.metric, card.currency);
   const withdrawn = card.withdrawn_at != null;
+  const fy = Number(card.period.replace(/^FY/, ''));
+  const prior = annual.find((p) => p.fiscal_year === fy - 1) ?? null;
+  const signal = guidanceSignal(card, prior, earningsCurrency);
+  const sig = SIGNAL[signal.color];
+  const desc = METRIC_INFO[card.metric]?.desc;
   return (
     <div
       className={cn(
-        'rounded-md border border-border p-3 space-y-2 text-sm',
+        'rounded-md border border-border border-l-4 p-3 space-y-2 text-sm',
+        sig.bar,
         withdrawn && 'bg-muted/30'
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{cur.metric_label}</span>
+        <span
+          className={cn('inline-block size-2.5 rounded-full', sig.dot)}
+          role="img"
+          aria-label={`신호 ${sig.label}`}
+        />
+        <span className="font-medium" title={desc}>
+          {metricKo(card.metric, cur.metric_label)}
+          {desc && <span className="ml-0.5 text-xs text-muted-foreground">ⓘ</span>}
+        </span>
+        {METRIC_INFO[card.metric] && (
+          <span className="text-xs text-muted-foreground">{cur.metric_label}</span>
+        )}
         <span className="text-xs text-muted-foreground">{card.period}</span>
         {withdrawn ? (
           <span className={cn('rounded border px-1.5 text-[11px] leading-5', TONE.down)}>
@@ -161,6 +197,17 @@ function Card({
       >
         {valueText(cur, card.currency)}
       </p>
+      <p className="text-xs">
+        <span className="font-medium">{sig.label}</span>
+        <span className="text-muted-foreground"> · {signal.reason}</span>
+      </p>
+      {desc && (
+        // A11 — 용어 설명(special effects 등). 펼쳐 읽는다.
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground">ⓘ 용어 설명</summary>
+          <p className="mt-1 text-muted-foreground">{desc}</p>
+        </details>
+      )}
       <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
         <RowMeta row={cur} />
         {withdrawn && <span>{card.withdrawn_at} 철회</span>}
@@ -220,7 +267,13 @@ function Card({
  * 가이던스 카드 — (지표, 통화) 별 대표 FY 전망 + 이력 · 중장기 목표 · 철회 묶음 · 상태 메모.
  * 같은 FY 에 철회가 있으면 그 FY 의 카드를 「FY 전망 철회」 묶음으로 따로 모은다.
  */
-export default function CustomerGuidanceCards({ cards, notes, reported }: Props) {
+export default function CustomerGuidanceCards({
+  cards,
+  notes,
+  reported,
+  annual,
+  earningsCurrency,
+}: Props) {
   if (cards.length === 0 && notes.length === 0)
     return <p className="text-sm text-muted-foreground">검증된 가이던스가 없다.</p>;
   const views = mergeGuidanceChains(cards);
@@ -240,6 +293,8 @@ export default function CustomerGuidanceCards({ cards, notes, reported }: Props)
               predecessors={v.predecessors}
               notes={notes}
               reported={reported}
+              annual={annual}
+              earningsCurrency={earningsCurrency}
             />
           ))}
         </div>
@@ -257,6 +312,8 @@ export default function CustomerGuidanceCards({ cards, notes, reported }: Props)
                 predecessors={v.predecessors}
                 notes={notes}
                 reported={reported}
+                annual={annual}
+                earningsCurrency={earningsCurrency}
               />
             ))}
           </div>

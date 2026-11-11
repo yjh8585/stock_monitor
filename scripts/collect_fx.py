@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-6개 통화쌍(USD/EUR/GBP/JPY/HKD/CNY → KRW) 5년 일봉 환율을 수집해
+6개 통화쌍(USD/EUR/GBP/JPY/HKD/CNY → KRW) + USD 교차 통화(VND) 5년 일봉 환율을 수집해
 exchange_rates 테이블에 upsert한다.
 """
 import sys
@@ -16,7 +16,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import upsert_rows
-from lib.fx import FX_TICKERS
+from lib.fx import FX_CROSS_VIA_USD, FX_TICKERS
 
 HISTORY_YEARS = 5
 
@@ -58,11 +58,15 @@ def _fetch_fx_history(base: str, yf_ticker: str, start: str, end: str) -> list[d
     return _seriesToRows(base, series)
 
   # 폴백: 1 USD = X base 의 USD 크로스 ticker로 base/KRW = USDKRW/USDbase 산출
-  cross_ticker = f'USD{base}=X'
   if base == 'USD':
     logger.warning(f"{base}: 데이터 없음 ({yf_ticker})")
     return []
-  logger.warning(f"{base}/KRW yfinance 결측 — USD 크로스레이트({cross_ticker})로 폴백")
+  logger.warning(f"{base}/KRW yfinance 결측 — USD 크로스레이트(USD{base}=X)로 폴백")
+  return _fetch_cross_via_usd(base, f'USD{base}=X', start, end)
+
+
+def _fetch_cross_via_usd(base: str, cross_ticker: str, start: str, end: str) -> list[dict]:
+  """base/KRW = USDKRW / USDbase — 직접 X/KRW 가 없는 통화(VND 등 · lib.fx.FX_CROSS_VIA_USD)."""
   usdkrw = _fetchCloseSeries('USDKRW=X', start, end)
   usdbase = _fetchCloseSeries(cross_ticker, start, end)
   if usdkrw is None or usdbase is None or usdkrw.empty or usdbase.empty:
@@ -86,6 +90,16 @@ def collectFxHistory() -> None:
   for base, yf_ticker in FX_TICKERS.items():
     logger.info(f"{base}/KRW 수집 시작 ({yf_ticker})")
     rows = _fetch_fx_history(base, yf_ticker, start_str, end_str)
+    if not rows:
+      continue
+    upsert_rows('exchange_rates', rows, 'base,quote,rate_date')
+    total += len(rows)
+    logger.info(f"{base}/KRW: {len(rows)}행 upsert 완료")
+
+  # 직접 X/KRW 가 없는 통화 — 고객사 요약 표의 원화 환산(VND 매출)이 일별 이력을 쓴다(2026-11-11).
+  for base, cross_ticker in FX_CROSS_VIA_USD.items():
+    logger.info(f"{base}/KRW 수집 시작 (USD 교차 {cross_ticker})")
+    rows = _fetch_cross_via_usd(base, cross_ticker, start_str, end_str)
     if not rows:
       continue
     upsert_rows('exchange_rates', rows, 'base,quote,rate_date')

@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import type { CustomerEarnings } from '@/lib/customers/types';
+import type { CellOrigin, CustomerEarnings, CustomerEarningsPoint } from '@/lib/customers/types';
+import { quarterRows, ytdAnnualPoint, type QuarterRowView } from '@/lib/customers/earnings';
 import {
+  originNote,
   pctClass,
   pctText,
   type EarningsCellField,
@@ -11,6 +13,24 @@ import {
 } from '@/lib/customers/format';
 
 const TD = 'px-3 py-1.5 whitespace-nowrap text-right tabular-nums';
+
+/**
+ * YTD 행 영업이익의 출처 표시 — YTD 는 서버 각주표에 없는 행이라 각주 번호 대신 짧은 글자 + 마우스 설명.
+ * 아래 연간 행(장부상)과 정의가 다른 합계가 나란히 놓이지 않게 한다(2026-11-11 검토).
+ */
+function YtdOriginMark({ origin, currency }: { origin?: CellOrigin; currency: string | null }) {
+  const label =
+    origin?.source === 'company_adjusted' ? '조정' : origin?.source === 'market' ? '시장' : null;
+  if (!label) return null;
+  return (
+    <sup
+      className="ml-0.5 text-[10px] text-muted-foreground"
+      title={originNote(origin, currency) ?? undefined}
+    >
+      {label}
+    </sup>
+  );
+}
 const num = (v: number | null) =>
   v == null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: 1 });
 
@@ -26,7 +46,12 @@ interface Props {
 export default function CustomerEarningsTable({ earnings, adjustedRows = [], footnotes }: Props) {
   const [mode, setMode] = useState<'quarter' | 'annual'>('quarter');
   if (!earnings.currency) return <p className="text-sm text-muted-foreground">재무 데이터 없음</p>;
-  const rows = [...(mode === 'quarter' ? earnings.quarterly : earnings.annual)].reverse();
+  const isQ = mode === 'quarter';
+  // 분기 = QoQ·누적 칸이 붙은 줄 · 연간 = 회사 연간 행 + 아직 연간 행이 없는 올해의 YTD 행(맨 위).
+  const ytd = isQ ? null : ytdAnnualPoint(earnings.quarterly, earnings.annual);
+  const rows: (CustomerEarningsPoint & Partial<QuarterRowView>)[] = isQ
+    ? quarterRows(earnings.quarterly).reverse()
+    : [...(ytd ? [ytd] : []), ...[...earnings.annual].reverse()];
   const unit = earnings.currency === 'KRW' ? '십억원' : `${earnings.currency} 십억(bn)`;
   const fn = footnotes?.[mode];
   // 지금 단위(분기/연간)에 값이 하나도 없는 조정 지표 열은 감춘다(연간·누계로만 내는 지표 — 분기 열이 「—」뿐).
@@ -74,9 +99,24 @@ export default function CustomerEarningsTable({ earnings, adjustedRows = [], foo
               <th className="px-3 py-1.5 text-left">기간</th>
               <th className={TD}>매출</th>
               <th className={TD}>매출 YoY</th>
+              {isQ && (
+                <th className={TD} title="직전 분기 대비(1분기는 전년 4분기와)">
+                  매출 QoQ
+                </th>
+              )}
               <th className={TD}>영업이익</th>
               <th className={TD}>영업이익률</th>
               <th className={TD}>순이익</th>
+              {isQ && (
+                <>
+                  <th className={TD} title="그해 1분기부터 이 분기까지 합 — 빠진 분기가 있으면 —">
+                    누적 매출
+                  </th>
+                  <th className={TD} title="그해 1분기부터 이 분기까지 합 — 빠진 분기가 있으면 —">
+                    누적 영업이익
+                  </th>
+                </>
+              )}
               {adjustedCols.map((a) => (
                 <th
                   key={a.metric}
@@ -90,7 +130,10 @@ export default function CustomerEarningsTable({ earnings, adjustedRows = [], foo
           </thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.period_label} className="border-t border-border">
+              <tr
+                key={p.period_label}
+                className={cn('border-t border-border', p === ytd && 'bg-muted/30')}
+              >
                 <td className="px-3 py-1.5 text-left">{p.period_label}</td>
                 <td className={TD}>
                   {num(p.revenue_bn)}
@@ -99,9 +142,20 @@ export default function CustomerEarningsTable({ earnings, adjustedRows = [], foo
                 <td className={cn(TD, pctClass(p.revenue_yoy_pct))}>
                   {pctText(p.revenue_yoy_pct)}
                 </td>
+                {isQ && (
+                  <td className={cn(TD, pctClass(p.revenue_qoq_pct ?? null))}>
+                    {pctText(p.revenue_qoq_pct ?? null)}
+                  </td>
+                )}
                 <td className={cn(TD, pctClass(p.operating_income_bn))}>
                   {num(p.operating_income_bn)}
                   {sup(p.period_label, 'operating_income')}
+                  {p === ytd && p.operating_income_bn != null && (
+                    <YtdOriginMark
+                      origin={p.origin?.operating_income}
+                      currency={earnings.currency}
+                    />
+                  )}
                 </td>
                 <td className={cn(TD, pctClass(p.operating_margin_pct))}>
                   {pctText(p.operating_margin_pct, false)}
@@ -110,6 +164,14 @@ export default function CustomerEarningsTable({ earnings, adjustedRows = [], foo
                   {num(p.net_income_bn)}
                   {sup(p.period_label, 'net_income')}
                 </td>
+                {isQ && (
+                  <>
+                    <td className={TD}>{num(p.ytd_revenue_bn ?? null)}</td>
+                    <td className={cn(TD, pctClass(p.ytd_operating_income_bn ?? null))}>
+                      {num(p.ytd_operating_income_bn ?? null)}
+                    </td>
+                  </>
+                )}
                 {adjustedCols.map((a) => {
                   const v = p.adjusted?.find((x) => x.metric === a.metric)?.value_bn ?? null;
                   return (

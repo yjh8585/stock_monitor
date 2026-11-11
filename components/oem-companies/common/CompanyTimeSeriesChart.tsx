@@ -10,6 +10,8 @@ interface Props {
   monthly: CompanyTimeSeriesPoint[];
   /** 연도별 시계열 (mode='year' 시 표시, 기본). */
   annual: CompanyTimeSeriesPoint[];
+  /** 분기 시계열 — 주면 「분기」 탭이 생기고 기본 보기가 된다(고객사 물량 비교). 없으면 지금 동작 그대로. */
+  quarterly?: CompanyTimeSeriesPoint[];
   /** 카드 제목. 기본 "출하량 추이 (도매 wholesale)". */
   title?: string;
   /** 비교용 두 번째 계열(고객사 페이지의 회사 발표 물량). 없으면 지금 동작 그대로. */
@@ -38,6 +40,7 @@ const TimeSeriesInner = dynamic(() => import('./CompanyTimeSeriesChartInner'), {
 export default function CompanyTimeSeriesChart({
   monthly,
   annual,
+  quarterly,
   title = '출하량 추이 (도매 wholesale)',
   secondary,
   hideModeToggle,
@@ -52,6 +55,7 @@ export default function CompanyTimeSeriesChart({
         <TimeSeriesInner
           monthly={monthly}
           annual={annual}
+          quarterly={quarterly}
           secondary={secondary}
           hideModeToggle={hideModeToggle}
           seriesLabel={seriesLabel}

@@ -2,33 +2,63 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 // 타입만 쓰므로 import type — 값 import 가 아니라 조회 모듈('use cache' 함수)을 끌어오지 않는다.
-import type { CustomerOverviewIr, CustomerOverviewRow } from '@/lib/customers/source';
+import type { CustomerOverviewIr, CustomerOverviewTableRow } from '@/lib/customers/source';
 // 지시어 없는 lib — 서버 컴포넌트가 값으로 불러도 된다('use client' 파일의 함수는 안 된다).
 import { nextEarnings } from '@/lib/customers/ir';
-import { pctClass, pctText, periodText } from '@/lib/customers/format';
+import {
+  docTypeLabel,
+  guidanceChangeText,
+  pctClass,
+  pctText,
+  periodText,
+} from '@/lib/customers/format';
+import { krwText } from '@/lib/customers/krw';
+import { SIGNAL_LABEL, type SignalColor } from '@/lib/customers/signals';
 
 const TD = 'px-3 py-2 whitespace-nowrap';
 const NUM = `${TD} text-right tabular-nums`;
 
 interface Props {
-  rows: (CustomerOverviewRow & { ir: CustomerOverviewIr })[];
+  rows: CustomerOverviewTableRow[];
   windowLabel: string;
   /** 서울 날짜 YYYY-MM-DD(todaySeoul) — 「다음 실적」 고르기 기준. */
   today: string;
 }
 
-/** 「최근 가이던스 변경」 칸 — 상향 ▲ 초록 · 하향 ▼ 빨강 · 그 FY 가 이후 철회됐으면 「철회됨」. */
-function GuidanceChangeCell({ c }: { c: CustomerOverviewIr['guidanceChange'] }) {
+/**
+ * 「최근 가이던스 변경」 칸 — 「인도 대수 전망 하향: 이전 → 새 값 (날짜 문서종류)」(2026-11-11 사용자 지시 · 한국어로 읽히게).
+ * 상향 ▲ 초록 · 하향 ▼ 빨강 · 그 FY 가 이후 철회됐으면 「철회됨」. 회사 원문 지표 이름은 툴팁에.
+ */
+/** 화살표 색 = 그 카드의 신호등 색(모양 ▲▼ 은 방향) — 상세 카드 CustomerGuidanceCards 의 SIGNAL 과 같은 색 계열. */
+const SIGNAL_TEXT: Record<SignalColor, string> = {
+  red: 'text-rose-600',
+  yellow: 'text-amber-500',
+  green: 'text-emerald-600',
+  gray: 'text-muted-foreground',
+};
+
+function GuidanceChangeCell({ ir }: { ir: CustomerOverviewIr }) {
+  const c = ir.guidanceChange;
   if (!c) return <span className="text-muted-foreground">—</span>;
   const up = c.direction === 'raised';
+  const sig = ir.guidanceSignal ?? 'gray';
   return (
-    <span title={`${c.period} · ${c.published_at}`}>
+    <span
+      className="block min-w-[260px] max-w-[380px] whitespace-normal"
+      title={`${c.period} · 원문 지표: ${c.metric_label}`}
+    >
       {c.withdrawn_at ? (
-        <span className="text-muted-foreground">철회됨</span>
+        <span className="text-muted-foreground">철회됨 · </span>
       ) : (
-        <span className={up ? 'text-emerald-600' : 'text-rose-600'}>{up ? '▲' : '▼'}</span>
-      )}{' '}
-      {c.metric_label} <span className="text-xs text-muted-foreground">{c.published_at}</span>
+        <span className={SIGNAL_TEXT[sig]} title={`카드 신호: ${SIGNAL_LABEL[sig]}`}>
+          {up ? '▲' : '▼'}{' '}
+        </span>
+      )}
+      {c.period.replace(/^FY/, '')}년 {guidanceChangeText(c)}{' '}
+      <span className="text-xs text-muted-foreground">
+        ({c.published_at}
+        {c.doc_type ? ` ${docTypeLabel(c.doc_type)}` : ''})
+      </span>
     </span>
   );
 }
@@ -49,6 +79,10 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
             <th className={`${TD} text-right`}>1개월</th>
             <th className={`${TD} text-right`}>연초 대비</th>
             <th className={`${TD} text-right`}>최근 분기</th>
+            <th className={`${TD} text-right`}>
+              분기 매출
+              <span className="block font-normal">원화 · 분기 평균 환율</span>
+            </th>
             <th className={`${TD} text-right`}>매출 YoY</th>
             <th className={`${TD} text-right`}>영업이익률</th>
             <th className={`${TD} text-left`}>최근 가이던스 변경</th>
@@ -62,7 +96,10 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
             return (
               <tr key={r.company_id} className="border-t border-border hover:bg-muted/30">
                 <td className={TD}>
-                  <Link href={`/customers/${r.slug}`} className="font-medium hover:underline">
+                  <Link
+                    href={`/customers/${r.slug}`}
+                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  >
                     {r.name_kr}
                   </Link>
                   {r.ticker && (
@@ -101,14 +138,24 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
                   {pctText(r.price.returnYtdPct)}
                 </td>
                 <td className={NUM}>{q?.period_label ?? '—'}</td>
+                <td className={NUM}>{krwText(r.revenueKrw)}</td>
                 <td className={cn(NUM, pctClass(q?.revenue_yoy_pct ?? null))}>
                   {pctText(q?.revenue_yoy_pct ?? null)}
                 </td>
                 <td className={cn(NUM, pctClass(q?.operating_margin_pct ?? null))}>
                   {pctText(q?.operating_margin_pct ?? null, false)}
+                  {q?.origin?.operating_income.source === 'company_adjusted' && (
+                    // 상세와 같은 규칙 — 법정 영업이익이 없어 회사 조정 영업이익으로 계산한 칸(결정 R6).
+                    <span
+                      className="ml-1 rounded bg-muted px-1 text-[11px] text-muted-foreground"
+                      title={`회사 발표 조정 영업이익 기준${q.origin.operating_income.metric_name ? ` (${q.origin.operating_income.metric_name})` : ''}`}
+                    >
+                      조정
+                    </span>
+                  )}
                 </td>
                 <td className={TD}>
-                  <GuidanceChangeCell c={r.ir.guidanceChange} />
+                  <GuidanceChangeCell ir={r.ir} />
                 </td>
                 <td className={cn(TD, 'tabular-nums', next?.estimated && 'text-muted-foreground')}>
                   {next ? (

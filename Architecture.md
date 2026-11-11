@@ -520,7 +520,8 @@ MarkLines 중국 전용 엑셀 3종을 그대로 담는다(전 세계 생산 `oe
 #### `exchange_rates` (7,839행) — 일별 환율 (ER-API)
 
 | base | quote | rate_date | rate |  
-인덱스: (base, rate_date DESC)
+인덱스: (base, rate_date DESC)  
+통화(`collect_fx.py`): USD·EUR·GBP·JPY·HKD·CNY 는 직접 X/KRW · **VND 는 USD 교차**(USDKRW ÷ USDVND · 2026-11-11 추가 — 고객사 요약 표의 분기 평균 환율 원화 환산이 쓴다).
 
 #### `exchange_rates_live` (15행) — 실시간 환율
 

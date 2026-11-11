@@ -8,6 +8,7 @@ import {
   latestChinaJv,
   latestGuidance,
   latestGuidanceChange,
+  latestGuidanceChangeWithCard,
   nextEarnings,
   pickEarnings,
   quarterize,
@@ -325,14 +326,59 @@ describe('latestGuidanceChange', () => {
       g({ direction: 'maintained', published_at: '2026-07-01' }),
       g({ direction: 'raised', published_at: '2026-09-01', verified: false }),
     ];
+    const v = { low: 62000, high: 67000, unit: 'units', value_text: null };
     expect(latestGuidanceChange(rows, 2026)).toEqual({
+      metric: 'deliveries',
       metric_label: 'Deliveries',
       direction: 'lowered',
       period: 'FY2026',
       published_at: '2026-05-01',
       withdrawn_at: null,
+      before: v,
+      after: v,
+      currency: null,
+      doc_type: null,
     });
     expect(latestGuidanceChange([g({ direction: 'maintained' })], 2026)).toBeNull();
+  });
+
+  it('투자 지표는 후보에서 빼고 · 같은 날이면 이익률·매출 → 이익 → 물량 순', () => {
+    const day = '2026-10-29';
+    const rows = [
+      g({ metric: 'deliveries', direction: 'raised', published_at: day }),
+      g({ metric: 'operating_margin', unit: 'percent', direction: 'lowered', published_at: day }),
+      g({ metric: 'capex', unit: 'billion', direction: 'lowered', published_at: day }),
+    ];
+    expect(latestGuidanceChange(rows, 2026)?.metric).toBe('operating_margin');
+    // 이익률이 없으면 물량 — 설비투자 하향이 상향 소식을 가리지 않는다
+    expect(latestGuidanceChange([rows[0], rows[2]], 2026)?.metric).toBe('deliveries');
+    expect(latestGuidanceChange([rows[2]], 2026)).toBeNull();
+    // 요약 표 화살표 색을 매길 카드도 함께 — 고른 변경과 같은 지표의 카드
+    expect(latestGuidanceChangeWithCard(rows, 2026)?.card.metric).toBe('operating_margin');
+  });
+
+  it('「이전 → 새 값」 = 같은 카드 이력의 바로 앞 행 · 문서 종류를 싣는다', () => {
+    const c = latestGuidanceChange(
+      [
+        g({ direction: 'initiated', low: 60000, high: 65000, published_at: '2026-01-10' }),
+        g({ direction: 'maintained', low: 60000, high: 65000, published_at: '2026-04-10' }),
+        g({
+          direction: 'raised',
+          low: 62000,
+          high: 67000,
+          published_at: '2026-07-10',
+          doc_type: 'earnings_release',
+        }),
+      ],
+      2026
+    );
+    expect(c?.before).toEqual({ low: 60000, high: 65000, unit: 'units', value_text: null });
+    expect(c?.after).toEqual({ low: 62000, high: 67000, unit: 'units', value_text: null });
+    expect(c?.doc_type).toBe('earnings_release');
+  });
+
+  it('처음 낸 전망이 바로 상향으로 찍혔으면 이전 값 없음(null)', () => {
+    expect(latestGuidanceChange([g({ direction: 'raised' })], 2026)?.before).toBeNull();
   });
 
   it('카드와 같은 대표 FY 기준 — 올해 전망은 유지, 먼 목표(FY2030)만 하향이면 「변경 없음」(null)', () => {

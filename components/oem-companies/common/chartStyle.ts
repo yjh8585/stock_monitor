@@ -20,6 +20,10 @@ export const DATA_LABEL_STYLE = {
   fontWeight: 700,
 } as const;
 
+/** 영업이익률 데이터 레이블 — 막대 레이블(검정)과 구분되게 선 색(빨강). 색은 style 안에서 덮는다(chart-guide 함정). */
+export const MARGIN_LABEL_STYLE = { ...DATA_LABEL_STYLE, fill: '#dc2626' } as const;
+export const fmtMarginLabel = (v: unknown) => (typeof v === 'number' ? `${v.toFixed(1)}%` : '');
+
 /**
  * 경영관리 차트 막대 위 데이터 라벨 (16px / 500).
  * OEM 차트(DATA_LABEL_STYLE, 15px/700)와 크기가 다르다 — docs/chart-guide.md §5-B

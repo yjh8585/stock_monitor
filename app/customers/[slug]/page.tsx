@@ -70,14 +70,12 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
     : '';
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-4 border-b border-border shrink-0">
-        <Link href="/customers" className="text-xs text-muted-foreground hover:underline">
-          ← 고객사
-        </Link>
-        <h1 className="text-lg font-semibold">
+      {/* 「← 고객사」 링크는 layout 의 탭이 대신한다(2026-11-11 사용자 지시). 페이지 h1 은 layout 의 「고객사」. */}
+      <div className="px-6 py-3 border-b border-border shrink-0">
+        <h2 className="text-lg font-semibold">
           {row.name_kr}{' '}
           {row.ticker && <span className="text-sm text-muted-foreground">{row.ticker}</span>}
-        </h1>
+        </h2>
         <p className="text-sm tabular-nums mt-0.5">
           {row.price.lastClose == null ? (
             '주가 —'
@@ -115,6 +113,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
               revenueKey="revenue_bn"
               currency={earnings.currency}
               allowNegativeMargin={hasNegativeMargin(earnings)}
+              showMarginLabels
               titleLabel="실적"
               sourceNote={
                 companyFirst
@@ -155,6 +154,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
               cards={ir.guidance}
               notes={ir.guidanceNotes}
               reported={ir.reported}
+              annual={earnings.annual}
+              earningsCurrency={earnings.currency}
             />
           </section>
         )}

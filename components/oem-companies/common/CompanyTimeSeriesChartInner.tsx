@@ -30,11 +30,15 @@ export interface TimeSeriesSecondary {
   primaryLabel?: string;
   monthly?: { period: string; value: number }[];
   annual?: { period: string; value: number }[];
+  /** 'YYYY-Qn' — 기본 계열 quarterly 와 맞춘다. */
+  quarterly?: { period: string; value: number }[];
 }
 
 interface Props {
   monthly: CompanyTimeSeriesPoint[];
   annual: CompanyTimeSeriesPoint[];
+  /** 주면 「분기」 탭이 생기고 기본 보기가 분기다(고객사 물량 비교 · A9). 없으면(기본) 지금 동작 그대로. */
+  quarterly?: CompanyTimeSeriesPoint[];
   /** 없으면(기본) 지금 동작 그대로 — 지금 보는 단위에 값이 있을 때만 선 하나·범례를 더 그린다. */
   secondary?: TimeSeriesSecondary;
   /** 연/월 토글을 숨기고 막대(annual 자리)만 — 분기 값만 있는 계열(고객사 VW 중국 인도 · 결정 E9). 기본 false. */
@@ -43,7 +47,10 @@ interface Props {
   seriesLabel?: string;
 }
 
-type ViewMode = 'year' | 'month';
+type ViewMode = 'year' | 'quarter' | 'month';
+
+/** 분기 보기에 그리는 최근 분기 수 — 12 면 두 계열 막대 숫자가 붙었다(2026-11-11 촬영) · 8 은 떨어진다. */
+const QUARTER_WINDOW = 8;
 
 /** 판매량 단위 라벨 (만/M 자동 변환). */
 function fmtUnitsTick(n: number): string {
@@ -81,15 +88,29 @@ function fmtYoy(value: unknown): string {
 export default function CompanyTimeSeriesChartInner({
   monthly,
   annual,
+  quarterly,
   secondary,
   hideModeToggle = false,
   seriesLabel = '출하량',
 }: Props) {
-  const [mode, setMode] = useState<ViewMode>('year');
+  const hasQuarter = (quarterly?.length ?? 0) > 0;
+  const [mode, setMode] = useState<ViewMode>(hasQuarter ? 'quarter' : 'year');
   const height = useChartHeight(240, 280, 320);
 
-  const data = mode === 'year' ? annual : monthly;
-  const secondaryPoints = mode === 'year' ? secondary?.annual : secondary?.monthly;
+  const data =
+    mode === 'year'
+      ? annual
+      : mode === 'quarter'
+        ? (quarterly ?? []).slice(-QUARTER_WINDOW)
+        : monthly;
+  const secondaryPoints =
+    mode === 'year'
+      ? secondary?.annual
+      : mode === 'quarter'
+        ? secondary?.quarterly
+        : secondary?.monthly;
+  // 연간·분기 = 막대(두 계열을 나란히 · 2026-11-11 사용자 지시 「꺾은선이 아니라 같은 막대로」) · 월간 = 영역 + 선 그대로.
+  const barMode = mode !== 'month';
   const secondaryByPeriod = new Map((secondaryPoints ?? []).map((p) => [p.period, p.value]));
   // 기본 계열 기간에 겹치는 값이 하나도 없으면 두 번째 계열을 그리지 않는다(빈 범례 방지).
   const merged =
@@ -119,6 +140,21 @@ export default function CompanyTimeSeriesChartInner({
         >
           연간
         </button>
+        {hasQuarter && (
+          <button
+            role="tab"
+            type="button"
+            aria-selected={mode === 'quarter'}
+            onClick={() => setMode('quarter')}
+            className={`px-3 py-1 rounded-md border transition-colors ${
+              mode === 'quarter'
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            분기
+          </button>
+        )}
         <button
           role="tab"
           type="button"
@@ -139,13 +175,13 @@ export default function CompanyTimeSeriesChartInner({
           // 두 번째 계열이 있을 때만 — 같은 단위(대)라 한 Y축에 함께 그린다(이중 축 아님 → §4-F 밴드 분리 대상 아님).
           <ComposedChart
             data={merged}
-            margin={{ top: mode === 'year' ? 32 : 10, right: 20, bottom: 10, left: 10 }}
+            margin={{ top: barMode ? 32 : 10, right: 20, bottom: 10, left: 10 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
               className="stroke-border"
               strokeOpacity={GRID_STROKE_OPACITY}
-              vertical={mode !== 'year'}
+              vertical={!barMode}
             />
             <XAxis
               dataKey="period_label"
@@ -159,10 +195,10 @@ export default function CompanyTimeSeriesChartInner({
               tickFormatter={fmtUnitsTick}
               className="text-sm"
               width={60}
-              {...(mode === 'year' ? { domain: Y_AXIS_PADDED_DOMAIN } : {})}
+              {...(barMode ? { domain: Y_AXIS_PADDED_DOMAIN } : {})}
             />
             <Tooltip
-              cursor={mode === 'year' ? { fill: 'var(--muted)' } : undefined}
+              cursor={barMode ? { fill: 'var(--muted)' } : undefined}
               contentStyle={TOOLTIP_CONTENT_STYLE}
               formatter={(value, name, item) => {
                 if (value == null) return ['—', String(name)];
@@ -179,7 +215,7 @@ export default function CompanyTimeSeriesChartInner({
               align="center"
               wrapperStyle={{ fontSize: '16px', paddingBottom: 8 }}
             />
-            {mode === 'year' ? (
+            {barMode ? (
               <Bar dataKey="sales" name={primaryLabel} fill="#2563eb" radius={[3, 3, 0, 0]}>
                 <LabelList
                   dataKey="sales"
@@ -199,18 +235,34 @@ export default function CompanyTimeSeriesChartInner({
                 fillOpacity={0.1}
               />
             )}
-            <Line
-              type="monotone"
-              dataKey="secondary"
-              name={secondary.label}
-              stroke={OEM_COLORS[3]}
-              strokeWidth={2}
-              dot={mode === 'year'}
-              activeDot={{ r: 4 }}
-              connectNulls={false}
-            />
+            {barMode ? (
+              <Bar
+                dataKey="secondary"
+                name={secondary.label}
+                fill={OEM_COLORS[3]}
+                radius={[3, 3, 0, 0]}
+              >
+                <LabelList
+                  dataKey="secondary"
+                  position="top"
+                  formatter={fmtBarLabel}
+                  style={DATA_LABEL_STYLE}
+                />
+              </Bar>
+            ) : (
+              <Line
+                type="monotone"
+                dataKey="secondary"
+                name={secondary.label}
+                stroke={OEM_COLORS[3]}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls={false}
+              />
+            )}
           </ComposedChart>
-        ) : mode === 'year' ? (
+        ) : barMode ? (
           <BarChart data={data} margin={{ top: 32, right: 20, bottom: 10, left: 10 }}>
             <CartesianGrid
               strokeDasharray="3 3"

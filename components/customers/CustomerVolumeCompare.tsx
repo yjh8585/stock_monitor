@@ -4,6 +4,7 @@ import CompanyTimeSeriesChart from '@/components/oem-companies/common/CompanyTim
 import { regionQuarterCharts, type VolumeSeries } from '@/lib/customers/ir';
 import type { CustomerDetail } from '@/lib/customers/source';
 import { volumeSeriesLabel } from '@/lib/customers/format';
+import { monthlyToQuarterly } from '@/lib/customers/volume';
 
 /** MarkLines 판매와 견줄 회사 계열 — 전체(total) 중 판매 성격이 가까운 지표부터. */
 const CHART_METRIC_ORDER = ['sales', 'wholesale', 'deliveries', 'shipments', 'production'];
@@ -15,8 +16,11 @@ interface Props {
 }
 
 function chartSeries(series: VolumeSeries[]): VolumeSeries | null {
+  // 분기 값만 내는 회사(해외 대부분)도 잡는다 — 빠뜨려 회사 발표가 차트에 안 실렸다(2026-11-11 사용자 지적).
   const total = series.filter(
-    (s) => s.region === 'total' && (s.monthly.length > 0 || s.annual.length > 0)
+    (s) =>
+      s.region === 'total' &&
+      (s.monthly.length > 0 || s.annual.length > 0 || s.quarterly.length > 0)
   );
   const rank = (s: VolumeSeries) => {
     const i = CHART_METRIC_ORDER.indexOf(s.metric);
@@ -43,12 +47,14 @@ export default function CustomerVolumeCompare({ volume, series }: Props) {
         <>
           <p className="text-xs text-muted-foreground">
             MarkLines 그룹 「{volume.group}」 전체 판매 — 그룹 단위라 계열 브랜드가 함께 잡힌다.
-            {main && ' 노란 선 = 회사 발표 값(정의가 달라 맞지 않을 수 있다 — 아래 상자).'}
+            {main &&
+              ' 노란 막대 = 회사 발표 값(정의가 달라 맞지 않을 수 있다 — 아래 상자). 분기 = MarkLines 석 달 합(석 달이 다 찬 분기만).'}
           </p>
           <CompanyKpiCards kpi={volume.kpi} />
           <CompanyTimeSeriesChart
             monthly={volume.monthly}
             annual={volume.annual}
+            quarterly={monthlyToQuarterly(volume.monthly)}
             title="MarkLines 그룹 판매"
             secondary={
               main
@@ -57,6 +63,7 @@ export default function CustomerVolumeCompare({ volume, series }: Props) {
                     primaryLabel: 'MarkLines 판매',
                     monthly: main.monthly,
                     annual: main.annual,
+                    quarterly: main.quarterly,
                   }
                 : undefined
             }

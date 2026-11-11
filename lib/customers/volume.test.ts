@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { aggregateMonthlySeries } from '@/lib/oem-companies/kg-mobility/aggregate';
-import { groupMonthToSaleRows } from './volume';
+import { groupMonthToSaleRows, monthlyToQuarterly } from './volume';
+
+describe('monthlyToQuarterly — 물량 차트 분기 보기(A9)', () => {
+  const m = (period: string, sales: number) => ({
+    period,
+    period_label: period,
+    sales,
+    yoy_pct: null,
+  });
+  const months = [
+    ...['01', '02', '03', '04', '05', '06'].map((mm) => m(`2025-${mm}`, 100)),
+    ...['01', '02', '03'].map((mm) => m(`2026-${mm}`, 120)),
+    m('2026-04', 500), // 석 달이 안 찬 분기 — 빠져야 한다
+  ];
+  const qs = monthlyToQuarterly(months);
+  it('석 달이 다 있는 분기만 · 합계 · period 는 YYYY-Qn', () => {
+    expect(qs.map((q) => [q.period, q.sales])).toEqual([
+      ['2025-Q1', 300],
+      ['2025-Q2', 300],
+      ['2026-Q1', 360],
+    ]);
+  });
+  it('YoY = 전년 같은 분기 대비', () => {
+    expect(qs[2].yoy_pct).toBeCloseTo(20);
+    expect(qs[0].yoy_pct).toBeNull();
+  });
+});
 
 describe('groupMonthToSaleRows', () => {
   const rows = [

@@ -18,7 +18,13 @@ import { bandDomain } from '@/components/management/stellantis/gapAxis';
 import { useChartHeight } from '@/lib/useChartHeight';
 import type { CustomerEarningsPoint } from '@/lib/customers/types';
 import type { HyundaiAnnualEarningsPoint } from '@/lib/types';
-import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY, Y_AXIS_PADDED_DOMAIN } from '../common/chartStyle';
+import {
+  DATA_LABEL_STYLE,
+  fmtMarginLabel,
+  GRID_STROKE_OPACITY,
+  MARGIN_LABEL_STYLE,
+  Y_AXIS_PADDED_DOMAIN,
+} from '../common/chartStyle';
 import { revenueFormat } from '../common/revenueFormat';
 import { useHiddenSeries } from '../common/useHiddenSeries';
 
@@ -30,6 +36,8 @@ interface Props {
   currency?: string;
   /** 영업이익률 축을 음수까지 연다(적자 회사). 기본 false = 0 부터. */
   allowNegativeMargin?: boolean;
+  /** 영업이익률 점 위에 숫자(소수 1자리 %)를 표시한다. 기본 false — OEM 현대 탭은 그대로. */
+  showMarginLabels?: boolean;
 }
 
 function fmtOpmTick(n: number): string {
@@ -54,6 +62,7 @@ export default function HyundaiAnnualEarningsChartInner({
   revenueKey = 'revenue_krw_bn',
   currency = 'KRW',
   allowNegativeMargin = false,
+  showMarginLabels = false,
 }: Props) {
   const fmt = revenueFormat(currency);
   // 배열 유니온(A[] | B[])은 ComposedChart 제네릭이 못 받아 원소 유니온 배열로 넓힌다(캐스트 아님).
@@ -152,7 +161,16 @@ export default function HyundaiAnnualEarningsChartInner({
           isAnimationActive={false}
           connectNulls
           hide={isHidden('operating_margin_pct')}
-        />
+        >
+          {showMarginLabels && (
+            <LabelList
+              dataKey="operating_margin_pct"
+              position="top"
+              formatter={fmtMarginLabel}
+              style={MARGIN_LABEL_STYLE}
+            />
+          )}
+        </Line>
       </ComposedChart>
     </ResponsiveContainer>
   );

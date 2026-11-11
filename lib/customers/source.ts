@@ -19,12 +19,14 @@ import { computeShares } from './share';
 import { buildEarnings } from './earnings';
 import { priceReturns } from './prices';
 import { groupMonthToSaleRows } from './volume';
+import { revenueKrw, type RateRow } from './krw';
+import { guidanceSignal, type SignalColor } from './signals';
 import {
   buildVolumeSeries,
   droppedCurrencies,
   guidanceStatusNotes,
   latestGuidance,
-  latestGuidanceChange,
+  latestGuidanceChangeWithCard,
   pickEarnings,
   type EarningsDateRow,
   type GuidanceCard,
@@ -62,13 +64,22 @@ export interface CustomerOverviewRow {
 /** 요약 표의 공식 문서 열 재료 — 「다음 실적」은 화면이 nextEarnings(earningsDates, todaySeoul()) 로 고른다. */
 export interface CustomerOverviewIr {
   guidanceChange: GuidanceChange | null;
+  /** 그 변경이 속한 카드의 신호등 색(상세 카드와 같은 판정). 변경이 없으면 null. */
+  guidanceSignal: SignalColor | null;
   earningsDates: EarningsDateRow[];
 }
 
 export interface CustomersOverview {
   windowLabel: string;
-  rows: (CustomerOverviewRow & { ir: CustomerOverviewIr })[];
+  rows: CustomerOverviewTableRow[];
 }
+
+/** 요약 표 한 줄 — latestQuarter 는 상세와 같은 칸 고르기(해외 = 회사 공시 우선) 결과. */
+export type CustomerOverviewTableRow = CustomerOverviewRow & {
+  ir: CustomerOverviewIr;
+  /** 최근 분기 매출의 원화(그 분기 평균 환율). 환율·매출이 없으면 null. */
+  revenueKrw: number | null;
+};
 
 export interface CustomerDocumentItem {
   id: number;
@@ -202,6 +213,18 @@ async function fetchPrices(ids: string[]): Promise<Map<string, PricePoint[]>> {
   return out;
 }
 
+/**
+ * 우리 매출 비중 — 손익 전체를 읽는 가장 무거운 계산이라 따로 캐시해 요약·상세 11개가 한 번만 계산한다.
+ * 분모(전체 매출)가 명단 전체에 걸려 있어 한 회사만 계산할 수 없다. 반환값(상위 품목 포함)은 서버 밖으로 나가지 않는다.
+ */
+async function getShareResult() {
+  'use cache';
+  cacheLife('days');
+  cacheTag('customer_accounts');
+  cacheTag('pnl_entries');
+  return computeShareResult(await fetchAccounts());
+}
+
 async function computeShareResult(accounts: AccountRow[]) {
   const pnl = await fetchPnlEntries();
   const rows = pnl
@@ -226,30 +249,42 @@ async function computeShareResult(accounts: AccountRow[]) {
 
 interface BuiltRow {
   account: AccountRow;
+  /** DART 회사(국내) — 실적은 financials 그대로 · 해외는 회사 공시 우선(pickCustomerEarnings). getCustomerIr 의 earningsRule 과 같은 판정. */
+  domestic: boolean;
   country: string;
   earnings: CustomerEarnings;
   row: CustomerOverviewRow;
 }
 
+/** 매출이 있는 가장 늦은 분기. */
+function latestQuarterOf(earnings: CustomerEarnings): CustomerEarningsPoint | null {
+  return [...earnings.quarterly].reverse().find((p) => p.revenue_bn != null) ?? null;
+}
+
+/**
+ * 명단 전체의 행 — `onlyCompanyId` 를 주면 실적·주가는 그 회사만 읽는다(상세 화면 속도 · 2026-11-11).
+ * 회사 이름(합산 동료 이름에 쓴다)과 비중은 그래도 전체가 필요해 전체로 둔다 — 나머지 회사의 실적·주가 칸은 비어 있다.
+ */
 async function buildRows(
-  accounts: AccountRow[]
+  accounts: AccountRow[],
+  onlyCompanyId?: string
 ): Promise<{ rows: BuiltRow[]; windowLabel: string }> {
   const ids = accounts.map((a) => a.company_id);
+  const dataIds = onlyCompanyId ? [onlyCompanyId] : ids;
   const [companies, financials, prices, shares] = await Promise.all([
     fetchCompanies(ids),
-    fetchFinancials(ids),
-    fetchPrices(ids),
-    computeShareResult(accounts),
+    fetchFinancials(dataIds),
+    fetchPrices(dataIds),
+    getShareResult(),
   ]);
   const rows: BuiltRow[] = [];
   for (const a of accounts) {
     const c = companies.get(a.company_id);
     if (!c) continue; // hidden·병합된 회사는 명단에 남아도 화면에서 뺀다
     const earnings = buildEarnings(financials.get(a.company_id) ?? []);
-    const latestQuarter =
-      [...earnings.quarterly].reverse().find((p) => p.revenue_bn != null) ?? null;
     rows.push({
       account: a,
+      domestic: c.dart_corp_code != null,
       country: c.country ?? '',
       earnings,
       row: {
@@ -262,7 +297,7 @@ async function buildRows(
         share_group: a.share_group,
         share_group_peers: [],
         price: priceReturns(prices.get(a.company_id) ?? []),
-        latestQuarter,
+        latestQuarter: latestQuarterOf(earnings),
         earningsCurrency: earnings.currency,
       },
     });
@@ -275,6 +310,26 @@ async function buildRows(
       .map((y) => y.row.name_kr);
   }
   return { rows, windowLabel: shares.windowLabel };
+}
+
+export interface CustomerTab {
+  slug: string;
+  name_kr: string;
+}
+
+/** 상단 탭 명단 — 요약 표 순서(display_order) · 이름·slug 만(비중 등 다른 사외비 칸은 싣지 않는다). */
+export async function getCustomerTabs(): Promise<CustomerTab[]> {
+  'use cache';
+  cacheLife('days');
+  cacheTag('customer_accounts');
+  cacheTag('companies');
+  const accounts = await fetchAccounts();
+  const companies = await fetchCompanies(accounts.map((a) => a.company_id));
+  return accounts.flatMap((a) => {
+    const c = companies.get(a.company_id);
+    // hidden·병합된 회사는 요약 표처럼 뺀다(buildRows 와 같은 판정).
+    return c ? [{ slug: a.slug, name_kr: c.name_kr ?? c.name }] : [];
+  });
 }
 
 export async function getCustomersOverview(): Promise<CustomersOverview> {
@@ -291,23 +346,101 @@ export async function getCustomersOverview(): Promise<CustomersOverview> {
   cacheTag('customer_reported_results');
   cacheTag('customer_earnings_dates');
   cacheTag('customer_collect_status');
+  // exchange_rates 태그는 일부러 안 단다 — 환율 수집이 매시간 돌아 태그를 달면 이 무거운 캐시가 매시간 버려진다
+  // (docs/isr-write-optimization.md ⑤ 와 같은 꼴). 원화 칸은 끝난 분기의 평균 환율이라 cacheLife('days') 로 충분하다.
   const accounts = await fetchAccounts();
   const ids = accounts.map((a) => a.company_id);
-  const [{ rows, windowLabel }, guidance, dates] = await Promise.all([
+  const [{ rows, windowLabel }, guidance, dates, reported] = await Promise.all([
     buildRows(accounts),
     fetchGuidance(ids),
     fetchEarningsDates(ids),
+    fetchReportedMany(ids),
   ]);
+  // 실적 칸은 상세와 같은 규칙(결정 R6) — 해외는 회사 공시 우선, 국내는 financials 그대로.
+  const picked = rows.map((x) => {
+    const id = x.row.company_id;
+    const earnings = x.domestic
+      ? x.earnings
+      : pickCustomerEarnings(id, x.earnings, reported.get(id) ?? []);
+    return { x, earnings, q: latestQuarterOf(earnings) };
+  });
+  const currencies = [
+    ...new Set(
+      picked.flatMap((p) =>
+        p.earnings.currency && p.earnings.currency !== 'KRW' ? [p.earnings.currency] : []
+      )
+    ),
+  ];
+  const rates = await fetchRates(currencies);
   return {
     windowLabel,
-    rows: rows.map((x) => ({
+    rows: picked.map(({ x, earnings, q }) => ({
       ...x.row,
-      ir: {
-        guidanceChange: latestGuidanceChange(guidance.get(x.row.company_id) ?? [], currentYear()),
-        earningsDates: dates.get(x.row.company_id) ?? [],
-      },
+      latestQuarter: q,
+      earningsCurrency: earnings.currency,
+      // 결정 R5 — 그 분기 일별 환율 평균으로 원화 환산.
+      revenueKrw:
+        q && q.fiscal_quarter != null
+          ? revenueKrw(
+              q.revenue_bn,
+              earnings.currency,
+              rates.get(earnings.currency ?? '') ?? [],
+              q.fiscal_year,
+              q.fiscal_quarter
+            )
+          : null,
+      ir: overviewIr(
+        // 통화 null 전망 = 회사 보고 통화 — 상세 카드(getCustomerIr)와 같은 판정이라야 「십억」 뒤에 통화 이름이 붙고 카드 묶음도 같다.
+        latestGuidanceChangeWithCard(
+          guidance.get(x.row.company_id) ?? [],
+          currentYear(),
+          reportCurrencyOf(reported.get(x.row.company_id) ?? [])
+        ),
+        earnings,
+        dates.get(x.row.company_id) ?? []
+      ),
     })),
   };
+}
+
+/**
+ * 요약 표 공식 문서 열 — 최근 변경 + 그 카드의 신호등 색(상세 카드와 같은 판정 · 전년 실적 = 상세와 같은 고른 실적).
+ * 화살표 색은 방향이 아니라 이 색을 쓴다(2026-11-11 사용자 선택 — 연초보다 낮은데 「상향 ▲ 초록」으로 보이지 않게).
+ */
+function overviewIr(
+  hit: ReturnType<typeof latestGuidanceChangeWithCard>,
+  earnings: CustomerEarnings,
+  earningsDates: EarningsDateRow[]
+): CustomerOverviewIr {
+  if (!hit) return { guidanceChange: null, guidanceSignal: null, earningsDates };
+  const fy = Number(hit.card.period.replace(/^FY/, ''));
+  const prior = earnings.annual.find((p) => p.fiscal_year === fy - 1) ?? null;
+  return {
+    guidanceChange: hit.change,
+    guidanceSignal: guidanceSignal(hit.card, prior, earnings.currency).color,
+    earningsDates,
+  };
+}
+
+/** 통화별 원화 일별 환율(전전년 1월부터 — 최근 분기 환산에 충분). 정렬 = PK(base, quote, rate_date) — quote 는 KRW 하나. */
+async function fetchRates(currencies: string[]): Promise<Map<string, RateRow[]>> {
+  if (currencies.length === 0) return new Map();
+  const sb = createSupabaseAnonClient();
+  const rows = await fetchAllPages('exchange_rates', (from, to) =>
+    sb
+      .from('exchange_rates')
+      .select('base,rate_date,rate')
+      .in('base', currencies)
+      .eq('quote', 'KRW')
+      .gte('rate_date', `${currentYear() - 2}-01-01`)
+      .order('base', { ascending: true })
+      .order('rate_date', { ascending: true })
+      .range(from, to)
+  );
+  const out = new Map<string, RateRow[]>();
+  for (const r of rows)
+    out.set(r.base, [...(out.get(r.base) ?? []), { rate_date: r.rate_date, rate: Number(r.rate) }]);
+  return out;
 }
 
 // ---------------------------------------------------------------- 공식 문서(공시·IR) — 전부 사외비 표
@@ -338,8 +471,9 @@ function groupBy<T extends { company_id: string }, U>(rows: T[], map: (r: T) => 
   return out;
 }
 
+// 끝의 customer_documents(doc_type) = document_id 외래키로 문서 종류를 함께 읽는다(요약 표 「(날짜 문서종류)」).
 const GUIDANCE_COLS =
-  'id,company_id,metric,metric_label,period,low,high,value_text,unit,basis,currency,stated,direction,extractor,quote,published_at,verified';
+  'id,company_id,metric,metric_label,period,low,high,value_text,unit,basis,currency,stated,direction,extractor,quote,published_at,verified,customer_documents(doc_type)';
 
 /** 검증된 가이던스 행 — 회사별. numeric 칸은 Number 로(문자열 직렬화 방지). */
 async function fetchGuidance(ids: string[]): Promise<Map<string, GuidanceRowTs[]>> {
@@ -368,6 +502,7 @@ async function fetchGuidance(ids: string[]): Promise<Map<string, GuidanceRowTs[]
     quote: r.quote,
     published_at: r.published_at,
     verified: r.verified,
+    doc_type: r.customer_documents?.doc_type ?? null,
   }));
 }
 
@@ -409,25 +544,34 @@ async function fetchVolume(companyId: string): Promise<VolumeRow[]> {
   }));
 }
 
-async function fetchReported(companyId: string): Promise<ReportedRow[]> {
+/** 검증된 회사 공시 실적 행 — 회사별. 정렬 = PK 전체(company_id, period_grain, period, metric). */
+async function fetchReportedMany(ids: string[]): Promise<Map<string, ReportedRow[]>> {
   const rows = await fetchAllPages('customer_reported_results', (from, to) =>
     confidentialDb
       .from('customer_reported_results')
-      .select('period_grain,period,metric,metric_name,basis,value,unit,currency')
-      .eq('company_id', companyId)
+      .select('company_id,period_grain,period,metric,metric_name,basis,value,unit,currency')
+      .in('company_id', ids)
       .eq('verified', true)
+      .order('company_id', { ascending: true })
       .order('period_grain', { ascending: true })
       .order('period', { ascending: true })
       .order('metric', { ascending: true })
       .range(from, to)
   );
-  return rows.map((r) => ({
-    ...r,
+  return groupBy(rows, (r) => ({
     period_grain: r.period_grain as ReportedRow['period_grain'],
+    period: r.period,
+    metric: r.metric,
+    metric_name: r.metric_name,
     basis: r.basis as ReportedRow['basis'],
-    unit: r.unit as ReportedRow['unit'],
     value: Number(r.value),
+    unit: r.unit as ReportedRow['unit'],
+    currency: r.currency,
   }));
+}
+
+async function fetchReported(companyId: string): Promise<ReportedRow[]> {
+  return (await fetchReportedMany([companyId])).get(companyId) ?? [];
 }
 
 async function fetchDocuments(companyId: string): Promise<CustomerDocumentItem[]> {
@@ -547,9 +691,10 @@ export async function getCustomerDetail(slug: string): Promise<CustomerDetail | 
   cacheTag('companies');
   cacheTag('oem_sales_group_month');
   const accounts = await fetchAccounts();
-  if (!accounts.some((a) => a.slug === slug)) return null;
-  // 비중 분모·합산 동료 이름이 전체 명단에 걸려 있어 전체로 계산하고 하나를 고른다.
-  const { rows, windowLabel } = await buildRows(accounts);
+  const target = accounts.find((a) => a.slug === slug);
+  if (!target) return null;
+  // 비중 분모·합산 동료 이름은 전체 명단에 걸려 있어 전체로 · 실적·주가는 이 회사만 읽는다.
+  const { rows, windowLabel } = await buildRows(accounts, target.company_id);
   const hit = rows.find((x) => x.row.slug === slug);
   if (!hit) return null;
 

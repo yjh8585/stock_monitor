@@ -16,6 +16,8 @@ interface Props {
   currency?: string;
   /** 영업이익률 축을 음수까지 연다(적자 회사). 기본 false = 0 부터. */
   allowNegativeMargin?: boolean;
+  /** 영업이익률 점 위 숫자 표시(기본 false — OEM 현대 탭은 그대로 · 고객사 상세가 켠다). */
+  showMarginLabels?: boolean;
   /** 제목 가운데 말(기본 'IR 실적' → 「분기별 IR 실적 (매출 + 영업이익률)」). */
   titleLabel?: string;
   /** 출처 문구 앞부분(기본 = hyundai.com IR 문구). */
@@ -47,6 +49,7 @@ export default function HyundaiQuarterlyEarningsChart({
   revenueKey = 'revenue_krw_bn',
   currency = 'KRW',
   allowNegativeMargin = false,
+  showMarginLabels = false,
   titleLabel = 'IR 실적',
   sourceNote = 'hyundai.com IR · 분기별 실적 발표 자료(PDF)',
   annualNote = '연간 = 4분기 합산(불완전 연도는 YTD 표시), 영업이익률 = 영업이익 합/매출 합 가중평균',
@@ -104,6 +107,7 @@ export default function HyundaiQuarterlyEarningsChart({
             revenueKey={revenueKey}
             currency={currency}
             allowNegativeMargin={allowNegativeMargin}
+            showMarginLabels={showMarginLabels}
           />
         ) : (
           <InnerAnnual
@@ -111,6 +115,7 @@ export default function HyundaiQuarterlyEarningsChart({
             revenueKey={revenueKey}
             currency={currency}
             allowNegativeMargin={allowNegativeMargin}
+            showMarginLabels={showMarginLabels}
           />
         )}
         <p className="mt-2 px-1 text-[11px] leading-relaxed text-muted-foreground">

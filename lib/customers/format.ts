@@ -2,7 +2,14 @@
  * 고객사 화면 공용 표시 함수 — 요약 표·개별 페이지(서버)와 실적 표('use client')가 함께 쓴다.
  * 지시어 없는 파일이라 서버 컴포넌트가 값으로 import 해도 된다.
  */
-import { isSeparateBasis, type GuidanceCard, type GuidanceRowTs, type ReportedRow } from './ir';
+import {
+  isSeparateBasis,
+  type GuidanceCard,
+  type GuidanceChange,
+  type GuidanceRowTs,
+  type GuidanceValue,
+  type ReportedRow,
+} from './ir';
 import type { CellOrigin, CustomerEarningsPoint } from './types';
 
 /** 퍼센트 문자열 — 값이 없으면 「—」, signed 면 양수에 + 를 붙인다. */
@@ -183,6 +190,110 @@ export function earningsFootnotes(
     }
   }
   return { notes, marks };
+}
+
+// ---------------------------------------------------------------- 가이던스 지표 이름·설명
+/**
+ * 가이던스 지표(customer_guidance.metric) → 한국어 이름 + 용어 설명(있는 것만).
+ * 요약 표 「최근 가이던스 변경」 문구(A6)와 카드 ⓘ 설명(A11)이 함께 쓴다 — 두 벌로 두면 갈린다.
+ * SHORTCUT: 수집기가 새 지표 코드를 내면 여기에 한 줄 더해야 한국어로 보인다(없으면 회사 원문 이름 그대로).
+ */
+export const METRIC_INFO: Record<string, { ko: string; desc?: string }> = {
+  revenue: { ko: '매출' },
+  revenue_growth: { ko: '매출 성장률', desc: '전년 대비 매출 증감률(%).' },
+  adjusted_sales: { ko: '조정 매출', desc: '회사가 일회성 항목 등을 빼고 다시 계산한 매출.' },
+  operating_income: { ko: '영업이익' },
+  operating_margin: {
+    ko: '영업이익률',
+    desc: '매출 대비 영업이익 비율(%). 회사마다 원문 이름이 다르다(카드의 회색 원문 이름).',
+  },
+  operating_margin_adjusted: {
+    ko: '조정 영업이익률',
+    desc: '일회성 특별 요인(special effects)을 뺀 영업이익률 — 회사의 «평소 실력»을 보려는 숫자다.',
+  },
+  special_items: {
+    ko: '일회성 특별 요인',
+    desc:
+      '독일어 Sondereffekte · 영어 special effects — 평소 영업과 무관한 한 번뿐인 손익(손상차손·구조조정 비용 등). ' +
+      '폭스바겐 2026년 예: 포르쉐 영업권 손상 약 60억 유로 · 조기퇴직 구조조정 · 중국 자회사 자산 손상(원문 = 2026-09-18 전망 수정 공시).',
+  },
+  aoi_margin: {
+    ko: '조정 영업이익률(AOI)',
+    desc: '스텔란티스 Adjusted Operating Income 률 — 구조조정 비용·손상 등 일회성 항목을 뺀 영업이익률.',
+  },
+  ebit_adjusted: {
+    ko: '조정 영업이익(EBIT-adjusted)',
+    desc: 'GM 의 이자·세금 전 이익에서 일회성 항목을 뺀 값 — 회사가 주력으로 내는 이익 지표.',
+  },
+  adjusted_ebitda: {
+    ko: '조정 EBITDA',
+    desc: '이자·세금·감가상각 전 이익(EBITDA)에서 일회성 항목을 뺀 값.',
+  },
+  net_income_parent: { ko: '지배주주 순이익' },
+  eps_diluted: { ko: '희석 주당순이익(EPS)' },
+  eps_adjusted: {
+    ko: '조정 주당순이익(EPS)',
+    desc: '일회성 항목을 뺀 순이익을 주식 수로 나눈 값.',
+  },
+  free_cash_flow: {
+    ko: '잉여현금흐름(FCF)',
+    desc: '영업으로 번 현금에서 투자에 쓴 돈을 뺀 나머지.',
+  },
+  industrial_fcf: {
+    ko: '산업 부문 잉여현금흐름',
+    desc: '금융(할부·리스) 사업을 뺀 자동차 본업의 잉여현금흐름.',
+  },
+  adjusted_automotive_fcf: {
+    ko: '조정 자동차 잉여현금흐름',
+    desc: '금융 사업을 뺀 자동차 부문 잉여현금흐름에서 일회성 항목을 조정한 값(GM).',
+  },
+  automotive_net_cash_flow: {
+    ko: '자동차 부문 순현금흐름',
+    desc: '폭스바겐 자동차 부문이 한 해 동안 남긴 현금(투자 뒤).',
+  },
+  automotive_ncf_margin: {
+    ko: '자동차 부문 순현금흐름률',
+    desc: '자동차 부문 순현금흐름을 매출로 나눈 비율(%).',
+  },
+  automotive_net_liquidity: {
+    ko: '자동차 부문 순유동성',
+    desc: '자동차 부문이 가진 현금에서 금융 부채를 뺀 값 — 재무 여력.',
+  },
+  automotive_operating_cash_flow: { ko: '자동차 부문 영업현금흐름' },
+  automotive_ebitda_margin: { ko: '자동차 부문 EBITDA 이익률' },
+  investment_ratio: {
+    ko: '투자 비율',
+    desc: '투자액을 매출로 나눈 비율(%) — 폭스바겐 자동차 부문 지표.',
+  },
+  capex: { ko: '설비투자' },
+  bev_share: { ko: '전기차(BEV) 판매 비중' },
+  deliveries: { ko: '인도 대수' },
+  sales_units: { ko: '판매 대수' },
+  order_intake: { ko: '수주' },
+  other: { ko: '전망' },
+};
+
+/** 지표 한국어 이름 — 표에 없으면 회사 원문 이름. */
+export function metricKo(metric: string, fallbackLabel: string): string {
+  return METRIC_INFO[metric]?.ko ?? fallbackLabel;
+}
+
+/** 전망 값 한 개 표기 — 숫자가 없고 원문 구절만 있으면 그 구절. */
+export function guidanceValueText(v: GuidanceValue, currency: string | null): string {
+  if (v.low == null && v.high == null) return v.value_text ?? '—';
+  return `${approxPrefix(v.value_text)}${rangeText(v.low, v.high, v.unit, currency)}`;
+}
+
+/**
+ * 요약 표 「최근 가이던스 변경」 한 줄 — 「인도 대수 전망 하향: 62,000~67,000대 → 58,000~63,000대」.
+ * 앞 값이 없으면 새 값만. 날짜·문서 종류는 화면이 옆에 따로 붙인다.
+ */
+export function guidanceChangeText(c: GuidanceChange): string {
+  const head = `${metricKo(c.metric, c.metric_label)} 전망 ${c.direction === 'raised' ? '상향' : '하향'}`;
+  const after = guidanceValueText(c.after, c.currency);
+  return c.before
+    ? `${head}: ${guidanceValueText(c.before, c.currency)} → ${after}`
+    : `${head}: ${after}`;
 }
 
 // ---------------------------------------------------------------- 가이던스
