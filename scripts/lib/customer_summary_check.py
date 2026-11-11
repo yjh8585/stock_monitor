@@ -6,7 +6,10 @@ check_failed 로 남긴다.
 
 숫자 대조(unmatched_numbers) — 요약 숫자마다 원문에 «표시 자릿수 반올림 안»의 짝이 있어야 한다:
 - 원문 토큰 = lib/llm_guidance.number_tokens. 🔴 그 함수는 문서 첫 표 머리 배수('in millions')를 단위 없는 모든 수에 씌운다
-  → 원문 후보값은 «n×배수» 와 «n(배수 없음)» 둘 다로 본다(연도·쪽 수가 백만 배가 되지 않게).
+  → 원문 후보값은 «n×배수» 와 «n(배수 없음)» 둘 다로 보고, 문서 안 «모든» 표 머리 배수(_HEADERS — 「단위 : 십억원」 포함)도
+  각각 씌워 본다(국문 IR 은 첫 머리가 「천대」이고 금액 표가 「십억원」 — 2026-11-12 드라이런 실측).
+  SHORTCUT: 후보가 넓어진 만큼 틀린 값이 표 어딘가의 수와 우연히 맞아 통과할 수 있다(실측 28쪽 자료에서 「35.0조」 통과)
+  → 줄의 지표 낱말과 표 행을 짝짓는 대조로 좁힐 수 있다(지금은 «원문에 그 수가 있다»까지만 본다).
 - 🔴 원문의 쪽 표식 [p.N] 은 대조 전에 지운다(요약 7% 가 쪽 표식 7 로 통과했다 — Codex 대조 2026-11-12).
 - 요약 수 뒤가 %·%p 면 원문 짝도 %·percent·per cent·pts·ppt·bp 가 붙은 수여야 한다(bp 는 ÷100).
 - 요약 「N분기」는 원문의 분기 표기(Q3·3Q·third quarter·3분기·three months ended September)와만 맞춘다 —
@@ -47,6 +50,17 @@ def _page_segments(text: str) -> list[tuple[int, str]]:
 _SRC_PCT = re.compile(r'\)?\s*(?:%|percent\b|per\s?cent\b|percentage\s+points?\b|pts?\b|ppts?\b|bps?\b|basis\s+points?\b'
                       r'|퍼센트|포인트)', re.I)
 _SRC_BP = re.compile(r'\)?\s*(?:bps?\b|basis\s+points?\b)', re.I)
+# 표 머리 단위 — 문서 안의 «모든» 머리를 모아 단위 없는 수에 각각 씌워 본다.
+# 🔴 number_tokens 는 «첫» 머리 하나만 쓰고 「십억」을 모른다 — 국문 IR 자료는 첫 머리가 「(단위 : 천대)」이고 금액 표가
+#    「(단위 : 십억원)」이라 맞는 「31.6조 원」이 걸리고 재요청에서 매출 금액이 빠졌다(2026-11-12 드라이런 실측).
+_HEADERS = re.compile(
+  r'단위\s*[:：]?\s*(?:[A-Za-z$€£₩¥]{1,3}\s*)?(천|만|백만|십억|억|조)'
+  r'|\(\s*(천|만|백만|십억|억|조)\s*(?:원|달러|유로|대)\s*\)'
+  r'|\bin\s+(?:[€$£¥₩]|EUR|USD|GBP|JPY|KRW)?\s*(thousand|million|billion|mn|bn)s?\b'
+  r'|\(\s*(?:[€$£₩¥]|EUR|USD|KRW|GBP|JPY)?\s*(thousand|million|billion|mn|bn)s?\s*\)'
+  r'|(?:€|\$|£|\bEUR|\bUSD)\s?(million|billion|mn|bn)\b', re.I)
+_HEADER_MULT = {'천': 1e3, '만': 1e4, '백만': 1e6, '십억': 1e9, '억': 1e8, '조': 1e12, 'thousand': 1e3, 'million': 1e6,
+                'mn': 1e6, 'billion': 1e9, 'bn': 1e9}
 _YEAR2_BEFORE = re.compile(r"(?:\bFY|\bCY|['’]|\b[1-4]Q|\bQ[1-4]\s?|\bH[12]\s?)$", re.I)
 
 _ORD = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, '1st': 1, '2nd': 2, '3rd': 3, '4th': 4}
@@ -84,8 +98,9 @@ class _Source:
     for i in range(len(toks) - 2, -1, -1):              # '3 and 5 per cent' — 앞 수가 뒤 % 를 이어받는다
       if not pct[i] and pct[i + 1] and _JOIN.fullmatch(t[toks[i].end:toks[i + 1].start]):
         pct[i] = True
+    heads = {_HEADER_MULT[next(g for g in m.groups() if g).lower()] for m in _HEADERS.finditer(t)}
     for k, p in zip(toks, pct):
-      vals = {k.n * k.mult, k.n}
+      vals = {k.n * k.mult, k.n} | {k.n * h for h in heads}
       if p and _SRC_BP.match(t[k.end:k.end + 24]):
         vals.add(k.n / 100)
       if k.n < 100 and k.n == int(k.n) and _YEAR2_BEFORE.search(t[max(0, k.start - 4):k.start]):

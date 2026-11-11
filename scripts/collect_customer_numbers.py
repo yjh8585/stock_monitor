@@ -137,6 +137,18 @@ def fetch_content(session, doc, local: bytes | None = None):
   return Content(html_to_text(h), html_to_table_rows(h), b), _sha(b)
 
 
+def doc_content(mod, session, doc, blob: bytes | None = None):
+  """문서 내용 받기 순서의 정본 → (Content, sha256): --add-file 바이트 → 회사 파서 모듈의 fetch(GM = Chrome 경유 ·
+  포르쉐 fact_sheet = XLSX) → 공통 fetch_content. mod 가 None(파서 없는 회사)이면 공통 경로.
+  요약기(summarize_customer_docs.py)도 이 함수를 부른다 — 받기 순서를 두 곳에 두지 않는다."""
+  if blob is not None:
+    return fetch_content(session, doc, blob)
+  if mod is not None and hasattr(mod, 'fetch'):
+    c = mod.fetch(session, doc)
+    return c, _sha(c.raw or c.text.encode())
+  return fetch_content(session, doc)
+
+
 def http_status(e: Exception) -> int | None:
   return getattr(getattr(e, 'response', None), 'status_code', None)
 
@@ -562,12 +574,7 @@ class _CompanyRun:
     self.ws.table('customer_documents').update(patch).eq('id', doc.id).execute()
 
   def _content(self, doc, blob):
-    if blob is not None:
-      return fetch_content(self.session, doc, blob)
-    if hasattr(self.mod, 'fetch'):
-      c = self.mod.fetch(self.session, doc)
-      return c, _sha(c.raw or c.text.encode())
-    return fetch_content(self.session, doc)
+    return doc_content(self.mod, self.session, doc, blob)
 
   def _llm_off(self) -> bool:
     return self.args.no_llm or self.llm is None

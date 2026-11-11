@@ -78,6 +78,15 @@ class Numbers(unittest.TestCase):
     src = '(in millions) Revenue 4,213 Fiscal year 2026'
     self.assertEqual(unmatched_numbers('2026년 매출은 42.1억 달러였다.', src), [])
 
+  def test_every_header_multiplier(self):
+    # 실물(국문 IR 발표 자료, 2026-11-12 드라이런): 첫 머리는 「천대」, 금액 표는 「십억원」 — 첫 머리만 쓰면 맞는 금액이 걸린다
+    src = '(단위 : 천대, %) 현지판매 829 6.9% (단위 : 십억원) 매출액 31,617 영업이익 1,824'
+    self.assertEqual(unmatched_numbers('매출은 31.6조 원, 영업이익은 1.82조 원이었다.', src), [])
+    self.assertEqual(unmatched_numbers('현지판매는 82.9만 대였다.', src), [])
+    self.assertTrue(unmatched_numbers('매출은 35.0조 원이었다.', src))
+    src_en = '(€ million) Sales revenue 4,213 ... deliveries (in thousand units) 829'
+    self.assertEqual(unmatched_numbers('매출은 42.1억 유로, 인도는 82.9만 대였다.', src_en), [])
+
 
 class Currency(unittest.TestCase):
   def test_euro_on_dollar_source(self):
