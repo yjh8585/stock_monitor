@@ -498,6 +498,14 @@ describe('latestChinaJv', () => {
     expect(latestChinaJv([jv('2026-6M', 184)])?.prior).toBeNull();
     expect(latestChinaJv([row('2026-9M', 'revenue', 'reported', 1000)])).toBeNull();
   });
+  it('같은 범위의 다른 표기(3M·Q1)는 전년으로 잇고, 다른 범위(Q3·9M)는 잇지 않는다', () => {
+    expect(latestChinaJv([jv('2026-3M', 60), jv('2025-Q1', 40)])?.prior?.value).toBe(40);
+    expect(latestChinaJv([jv('2026-9M', 300), jv('2025-Q3', 90)])?.prior).toBeNull();
+  });
+  it('끝 시점이 같으면(9M·Q3) 누계를 고른다 — 들어온 순서와 무관', () => {
+    expect(latestChinaJv([jv('2026-Q3', 90), jv('2026-9M', 300)])?.latest.period).toBe('2026-9M');
+    expect(latestChinaJv([jv('2026-9M', 300), jv('2026-Q3', 90)])?.latest.period).toBe('2026-9M');
+  });
 });
 
 // ---------------------------------------------------------------- pickEarnings(선택 7차)

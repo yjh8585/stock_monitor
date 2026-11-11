@@ -381,7 +381,16 @@ function periodOrder(period: string): number | null {
   return Number(m[1]) * 10 + step;
 }
 
-/** 합작사 몫 행 중 가장 최근 기간 하나 + 전년 같은 기간(없으면 null). 행이 없으면 null. */
+/** 기간이 덮는 범위 — Q1 과 3M 은 같은 석 달이라 같은 키. Q2·Q3(그 분기만)와 6M·9M(누계)은 다른 범위. */
+function periodSpan(period: string): string {
+  const s = period.slice(5);
+  return s === '' ? 'Y' : s === 'Q1' ? '3M' : s;
+}
+
+/**
+ * 합작사 몫 행 중 가장 최근 기간 하나 + 전년 같은 범위의 기간(없으면 null). 행이 없으면 null.
+ * 끝 시점이 같으면(9M·Q3) 누계를 고른다 — 회사가 누계로 발표한다.
+ */
 export function latestChinaJv(
   reported: ReportedRow[]
 ): { latest: ReportedRow; prior: ReportedRow | null } | null {
@@ -389,9 +398,14 @@ export function latestChinaJv(
     (r) => r.metric === CHINA_JV_METRIC && periodOrder(r.period) != null
   );
   if (rows.length === 0) return null;
-  const latest = rows.reduce((a, b) => (periodOrder(b.period)! > periodOrder(a.period)! ? b : a));
-  const priorPeriod = `${Number(latest.period.slice(0, 4)) - 1}${latest.period.slice(4)}`;
-  return { latest, prior: rows.find((r) => r.period === priorPeriod) ?? null };
+  const rank = (r: ReportedRow) => periodOrder(r.period)! * 2 + (/-Q[2-4]$/.test(r.period) ? 0 : 1);
+  const latest = rows.reduce((a, b) => (rank(b) > rank(a) ? b : a));
+  const priorYear = Number(latest.period.slice(0, 4)) - 1;
+  const span = periodSpan(latest.period);
+  const prior = rows.find(
+    (r) => Number(r.period.slice(0, 4)) === priorYear && periodSpan(r.period) === span
+  );
+  return { latest, prior: prior ?? null };
 }
 
 /** 장부상 영업이익이 없을 때 대신 쓰는 회사 조정 영업이익 — 앞의 것이 먼저. EBITDA 는 영업이익이 아니라 넣지 않는다. */
