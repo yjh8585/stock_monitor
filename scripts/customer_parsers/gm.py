@@ -8,6 +8,7 @@
 - 도매 판매: 행 라벨이 정확히 GMNA·GMI·Total 인 표(대수 천 대 · fleet 표는 'Total fleet sales' 라 빠진다)
 - 가이던스: 머리 행에 'Updated 2026 guidance' 또는 '2027 Guidance'(4분기 판) 칸이 있는 표
   + 같은 연도의 전망 대조표('Year Ending December 31, <연도>')에서 장부상 4종(순이익·EPS-diluted·영업현금흐름·설비투자 · Task 9)
+  · 전망 표가 없는 판(2025-07)은 발표 연도와 같은 대조표만으로 그 4종(필수 3지표는 안 읽는다)
 
 함정(실측):
   - 4분기 판(2025-01·2026-01)은 실적 요약 머리에 괄호가 없다 — '$M except per share amounts'.
@@ -199,9 +200,10 @@ def parse_wholesale(tables) -> list[VolumeRow]:
   return []
 
 
-def parse_guidance(tables) -> tuple[list[GuidanceRow], bool]:
+def parse_guidance(tables, published_year: str) -> tuple[list[GuidanceRow], bool]:
   """전망 표 → (행, 서식을 알아봤나). 머리(올해 전망 칸)가 있는데 필수 지표(GUIDANCE_REQUIRED)가 하나라도 없으면
-  칸 문구가 바뀐 것 — 0행 + True 로 돌려 문서를 failed 로 드러낸다."""
+  칸 문구가 바뀐 것 — 0행 + True 로 돌려 문서를 failed 로 드러낸다.
+  전망 표가 없으면 전망 대조표만으로 장부상 4종을 뽑는다(parse_recon_only)."""
   for rows in tables:
     head = rows[0] if rows else []
     col = next((i for i, c in enumerate(head) if _GUIDE_HEAD.match(norm_text(c))), None)
@@ -222,6 +224,22 @@ def parse_guidance(tables) -> tuple[list[GuidanceRow], bool]:
     if not set(GUIDANCE_REQUIRED) <= {x.metric for x in out}:
       return [], True
     return out + parse_guidance_recon(tables, year, {x.metric for x in out}), True
+  return parse_recon_only(tables, published_year)
+
+
+def parse_recon_only(tables, published_year: str) -> tuple[list[GuidanceRow], bool]:
+  """전망 표 없이 전망 대조표만 있는 판(2025-07 doc 212 — 본문은 'guidance is unchanged' 뿐) → 장부상 4종만.
+  필수 3지표는 대조표에서 읽지 않는다(Task 9 범위 = 새 4지표). 연도는 대조표 머리이고, 근거는 발표 연도와 같은지다
+  (1월 4분기 판의 새 해 전망도 발표 연도 — 같은 판의 지난해 최종 대조표는 발표 연도보다 앞이라 건너뛴다).
+  - 대조표 없음 · 지난해 표뿐 · 표는 맞는데 라벨이 바뀜 → 0행 + False(새 4지표는 «있으면 뽑는다» — 실패 아님)
+  - 대조표 연도가 발표 연도보다 뒤뿐 → 연도를 확정 못 함 → 0행 + True(문서를 failed 로 드러낸다 · 조용히 버리지 않게)"""
+  years = {m.group(1) for rows in tables if rows and rows[0]
+           for m in [_RECON_HEAD.match(norm_text(rows[0][0]))] if m}
+  if published_year in years:
+    out = parse_guidance_recon(tables, published_year, set())
+    return out, bool(out)
+  if any(y > published_year for y in years):
+    return [], True
   return [], False
 
 
@@ -261,7 +279,7 @@ def parse(doc: Doc, content: Content) -> ParseResult:
   if r.results:
     r.results += parse_operating_income(content.tables, r.results[0].period)
   r.volume = parse_wholesale(content.tables)
-  r.guidance, guidance_ok = parse_guidance(content.tables)
+  r.guidance, guidance_ok = parse_guidance(content.tables, doc.published_at[:4])
   r.guidance = apply_stated(r.guidance, content.text)
   # 알아봄 = 실적 요약 머리 또는 전망 표 머리(전망 표만 있는 7.01 도 대상). 머리는 있는데 0행이면 failed 로 드러난다
   r.recognized = results_ok or guidance_ok

@@ -92,6 +92,9 @@ _G = (  # (정규식, metric, 회사 라벨, 단위, basis, 항목 묶음) — �
    'margin_adjusted'),
 )
 _APPROX = ('around', 'about')   # 근사 낱말 — 숫자는 그대로 두고 원문 구절을 value_text 로
+# 문장이 스스로 밝힌 연도('… for the full year 2026 would amount to …') — 전망 머리 연도와 다르면 이번 전망이 아니다.
+# _G 의 범위 그룹 번호(1~3)를 밀지 않으려고 정규식 안이 아니라 매치 문장에서 따로 읽는다
+_SENT_YEAR = re.compile(r'for the full year (20\d{2})', re.I)
 # 전망 변경 표식(실물 문장꼴에서 뽑음) — ad-hoc 'now expects' · 'previous forecast' · 'continues to expect' ·
 # 'is still expected', 반기 판 '(previously: …)'. 전망 구간 안 이 표식 문장은 뽑은 행 quote 가 덮어야 한다
 _CHANGE_MARK = re.compile(r'now (?:expects|targets|anticipates|projects)|previous forecast|previously:|continues to expect|'
@@ -220,7 +223,8 @@ def parse_outlook(text: str) -> tuple[list[GuidanceRow], bool]:
       bodies.append(body)
       year = hm.group(1)
       for rx, metric, label, unit, basis, group in _G:
-        m = rx.search(body)
+        m = next((x for x in rx.finditer(body)
+                  if (sy := _SENT_YEAR.search(x.group(0))) is None or sy.group(1) == year), None)
         if m and group not in found:
           lo, hi = _range(m.group(1), m.group(2), m.group(3))
           # 'around'·'about' 은 근사 — 숫자는 그대로 두고 원문 구절('around €315 billion')을 value_text 로 남겨 화면이
@@ -429,6 +433,10 @@ MUST_MISS = [  # (표, 본문, 판정(got) → 참이어야 함, 사유)
   # 'about 4 percent' 는 operating_margin 칸의 값이 아니다(operating_margin_adjusted 칸 — MUST_HIT)
   ([], ADHOC, lambda g: g.get(('G', 'operating_margin', 'FY2026')) == (None, 1.0)
    and ('G', 'revenue_growth', 'FY2026') not in g, 'ad-hoc 에서 이전·조정 값을 읽었다'),
+  # 조정 영업이익률 문장이 밝힌 연도(2025)가 전망 머리 연도(2026)와 다르면 이번 전망이 아니다 — FY2026 으로 찍지 않는다
+  ([], ADHOC.replace('for the full year 2026 would amount to about 4 percent',
+                     'for the full year 2025 would amount to about 4 percent'),
+   lambda g: not any(k[:2] == ('G', 'operating_margin_adjusted') for k in g), '다른 연도의 조정 영업이익률을 읽었다'),
   # 전망 문단 끝('continues to pursue its objective') 뒤 브랜드 그룹 문단의 문장은 그룹 전망이 아니다 — 문단에서 빠진
   # 항목을 뒤 문단 값으로 메우지 않고 LLM 으로 넘긴다
   ([], OUT_9M.replace('expects an investment ratio of between 11 and 12 percent and ', 'expects ')

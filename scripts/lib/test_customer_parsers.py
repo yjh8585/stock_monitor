@@ -431,10 +431,31 @@ class GuidanceExtraTests(unittest.TestCase):
     self.assertNotIn('eps_diluted', self._rows(res))
     self.assertEqual(len(res.guidance), 6)
 
-  def test_gm_reconciliation_without_guidance_table_is_ignored(self):
-    """전망 표(연도의 근거)가 없으면 대조표만으로 행을 만들지 않는다 — 'Years Ended' 실적 대조표와도 섞이지 않게."""
+  def test_gm_reconciliation_only_uses_header_year(self):
+    """전망 표 없이 전망 대조표만 있는 판(2025-07 doc 212 꼴 — 본문은 'guidance is unchanged') — 장부상 4지표를
+    대조표 머리 연도로 뽑는다. 필수 3지표는 대조표에서 읽지 않는다(새 4지표만)."""
     res = self._gm(self.G.RECON_2026Q3)
+    self.assertEqual(self._rows(res), {
+      'net_income_parent': ('Net income attributable to stockholders', 8.9, 9.5, 'billion', 'reported', 'FY2026'),
+      'eps_diluted': ('Diluted earnings per common share', 9.72, 10.72, 'per_share', 'reported', 'FY2026'),
+      'automotive_operating_cash_flow': ('Net automotive cash provided by operating activities', 17.3, 20.3, 'billion',
+                                         'reported', 'FY2026'),
+      'capex': ('Capital expenditures', 10.0, 12.0, 'billion', 'reported', 'FY2026')})
+    self.assertEqual(len(res.guidance), 4)
+    self.assertTrue(res.recognized)
+
+  def test_gm_prior_year_reconciliation_only_is_ignored(self):
+    """지난해 최종 대조표만 있으면(4분기 판 2026-01-27 doc 206 의 2025 표 3개) 아무 행도 만들지 않는다."""
+    doc = base.Doc(0, 'cid', 'GM', 'edgar', 'earnings_release', '8-K', '2.02,9.01', '8-K', '', '2026-01-27')
+    res = self.G.parse(doc, base.Content(text='', tables=self.G.RECON_2026Q4[:3]))
     self.assertEqual((res.guidance, res.recognized), ([], False))
+
+  def test_gm_reconciliation_year_unconfirmed_fails_document(self):
+    """대조표 연도가 발표 연도도, 그 이전도 아니면 연도를 확정할 수 없다 — 조용히 버리지 않고 0행 + recognized 로
+    문서를 failed 로 드러낸다(실적 행도 함께 비운다 · 이 파서의 서식 변경 규칙)."""
+    later = [[[c.replace('2026', '2027') for c in r] for r in t] for t in self.G.RECON_2026Q3]
+    res = self._gm(later)
+    self.assertEqual((res.count(), res.recognized), (0, True))
 
   def test_vw_adhoc_special_items_and_adjusted_margin(self):
     from lib import quote_check
