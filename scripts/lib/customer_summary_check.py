@@ -13,7 +13,9 @@ check_failed 로 남긴다.
   → 줄의 지표 낱말과 표 행을 짝짓는 대조로 좁힐 수 있다(지금은 «원문에 그 수가 있다»까지만 본다).
 - 🔴 원문의 쪽 표식 [p.N] 은 대조 전에 지운다(요약 7% 가 쪽 표식 7 로 통과했다 — Codex 대조 2026-11-12).
 - 요약 수 뒤가 %·%p·bp 면 원문 짝도 %·percent·per cent·pts·ppt·bp 가 붙은 수여야 한다. 원문 bp 는 ÷100 한 값만,
-  요약 bp 도 ÷100 해서 맞춘다(50bp ↔ 0.5%p · 50bp ≠ 50%p).
+  요약 bp 도 ÷100 해서 맞춘다(50bp ↔ 0.5%p · 50bp ≠ 50%p). 범위('50 to 100 bps')의 앞 수도 bp 를 이어받는다.
+- 원문 수마다 통화를 붙여 둔다(수 앞뒤 표지 → 문서에 하나뿐인 표 머리 통화 → 모름). 요약 수에 통화 낱말이 붙어 있으면
+  통화가 같거나 모르는 원문 수와만 맞춘다('$1 billion … EUR 200 million' 원문에 「10억 유로」는 지적).
 - 요약 「N분기」는 원문의 분기 표기(Q3·3Q·third quarter·3분기·three months ended September)와만 맞춘다 —
   맨 숫자 3 과 맞추면 4% 의 4 가 「4분기」를 통과시킨다. 「a~b분기」는 원문 누적 구간과 시작·끝이 같아야 한다
   (nine months·9M = 1~3 · six months·H1·1H = 1~2 · YTD·누적 = 같은 원문의 분기 표기 n 으로 1~n · 끝을 모르면 지적)
@@ -85,6 +87,50 @@ _HEADERS = re.compile(
   r'|(?:€|\$|£|\bEUR|\bUSD)\s?(million|billion|mn|bn)\b', re.I)
 _HEADER_MULT = {'천': 1e3, '만': 1e4, '백만': 1e6, '십억': 1e9, '억': 1e8, '조': 1e12, 'thousand': 1e3, 'million': 1e6,
                 'mn': 1e6, 'billion': 1e9, 'bn': 1e9}
+# 수마다 통화(Codex 2회차 2026-11-12: '$1 billion … EUR 200 million' 원문에 「10억 유로」가 통과했다 — 수와 통화를 따로
+# 찾았기 때문). 표지는 수 바로 앞('$1'·'EUR 200') 또는 수·배수 낱말에 바로 붙은 뒤('200 million euros'·'31.6조 원').
+# 모양은 llm_guidance._token_currencies 와 같다 — 그쪽은 USD·EUR·VND·KRW 만 알아 엔·위안·파운드를 못 가려 따로 둔다.
+_CUR_NAMES = (
+  ('달러', re.compile(r'US\$|\$|USD|dollars?|달러', re.I)),
+  ('유로', re.compile(r'€|EUR|euros?|유로', re.I)),
+  ('파운드', re.compile(r'£|GBP|pounds?\s+sterling|파운드', re.I)),
+  ('엔', re.compile(r'¥|JPY|yen|엔', re.I)),
+  ('위안', re.compile(r'CNY|RMB|yuan|위안', re.I)),
+  ('원', re.compile(r'₩|KRW|won|원', re.I)),
+)
+_CUR_ANY = re.compile(r'US\$|\$|€|£|¥|₩|\b(?:USD|EUR|GBP|JPY|CNY|RMB|KRW)\b|달러|유로|원|엔|위안|파운드', re.I)
+_CUR_PRE = re.compile(r'(US\$|\$|€|£|¥|₩|USD|EUR|GBP|JPY|CNY|RMB|KRW)\s*\(?\s*$', re.I)
+_CUR_SUF = re.compile(r'\)?\s*(?:[천백]?\s?(?:조|억|만)|천|(?:trillion|tn|billion|bn|million|mn|thousand|[kbm])(?![a-z]))?'
+                      r'\s*(?:in\s+)?(?:U\.?\s?S\.?\s*)?(euros?\b|dollars?\b|yen\b|yuan\b|won\b|pounds?\s+sterling\b'
+                      r'|달러|유로|원(?!가)|엔(?![진터지트])|위안|파운드|USD\b|EUR\b|KRW\b|JPY\b|CNY\b|RMB\b|GBP\b)', re.I)
+
+
+def _cur_name(word: str) -> str:
+  return next(name for name, p in _CUR_NAMES if p.fullmatch(word))
+
+
+def _currency_in(text: str) -> str | None:
+  """표 머리 글 안의 통화 이름(없으면 None)."""
+  m = _CUR_ANY.search(text)
+  return _cur_name(m.group(0)) if m else None
+
+
+def _num_currencies(t: str, toks: list, fallback: str | None) -> list[str | None]:
+  """토큰마다 통화 이름(달러·유로 …) — 범위로 이어진 수끼리 나눠 받고, 끝내 없으면 fallback."""
+  out = []
+  for k in toks:
+    m = _CUR_PRE.search(t[max(0, k.start - 6):k.start]) or _CUR_SUF.match(t, k.end)
+    out.append(_cur_name(m.group(1)) if m else None)
+  joined = [bool(_JOIN.fullmatch(t[toks[i].end:toks[i + 1].start])) for i in range(len(toks) - 1)]
+  for i in range(len(toks) - 1):                        # 앞으로 한 번 · 뒤로 한 번 — '1 to 2 trillion yen'
+    if joined[i] and out[i + 1] is None:
+      out[i + 1] = out[i]
+  for i in range(len(toks) - 2, -1, -1):
+    if joined[i] and out[i] is None:
+      out[i] = out[i + 1]
+  return [c or fallback for c in out]
+
+
 _YEAR2_BEFORE = re.compile(r"(?:\bFY|\bCY|['’]|\b[1-4]Q|\bQ[1-4]\s?|\bH[12]\s?|\b[12]H)$", re.I)
 # 연도 표기 — 「N년」·「FY」 꼴 요약 연도는 이 후보와만 맞춘다(금액 2,027 이 「2027년」 근거가 되면 안 된다 — Codex 2026-11-12).
 # SHORTCUT: 「in 2026」·「2026E」처럼 표기가 약한 연도는 후보가 아니다 → 정상 요약이 막히면 여기 꼴을 더한다
@@ -140,21 +186,27 @@ class _Source:
   def __init__(self, text: str):
     self.text = _strip_marks(text)
     t = self.text
-    self.cands: list[tuple[float, bool]] = []          # (값, % 수인가)
+    self.cands: list[tuple[float, bool, str | None]] = []   # (값, % 수인가, 통화 — None 은 모름)
     toks = number_tokens(t)
     pct = [bool(_SRC_PCT.match(t[k.end:k.end + 24])) for k in toks]
+    bp = [p and bool(_SRC_BP.match(t[k.end:k.end + 24])) for k, p in zip(toks, pct)]
     for i in range(len(toks) - 2, -1, -1):              # '3 and 5 per cent' — 앞 수가 뒤 % 를 이어받는다
       if not pct[i] and pct[i + 1] and _JOIN.fullmatch(t[toks[i].end:toks[i + 1].start]):
         pct[i] = True
+        bp[i] = bp[i + 1]                               # '50 to 100 bps' — 앞 수도 bp(÷100) — Codex 2회차 2026-11-12
     # 자체 단위 낱말(million·억·% …)이 붙은 수 — 범위 잇기로 뒤 수의 낱말을 이어받은 것 포함(number_tokens 와 같은 규칙)
     own = [_own_mult(t[k.end:k.end + 16]) for k in toks]
     for i in range(len(toks) - 2, -1, -1):
       if own[i] is None and own[i + 1] is not None and _JOIN.fullmatch(t[toks[i].end:toks[i + 1].start]):
         own[i] = own[i + 1]
-    heads = {_HEADER_MULT[next(g for g in m.groups() if g).lower()] for m in _HEADERS.finditer(t)}
+    head_matches = list(_HEADERS.finditer(t))
+    heads = {_HEADER_MULT[next(g for g in m.groups() if g).lower()] for m in head_matches}
+    # 수마다 통화 — 그 수 앞뒤의 통화 표지, 없으면 표 머리 통화(문서 안에 하나뿐일 때), 그것도 없으면 None(모름)
+    head_curs = {c for m in head_matches if (c := _currency_in(t[m.start():m.end() + 2]))}
+    curs = _num_currencies(t, toks, next(iter(head_curs)) if len(head_curs) == 1 else None)
     self.years = {int(m.group(1)) for pat in _SRC_YEAR for m in pat.finditer(t)}
-    for k, p, o in zip(toks, pct, own):
-      if p and _SRC_BP.match(t[k.end:k.end + 24]):
+    for k, p, b, o, c in zip(toks, pct, bp, own, curs):
+      if b:
         vals = {k.n / 100}                              # bp 는 %p 로 바꾼 값만(50bp 가 50%p 의 근거가 되면 안 된다)
       elif o is not None:
         vals = {k.n * o}                                # 단위가 박힌 수 — 배수를 지우지 않는다($4,213 million ≠ 4,213달러)
@@ -162,7 +214,7 @@ class _Source:
         vals = {k.n, k.n * k.mult} | {k.n * h for h in heads}   # 표 머리 배수를 이어받은 수만 배수 없는 값도 후보
       if k.n < 100 and k.n == int(k.n) and _YEAR2_BEFORE.search(t[max(0, k.start - 4):k.start]):
         self.years.add(2000 + int(k.n))
-      self.cands.extend((v, p) for v in vals)
+      self.cands.extend((v, p, c) for v in vals)
     self.quarters = {int(m.group(1)) if m.group(1).isdigit() else _ORD[m.group(1).lower()]
                      for pat in _Q_PATTERNS for m in pat.finditer(t)}
     self.quarters |= {_QEND[m.group(1).lower()] for m in _Q_MONTHS_ENDED.finditer(t)}
@@ -172,9 +224,11 @@ class _Source:
     if _YTD.search(t):
       self.cumulative |= {(1, q) for q in self.quarters}
 
-  def has_value(self, v: float, tol: float, need_pct: bool) -> bool:
+  def has_value(self, v: float, tol: float, need_pct: bool, cur: str | None = None) -> bool:
+    """cur(요약 수에 붙은 통화)가 있으면 통화가 같거나 모르는 후보와만 맞춘다."""
     eps = max(abs(v) * 1e-9, 1e-9)
-    return any(abs(c - v) <= tol + eps for c, p in self.cands if p or not need_pct)
+    return any(abs(c - v) <= tol + eps for c, p, cc in self.cands
+               if (p or not need_pct) and (cur is None or cc is None or cc == cur))
 
 
 # ---------------------------------------------------------------- 요약 쪽 토큰
@@ -202,6 +256,7 @@ def _unmatched(summary_text: str, src: _Source) -> list[str]:
   bp = [bool(_SUM_BP.match(s[k.end:k.end + 8])) for k in toks]
   quarter = [bool(_SUM_QUARTER.match(s[k.end:k.end + 4])) for k in toks]
   year_after = [bool(_SUM_YEAR_AFTER.match(s[k.end:k.end + 3])) for k in toks]
+  curs = _num_currencies(s, toks, None)                 # 「10억 유로」 — 통화가 같거나 모르는 원문 수와만 맞춘다
   joined = [i + 1 < n and bool(_JOIN.fullmatch(s[toks[i].end:toks[i + 1].start])) for i in range(n)]
   for i in range(n - 2, -1, -1):
     if joined[i] and pct[i + 1]:
@@ -241,7 +296,7 @@ def _unmatched(summary_text: str, src: _Source) -> list[str]:
     tol = 0.5 * 10 ** -_decimals(raw) * k.mult
     if bp[i]:                                           # 요약 bp 는 %p 로 바꿔 % 문맥 원문과 맞춘다
       v, tol = v / 100, tol / 100
-    if not src.has_value(v, tol, pct[i] or bp[i]):
+    if not src.has_value(v, tol, pct[i] or bp[i], curs[i]):
       out.append(_frag(s, k.start, k.end))
   return out
 

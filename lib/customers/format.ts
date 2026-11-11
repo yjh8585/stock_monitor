@@ -438,6 +438,13 @@ export function docTypeLabel(docType: string): string {
   return DOC_TYPE[docType] ?? docType;
 }
 
+const DOC_HASH = /^#doc-[1-9]\d*$/;
+
+/** 주소 해시('#doc-42') → 문서 카드 앵커 id('doc-42'). 모양이 아니면 null — 디코딩하지 않는다(#% 는 URIError). */
+export function docHashId(hash: string): string | null {
+  return DOC_HASH.test(hash) ? hash.slice(1) : null;
+}
+
 const VOLUME_METRIC: Record<string, string> = {
   deliveries: '인도',
   wholesale: '도매 판매',

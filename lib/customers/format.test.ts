@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   amountText,
   approxPrefix,
+  docHashId,
   docTypeLabel,
   earningsFootnotes,
   guidanceDirection,
@@ -423,5 +424,27 @@ describe('라벨', () => {
     expect(reportedAmountText({ value: 1.5, unit: 'billion', currency: 'USD' })).toBe(
       '1.5 십억 USD'
     );
+  });
+});
+
+describe('docHashId', () => {
+  it('#doc-<양의 정수> 만 앵커 id 로 돌려준다', () => {
+    expect(docHashId('#doc-42')).toBe('doc-42');
+  });
+  it('잘못된 해시는 예외 없이 null(Codex 2회차 2026-11-12 — #% 에서 URIError)', () => {
+    for (const h of [
+      '#%',
+      '',
+      '#',
+      '#doc-',
+      '#doc-0',
+      '#doc-01',
+      '#doc-4a',
+      '#doc-%34',
+      '#other',
+      'doc-42',
+    ]) {
+      expect(docHashId(h)).toBeNull();
+    }
   });
 });

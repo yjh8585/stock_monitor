@@ -101,6 +101,26 @@ class Numbers(unittest.TestCase):
     self.assertEqual(unmatched_numbers('이익률이 50bp 올랐다.', 'Margin increased 50 bps.'), [])
     self.assertEqual(unmatched_numbers('이익률이 0.5%p 올랐다.', 'Margin increased 50 bps.'), [])
 
+  # ── Codex 2회차 검토 지적(2026-11-12) 반례 ──
+  def test_bp_range_front_number(self):
+    # 지적 1: bp 범위의 앞 숫자도 bp 를 이어받아 ÷100
+    src = 'Margin increased 50 to 100 bps.'
+    self.assertTrue(unmatched_numbers('이익률은 50%p 올랐다.', src))
+    self.assertEqual(unmatched_numbers('이익률은 0.5~1.0%p 올랐다.', src), [])
+    self.assertEqual(unmatched_numbers('이익률은 50~100bp 올랐다.', src), [])
+
+  def test_currency_of_each_number(self):
+    # 지적 2: 수마다 그 수의 통화로 맞춘다(문서 안 다른 통화 금액이 근거가 되면 안 된다)
+    src = 'Revenue was $1 billion. Costs were EUR 200 million.'
+    self.assertTrue(unmatched_numbers('매출은 10억 유로였다.', src))
+    self.assertEqual(unmatched_numbers('매출은 10억 달러였다.', src), [])
+    self.assertEqual(unmatched_numbers('원가는 2억 유로였다.', src), [])
+    self.assertTrue(unmatched_numbers('원가는 2억 달러였다.', src))
+    # 범위는 통화를 나눠 받는다 · 표 머리 통화 · 통화를 모르는 수는 어느 통화와도 맞는다
+    self.assertTrue(unmatched_numbers('매출은 1~2조 원이었다.', 'Revenue of 1 to 2 trillion yen.'))
+    self.assertTrue(unmatched_numbers('매출은 42.1억 달러였다.', '(€ million) Sales revenue 4,213'))
+    self.assertEqual(unmatched_numbers('영업이익은 2.5조 원이었다.', '영업익 2.5조'), [])
+
   def test_year_only_from_year_notation(self):
     # 지적 3: 금액 2,027 이 「2027년」의 근거가 되면 안 된다
     src = 'FY2026 revenue was $2,027 million.'
@@ -225,8 +245,10 @@ class CheckDoc(unittest.TestCase):
   def test_currency_in_line(self):
     lines = _ok()['lines'][:2] + ['전년 같은 분기는 39.8억 유로였다.']
     _, p = check_doc(_ok(lines=lines), SRC, True, 12)
-    self.assertEqual(len(p), 1)
-    self.assertIn('통화', p[0])
+    # Codex 2회차(2026-11-12) 뒤로 숫자 대조도 통화를 본다 — 39.8억의 원문 짝($3,980 million)은 달러라 숫자 지적도 함께 난다
+    self.assertEqual(len(p), 2)
+    self.assertTrue(any('통화' in x for x in p))
+    self.assertTrue(any('숫자 원문 없음' in x for x in p))
 
   def test_evidence_across_page_boundary(self):
     # 지적 9: 쪽 경계를 넘는 인용은 시작 쪽으로 보정한다

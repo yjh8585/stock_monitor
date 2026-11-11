@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { docHashId } from '@/lib/customers/format';
 
 /**
  * 주소의 #doc-<id> 카드로 한 번 스크롤한다(요약 표 「최근 중요 문서」 링크의 도착점).
@@ -12,8 +13,8 @@ import { useEffect } from 'react';
  */
 export default function ScrollToDocHash() {
   useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
-    if (!id.startsWith('doc-')) return;
+    const id = docHashId(window.location.hash);
+    if (!id) return;
     const el = document.getElementById(id);
     if (!el) return;
     const details = el.closest('details');
