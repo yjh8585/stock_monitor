@@ -8,7 +8,43 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-11, **API 크레딧 일회성 작업 끝 — DB 반영·커밋 완료 · 미푸시(사용자 확인 대기)**)
+## 최신 상태 · 재개 지점 (2026-11-11, **고객사 IR 확장 계획 실행 중 — Task 1~8 완료 · 다음 Task 9 · 미푸시**)
+
+> 이 세션의 관통 주제: IR 확장 계획서(`docs/plans/2026-11-10-customers-ir-expansion.md` · Task 1~13 · 결정 기록 `_결정이행.md` D1~D9·E1~E8)를 SDD 로 이어 실행. 구독 한도가 12% 로 떨어져 사용자 지시로 **구현자 = API 키 과금 헤드리스 · 검토자 = Codex** 로 바꿨다. 컴팩트 전 정리.
+
+**결과**: Task 4 `da1260f`·`98302a7` · Task 5 `f9d2ae9`·`288d6fa` · Task 6 `d978770`·`2683f21` · Task 7 `51e5f70`·`b452cfc`·`83f238b` · Task 8 `5116661`·`5cd9717`·`a2c48ec`·`9f54546` · 결정 E7 `64b92db`. **푸시 안 함.**
+
+**🔴 재개 지점**: SDD 원장 `.superpowers/sdd/2026-11-10-customers-ir-expansion/progress.md`(gitignore) 맨 끝. 다음 = **Task 9**(지시문 준비됨 · `scratchpad` 는 세션과 함께 사라지므로 아래 «실행 방식»대로 다시 만든다) → 10 → 13 → 11 → 최종 검토 → Task 12.
+- Task 10 에 **더할 항목**(원장 「Task 5 걱정 ④」): LLM 이 어휘에 없는 지표(총주주환원율 35%+)를 `free_cash_flow` 로 실어 `verified=true` 가 됐다(`customer_guidance` id 345 · 문서 1740 · 현대 CID). 지시문(`llm_guidance.py` 「맞는 지표가 없으면 만들지 않는다」)은 이미 있어 코드 가드(라벨↔지표 정합)가 필요 → 고친 뒤 `--reparse 1740` 으로 행 345 가 사라지는지.
+- Task 11 에 **더할 항목**: `docs/customers-collection.md` 의 「GM IR 차단·어댑터 없음」 서술(38·74행)을 Task 8 결과로 고친다 · `porsche.py:48` 인도 정의 문구(Task 3 이월).
+
+**실행 방식(사용자 지시 2026-11-11 「한도가 12% … codex나 앤트로픽 api 쓸 수 있는 것은 써봐. api도 같은 모델과 같은 effort 사용하고」)**:
+- 구현자 = `ANTHROPIC_API_KEY=<루트 .env.local 의 값> claude -p --model claude-opus-5-5 --effort high --permission-mode bypassPermissions --output-format stream-json --verbose < 지시문.md > 로그.jsonl`(레포 루트에서 · 키를 출력하지 않는다). 로그의 init 줄 `apiKeySource=ANTHROPIC_API_KEY` 로 API 과금을 확인. 수정 회차는 `--resume <session_id>`(로그 result 줄). 비용 실측: Task 7 첫 구현 $5.99 · Task 8 $7.53 · 수정 회차는 이어받기라 누적이 크다($9~13).
+- 지시문 = SDD `implementer-prompt.md` 틀 + 브리프 경로(`scripts/task-brief <plan> N`) + 이 계획의 제약(공개 레포 · 커밋 규칙 · DB 쓰기 금지 · 남의 미커밋 파일 · `참고/` 금지) + 보고서 경로. HANDOFF.md 는 구현자가 고치지 않는다(「HANDOFF 에 넣을 것」 절로 보고).
+- 검토·재검토 = Codex(`python -X utf8 ~/.claude/scripts/codex_run.py run <지시문> <결과> --cwd <레포> --tag diff-review`) · 지시문은 SDD `task-reviewer-prompt.md`·`re-review-prompt.md` 를 한국어로 옮긴 것 · 읽기 전용 · `참고/` 금지.
+- 같은 파일을 고치는 두 구현자를 동시에 돌리지 않는다(`--only` 커밋에 남의 hunk 가 섞인다) — 검토(읽기 전용)와 다음 구현은 겹쳐도 된다.
+
+**사용자 결정 (2026-11-11)**: E7 모비스 Script 목표 문장 없음 = «서식 미인식» 경고(상태는 not_target + note · 2단계 P4 와 같은 방식) · E8 KGM CEO IR설명회·Pressday = 날짜 없음 유지(행사일은 공시 본문에만 · 3단계로).
+
+**비자명한 사실 (재조사 금지)**:
+- 현대 CID 목록에 행사일 칸이 없다 → 같은 사이트 `pastIrEvent.list.do` 로 붙임(2019 는 CID 두 번이라 날짜 없음). 모비스 영문 Script 링크엔 `fileNm` 이 없어 키 = 분기 이름.
+- D6 실측: 현대 CID 25,957자 · 기아 CID 56,237자 — 둘 다 12만 자 상한 안(잘림 없음). 현대 CID LLM 1회 = 입력 25,690 · 출력 113 토큰, 행 1개(위 오분류 행).
+- KGM 은 분기 실적 공시와 월 판매 공시의 제목·종류가 같다 → 정정공시의 원공시는 «IR 실적 발표일과 같은 날 낸 같은 제목 공시»로만 확인, 아니면 날짜 없음(Task 7).
+- 포르쉐 EQS 피드는 XML 이 아니라 JSON. 일정만 403 이면 수집 상태를 blocked 로 올린다(Task 6).
+- GM: 이 PC 에서 실제 Chrome(CDP)로 페이지·PDF 전부 200 · 드라이런 새 문서 14(덱 5·서한 5·Deliveries 4) · 일정 2. Chrome 받기 URL 당 120초 상한(`CHROME_URL_TIMEOUT_S`).
+- 고친 결정 기록: `_결정이행.md` E8 줄은 이 마무리 커밋에 들어갔다.
+
+**푸시 전 사용자 확인 항목(누적)**:
+- 빈패스트 픽스처에 들어갔던 실제 서명(`sig=`) 값이 `da1260f` 히스토리에 남아 있다(만료 1794283200 · 푸시하면 공개) — 커밋 합치기 여부.
+- GHA 매일 실행의 GM 문서 목록이 러너의 Chrome 에 기댄다 — 러너에 Chrome 이 없으면 GM 행이 매일 `error`(사유 「Chrome 없음」). 푸시 뒤 `probe_gm_ir` 수동 실행으로 확인 · 막히면 D1 「사용자 PC」 갈래.
+- GM 올해 판매 목록의 빈 표식은 서울 기준 1월 1·2일만 허용(`GM_FIRST_SALES_BY`) — 첫 보도가 늦은 해엔 1월 3일~첫 보도일 GM 행이 error 로 뜬다(조용한 0건보다 시끄러운 실패 · 컨트롤러 판정 · E7 방향).
+- 사용자 질문(2026-11-11 「분기별 실적이 나오는데 왜 매일 수집해?」)에 답함: 매일은 «새 문서 확인»만, AI 는 새 문서가 있는 날만 돈다(평일 08:00 KST · 공개 레포라 GHA 무료) — 주기를 줄일지 사용자 답 대기(줄이면 Task 11 에서 cron 한 줄).
+
+**남은 사소 지적**: 원장의 `minor (deferred)` 줄(Task 1~8) — 최종 검토에서 가린다.
+
+**검증**: 마무리 시점 `pytest scripts/lib` 873 통과·3 건너뜀(exit 0) · `npm run check-all` 통과(vitest 633 · exit 0).
+
+## 이전 상태 · 재개 지점 (2026-11-11, **API 크레딧 일회성 작업 끝 — DB 반영·커밋 완료 · 미푸시(사용자 확인 대기)**)
 
 > **이 작업에서 남은 코드 일은 없다.** 고객사 IR 확장(바로 아래 블록)은 다른 세션의 진행 중 작업이니 그쪽 재개 지점은 아래를 본다.
 > 지시 원문·선택·판정 = [`docs/plans/2026-11-10-api-credit_최초지시.md`](./docs/plans/2026-11-10-api-credit_최초지시.md)
@@ -206,28 +242,3 @@
 **재개 지점**: 이 작업은 끝났다. 남은 일 없음. (임시 파일 삭제는 사용자 승인 사항 — 원하면 위 세 경로를 지운다)
 
 **검증**: 두 편 모두 `verify_yt_report.py` · `verify_report_krw.py` · `verify_translationese.py` EXIT 0 · 운영 헤드리스 두 번 열기(147 표 7 · 148 표 15·그림 15 · 깨진 `**` 0 · 원화 각주·원문 링크 있음) · `npm run check-all` 중 lint·typecheck·시험 531 통과, `format:check` 는 남의 미추적 파일 `docs/plans/2026-10-30-mgmt-standard_결정이행.md` 1건으로만 실패
-
-## 이전 상태 · 재개 지점 (2026-10-30, **OEM 「중국」 탭 신설 — 기존 차트 재사용으로 재작업 + 검토 지적 전량 반영**)
-
-> 이 세션의 관통 주제: 첫 판이 「전체 탭처럼」 지시를 받고도 전체 탭 컴포넌트를 열지 않아 새 차트 7개를 만들었다 → 사용자 지적 2회로 전부 지우고 기존 부품만 조립했다. 재작업 판도 토글·카드 껍데기를 또 새로 짜 검토에서 걸렸다 — **짝은 「같은 모양」이 아니라 「같은 일」로 찾는다.**
-
-**결과**: `/oem/china`(MarkLines 중국 엑셀 3종 → `oem_china_*` 3테이블 · 생산 63,312 · 차급 1,850 · 수출 21,352행). 화면은 새 부품 0개 — 「전체」 탭 차트 4종(`year` 등 기본값 현행인 선택 인자) + 회사 탭 공용 + KG `KgDomesticExportSplit`(`title`·`footer`) + 우즈베키스탄 `UzbekistanDimensionToggle`(`options`). GHA `sync-oem-china-excel.yml` 월 10:20 KST. 계획서·결정 이행 = `docs/plans/2026-10-29-oem-china-tab.md` + `_결정이행.md`(짝짓기 표가 다음 국가 탭 본보기).
-
-**사용자 지시**: _"oem 페이지에 신규 서브페이지 추가 … 3개 엑셀파일 읽어보고 분석해서 "전체" 서브페이지 처럼 구성해봐"_ (2026-10-29) · _"무작정 새로 양식 만들지 말고 있는 차트양식 최대한 참고해"_ · _"과거 작업 확인하는 것은 규칙에 집어넣어"_ (2026-10-30 → 전역 CLAUDE.md 「같은 종류의 과거 작업부터 연다」 + `docs/chart-guide.md` §7 0번)
-
-**비자명한 사실 (재조사 금지)**:
-
-- 연도는 **데이터 앵커**(생산·수출 최신월 중 이른 쪽)로 정해 차트에 `year` 로 넘긴다 — 중국 엑셀은 한 달 넘게 늦어 `currentYear()` 를 쓰면 1~2월에 빈 화면·화면끼리 다른 해
-- 승용차 엑셀은 받을 때마다 zip 안 시각이 바뀌어 md5 가 늘 다르다 → 읽은 행으로 비교. 303 리다이렉트에서 `requests` 가 Cookie 헤더를 떼므로 손으로 따라가되 MarkLines 밖으로는 안 간다
-- 브랜드 「MG (2006-)」 꼬리를 떼고 재적재(키 10~14% 변경 → 이 한 번만 보호 비율 20%) · DB 꼬리 0건 확인
-- 지울 키는 upsert **앞에서** 판정, 기존의 5% 초과면 아무것도 안 쓰고 멈춘다(`STALE_ABORT_RATIO`) · 파서 규칙만 바꾸면 파일이 같아 재적재 안 됨 → 로컬 `import_oem_china.py` 또는 Actions 캐시 삭제
-- C: 가 100%(1.1GB) 찬 상태에서 dev 서버를 재기동한 뒤 `.next/dev/types/routes.d.ts` 꼬리가 중복돼 typecheck 실패 → 사용자 승인으로 `.next`(약 4GB) 삭제 + `npx next typegen` 으로 복구(`docs/gotchas-playwright-ui.md`). 다음 dev 첫 기동은 캐시가 없어 느리다
-- 회사 탭 Inner 16곳의 `fmtUnitsTick` 은 1,000만 이상을 10배 작게 찍는다 — KG Inner 만 고쳤다(목록 = `docs/chart-guide.md` §3)
-
-**재개 지점**:
-
-1. GHA `sync-oem-china-excel.yml` 첫 스케줄 실행(다음 월요일 10:20 KST) 결과 확인 — `MARKLINES_COOKIE` 만료면 종료 코드 1
-2. 고치지 않고 보고만 한 것: 교차 검증이 경고만 냄 · NEV 실패가 다른 파일 동기화도 멈춤 · 음수 내수·빈 달 표시 · 수출 정지가 생산 화면도 멈춤 · 단위 표기 혼재
-3. 프로덕션 화면은 사용자 눈 확인 전(로컬 dev 헤드리스로만 확인)
-
-**검증**: `npm run check-all` EXIT 0(시험 531 · 중국 집계 48) · pytest 28 · `verify_revalidate_tags.py` EXIT 0 · 헤드리스(중국 카드 14 · 콘솔 오류 0 · 「전체」 「OEM」·KG 「내수/수출 분리」·우즈베키스탄 「브랜드/회사」 그대로)
