@@ -152,7 +152,7 @@
 **API 라우트 분류**:
 
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[id]` (조직도 이미지 프록시 — admin·holdings·mobility만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[id]` (조직도 이미지 프록시 — admin·holdings·mobility만), `/api/customers/doc-page/[docId]/[page]` (고객사 문서 요약 근거 쪽 캡처 프록시 — `canAccessCustomers` · 비공개 버킷 `customer-doc-pages` · 키는 DB `pages[].key` 만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
 **이 목록이 라우트 분류의 정본이다** — 새 `app/api/**/route.ts`를 만들면 여기와 `proxy.ts`를 함께 갱신한다(AGENTS.md 는 이 규칙만 싣고 목록은 중복하지 않는다). `/api/revalidate*`은 SSRF·쿠키 가드 패치 이력이 있어 회귀에 주의한다(commit `ea090be`).
