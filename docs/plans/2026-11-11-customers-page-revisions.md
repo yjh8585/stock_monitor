@@ -419,3 +419,88 @@ export function pickRecentImportant(
 | 리비안     | — (주주서한 PDF 가 50MB 초과로 못 받음) | 3/2 · 실적                 | —                            |
 
 - 회사별로 어느 문서에 무엇이 있는지 → 코드 파서 우선 · 못 읽는 표만 API.
+
+### C 확정 결정 (grill-me 2026-11-12 · 원문 = `_최초지시.md` 「C grill-me 결정」)
+
+| #   | 결정                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | 국내 3사(현대차·기아·KGM) = OEM 탭이 모은 표 재사용 · IR 에서는 국내 3사 시장별 점유율만                                               |
+| C2  | 해외 7곳(VW·포르쉐·GM·스텔란티스·리비안·빈패스트·폴라리스) + 모비스 = IR 문서 최근 1년(`c_materials` 있는 문서)만 · 포드 제외(E1)      |
+| C3  | 지역·차종 이름 = 회사 구분 그대로 + 한국어 라벨 + 뜻 상자 · 공통 권역 비교 표 없음                                                     |
+| C4  | 화면 = 「물량」 절 아래 새 절 「지역·차종·점유율」 + 탭 3개(값 없는 탭 숨김) · 출처(문서·쪽) 링크                                      |
+| C5  | 소급 = 이 세션(구독)에서 오퍼스가 직접 읽음 · API 0(프로모션 크레딧 소진)                                                              |
+| C6  | 정기 = `collect-customer-docs.yml` 「요약」 뒤 step(표=코드 · PDF 쪽=API 실제 과금 · 분기 약 1~2 USD) — 인프라 파일 승인 2026-11-12    |
+| C7  | 저장 = 새 사외비 표 1개 · 「수준」 값(대수·비중%·점유율%·매출)만 · 증감률만 있는 항목은 안 담음                                        |
+| C8  | 화면엔 `verified` 만 — `quote_check.check_row` 를 그 쪽 글자층에 · 그림 속에만 있는 숫자는 소급 때 독립 두 번째 읽기와 일치해야 검증됨 |
+| C9  | 모비스 = 지역별 매출(원)                                                                                                               |
+| C10 | B 정기 실행(요약 step·뉴스 주간) = 그대로 둠(실제 과금 · 월 약 6~8 USD)                                                                |
+
+#### 상세
+
+- C7 「수준」 판정: 대수(units)·비중(pct, 합 100 꼴의 구성비)·점유율(share_pct, 시장 대비)·매출(통화). 「+11%」「−20% y/y」처럼 증감률만 있고 수준 값이 없는 항목은 버린다(차트로 못 그림). 발표자료가 전년 동기 값을 같은 표에 실으면 둘 다 담는다(기간이 다른 행).
+- C8 두 번째 읽기: 소급에서 쪽 글자층(`page_get_text`)에 값이 없으면(그림 속 숫자) 첫 읽기와 «서로 모르게» 다른 읽기(서브에이전트)가 같은 값을 내야 `verified=true · verify_note='double_read'` · 어긋나면 `verified=false · verify_note='double_read_mismatch'`. 정기(API) 경로는 글자층 대조만(그림 속 숫자는 `verified=false · 'image_only'`로 남아 화면에 안 뜬다 — `SHORTCUT:` 표시).
+- C2 포드 제외(2026-11-12 Codex 대조 뒤 정정): 포드는 IR 확장 결정 E1(사용자 11-10 · 「문서 목록 수집 대상 = GHA matrix 11곳 · 이미 쌓인 포드 문서는 둔다」)로 수집 대상 밖이고 고객사 화면 대상이 아니다. grill-me 질문의 「해외 9곳」은 이 결정을 놓친 셈이었다 — 결정 자체(해외는 IR 문서)는 그대로, 대상 목록만 matrix 와 맞춘다. 대상 판정은 코드가 matrix 와 같은 출처(`customer_parsers.parser_tickers() | ir_lists.IR_LISTS`)에서 파생한다.
+- 지역 탭은 `customer_volume_ir` 의 `region <> 'total'` 행도 함께 보여 준다(GM 북미·인터내셔널 · VW 중국 · 빈패스트 베트남 등) — 같은 값을 새 표에 다시 넣지 않는다.
+- 포르쉐 팩트시트 XLSX 는 한 파일에 2022년부터 분기별 지역·차종 인도가 다 있다 → 최신 팩트시트의 모든 분기를 담는다(「최근 1년」은 읽을 문서 범위 · 문서 안의 과거 분기는 코드 비용 0). 사용자에게 알림 2026-11-12 · 반대하면 최근 분기만.
+- 실측 사실(2026-11-12): 국내 3사의 DART 잠정실적 「내수/해외」는 이미 `customer_volume_ir` 에 있다(C 대상 아님). 해외 비PDF 중 코드로 안정적으로 읽을 표 = 스텔란티스 EDGAR 실적 보도자료의 지역별 출하 표·지역 점유율 문장, 폴라리스 EDGAR 보도자료의 고정 문구 문장(「North America sales of $1,815 million … from $1,586 million」 · 표가 아니다), 포르쉐 팩트시트 XLSX(시트 「03 - Sales_deliveries」 지역 · 「04 - Sales_deliveries」 차종 · 분기 열과 누계 열이 따로). 나머지(VW·빈패스트·GM·리비안 문서, 모든 PDF 슬라이드)는 읽기 경로.
+
+### 짝짓기 표 (설계 전에 연 과거 부품 · 전역 규칙 「같은 종류의 과거 작업부터」)
+
+| 새 항목                  | 재사용 부품                                                                                                   | 판정                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 지역별 대수·매출(해외)   | `components/oem-companies/hyundai/HyundaiQuarterlyRegionsChart`(기간 → {이름: 값} 누적 막대)                  | 선택 인자만 더해 재사용 — `unit`(아래 상세 · 기본값이면 지금과 같은 출력) |
+| 차종·브랜드별 대수(해외) | 같은 부품(이름 = 차종·브랜드)                                                                                 | 위와 같음                                                                 |
+| 비중%·점유율%            | `CustomerVolumeCompare` 의 「회사 발표 분기 표」(행 = 라벨 · 열 = 기간 · 같은 클래스)                         | 신규 칸 — 같은 표 꼴의 작은 부품 `CustomerBreakdownTable`                 |
+| 국내 3사 지역·차종       | OEM 탭 부품 그대로(`getKiaData`·`getHyundaiData`·`getKgMobilityData` + 그 탭 page.tsx 와 같은 인자)           | 그대로 재사용 — 인자 하나라도 빠뜨리면 기능이 죽는다(「반만 쓰는」 변형)  |
+| 국내 3사 점유율(IR)      | 위 비중·점유율 표                                                                                             | 위와 같음                                                                 |
+| 탭                       | `components/ui/tabs`(shadcn · `components/oem/competition/ModelSection.tsx` 가 쓰는 꼴)                       | 그대로 재사용 — `CustomersTabs` 는 회사 간 링크 탭이라 아니다(Codex)      |
+| 뜻 상자 · 출처 링크      | `CustomerVolumeCompare` 정의 상자(90~153줄 인라인) · B 요약 카드 `id=doc-<id>`(`CustomerDocSummaries.tsx:19`) | 뜻 상자 = 신규 칸(같은 클래스 · 분리 리팩터 안 함) · 링크 = 아래 상세     |
+
+#### 짝짓기 상세 (Codex 대조 2026-11-12)
+
+- 차트 `unit`: 지금은 Inner 의 축 tick(`/1_000`·`/10`·`M`·`만`)·툴팁(「천대」)·합계 라벨에 천대가 박혀 있고 바깥은 `data` 만 넘긴다. 선택 인자 `unit?: { label: string; tick: 'thousand_units' | 'plain' }`(기본 `{label:'천대', tick:'thousand_units'}`)를 바깥 → Inner 로 넘기고 세 자리 모두 이것을 쓴다. 해외 값은 화면 단위로 바꿔 넣는다(대수 → 천대 · 원 → 억원 · 외화 → 백만). 현대차 탭 회귀 없음을 촬영으로 확인.
+- 출처 링크: 그 문서가 상세에 올라온 요약 목록에 있으면 `#doc-<id>`, 없으면 원문 URL(PDF 면 `#page=N`) 새 창.
+
+### Task C-1: 표 `customer_breakdown_ir` · 사외비 5-step · 캐시 태그
+
+- 마이그레이션(가장 큰 번호 다음): 칸 = `id bigserial` · `company_id uuid` FK companies · `document_id bigint` FK customer_documents · `page int null` · `kind text CHECK IN ('region','model','share')` · `metric text`(deliveries·sales·wholesale·shipments·retail·revenue·orders 등 원문 성격) · `label_raw text` · `label_ko text` · `period_grain text CHECK IN ('month','quarter','half','ytd','year','asof')` · `period text`(기존 물량 표 꼴: `2026-10`·`2026-Q3`·`2026-9M`·`2026` · 새로 `half` = `2026-H1` · `asof` = `YYYY-MM-DD`) · `value numeric` · `unit text CHECK IN ('units','pct','share_pct','KRW','USD','EUR','VND')` · `definition text null` · `quote text` · `extractor text CHECK IN ('code','llm','manual')` · `verified bool` · `verify_note text null` · `published_at` · `UNIQUE(document_id, kind, metric, label_raw, period_grain, period)`. RLS enable · 정책 없음 · `trg_skip_identical_update` 부착(`updated_at` 없음). 같은 마이그레이션에서 `customer_doc_summaries` 에 `breakdown_at timestamptz null` 1칸 — C 처리 완료 표식(읽었으나 수준 값 0행인 문서가 매번 다시 처리되지 않게 · Codex).
+- 사외비 5-step(Architecture §7-G) · `CONFIDENTIAL_TABLES` 추가 · `scripts/lib/revalidate.py` 매핑 + `cacheTag` · `ALL_TAGS` · `COLUMN_TO_TAGS` 세 곳(`verify_revalidate_tags.py`). 🔴 검사기는 태그 «값» 합집합만 본다 — `COLUMN_TO_TAGS['customer_breakdown_ir']` 키에 붙었는지는 grep 으로 따로 확인(Codex).
+- [ ] Step 1: 마이그레이션 적용(MCP 가 안 되면 Management API) · 타입 재생성 · `verify_revalidate_tags.py` exit 0 · 커밋.
+
+### Task C-2: 적재기 `scripts/collect_customer_breakdown.py` + `scripts/lib/customer_breakdown.py`
+
+- lib: 행 dataclass(위 칸) · `page_text(content, page)`(PDF 는 `page_marked_text` 를 쪽으로 쪼갬 · 비PDF 는 `source_text`) · `verify(rows, content)` = 쪽 글자층에 `quote_check.check_row` → 실패이고 `second_value` 가 있으면 C8 두 번째 읽기 규칙 · 「수준」 아닌 단위·증감률 꼴 quote 거르기(C7).
+- CLI 갈래: `--dump <doc_id>`(쪽마다 글자층 + 지정 쪽 PNG 를 scratchpad 로 — 소급 때 읽기 재료) · `--load <json>`(소급 결과 적재 · `extractor='manual'`) · `--company <X>`(정기: 아직 처리 안 한 `c_materials` 문서 → 코드 파서 있으면 코드, PDF 쪽은 API) · `--dry-run`. 처리 여부 = `customer_doc_summaries.breakdown_at` (C-1) · `doc_content` 반환은 `(Content, sha)` 튜플 · `check_row` 는 속성 객체를 받으니 JSON dict 는 dataclass 로 바꿔 넘긴다(Codex).
+- 적재는 `WriteSession` · 같은 문서 재적재는 그 문서 행 삭제 후 넣기(라벨이 바뀐 옛 행이 남지 않게).
+- [ ] Step 1: 시험(가짜 회사 `Acme Motors` · 쪽 글자 · 그림 속 숫자 · 증감률 거르기 · 두 번째 읽기 일치/불일치) → 구현 → 통과 · 커밋.
+
+### Task C-3: 코드 파서 3종(스텔란티스 · 폴라리스 · 포르쉐 XLSX)
+
+- 실물 문서(229·236·242·250 / 2·4·8·10 / 포르쉐 fact_sheet)를 먼저 열어 표 머리로 열을 고른다(`quote_check` 는 열 선택 오류를 못 막는다 — 파서 책임). 스텔란티스 점유율은 문장 꼴(「North America 7.5%」)이라 정규식 + 표본(MUST_HIT/MUST_MISS).
+- [ ] Step 1: 실물 조각을 시험 고정값으로 · 구현 · 시험 통과 · 실물 dry-run 행 수 보고 · 커밋.
+
+### Task C-4: 정기용 API 읽기(PDF 쪽)
+
+- 모델·호출 꼴은 `summarize_customer_docs.py` 의 `_call`(`output_config.format` = `json_schema` · 반환 `(결과, 본문, 토큰)`)을 따른다 — tool 호출이 아니라 JSON 스키마 응답. `ask` 는 글(str)만 받으니 쪽 PNG(image 블록)+글자층을 담는 메시지는 새로 만든다 · 입력 = `c_materials` 가 가리킨 쪽 · 비용 로그(`usd`).
+- 그림 속 숫자는 `verified=false · 'image_only'` (C8 · `SHORTCUT:`).
+- 🔴 이번 회차는 API 호출 0(사용자 지시 2026-11-12 「이번에는 일단 api 쓰지말고 직접해. 정기 수집부터 api가 하고」) — 실호출 실측 없이 모의 응답 시험만. 첫 실호출 = GHA 첫 정기 실행(그때 비용·결과 확인이 남는 일).
+- [ ] Step 1: 시험(모의 응답 — 스키마·검사·비용 로그 꼴) · 커밋.
+
+### Task C-5: 소급(이 세션 · API 0)
+
+- 대상 = 해외 7곳 + 모비스의 `c_materials` 문서(C2 · 포드 제외) + 국내 3사 점유율 항목(C1). 코드 파서 문서는 C-3 으로 먼저 적재.
+- 회사 묶음별로 `--dump` → 첫 읽기(메인 또는 서브에이전트 · 한 번에 5개 이하) → 그림 속 숫자만 모아 서로 모르는 두 번째 읽기 → JSON → `--load`.
+- [ ] Step 1: 회사별 적재 행 수·verified 수 보고(사외비 금액 없이 건수만).
+
+### Task C-6: 화면
+
+- `lib/customers/source.ts`: 상세에 `breakdown`(verified 만 · kind 별) 추가 · 국내 3사는 `getKiaData` 등에서 OEM 탭과 같은 인자.
+- 새 절(물량 아래) · 탭 3개(값 없는 탭 숨김) · 짝짓기 표대로 · 뜻 상자 · 출처 「문서 · N쪽」 → `#doc-<id>`.
+- [ ] Step 1: vitest(묶기·기간 정렬·빈 탭 숨김) · `npm run check-all` exit 0 · headless 촬영(3000 아닌 포트) Read 확인 · 커밋.
+
+### Task C-7: GHA step · 문서 · 마무리
+
+- `collect-customer-docs.yml` 「요약」 뒤 「지역·차종·점유율」 step(`!cancelled() && steps.deps.outcome == 'success'` · `--company` · 요약 실패와 무관하게 돈다 — 새 문서의 `c_materials` 가 없으면 할 일이 없을 뿐) · Architecture §10 · `docs/customers-collection.md`(표·흐름·함정) · commands.md.
+- Codex 최종 diff 검토 · HANDOFF · 메모리. 푸시는 사용자 요청 시.
+
+**C 완료 정의**: C-1~C-7 커밋 · Python 시험·vitest·`npm run check-all`·`verify_revalidate_tags.py` 통과 · 소급 행 적재와 화면 촬영 확인 · 푸시는 사용자 요청 시.
