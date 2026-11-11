@@ -63,6 +63,30 @@ function GuidanceChangeCell({ ir }: { ir: CustomerOverviewIr }) {
   );
 }
 
+/** 「최근 중요 문서」 칸 — 요약 중요도 상 · 30일 안 · 상세 문서 요약 카드(#doc-<id>)로 가는 링크. 이유는 툴팁. */
+function RecentDocCell({ ir, slug }: { ir: CustomerOverviewIr; slug: string }) {
+  const d = ir.recentDoc;
+  if (!d) return <span className="text-muted-foreground">—</span>;
+  const title = d.title.length > 30 ? `${d.title.slice(0, 30)}…` : d.title;
+  return (
+    <span className="block min-w-[200px] max-w-[320px] whitespace-normal">
+      <Link
+        href={`/customers/${slug}#doc-${d.docId}`}
+        className="text-blue-600 hover:underline dark:text-blue-400"
+        title={
+          d.reason
+            ? `${d.title}
+중요: ${d.reason}`
+            : d.title
+        }
+      >
+        {docTypeLabel(d.docType)} · {title}
+      </Link>{' '}
+      <span className="text-xs text-muted-foreground">{d.publishedAt}</span>
+    </span>
+  );
+}
+
 /** 고객사 요약 표 — 우리 매출 비중·주가 수익률·최근 분기 실적(현지 통화)·가이던스 변경·다음 실적. 행 클릭 없이 회사명 링크만. */
 export default function CustomersOverviewTable({ rows, windowLabel, today }: Props) {
   return (
@@ -86,6 +110,7 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
             <th className={`${TD} text-right`}>매출 YoY</th>
             <th className={`${TD} text-right`}>영업이익률</th>
             <th className={`${TD} text-left`}>최근 가이던스 변경</th>
+            <th className={`${TD} text-left`}>최근 중요 문서</th>
             <th className={`${TD} text-left`}>다음 실적</th>
           </tr>
         </thead>
@@ -156,6 +181,9 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
                 </td>
                 <td className={TD}>
                   <GuidanceChangeCell ir={r.ir} />
+                </td>
+                <td className={TD}>
+                  <RecentDocCell ir={r.ir} slug={r.slug} />
                 </td>
                 <td className={cn(TD, 'tabular-nums', next?.estimated && 'text-muted-foreground')}>
                   {next ? (

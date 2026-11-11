@@ -5,6 +5,8 @@ import PopupNewsSection from '@/components/stock-popup/PopupNewsSection';
 import CustomerEarningsTable from '@/components/customers/CustomerEarningsTable';
 import CustomerGuidanceCards from '@/components/customers/CustomerGuidanceCards';
 import CustomerDocumentList from '@/components/customers/CustomerDocumentList';
+import CustomerDocSummaries from '@/components/customers/CustomerDocSummaries';
+import CustomerNewsWeekly from '@/components/customers/CustomerNewsWeekly';
 import CustomerVolumeCompare from '@/components/customers/CustomerVolumeCompare';
 import CustomerEarningsSchedule from '@/components/customers/CustomerEarningsSchedule';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
@@ -168,12 +170,14 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
             </Link>
           )}
         </section>
+        {ir && <CustomerDocSummaries summaries={ir.docSummaries} />}
         {ir && (
           <section className="space-y-3">
             <h2 className="text-base font-semibold">자료실</h2>
             <CustomerDocumentList documents={ir.documents} collectStatus={ir.collectStatus} />
           </section>
         )}
+        {ir && <CustomerNewsWeekly weeks={ir.newsWeeks} />}
         {/* 제목은 PopupNewsSection 안의 「최신 뉴스」가 맡는다 — 여기 h2 를 두면 제목이 두 번 나온다. */}
         <section>
           <PopupNewsSection

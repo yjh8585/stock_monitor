@@ -400,6 +400,7 @@ describe('라벨', () => {
   });
   it('문서 종류·물량 계열 — 모르는 값은 그대로', () => {
     expect(docTypeLabel('earnings_release')).toBe('실적 발표');
+    expect(docTypeLabel('shareholder_letter')).toBe('주주서한'); // 요약기 대상 종류 — 원문 키가 배지에 보이지 않게
     expect(docTypeLabel('mystery')).toBe('mystery');
     expect(volumeSeriesLabel('deliveries', 'total')).toBe('인도');
     expect(volumeSeriesLabel('wholesale', 'north_america')).toBe('도매 판매 · 북미');

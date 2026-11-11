@@ -430,6 +430,7 @@ const DOC_TYPE: Record<string, string> = {
   sales_release: '판매 실적',
   fact_sheet: '팩트시트',
   investor_day: '투자자의 날',
+  shareholder_letter: '주주서한',
 };
 
 /** 문서 종류 배지 — 모르는 값은 그대로. */
