@@ -15,10 +15,12 @@
 **결과**: Task 4 `da1260f`·`98302a7` · Task 5 `f9d2ae9`·`288d6fa` · Task 6 `d978770`·`2683f21` · Task 7 `51e5f70`·`b452cfc`·`83f238b` · Task 8 `5116661`·`5cd9717`·`a2c48ec`·`9f54546` · 결정 E7 `64b92db`. **푸시 안 함.**
 
 **🔴 재개 지점**: SDD 원장 `.superpowers/sdd/2026-11-10-customers-ir-expansion/progress.md`(gitignore) 맨 끝. 다음 = **Task 9**(지시문 준비됨 · `scratchpad` 는 세션과 함께 사라지므로 아래 «실행 방식»대로 다시 만든다) → 10 → 13 → 11 → 최종 검토 → Task 12.
+
 - Task 10 에 **더할 항목**(원장 「Task 5 걱정 ④」): LLM 이 어휘에 없는 지표(총주주환원율 35%+)를 `free_cash_flow` 로 실어 `verified=true` 가 됐다(`customer_guidance` id 345 · 문서 1740 · 현대 CID). 지시문(`llm_guidance.py` 「맞는 지표가 없으면 만들지 않는다」)은 이미 있어 코드 가드(라벨↔지표 정합)가 필요 → 고친 뒤 `--reparse 1740` 으로 행 345 가 사라지는지.
 - Task 11 에 **더할 항목**: `docs/customers-collection.md` 의 「GM IR 차단·어댑터 없음」 서술(38·74행)을 Task 8 결과로 고친다 · `porsche.py:48` 인도 정의 문구(Task 3 이월).
 
 **실행 방식(사용자 지시 2026-11-11 「한도가 12% … codex나 앤트로픽 api 쓸 수 있는 것은 써봐. api도 같은 모델과 같은 effort 사용하고」)**:
+
 - 구현자 = `ANTHROPIC_API_KEY=<루트 .env.local 의 값> claude -p --model claude-opus-5-5 --effort high --permission-mode bypassPermissions --output-format stream-json --verbose < 지시문.md > 로그.jsonl`(레포 루트에서 · 키를 출력하지 않는다). 로그의 init 줄 `apiKeySource=ANTHROPIC_API_KEY` 로 API 과금을 확인. 수정 회차는 `--resume <session_id>`(로그 result 줄). 비용 실측: Task 7 첫 구현 $5.99 · Task 8 $7.53 · 수정 회차는 이어받기라 누적이 크다($9~13).
 - 지시문 = SDD `implementer-prompt.md` 틀 + 브리프 경로(`scripts/task-brief <plan> N`) + 이 계획의 제약(공개 레포 · 커밋 규칙 · DB 쓰기 금지 · 남의 미커밋 파일 · `참고/` 금지) + 보고서 경로. HANDOFF.md 는 구현자가 고치지 않는다(「HANDOFF 에 넣을 것」 절로 보고).
 - 검토·재검토 = Codex(`python -X utf8 ~/.claude/scripts/codex_run.py run <지시문> <결과> --cwd <레포> --tag diff-review`) · 지시문은 SDD `task-reviewer-prompt.md`·`re-review-prompt.md` 를 한국어로 옮긴 것 · 읽기 전용 · `참고/` 금지.
@@ -27,6 +29,7 @@
 **사용자 결정 (2026-11-11)**: E7 모비스 Script 목표 문장 없음 = «서식 미인식» 경고(상태는 not_target + note · 2단계 P4 와 같은 방식) · E8 KGM CEO IR설명회·Pressday = 날짜 없음 유지(행사일은 공시 본문에만 · 3단계로).
 
 **비자명한 사실 (재조사 금지)**:
+
 - 현대 CID 목록에 행사일 칸이 없다 → 같은 사이트 `pastIrEvent.list.do` 로 붙임(2019 는 CID 두 번이라 날짜 없음). 모비스 영문 Script 링크엔 `fileNm` 이 없어 키 = 분기 이름.
 - D6 실측: 현대 CID 25,957자 · 기아 CID 56,237자 — 둘 다 12만 자 상한 안(잘림 없음). 현대 CID LLM 1회 = 입력 25,690 · 출력 113 토큰, 행 1개(위 오분류 행).
 - KGM 은 분기 실적 공시와 월 판매 공시의 제목·종류가 같다 → 정정공시의 원공시는 «IR 실적 발표일과 같은 날 낸 같은 제목 공시»로만 확인, 아니면 날짜 없음(Task 7).
@@ -35,6 +38,7 @@
 - 고친 결정 기록: `_결정이행.md` E8 줄은 이 마무리 커밋에 들어갔다.
 
 **푸시 전 사용자 확인 항목(누적)**:
+
 - 빈패스트 픽스처에 들어갔던 실제 서명(`sig=`) 값이 `da1260f` 히스토리에 남아 있다(만료 1794283200 · 푸시하면 공개) — 커밋 합치기 여부.
 - GHA 매일 실행의 GM 문서 목록이 러너의 Chrome 에 기댄다 — 러너에 Chrome 이 없으면 GM 행이 매일 `error`(사유 「Chrome 없음」). 푸시 뒤 `probe_gm_ir` 수동 실행으로 확인 · 막히면 D1 「사용자 PC」 갈래.
 - GM 올해 판매 목록의 빈 표식은 서울 기준 1월 1·2일만 허용(`GM_FIRST_SALES_BY`) — 첫 보도가 늦은 해엔 1월 3일~첫 보도일 GM 행이 error 로 뜬다(조용한 0건보다 시끄러운 실패 · 컨트롤러 판정 · E7 방향).
