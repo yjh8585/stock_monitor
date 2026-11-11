@@ -16,14 +16,16 @@
 | E1  | 문서 목록 수집 대상 = 파서·IR 어댑터가 있는 회사(GHA matrix 11곳)             | 그대로 | Task 1 `c7f386a`(`select_targets`) · 2026-11-10                     |
 | E2  | 지표 밖 연간 전망 6개 — 새 키는 3개가 아니라 4개(`operating_margin_adjusted`) | 변경   | 계획서 작성 중 메인 판정 2026-11-10(유일키 충돌) · 사용자 보고 대기 |
 | E3  | 구현 뒤 영향 문서를 메인이 바로 `--reparse`                                   | 대기   | Task 12(메인) — 대상 id 는 Task 9·10·13 보고서                      |
-| E4  | VW 중국 동향 = 숫자(인도 중국 행 등) + 문서 목록 · 서술 요약은 3단계          | 그대로 | Task 13 `43c7a7c` · 화면 표시 방식은 사용자 결정 대기(아래 상세)    |
+| E4  | VW 중국 동향 = 숫자(인도 중국 행 등) + 문서 목록 · 서술 요약은 3단계          | 그대로 | Task 13 `43c7a7c` · 화면 표시는 E9·E10                              |
 | E5  | 고객사 노조 갈등·파업 = 별도 계획서의 새 기능                                 | 그대로 | 이 계획에서 안 함                                                   |
 | E6  | 과거 2년치 백필 + LLM 처리를 푸시 전 이 PC 에서 메인이(Task 12 Step 0)        | 대기   | 사용자 선택 2026-11-10(프로모션 API 크레딧을 지금 쓴다)             |
 | E7  | 모비스 Script 에 수주 목표 문장이 없으면 not_target 이 아니라 «서식 미인식»   | 변경   | 사용자 선택 2026-11-11(Task 5 검토 · 조용한 0행 금지와 충돌)        |
 | E8  | KGM CEO IR설명회·Pressday 날짜 = 날짜 없음 유지(행사일은 공시 본문에만)       | 변경   | 사용자 선택 2026-11-11(Task 7 · 목록 날짜는 개최 결정일 · 3단계로)  |
+| E9  | VW 중국 인도 = 분기 표 위에 «중국 작은 차트» 추가(기존 차트에 섞지 않음)      | 변경   | 사용자 선택 2026-11-11(Task 13 검토 · 기존 차트는 MarkLines 비교용) |
+| E10 | VW 중국 합작사 영업이익 몫 = 실적 칸에 한 줄 추가                             | 변경   | 사용자 선택 2026-11-11(Task 13 · 저장만 하던 값)                    |
 
 #### 상세
 
 - **D1** — Task 8(`5116661`·`5cd9717`·`a2c48ec`·`9f54546`): `ir_lists._chrome_fetch`(실제 Chrome `--headless=new` + 브라우저 UA + 페이지 안 `fetch`)로 GM IR 목록·미국 Deliveries·실적 일정을 받는다. 이 PC 실측은 전부 200 이다. **GHA 러너에서 통하는지는 미확인** — 푸시 뒤 `probe_gm_ir` 로 확인하고, 막히면 «사용자 PC» 갈래로 간다. 러너에 Chrome 이 없으면 상태 사유 「Chrome 없음」(error), 403 이면 「IR 접근 차단(HTTP 403)」(blocked).
 - **D6** — Task 5 Step 5(2026-11-11): 현대 CID 문서 1편 25,957자 · 잘림 없음 · 입력 25,690 / 출력 113 토큰 · 1행. 그 1행이 「총주주환원율」을 `free_cash_flow` 로 실은 틀린 행이라 Task 10 이 지표 불일치 가드(`llm_guidance.metric_mismatch`)를 더했다. 이미 쌓인 그 행은 Task 12 에서 메인이 지운다.
-- **E4** — 중국 인도(`region='china'`)는 회사 발표 분기 표의 한 줄로 보이고(차트 선은 `total` 만), 중국 합작사 영업 결과 몫(`china_jv_operating_result`)은 DB 에만 쌓이고 화면 자리가 없다. 두 표시 방식은 사용자 결정 대기다. China Investor Update 목록은 Task 2 갤러리 분류(`investor_day`/`china-investor-update`).
+- **E4** — 중국 인도(`region='china'`)는 회사 발표 분기 표의 한 줄로 보이고(차트 선은 `total` 만), 중국 합작사 영업 결과 몫(`china_jv_operating_result`)은 DB 에만 쌓이고 화면 자리가 없었다. 두 표시 방식은 사용자가 2026-11-11 정했다(E9 작은 차트 · E10 실적 칸 한 줄). China Investor Update 목록은 Task 2 갤러리 분류(`investor_day`/`china-investor-update`).
