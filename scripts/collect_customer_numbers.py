@@ -76,6 +76,8 @@ LLM_MAX_ATTEMPTS = 3                    # 이 횟수째 실패하면 닫는다(�
 NOTE_LLM_RETRY = 'LLM 대기 — '          # + 사유 (n/3) — 'LLM 대기%' 로 같이 뽑힌다
 NOTE_LLM_GAVE_UP = f'LLM {LLM_MAX_ATTEMPTS}회 실패'
 NOTE_LLM_UNVERIFIED = 'LLM 행 대조 통과 0'
+# 대조 실패가 전부 지표 불일치 — 다시 물어도 키는 안 바뀌고 유료 호출만 늘어 재시도 없이 닫는다(Task 10 수정 2회차)
+NOTE_LLM_METRIC_ONLY = 'LLM 행 지표 불일치뿐 — 재시도 안 함'
 DOC_TYPES = ('earnings_release', 'presentation', 'shareholder_letter', 'periodic', 'current_report', 'prelim_results',
              'sales_release', 'guidance', 'ir_event', 'fact_sheet', 'investor_day', 'other')  # DB CHECK 와 같음
 _PAGE = 1000      # PostgREST 한 응답 최대 행 수 — 넘으면 .range() 로 넘긴다(.order() 필수)
@@ -653,6 +655,12 @@ class _CompanyRun:
       self.outcomes['code_miss'] += 1
     status, note = judge(res, v_values, v_dates, llm_n)
     retry = self._llm_retry_reason(res, notes, status, llm_n, v_values)
+    if retry == NOTE_LLM_UNVERIFIED and all((checks[id(r)][1] or '').startswith('metric_mismatch:')
+                                            for r in value_rows(res)):
+      # 지표 불일치뿐 — 재시도 없이 상한 소진과 같은 끝(failed) · 행은 verified=False + 사유로 싣는다(값 행 = 전부 LLM 행)
+      retry = None
+      notes.insert(0, NOTE_LLM_METRIC_ONLY)
+      self._store(doc, payloads(doc, res, checks, llm_ids), llm_ran=True)
     if retry:
       return self._llm_retry(doc, res, checks, notes, status, note, retry, llm_attempts, sha, v_values, v_dates)
     llm_missed = llm_ids is None and hasattr(self.mod, 'llm_wants') and self.mod.llm_wants(doc, res)

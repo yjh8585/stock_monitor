@@ -365,7 +365,7 @@ def stated_supported(g: GuidanceRow) -> bool:
   return g.stated is None or bool(_STATED_WORDS[g.stated].search(q))
 
 
-# metric 키 → 라벨 또는 quote 에 있어야 하는 낱말(Task 10). 프롬프트가 «맞는 지표가 없으면 만들지 말라»고 해도 LLM 이
+# metric 키 → quote 에(숫자·단위뿐인 quote 면 라벨에) 있어야 하는 낱말(Task 10 · 수정 2회차). 프롬프트가 «맞는 지표가 없으면 만들지 말라»고 해도 LLM 이
 # 어휘 밖 지표(총주주환원율 35%+)를 가까운 키(free_cash_flow)에 밀어 넣고, 숫자는 원문에 있어 인용 대조를 통과했다
 # (customer_guidance 345). 낱말은 키의 뜻 + DB 실물 라벨(METRIC_MISMATCH_KEEP)에서만 — 한국어는 활용 없는 명사뿐이고
 # 띄어쓰기 변이만 \s*.
@@ -398,10 +398,24 @@ MISMATCH_PERCENT = 'percent_on_non_ratio'
 MISMATCH_WORD = 'metric_word_missing'
 MISMATCH_NO_RULE = 'metric_unverifiable'
 
+# 숫자·단위뿐인 quote(표 한 칸 — '$7.15B to $7.30B')에서 허용하는 낱말 — 단위·배수·통화·범위 연결어만(Task 10 수정 2회차).
+# 🔴 좁게 둔다: 여기에 일반 낱말이 들어가면 그 quote 는 라벨로 판정돼 «라벨만 맞춘 엉뚱한 키»(총주주환원율 반례)가 샌다.
+_UNIT_WORDS = frozenset(('b', 'bn', 'm', 'mn', 'k', 'billion', 'million', 'trillion', 'thousand', 'to',
+                         'usd', 'eur', 'krw', '조', '억', '만', '원', '조원', '억원', '백만원', '달러'))
+_LETTER_WORD = re.compile(r'[A-Za-z]+|[가-힣]+')
+# 키 낱말 사이에 낀 각주 표지('Adj. operating income (3) margin' — 274) — 낱말 검사 전에 지운다(연도 '(2026)' 은 안 지운다)
+_FOOTNOTE = re.compile(r'\s*\(\d{1,2}\)')
+
+
+def numbers_only(quote: str | None) -> bool:
+  """quote 가 숫자·단위뿐인가(글자 낱말이 전부 _UNIT_WORDS) — 빈 quote 도 참."""
+  return all(w.lower() in _UNIT_WORDS for w in _LETTER_WORD.findall(quote or ''))
+
 
 def metric_mismatch(g: GuidanceRow) -> str | None:
   """LLM 행의 metric 키가 라벨·quote 와 안 맞는 사유(None = 맞다) — (a) 비율 지표가 아닌 키에 % 값 (b) 낱말 규칙이 없는 키
-  (c) 그 키의 낱말이 라벨에도 quote 에도 없다. other 는 검사 밖."""
+  (c) 그 키의 낱말이 quote 에 없다 — quote 가 숫자·단위뿐(표 칸)일 때만 라벨로 본다(수정 2회차 (b): 라벨은 LLM 이 키에
+  맞춰 지어낼 수 있어 «라벨 또는 quote» 면 'Operating margin' 라벨 + '총주주환원율 35%' quote 가 통과했다). other 는 검사 밖."""
   if g.metric == 'other':
     return None
   if g.unit == 'percent' and g.metric not in PERCENT_METRICS:
@@ -409,7 +423,8 @@ def metric_mismatch(g: GuidanceRow) -> str | None:
   words = _METRIC_WORDS.get(g.metric)
   if words is None:
     return MISMATCH_NO_RULE
-  return None if words.search(g.metric_label or '') or words.search(g.quote or '') else MISMATCH_WORD
+  target = (g.metric_label or '') if numbers_only(g.quote) else _FOOTNOTE.sub('', g.quote)
+  return None if words.search(target) else MISMATCH_WORD
 
 
 REASON_PAST_YEAR = '과거 연도'
@@ -669,10 +684,15 @@ METRIC_MISMATCH_MISS = [
   ('free_cash_flow', '총주주환원율', 'percent', '•총주주환원율 35%+ 달성 (’25~’27년) '),
   ('free_cash_flow', '총주주환원율', 'trillion', '•총주주환원율 35%+ 달성'),   # 단위가 맞아도 낱말이 없으면
   ('revenue', 'Group sales revenue', 'percent', 'Group sales revenue growth of 5%'),   # 금액 지표에 % 값
+  ('operating_margin', 'Operating margin', 'percent', '총주주환원율 35%+ 달성'),   # 라벨만 키에 맞춘 꼴(Codex 반례)
 ]
+# 숫자·단위뿐인 quote(라벨로 판정) — 실물 표 칸(customer_guidance 303·304·313·314)
+NUMBERS_ONLY_HIT = ['$7.15B to $7.30B', '17.8조 / 16.0조 / -1.0~0.5조', '$1.60 to $1.70', '16.0조 / -1.0~0.5조 / -1.0~0.5조']
+NUMBERS_ONLY_MISS = ['총주주환원율 35%+ 달성', 'Revenue increased 12%']
 # 버리면 안 되는 실물 라벨(2026-11-11 DB customer_guidance 의 그 키 라벨 전부 — 코드·LLM 행 · 값은 싣지 않는다).
-# (metric, metric_label, unit, quote) — quote 는 라벨에 낱말이 있으면 비워 둔다(라벨 또는 quote 중 하나면 통과)
+# (metric, metric_label, unit, quote) — quote 가 빈 행은 라벨로 판정된다(빈 quote = 숫자·단위뿐 · 수정 2회차)
 METRIC_MISMATCH_KEEP = [
+  ('aoi_margin', 'Adj. operating income margin', 'text', 'Adj. operating income (3) margin Low-Single Digit %'),  # 274
   ('free_cash_flow', 'FCF(금융제외)', 'trillion', ''),
   ('free_cash_flow', 'Guidance', 'trillion', 'FCF (금융제외)\n-1.0조 ~ 0.5조'),   # 라벨에 없고 quote 에 있는 꼴
   ('adjusted_automotive_fcf', 'Adjusted automotive free cash flow', 'billion', ''),
@@ -749,6 +769,8 @@ def self_test() -> list[str]:
     for m, label, unit, q in cases:
       if bool(metric_mismatch(row(m, 1.0, 1.0, unit, q, label))) != want_flag:
         errs.append(f'METRIC_MISMATCH_{"MISS" if want_flag else "KEEP"} 어긋남: {m} {label}')
+  errs += [f'NUMBERS_ONLY_HIT 안 걸림: {q}' for q in NUMBERS_ONLY_HIT if not numbers_only(q)]
+  errs += [f'NUMBERS_ONLY_MISS 걸림: {q}' for q in NUMBERS_ONLY_MISS if numbers_only(q)]
   if metric_mismatch(row('no_such_metric', 1, 1, 'billion', 'revenue of 1 billion', 'Revenue')) != MISMATCH_NO_RULE:
     errs.append('규칙 없는 키가 «확인 불가»로 안 걸림')
   no_rule = [m for m in METRICS if m != 'other' and m not in _METRIC_WORDS]

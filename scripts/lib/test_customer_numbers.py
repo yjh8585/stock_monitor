@@ -348,6 +348,36 @@ class LlmPathTests(unittest.TestCase):
     self.assertEqual(_upserted_guidance(ws), [])   # 대조 실패 LLM 행은 싣지 않는다
     self.assertEqual(run.outcomes['failed'], 0)
 
+  def test_metric_mismatch_only_no_llm_retry(self):
+    """🔴 Task 10 수정 2회차 — LLM 행이 지표 불일치로만 떨어진 문서는 재시도하지 않는다(같은 원문을 다시 물어도 키는
+    안 바뀌고 유료 호출만 는다). 첫 시도에서 곧바로 상한 소진과 같은 끝(failed · exit 1) · 행은 verified=False + 사유로 싣는다.
+    인용 대조 실패가 하나라도 섞이면 지금처럼 재시도 대기."""
+    mism = base.GuidanceRow('capex', 'Revenue', 'FY2026', 1.0, 1.2, None, 'billion', None,
+                            'deliveries of 5,000 to 6,000 vehicles and revenue of $1.0 to $1.2 billion')
+    run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
+    with patch('lib.llm_guidance.extract', return_value=_ok([mism])), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 0)
+    last = _status_patches(ws)[-1]
+    self.assertEqual(last['parse_status'], 'failed')
+    self.assertIn(ccn.NOTE_LLM_METRIC_ONLY, last['parse_note'])
+    self.assertEqual(run.outcomes['llm_retry'], 0)
+    stored = _upserted_guidance(ws)
+    self.assertEqual([(g['metric'], g['verified'], g['verify_note']) for g in stored],
+                     [('capex', False, 'metric_mismatch:metric_word_missing')])
+    with patch('collect_customer_docs.write_status'), patch.object(run, '_directions', return_value=0):
+      self.assertEqual(run.finish('ACME', 1), 1)
+    # 인용 대조 실패가 섞이면 재시도 대기 그대로
+    bad = base.GuidanceRow('revenue', 'Revenue', 'FY2026', 9.0, 9.5, None, 'billion', None, 'not in source text at all')
+    run, ws = _llm_run(_llm_mod(recognized=False, volume=False))
+    with patch('lib.llm_guidance.extract', return_value=_ok([mism, bad])), \
+         patch.object(ccn, 'existing_pubs', return_value={}):
+      run.process(_DOC, None, None, 0)
+    last = _status_patches(ws)[-1]
+    self.assertEqual(last['parse_status'], 'pending')
+    self.assertEqual(last['parse_note'], f'LLM 대기 — {ccn.NOTE_LLM_UNVERIFIED} (1/3)')
+    self.assertEqual(run.outcomes['llm_retry'], 1)
+
   def test_llm_attempts_cap_closes(self):
     """🔴 (c) 3회째 — 코드 값 행이 있으면 parsed + 「LLM 3회 실패」(exit 사유 아님) · 없으면 failed(exit 1)."""
     run, ws = _llm_run(_llm_mod(code_guidance=[_G_CODE]))

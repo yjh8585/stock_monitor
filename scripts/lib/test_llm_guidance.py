@@ -99,6 +99,24 @@ class ExtractTests(unittest.TestCase):
     code = ccn.verify(res, src)   # llm_ids 없음 = 전부 코드 행
     self.assertEqual([code[id(g)][0] for g in rows], [True, True, True])
 
+  def test_metric_word_quote_first(self):
+    """⑫ Task 10 수정 2회차 (b) — quote 에 글자 낱말이 있으면 키 낱말이 quote 에 있어야 한다(라벨만 맞춰도 통과하던 반례).
+    숫자·단위뿐인 표 칸 quote 만 라벨로 판정 · 각주 '(3)' 이 키 낱말 사이에 껴도 잡는다."""
+    row = lambda m, label, unit, q: base.GuidanceRow(m, label, 'FY2026', 35.0, 35.0, None, unit, None, q)
+    self.assertEqual(lg.metric_mismatch(row('operating_margin', 'Operating margin', 'percent', '총주주환원율 35%+ 달성')),
+                     lg.MISMATCH_WORD)
+    for m, label, unit, q in (('revenue', 'Total Company Sales', 'billion', '$7.15B to $7.30B'),
+                              ('eps_adjusted', 'Adjusted EPS', 'per_share', '$1.60 to $1.70'),
+                              ('capex', '투자계획(자동차부문)', 'trillion', '17.8조 / 16.0조 / -1.0~0.5조'),
+                              ('free_cash_flow', 'FCF(금융제외)', 'trillion', '16.0조 / -1.0~0.5조 / -1.0~0.5조'),
+                              ('aoi_margin', 'Adj. operating income margin', 'text',
+                               'Adj. operating income (3) margin Low-Single Digit %')):
+      self.assertIsNone(lg.metric_mismatch(row(m, label, unit, q)), q)
+    for q in lg.NUMBERS_ONLY_HIT:
+      self.assertTrue(lg.numbers_only(q), q)
+    for q in lg.NUMBERS_ONLY_MISS:
+      self.assertFalse(lg.numbers_only(q), q)
+
   def test_max_tokens_raises_not_empty(self):
     """③ 응답이 잘리면(max_tokens·refusal) 빈 목록이 아니라 Incomplete — 빈 목록이면 «전망 없음»으로 문서가 닫힌다."""
     for reason in ('max_tokens', 'refusal'):
