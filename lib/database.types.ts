@@ -368,6 +368,112 @@ export type Database = {
           },
         ];
       };
+      customer_breakdown_ir: {
+        Row: {
+          company_id: string;
+          definition: string | null;
+          document_id: number;
+          extractor: string;
+          id: number;
+          kind: string;
+          label_ko: string;
+          label_raw: string;
+          metric: string;
+          page: number | null;
+          period: string;
+          period_grain: string;
+          published_at: string;
+          quote: string;
+          unit: string;
+          value: number;
+          verified: boolean;
+          verify_note: string | null;
+        };
+        Insert: {
+          company_id: string;
+          definition?: string | null;
+          document_id: number;
+          extractor: string;
+          id?: number;
+          kind: string;
+          label_ko: string;
+          label_raw: string;
+          metric: string;
+          page?: number | null;
+          period: string;
+          period_grain: string;
+          published_at: string;
+          quote: string;
+          unit: string;
+          value: number;
+          verified?: boolean;
+          verify_note?: string | null;
+        };
+        Update: {
+          company_id?: string;
+          definition?: string | null;
+          document_id?: number;
+          extractor?: string;
+          id?: number;
+          kind?: string;
+          label_ko?: string;
+          label_raw?: string;
+          metric?: string;
+          page?: number | null;
+          period?: string;
+          period_grain?: string;
+          published_at?: string;
+          quote?: string;
+          unit?: string;
+          value?: number;
+          verified?: boolean;
+          verify_note?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'customer_breakdown_ir_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'companies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_breakdown_ir_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'domestic_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_breakdown_ir_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'humanoid_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_breakdown_ir_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'parts_top100_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_breakdown_ir_company_id_fkey';
+            columns: ['company_id'];
+            isOneToOne: false;
+            referencedRelation: 'related_stocks_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'customer_breakdown_ir_document_id_fkey';
+            columns: ['document_id'];
+            isOneToOne: false;
+            referencedRelation: 'customer_documents';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       customer_collect_status: {
         Row: {
           checked_at: string;
@@ -430,6 +536,7 @@ export type Database = {
       };
       customer_doc_summaries: {
         Row: {
+          breakdown_at: string | null;
           c_materials: Json;
           check_note: string | null;
           company_id: string;
@@ -449,6 +556,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          breakdown_at?: string | null;
           c_materials?: Json;
           check_note?: string | null;
           company_id: string;
@@ -468,6 +576,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          breakdown_at?: string | null;
           c_materials?: Json;
           check_note?: string | null;
           company_id?: string;

@@ -21,7 +21,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 5. **요약**(B 묶음 · 2026-11-12) — 문서 `scripts/summarize_customer_docs.py`(원문 받기는 `collect_customer_numbers.doc_content` 를 그대로 부른다 — 사본을 만들지 말 것) → `customer_doc_summaries`(+ 쪽 캡처 버킷 `customer-doc-pages`) · 뉴스 `scripts/summarize_customer_news.py` → `customer_news_weekly`(주 1개 · 그 주 기사 최신 150건). 규칙·금지·출력 정본 = `scripts/lib/customer_summary_prompt.py` · 검사 = `scripts/lib/customer_summary_check.py`(통과 못 하면 `check_failed` 로 남고 화면엔 안 보인다). 쪽 캡처 렌더·업로드가 실패하면 요약은 `ok` 로 두고 그 쪽만 `pages[].key = null`(사유는 `check_note`) — 화면·프록시는 그 쪽을 건너뛰고, 복구는 `summarize_customer_docs.py --retry-pages`(API 호출 0).
    🔴 **정기 실행은 새 문서만**(게시일 최근 14일 · 요약 행 없음)이고 뉴스는 지난 완결 주 하나 · `--backfill`(소급)은 사용자 승인 뒤 로컬 수동(비용 관문). 원문 받기 401·403·404·크기 초과는 경고(exit 0) — 행이 안 생겨 14일 창 안에서 다음 실행이 다시 집는다. GHA = `collect-customer-docs.yml` 의 「요약」 step(평일 · 숫자 뒤 · 숫자가 실패해도 돈다) · `summarize-customer-news.yml`(KST 월 06:00 · 지난 완결 주) — 사용자 승인 2026-11-12.
 
-## 표 9개 — 전부 사외비
+## 표 10개 — 전부 사외비
 
 전부 RLS on + 정책 없음 → service_role 전용(`confidentialDb` · 명단 정본 = `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES`). 캐시 태그 = 표 이름. `customer_collect_status`(`checked_at` 이 매번 바뀌어 제외) 외 2단계 5개는 `trg_skip_identical_update` 부착([`Architecture.md`](../Architecture.md) §7-J — 같은 값 upsert 는 0행 반환).
 
@@ -33,7 +33,8 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - `customer_earnings_dates` — 다음 실적 발표일. PK (`company_id`, `period`) · 기간은 `YYYY-Qn`·연간 `YYYY-FY`
 - `customer_collect_status` — 수집기별 마지막 상태·화면용 사유(`blocked`「차단」·`parse_failed`「읽기 실패」·`error`「오류」 면 라벨과 사유를 화면에 보인다 — `ok`·`no_new` 만 조용하다). PK (`company_id`, `collector`)
 
-- `customer_doc_summaries`(B · 20261111000001) — 문서 요약. PK `doc_id`(→ `customer_documents` cascade) · `status`·`importance`·`lines`·`evidence`·`pages`(쪽·캡션·캡처 키)·`c_materials`·`check_note`·`model`·`prompt_version`·토큰 수
+- `customer_doc_summaries`(B · 20261111000001) — 문서 요약. PK `doc_id`(→ `customer_documents` cascade) · `status`·`importance`·`lines`·`evidence`·`pages`(쪽·캡션·캡처 키)·`c_materials`·`check_note`·`model`·`prompt_version`·토큰 수 · `breakdown_at`(C 처리 완료 표식 · 20261112000001 — 읽었으나 수준 값 0행인 문서도 다시 처리하지 않는다)
+- `customer_breakdown_ir`(C · 20261112000001) — IR 문서의 지역별·차종별·점유율 «수준» 값(대수·구성비·점유율·매출 · 증감률만 있는 항목은 안 싣는다). PK `id` · UNIQUE (`document_id`, `kind`, `metric`, `label_raw`, `period_grain`, `period`) — 문서 단위 저장이라 같은 값이 여러 문서에 겹치고, 화면이 가장 최근 공시의 `verified` 값을 고른다 · 재처리는 그 문서 행을 지우고 다시 넣는다 · `label_raw`(회사 구분 그대로)·`label_ko` · `unit` = units·pct(구성비)·share_pct(시장 점유율)·통화 · `extractor` = code·llm·manual · `trg_skip_identical_update` 부착
 - `customer_news_weekly`(B · 20261111000001) — 뉴스 주간 요약. PK (`company_id`, `week_start`) · `week_start` = KST 월요일 · `status`(ok·check_failed·empty)·`lines`·`links`·`news_count`·토큰 수
 
 요약 2종은 API(LLM)가 만들고 검사기를 통과해야 `status='ok'` 다(검사 실패 행은 화면에 안 보인다). 요약기가 매번 `updated_at` 을 넣어 `trg_skip_identical_update` 는 붙이지 않는다. **버킷 `customer-doc-pages`**(비공개 · 정책 없음 → service_role 전용) = 요약 근거 쪽 PNG(`<company_id>/<doc_id>/p<쪽>.png` · PDF 문서만) · 열람은 인증 프록시 `/api/customers/doc-page/[docId]/[page]` 로만.
