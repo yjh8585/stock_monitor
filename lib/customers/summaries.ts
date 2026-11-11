@@ -52,7 +52,9 @@ export function parsePages(v: unknown): { page: number; caption: string }[] {
       isObj(x) &&
       Number.isInteger(x.page) &&
       (x.page as number) > 0 &&
-      typeof x.caption === 'string'
+      typeof x.caption === 'string' &&
+      typeof x.key === 'string' && // 캡처 실패 쪽(key null · --retry-pages 대기)은 프록시가 404 — 그리지 않는다
+      x.key !== ''
         ? [{ page: x.page as number, caption: x.caption }]
         : []
     )

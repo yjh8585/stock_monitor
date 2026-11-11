@@ -65,6 +65,9 @@ describe('parse 방어', () => {
     const got = parsePages([
       { page: 11, caption: '연간 전망', key: 'x/1/11.png' },
       { page: 3, caption: '분기 요약', key: 'x/1/3.png' },
+      // 캡처 실패로 key 가 없는 쪽(--retry-pages 대기) — 프록시가 404 라 썸네일을 그리지 않는다
+      { page: 7, caption: '업로드 실패', key: null },
+      { page: 8, caption: '키 없음' },
       { page: '4', caption: '문자 쪽' },
       { page: 0, caption: '0쪽' },
       { page: 5 },

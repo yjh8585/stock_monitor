@@ -7,7 +7,8 @@
 exit 0 정상(검사 실패·empty 포함) · 1 API 오류 1건 이상 / API 키 없음(대상 주가 있을 때) · 2 자가 시험 실패·인자 오류·회사 없음
 사용: summarize_customer_news.py [--company TICKER] [--weeks N] [--backfill] [--dry-run]
   --weeks N   지난 완결 주 N개(기본 1 = 지난주)
-  --backfill  DB 에 남은 완결 주 전부(뉴스 보존 60일 — 가장 오래된 주가 잘려 있으면 뺀다) — 사용자 승인 뒤 로컬 수동
+  --backfill  보존 경계(오늘 − NEWS_RETENTION_DAYS, 기본 60일 · collect_news.py 와 같은 값) 뒤에 시작한 완결 주 전부
+              (경계가 걸친 주는 뺀다) — 사용자 승인 뒤 로컬 수동
 
 🔴 news.id 는 uuid 다 — 모델에는 그 주 기사에 1..N 번호를 붙여 넘기고(link_ids 는 정수) 저장할 때 uuid 로 되돌린다.
 🔴 --dry-run = API 호출·검사까지만. DB 쓰기 0회(WriteSession 도 열지 않는다). 요약 본문은 --dry-run 때만 출력.
@@ -35,9 +36,17 @@ def completed_weeks(today: date, n: int) -> list[date]:
   return [last - timedelta(days=7 * k) for k in range(n - 1, -1, -1)]
 
 
-def backfill_weeks(oldest: date, today: date) -> list[date]:
-  """DB 의 가장 오래된 기사일(KST)부터 지난주까지의 월요일. 가장 오래된 주가 월요일부터 차 있지 않으면 잘린 주라 뺀다."""
-  first = week_start(oldest) if oldest.weekday() == 0 else week_start(oldest) + timedelta(days=7)
+def retention_days() -> int:
+  """뉴스 보존 일수 — collect_news.py 와 같은 환경변수·기본값(NEWS_RETENTION_DAYS · 60)."""
+  return int(os.environ.get('NEWS_RETENTION_DAYS', '60'))
+
+
+def backfill_weeks(today: date, keep_days: int) -> list[date]:
+  """보존 경계(today − keep_days, KST 날짜) «뒤»에 시작하는 완결 주의 월요일 — 오래된 것부터.
+  경계가 걸친 주(경계일 ≥ 그 주 월요일)는 앞쪽 기사가 지워졌을 수 있어 뺀다. 그 회사 기사가 늦게 시작해도 경계 뒤 주는 넣는다
+  (예전엔 «첫 기사 날짜»로 잘림을 추정해 수요일에 첫 기사가 난 회사의 정상 주를 뺐다 — Codex 2026-11-12)."""
+  boundary = today - timedelta(days=keep_days)
+  first = week_start(boundary) + timedelta(days=7)
   last = week_start(today) - timedelta(days=7)
   out, w = [], first
   while w <= last:
@@ -110,14 +119,6 @@ def load_news(client, company_id: str, monday: date) -> list[dict]:
   return sorted(rows, key=lambda r: (r['published_at'], r['id']))
 
 
-def oldest_news_date(client, company_ids: list[str]) -> date | None:
-  got = (client.table('news').select('published_at').in_('company_id', company_ids).order('published_at')
-         .limit(1).execute().data)
-  if not got:
-    return None
-  return datetime.fromisoformat(got[0]['published_at'].replace('Z', '+00:00')).astimezone(KST).date()
-
-
 def existing_weeks(client, company_id: str) -> set[str]:
   rows = client.table('customer_news_weekly').select('week_start').eq('company_id', company_id).execute().data
   return {r['week_start'] for r in rows}
@@ -140,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
   from lib.bootstrap import init_script
   init_script(__file__)
   args = _args(argv)
-  from lib.customer_summary_check import self_test
+  from lib.customer_summary_check import problem_kinds, self_test
   errs = self_test()
   if errs:
     for e in errs:
@@ -159,8 +160,11 @@ def main(argv: list[str] | None = None) -> int:
       return 2
   today = datetime.now(KST).date()
   if args.backfill:
-    oldest = oldest_news_date(client, [c['id'] for c in companies])
-    weeks = backfill_weeks(oldest, today) if oldest else []
+    keep = retention_days()
+    if keep <= 0:   # 수집기가 삭제를 건너뛰는 설정 — 보존 경계가 없어 소급 범위를 못 정한다
+      print('NEWS_RETENTION_DAYS 가 0 이하 — 소급 범위를 정할 수 없다(--weeks N 을 쓸 것)')
+      return 2
+    weeks = backfill_weeks(today, keep)
   else:
     weeks = completed_weeks(today, args.weeks)
   jobs = []
@@ -195,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
       tok_in, tok_out = tok_in + row['input_tokens'], tok_out + row['output_tokens']
       print(f'{label} · 기사 {row["news_count"]} · {res["outcome"]} · 호출 {res["tries"]}회 · 토큰 입력 '
             f'{row["input_tokens"]:,} 출력 {row["output_tokens"]:,} · 링크 {len(row["links"])}')
+      if res['first_problems'] and not args.dry_run:   # 재요청 원인 — 갈래 이름·건수만(본문·숫자 값 없음)
+        print(f'    첫 시도 지적: {problem_kinds(res["first_problems"])}')
       if args.dry_run:
         for p in res['first_problems']:
           print(f'    첫 시도 지적: {p}')

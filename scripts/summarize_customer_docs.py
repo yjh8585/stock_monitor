@@ -4,6 +4,8 @@
 원문 받기(collect_customer_numbers.doc_content — 회사 파서 fetch 우선 → 공통 fetch_content) → PDF 면 쪽 표식 글 →
 API 호출(구조화 출력) → 검사(lib.customer_summary_check) → 지적 있으면 1회 재요청 → 그래도 지적이면 check_failed →
 ok·PDF·쪽 있으면 렌더·업로드 → upsert(doc_id).
+쪽 렌더·업로드가 실패하면 요약은 ok 그대로 두고 그 쪽을 pages 에 key=None 으로 남긴다(사유는 check_note 「N쪽 캡처 실패(…)」)
+→ --retry-pages 가 그 쪽만 원문을 다시 받아 렌더·업로드한다(API 호출 0 · 요약 행이 있어 정기 실행은 다시 안 집는다).
 
 exit 0 정상(검사 실패 check_failed · 글이 짧아 건너뜀 포함 — 저장 행·로그에 남는다)
        · 원문 받기 «경고»(HTTP 401·403 접근 차단 · 404 없음 · 크기 초과) 포함 — GHA 에선 ::warning:: 으로 노랗게 뜬다
@@ -12,11 +14,13 @@ exit 0 정상(검사 실패 check_failed · 글이 짧아 건너뜀 포함 — �
        API 키 없음(대상 문서가 있을 때)
      2 자가 시험 실패 · 인자 오류 · 회사 없음
 사용: summarize_customer_docs.py [--company TICKER] [--doc-id ID ...] [--since-days 14] [--backfill] [--limit N] [--dry-run]
+      summarize_customer_docs.py --retry-pages [--company TICKER] [--doc-id ID ...] [--limit N] [--dry-run]
 
 🔴 GHA 정기 실행은 새 문서만(게시일 최근 14일 · 요약 행 없음). 소급(--backfill = 365일)은 사용자 승인 뒤 로컬 수동 —
    정기 실행이 소급을 대신하면 비용 관문(B8)이 무너진다.
 🔴 --dry-run = API 호출·검사·로컬 렌더까지만. Storage 업로드·DB 쓰기 0회(WriteSession 도 열지 않는다).
-   요약 본문은 --dry-run 때만 출력한다(정기 로그엔 건수·토큰·상태만).
+   요약 본문은 --dry-run 때만 출력한다(정기 로그엔 건수·토큰·상태 + 재요청이면 「첫 시도 지적: 숫자 2 · 통화 1」처럼
+   갈래 이름·건수만).
 --doc-id 는 요약 행이 있어도 다시 만든다(upsert).
 """
 import argparse
@@ -106,13 +110,64 @@ def source_text(content) -> tuple[str, bool, int]:
   return (content.text or '') + ('\n' + rows if rows else ''), False, 0
 
 
+# ── 쪽 캡처(요약기·--retry-pages 공통) ──────────────────────────────────────
+
+def _page_fail_note(page, why: str) -> str:
+  return f'{page}쪽 캡처 실패({why})'
+
+
+def _capture(raw: bytes, company_id: str, doc_id: int, page: int, dry_run: bool, uploader) -> tuple[str | None, str | None]:
+  """한 쪽 렌더 → 업로드. (key, 실패 사유) — 성공이면 사유 None · 실패면 key None. dry_run 은 렌더까지만(key 는 채운다)."""
+  from lib import customer_doc_pages as pages_lib
+  png = pages_lib.render_page(raw, page)
+  if png is None:
+    return None, '렌더'
+  key = pages_lib.page_key(company_id, doc_id, page)
+  if not dry_run:
+    try:
+      (uploader or pages_lib.upload_png)(key, png)
+    except Exception as e:  # 그 쪽만 key 없이 남기고 요약은 저장한다
+      return None, f'업로드 {type(e).__name__}'
+  return key, None
+
+
+def missing_pages(pages) -> list[int]:
+  """pages(JSONB) 중 key 가 없는 쪽 번호 — 형태가 어긋나면 빈 목록."""
+  if not isinstance(pages, list):
+    return []
+  return [int(p['page']) for p in pages if isinstance(p, dict) and p.get('page') and not p.get('key')]
+
+
+def retry_pages(summary: dict, content, *, dry_run: bool, ws=None, uploader=None) -> dict:
+  """--retry-pages — summary(customer_doc_summaries 행: doc_id·company_id·pages·check_note)의 key 없는 쪽만 다시 렌더·업로드.
+  API 호출 0 · 요약 본문·상태는 안 건드린다. 하나라도 고치면 pages·check_note(고친 쪽의 실패 사유만 지움)를 update.
+  반환 {fixed, still}."""
+  pages = [dict(p) for p in summary['pages']]
+  fixed, still = [], []
+  for p in pages:
+    if p.get('key'):
+      continue
+    key, why = _capture(content.raw or b'', summary['company_id'], summary['doc_id'], int(p['page']), dry_run, uploader)
+    if why:
+      still.append(p['page'])
+      print(f'    문서 {summary["doc_id"]} {_page_fail_note(p["page"], why)} — 다시 실패')
+      continue
+    p['key'] = key
+    fixed.append(p['page'])
+  if fixed and not dry_run and ws is not None:
+    heads = tuple(_page_fail_note(pg, '')[:-1] for pg in fixed)   # 「N쪽 캡처 실패(」
+    note = ' · '.join(n for n in (summary.get('check_note') or '').split(' · ') if n and not n.startswith(heads))
+    ws.table('customer_doc_summaries').update(
+      {'pages': pages, 'check_note': note or None, 'updated_at': now_iso()}).eq('doc_id', summary['doc_id']).execute()
+  return {'fixed': len(fixed), 'still': len(still)}
+
+
 # ── 문서 하나 ────────────────────────────────────────────────────────────────
 
 def summarize_doc(llm, row: dict, company: str, content, sha: str | None, *, dry_run: bool, ws=None,
                   uploader=None) -> dict:
   """문서 하나 → 결과 dict(outcome = ok | check_failed | skipped). 저장은 dry_run 이 아니고 ws 가 있을 때만.
   uploader = lib.customer_doc_pages.upload_png(시험은 가짜) — dry_run 이면 부르지 않는다."""
-  from lib import customer_doc_pages as pages_lib
   from lib import customer_summary_prompt as sp
   from lib.customer_summary_check import check_doc
   from lib.llm_guidance import MAX_CHARS
@@ -133,17 +188,10 @@ def summarize_doc(llm, row: dict, company: str, content, sha: str | None, *, dry
   pages = []
   if status == 'ok' and is_pdf:
     for p in r['pages']:
-      png = pages_lib.render_page(content.raw, int(p['page']))
-      if png is None:
-        print(f'    문서 {row["id"]} {p["page"]}쪽 렌더 실패 — 뺌')
-        continue
-      key = pages_lib.page_key(row['company_id'], row['id'], int(p['page']))
-      if not dry_run:
-        try:
-          (uploader or pages_lib.upload_png)(key, png)
-        except Exception as e:  # 그 쪽만 빼고 요약은 저장한다
-          print(f'    문서 {row["id"]} {p["page"]}쪽 업로드 실패({type(e).__name__}) — 뺌')
-          continue
+      key, why = _capture(content.raw, row['company_id'], row['id'], int(p['page']), dry_run, uploader)
+      if why:   # 요약은 ok 로 저장하고 그 쪽은 key=None 으로 남긴다 → --retry-pages 가 다시 집는다(Codex 2026-11-12)
+        print(f'    문서 {row["id"]} {_page_fail_note(p["page"], why)} — key 없이 남김')
+        notes.append(_page_fail_note(p['page'], why))
       pages.append({'page': int(p['page']), 'caption': p['caption'], 'key': key})
 
   out = {
@@ -180,6 +228,70 @@ def load_targets(client, company_id: str | None, doc_ids: list[int], since: str)
   return [r for r in rows if r['id'] not in done]
 
 
+def load_retry_targets(client, company_id: str | None, doc_ids: list[int]) -> list[dict]:
+  """--retry-pages 대상 — status=ok 이고 pages 에 key 없는 쪽이 있는 요약 행."""
+  from collect_customer_numbers import fetch_all
+
+  def q():
+    b = client.table('customer_doc_summaries').select('doc_id,company_id,pages,check_note,source_sha').eq('status', 'ok')
+    b = b.in_('doc_id', doc_ids) if doc_ids else b
+    return b.eq('company_id', company_id) if company_id else b
+  return [r for r in fetch_all(q, ('doc_id',)) if missing_pages(r['pages'])]
+
+
+def run_retry_pages(client, company_id: str | None, doc_ids: list[int], limit: int | None, dry_run: bool) -> int:
+  """키 없는 쪽만 원문을 다시 받아 렌더·업로드(API 호출 0). exit = 받기 «오류»(경고 아닌 것) 1건 이상이면 1."""
+  import requests
+
+  import customer_parsers
+  from collect_customer_numbers import _to_doc, doc_content, http_status
+  from lib import db
+  targets = load_retry_targets(client, company_id, doc_ids)[:limit or None]
+  docs = {}
+  ids = [t['doc_id'] for t in targets]
+  for i in range(0, len(ids), _IN_CHUNK):
+    for d in client.table('customer_documents').select(DOC_COLS).in_('id', ids[i:i + _IN_CHUNK]).execute().data:
+      docs[d['id']] = d
+  names = load_company_names(client, {t['company_id'] for t in targets})
+  print(f'쪽 재시도 대상 {len(targets)}건' + (' · dry-run' if dry_run else ''))
+  counts = {'fixed': 0, 'still': 0, 'changed': 0, 'fetch_warn': 0, 'error': 0}
+  session = requests.Session()
+  ctx = contextlib.nullcontext(None) if dry_run else db.WriteSession()
+  with ctx as ws:
+    for t in targets:
+      d = docs.get(t['doc_id'])
+      ticker = names.get(t['company_id'], ('?', '?'))[0]
+      label = f'  문서 {t["doc_id"]} {ticker} 쪽 {missing_pages(t["pages"])}'
+      if d is None:
+        counts['error'] += 1
+        print(f'{label} · 원문 행 없음')
+        continue
+      try:
+        content, sha = doc_content(customer_parsers.module_for(ticker), session, _to_doc(d, ticker))
+      except Exception as e:
+        code = http_status(e)
+        warn = fetch_failure_is_warning(e)
+        counts['fetch_warn' if warn else 'error'] += 1
+        print(f'{label} · 받기 실패({type(e).__name__}' + (f' HTTP {code}' if code else '') + ')' + (' — 경고' if warn else ''))
+        continue
+      if sha and t.get('source_sha') and sha != t['source_sha']:   # 요약과 다른 원문의 쪽을 붙이면 캡션과 그림이 갈린다
+        counts['changed'] += 1
+        print(f'{label} · 원문이 요약 때와 다르다 — 건너뜀(--doc-id 로 요약을 다시 만들 것)')
+        continue
+      try:
+        res = retry_pages(t, content, dry_run=dry_run, ws=ws)
+      except Exception as e:
+        counts['error'] += 1
+        print(f'{label} · 실패({type(e).__name__})')
+        continue
+      counts['fixed'] += res['fixed']
+      counts['still'] += res['still']
+      print(f'{label} · 고침 {res["fixed"]} · 다시 실패 {res["still"]}')
+  print(f'쪽 고침 {counts["fixed"]} · 다시 실패 {counts["still"]} · 원문 바뀜 {counts["changed"]} · 받기 경고 '
+        f'{counts["fetch_warn"]} · 오류 {counts["error"]} · API 호출 0')
+  return 1 if counts['error'] else 0
+
+
 def load_company_names(client, ids: set[str]) -> dict[str, tuple[str, str]]:
   """company_id → (ticker, 표시 이름)."""
   ids, out = sorted(ids), {}
@@ -196,6 +308,8 @@ def _args(argv):
   p.add_argument('--since-days', type=int, default=DEFAULT_SINCE_DAYS)
   p.add_argument('--backfill', action='store_true', help=f'게시일 최근 {BACKFILL_DAYS}일(사용자 승인 뒤 로컬 수동)')
   p.add_argument('--limit', type=int)
+  p.add_argument('--retry-pages', action='store_true',
+                 help='key 없는 쪽이 있는 ok 행만 원문을 다시 받아 렌더·업로드(API 호출 0 · --company·--doc-id·--limit 적용)')
   p.add_argument('--dry-run', action='store_true')
   return p.parse_args(argv)
 
@@ -221,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
   import customer_parsers
   from collect_customer_numbers import _to_doc, doc_content, http_status
   from lib import db, llm_guidance
+  from lib.customer_summary_check import problem_kinds
 
   client = db.get_client()
   company_id = None
@@ -230,6 +345,8 @@ def main(argv: list[str] | None = None) -> int:
       print(f'회사 없음: {args.company}')
       return 2
     company_id = got[0]['id']
+  if args.retry_pages:
+    return run_retry_pages(client, company_id, args.doc_id, args.limit, args.dry_run)
   days = BACKFILL_DAYS if args.backfill else args.since_days
   since = (datetime.now(timezone(timedelta(hours=9))).date() - timedelta(days=days)).isoformat()
   rows = load_targets(client, company_id, args.doc_id, since)
@@ -279,7 +396,9 @@ def main(argv: list[str] | None = None) -> int:
       row = res['row']
       tok_in, tok_out = tok_in + row['input_tokens'], tok_out + row['output_tokens']
       print(f'{label} · {res["outcome"]} · 호출 {res["tries"]}회 · 토큰 입력 {row["input_tokens"]:,} 출력 '
-            f'{row["output_tokens"]:,} · 쪽 {len(row["pages"])}/{res["picked"]}')
+            f'{row["output_tokens"]:,} · 쪽 {sum(1 for p in row["pages"] if p["key"])}/{res["picked"]}')
+      if res['first_problems'] and not args.dry_run:   # 재요청 원인 — 갈래 이름·건수만(본문·숫자 값 없음)
+        print(f'    첫 시도 지적: {problem_kinds(res["first_problems"])}')
       if args.dry_run:
         for p in res['first_problems']:
           print(f'    첫 시도 지적: {p}')

@@ -68,6 +68,14 @@ class _WS:
         ws.writes.append((name, row, on_conflict))
         return self
 
+      def update(self, row):
+        ws.writes.append((name, row, 'update'))
+        return self
+
+      def eq(self, col, val):
+        ws.writes[-1] = (*ws.writes[-1], (col, val))
+        return self
+
       def execute(self):
         return SimpleNamespace(data=[])
     return _B()
@@ -138,12 +146,24 @@ class SummarizeDoc(unittest.TestCase):
     self.assertEqual(ws.writes[0][1]['status'], 'check_failed')
     self.assertIn('숫자', ws.writes[0][1]['check_note'])
 
-  def test_upload_failure_drops_page_only(self):
+  def test_upload_failure_keeps_page_without_key(self):
+    # Codex 지적 8(2026-11-12): 실패한 쪽을 지우면 복구 대상에서 사라진다 → key=None 으로 남기고 사유를 check_note 에
     def boom(key, png):
       raise RuntimeError('x')
     ws = _WS()
     res = scd.summarize_doc(_LLM(GOOD), ROW, '가나자동차', self.content, None, dry_run=False, ws=ws, uploader=boom)
-    self.assertEqual((res['outcome'], ws.writes[0][1]['pages']), ('ok', []))
+    row = ws.writes[0][1]
+    self.assertEqual((res['outcome'], row['status']), ('ok', 'ok'))
+    self.assertEqual(row['pages'], [{'page': 2, 'caption': '지역별 인도 표', 'key': None}])
+    self.assertIn('2쪽 캡처 실패(업로드 RuntimeError)', row['check_note'])
+
+  def test_render_failure_keeps_page_without_key(self):
+    ws = _WS()
+    with patch.object(cdp, 'render_page', return_value=None):
+      scd.summarize_doc(_LLM(GOOD), ROW, '가나자동차', self.content, None, dry_run=False, ws=ws, uploader=self._up)
+    row = ws.writes[0][1]
+    self.assertEqual((self.uploads, row['pages'][0]['key']), ([], None))
+    self.assertIn('2쪽 캡처 실패(렌더)', row['check_note'])
 
   def test_short_text_skipped(self):
     llm = _LLM()
@@ -158,6 +178,48 @@ class SummarizeDoc(unittest.TestCase):
     self.assertEqual((res['outcome'], res['row']['pages']), ('ok', []))
     self.assertIn('PDF 아님', llm.calls[0]['messages'][0]['content'])
     self.assertEqual(llm.calls[0]['model'], scd.MODEL)
+
+
+class RetryPages(unittest.TestCase):
+  """--retry-pages — 키 없는 쪽만 다시 렌더·업로드(API 호출 0)."""
+
+  def setUp(self):
+    self.content = Content('', [], _pdf(P1, P2))
+    self.uploads = []
+    self.summary = {'doc_id': 11, 'company_id': 'c-1',
+                    'pages': [{'page': 1, 'caption': '요약', 'key': 'c-1/11/p1.png'},
+                              {'page': 2, 'caption': '지역별 인도 표', 'key': None}],
+                    'check_note': '근거 쪽 3→1 · 2쪽 캡처 실패(업로드 RuntimeError)'}
+
+  def _up(self, key, png):
+    self.uploads.append(key)
+
+  def test_missing_pages(self):
+    self.assertEqual(scd.missing_pages(self.summary['pages']), [2])
+    self.assertEqual(scd.missing_pages([{'page': 1, 'caption': 'x', 'key': 'k'}]), [])
+    self.assertEqual(scd.missing_pages(None), [])
+
+  def test_retry_uploads_only_missing_and_updates(self):
+    ws = _WS()
+    res = scd.retry_pages(self.summary, self.content, dry_run=False, ws=ws, uploader=self._up)
+    self.assertEqual((self.uploads, res['fixed'], res['still']), (['c-1/11/p2.png'], 1, 0))
+    name, row, kind, where = ws.writes[0]
+    self.assertEqual((name, kind, where), ('customer_doc_summaries', 'update', ('doc_id', 11)))
+    self.assertEqual([p['key'] for p in row['pages']], ['c-1/11/p1.png', 'c-1/11/p2.png'])
+    self.assertEqual(row['check_note'], '근거 쪽 3→1')          # 고친 쪽의 실패 사유만 지운다
+    self.assertNotIn('status', row)                             # 요약·상태는 건드리지 않는다
+
+  def test_retry_dry_run_writes_nothing(self):
+    ws = _WS()
+    res = scd.retry_pages(self.summary, self.content, dry_run=True, ws=ws, uploader=self._up)
+    self.assertEqual((self.uploads, ws.writes, res['fixed']), ([], [], 1))
+
+  def test_retry_fails_again_keeps_reason(self):
+    def boom(key, png):
+      raise OSError('x')
+    ws = _WS()
+    res = scd.retry_pages(self.summary, self.content, dry_run=False, ws=ws, uploader=boom)
+    self.assertEqual((res['fixed'], res['still'], ws.writes), (0, 1, []))
 
 
 class DocContentOrder(unittest.TestCase):

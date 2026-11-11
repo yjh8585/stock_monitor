@@ -4,11 +4,13 @@
   PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe -m pytest scripts/lib/test_customer_news_weeks.py -q
 """
 import json
+import os
 import pathlib
 import sys
 import unittest
 from datetime import date
 from types import SimpleNamespace
+from unittest.mock import patch
 
 _SCRIPTS = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_SCRIPTS))
@@ -29,12 +31,23 @@ class Weeks(unittest.TestCase):
   def test_completed_weeks_on_monday(self):
     self.assertEqual(scn.completed_weeks(date(2026, 11, 16), 2), [date(2026, 11, 2), date(2026, 11, 9)])
 
-  def test_backfill_drops_partial_oldest_week(self):
-    # 가장 오래된 기사가 수요일 → 그 주는 잘렸다 → 다음 주부터
-    self.assertEqual(scn.backfill_weeks(date(2026, 9, 16), date(2026, 10, 7)),
-                     [date(2026, 9, 21), date(2026, 9, 28)])
-    self.assertEqual(scn.backfill_weeks(date(2026, 9, 14), date(2026, 9, 28))[0], date(2026, 9, 14))
-    self.assertEqual(scn.backfill_weeks(date(2026, 11, 10), date(2026, 11, 12)), [])
+  def test_backfill_from_retention_boundary(self):
+    # Codex 지적 7(2026-11-12): 기준은 «첫 기사 날짜»가 아니라 «보존 경계»(오늘 − NEWS_RETENTION_DAYS)
+    # 오늘 11/12(목) · 60일 → 경계 9/13(일) → 9/14 주 ~ 11/2 주 8개
+    got = scn.backfill_weeks(date(2026, 11, 12), 60)
+    self.assertEqual((got[0], got[-1], len(got)), (date(2026, 9, 14), date(2026, 11, 2), 8))
+    # Codex 반례: 그 회사 첫 기사가 11/4(수)여도 11/2 주는 경계 뒤에 시작한 완결 주라 들어간다
+    self.assertIn(date(2026, 11, 2), got)
+    # 경계가 월요일이면 그 주는 경계 시각 전 기사가 지워졌다 → 다음 주부터
+    self.assertEqual(scn.backfill_weeks(date(2026, 11, 16), 63)[0], date(2026, 9, 21))
+    # 경계가 지난주 안(11/4 수)이면 소급할 완결 주가 없다
+    self.assertEqual(scn.backfill_weeks(date(2026, 11, 12), 8), [])
+
+  def test_retention_days_same_env_as_collector(self):
+    with patch.dict(os.environ, {'NEWS_RETENTION_DAYS': '30'}):
+      self.assertEqual(scn.retention_days(), 30)
+    with patch.dict(os.environ, {}, clear=True):
+      self.assertEqual(scn.retention_days(), 60)
 
   def test_week_bounds_kst(self):
     self.assertEqual(scn.week_bounds(date(2026, 11, 2)),
@@ -108,6 +121,14 @@ class SummarizeWeek(unittest.TestCase):
     body = {'lines': [], 'link_ids': [], 'empty': True, 'relevant_count': 0}
     res = scn.summarize_week(_LLM(body), 'c-1', '가나자동차', MON, NEWS, dry_run=True)
     self.assertEqual((res['outcome'], res['row']['links']), ('empty', []))
+
+  def test_contradictory_empty_is_retried(self):
+    # Codex 지적 6: empty=true 인데 줄·링크가 있으면 재요청 → 두 번째 정상 응답을 쓴다
+    bad = {'lines': list(GOOD['lines']), 'link_ids': [999], 'empty': True, 'relevant_count': 1}
+    llm = _LLM(bad, GOOD)
+    res = scn.summarize_week(llm, 'c-1', '가나자동차', MON, NEWS, dry_run=True)
+    self.assertEqual((res['outcome'], res['tries'], len(llm.calls)), ('ok', 2, 2))
+    self.assertIn('empty 모순', llm.calls[1]['messages'][2]['content'])
 
   def test_retry_then_check_failed(self):
     bad = {**GOOD, 'link_ids': [99]}
