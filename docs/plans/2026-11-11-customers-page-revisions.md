@@ -60,9 +60,9 @@
 
 > **상태(2026-11-11)**: grill-me 로 B1~B9 확정(사용자 확인) → 구현 계획 = 아래 「B 구현 계획」 절(새 계획서 대신 이 문서에 덧붙임 — 산출물·완료 정의가 같은 회차) → 실행 중(구현 = API 헤드리스 · 검토 = Codex · 사용자 지시 2026-11-11 밤 「사용량 없으니깐 api 활용하고 나 잘거니까 쭉 진행해」).
 >
-> **상태(2026-11-12 새벽)**: B-1~B-4·B-6~B-9 끝(커밋 · Codex 검토 2회 반영 · 소급 끝 · 미푸시). **남은 것 = B-5(GHA)뿐 — 워크플로 파일 편집은 사용자 승인 대기**(초안 = 세션 scratchpad `b5_gha_draft/`, 없으면 아래 B-5 명세대로 새로 쓴다).
+> **상태(2026-11-12)**: **B 전부 끝** — B-1~B-9 커밋 · Codex 검토 2회 반영 · 소급 끝 · B-5 GHA 는 사용자 승인(2026-11-12 「둘 다 적용」) 뒤 적용 · 푸시(사용자 선택 「지금 푸시」).
 >
-> **재개 지점**: ① B-5 승인 받기(질문 본문에 `.github/workflows/collect-customer-docs.yml`·`.github/workflows/summarize-customer-news.yml`) ② 푸시 여부 ③ C 절 grill-me.
+> **재개 지점**: C 절 — grill-me 로 시작(출발점 = C 절 「C 재료」 표).
 
 | #   | 결정                                                                                                                                       | 근거                 |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
@@ -333,7 +333,7 @@ TARGET_TYPES = ('earnings_release','presentation','shareholder_letter','investor
 - 「요약」 step: 「숫자」 뒤 · 기존 step 조건과 같은 꼴(`!cancelled()` + 의존성 성공) · `python summarize_customer_docs.py --company ${{ matrix.ticker }}`(기본 14일 · 소급 아님) · env 그대로.
 - 새 워크플로: cron `'0 21 * * 0'`(KST 월 06:00) · `workflow_dispatch`(company · weeks) · Python 3.13 · `working-directory: scripts` · 의존성 설치 = `collect-customer-docs.yml` 과 같은 단계 · env SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_REVALIDATE_URL, NEXT_REVALIDATE_SECRET, ANTHROPIC_API_KEY · timeout 30.
 - 종료 코드: 호출 실패 = exit 1 · 검사 실패만 = exit 0(행에 남김).
-- [ ] Step 1: yaml 파싱 확인 → 커밋 `ci(고객사): 문서 요약 step·뉴스 주간 요약 워크플로`.
+- [x] Step 1: yaml 파싱 확인 → 커밋 `ci(고객사): 문서 요약 step·뉴스 주간 요약 워크플로`.
 
 ### Task B-6: 캡처 프록시 라우트
 

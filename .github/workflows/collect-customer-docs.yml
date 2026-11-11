@@ -1,6 +1,6 @@
 name: 고객사 공식 문서·숫자 수집 (평일 1회 · 회사별 격리)
 
-# 순서 = 문서 목록(collect_customer_docs.py) → 숫자(collect_customer_numbers.py).
+# 순서 = 문서 목록(collect_customer_docs.py) → 숫자(collect_customer_numbers.py) → 요약(summarize_customer_docs.py · 새 문서만).
 #   만료된 URL(현대모비스 fileId 등)은 목록 수집이 갱신하므로 숫자 수집이 반드시 그 뒤에 돈다.
 # 회사마다 job 하나(matrix · fail-fast: false) — 한 회사의 실패가 다른 회사를 막지 않는다.
 #
@@ -12,6 +12,7 @@ name: 고객사 공식 문서·숫자 수집 (평일 1회 · 회사별 격리)
 #   collect_customer_docs.py    0 정상(차단 blocked 포함 — 실행 요약에 ::warning:: 로 노랗게 뜬다) · 1 출처 error · 2 인자 오류
 #   collect_customer_numbers.py 0 정상(LLM 재시도 대기·차단·서식 미인식 포함) · 1 «이번 실행에서 새로 생긴» 파싱 실패(LLM 3회 상한 failed·내용 받기 실패(일시 오류 포함) · 이미 닫힌 실패는 상태 표 사유로만) · 2 자가 시험 실패·인자 오류
 #   probe_gm()                  requests → Playwright → 실제 Chrome(CDP) · 로그 전용(상태 표는 문서 목록 step 이 쓴다) · 0 ok·blocked(알려진 상태) · 1 error(접근 실패)
+#   summarize_customer_docs.py  0 정상(검사 실패·건너뜀 · 원문 받기 경고 401·403·404·크기 초과 — ::warning::) · 1 API·DB 오류 · 그 밖 받기 실패 · 키 없음 · 2 자가 시험·인자
 # 정본 = 각 스크립트 docstring · docs/commands.md 「고객사 수집 종료 코드」.
 
 on:
@@ -130,3 +131,9 @@ jobs:
       - name: 숫자
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: python collect_customer_numbers.py --company "${{ matrix.ticker }}"
+
+      # 새 문서만(게시일 최근 14일 · 요약 행 없음) — 🔴 --backfill 을 붙이지 말 것(소급은 사용자 승인 뒤 로컬 수동 · 비용 관문 B8).
+      # 숫자 step 이 실패해도 돈다 — 요약은 숫자와 독립(원문을 다시 받는다).
+      - name: 요약
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: python summarize_customer_docs.py --company "${{ matrix.ticker }}"

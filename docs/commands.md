@@ -74,7 +74,7 @@ scripts/venv/Scripts/python.exe scripts/_prune_katech_pdfs.py --delete   # 대�
 
 UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케이스를 확인한다(콘솔·네트워크 에러 모니터링).
 
-## 고객사 수집 종료 코드 (GHA `collect-customer-docs.yml`)
+## 고객사 수집 종료 코드 (GHA `collect-customer-docs.yml` · `summarize-customer-news.yml`)
 
 | 스크립트                      | 0                            | 1                                                                | 2                            |
 | ----------------------------- | ---------------------------- | ---------------------------------------------------------------- | ---------------------------- |

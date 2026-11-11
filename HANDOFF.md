@@ -8,7 +8,7 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-12 새벽, **고객사 페이지 수정 회차 B(문서·뉴스 요약) 끝 — 소급 완료 · GHA 승인 대기 · 미푸시 16커밋**)
+## 최신 상태 · 재개 지점 (2026-11-12 새벽, **고객사 페이지 수정 회차 B(문서·뉴스 요약) 끝 — 소급 완료 · GHA 적용(사용자 승인) · 푸시**)
 
 > 이 세션의 관통 주제: 계획서 `docs/plans/2026-11-11-customers-page-revisions.md` 의 B 절(B1~B9 확정 → B-1~B-9 작업). 구현은 API 헤드리스(오퍼스 5.5 · effort high · API 키 과금 — 사용자 지시 「사용량 없으니깐 api 활용하고 나 잘거니까 쭉 진행해」), 검토는 Codex 2회, 메인은 중계·검산·직접 수정 1건.
 
@@ -16,9 +16,8 @@
 
 **🔴 재개 지점**:
 
-1. **B-5 GHA 승인** — 워크플로 파일은 훅이 막는다. AskUserQuestion «질문 본문»에 `.github/workflows/collect-customer-docs.yml`·`.github/workflows/summarize-customer-news.yml` 를 적어 승인받는다. 명세 = 계획서 Task B-5(초안이 세션 scratchpad `b5_gha_draft/` 에 있었으나 세션이 끝나면 없어진다 → 명세대로 다시 쓴다). 승인 뒤 Architecture §10 · `docs/customers-collection.md` 「요약(B) — 남은 것」 첫 줄 · 흐름 5 의 「승인 대기」 문구를 고친다.
-2. **푸시 여부를 묻는다** — 미푸시 16커밋(전부 B). 푸시하면 Vercel 배포 · 프리렌더 timeout 이 나면 `npx vercel redeploy` 로 풀린 적이 있다.
-3. **C 묶음**(지역별·차종별·점유율 수집)은 grill-me 로 시작 — 출발점 = 계획서 C 절의 「C 재료」 표.
+1. **B 는 남은 일 없음** — B-5 GHA(`collect-customer-docs.yml` 「요약」 step · 새 `summarize-customer-news.yml`)는 사용자 승인(2026-11-12 「둘 다 적용」) 뒤 적용 · 푸시(사용자 선택 「지금 푸시」). 첫 정기 실행(평일 08:00 · 뉴스는 월 06:00 KST)에서 「요약」 step 과 뉴스 워크플로가 초록인지 본다 — 미확인.
+2. **C 묶음**(지역별·차종별·점유율 수집)은 grill-me 로 시작 — 출발점 = 계획서 C 절의 「C 재료」 표.
 
 **사용자 결정 (2026-11-11 밤 · 결정이행 반영)**: 뉴스 소급 = 남은 완결 주(약 9~10주)만 · 보존 연장 안 함 / 추정 50달러 이하면 묻지 않고 소급 / effort high.
 
