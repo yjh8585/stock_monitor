@@ -92,6 +92,8 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 
 고객사 문서 «내용» → 숫자 규칙 파서(회사별 모듈 + 등록부 `__init__.MODULE_NAMES`). 공통 틀 `base.py`(자료형·정규 어휘·기간 형식 `check_vocab`/`drop_off_vocab`·숫자 읽기) · `common.py`(표·문장 도우미). 오케스트레이터 = `collect_customer_numbers.py`(자가 시험 → pending 문서 → 파서 → 대조 → 적재 → 방향 재계산 → 상태), 시험 = `scripts/lib/test_customer_parsers.py`·`test_customer_numbers.py`. 🔴 **문서 상태 칸(`parse_status`·`parse_note`·`sha256`)은 이 오케스트레이터만 쓴다** · **등록부에 없는 회사의 문서는 pending 그대로**(not_target 으로 닫으면 나중에 생긴 파서가 못 본다) · **quote 는 값이 든 원문 연속 구간을 통째로**(`…` 뒤에 값만 붙이면 대조 실패) · 기간 표기는 표마다 하나(일정의 연간 발표 = `YYYY-FY`, `YYYY-Q4` 아님).
 
+- `breakdown.py`(C — 지역·차종·점유율 코드 파서: 스텔란티스 6-K 권역 표·점유율 문장 · 폴라리스 8-K 지역 매출 문장·부문 표 · 포르쉐 팩트시트 지역·차종 시트, 시험 `scripts/lib/test_breakdown_parsers.py`. **등록부 밖** — `collect_customer_breakdown.py --company` 만 부른다). 반환 `None` = 코드 몫 아님(API 읽기로) · 행 0개 = 꼴이 바뀜(표식 안 찍고 경고) · 🔴 **처음 보는 권역·차종 라벨은 행을 만들지 않고 이름만 알린다** — 엉뚱한 권역에 붙이지 않게(스텔란티스 부문 이름이 2026 년 「ASIA PACIFIC」으로 바뀌었고 FY 2025 판엔 「CHINA AND INDIA & PACIFIC」 오기도 있다 → 사전 `STLA_REGIONS` 에 더한다). 짧은 인용(포르쉐 「911 | 11,683」)은 `quote_check` 가 `|` 를 지워 12자 미만·글자 없음으로 떨어뜨리므로 뒤 칸을 이어 붙인다.
+
 ### `scripts/lib` 모듈 (부록 C 에서 이관 · 각 모듈 docstring 이 정본)
 
 - `doc_text.py`·`edgar.py`·`dart_api.py`(공시·보도자료 원문 → 텍스트·표 행 / SEC EDGAR / DART OpenAPI 공용 — 고객사 수집기·스텔란티스 출하 수집기가 같이 쓴다. 🔴 **EDGAR 요청은 `edgar.edgar_get` 한곳**(UA=env `SEC_USER_AGENT` · 0.15초 간격 · 재시도) · **`companies.sec_cik` 에 넣는 CIK 는 `edgar.normalize_cik` 로 앞 0 없는 꼴**(칸 CHECK 가 `0000320193` 도 통과시켜 같은 회사가 두 꼴로 들어간다) · **DART 키는 예외·로그 문장에 넣지 않는다**(`raise_for_status` 문장은 쿼리째 URL 을 싣는다 → `dart_api._get` 경유) · `doc_text.pdf_text` 는 실패를 빈 문자열로 삼키지 않는다)

@@ -10,6 +10,11 @@ scripts/lib/customer_breakdown.py. 읽을 문서·쪽 = 요약기가 남긴 cust
                                  period, value, unit, quote, page?, definition?, second_value?}, ...]}, ...].
                                  rows 가 빈 문서도 처리 표식(breakdown_at)만 찍는다. extractor = 'manual'.
                                  문서마다 원문을 다시 받아 그 쪽 글자층으로 검사한다(lib.customer_breakdown.verify).
+  --company TICKER [--doc-id N ...] [--since-days 365] [--dry-run]
+                                 정기 — 요약 status ok · c_materials 있음 · breakdown_at 비어 있음 · 게시일 최근 1년(결정 C2).
+                                 코드 파서(customer_parsers/breakdown.py)가 맡는 문서는 코드로 읽어 적재(extractor='code').
+                                 코드 몫이 아닌 문서는 «API 대기»로 세고 표식을 찍지 않는다(API 읽기 = Task C-4).
+                                 코드가 서식을 알아봤는데 0행이면 꼴이 바뀐 것 — 표식을 찍지 않고 경고(조용한 0행 금지).
 
 출력엔 건수·검사 사유만 찍는다(값 목록은 --dry-run 에서도 찍지 않는다 — 결과 JSON 이 따로 있다).
 exit 0 정상 · 1 받기·DB 오류 1건 이상 · 2 인자 오류·파일 형식 오류.
@@ -23,6 +28,8 @@ from collections import Counter
 from datetime import datetime, timezone
 
 DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,published_at'
+SINCE_DAYS = 365   # 결정 C2 — IR 문서 최근 1년
+_IN_CHUNK = 100
 
 
 def _args(argv):
@@ -30,11 +37,16 @@ def _args(argv):
   g = p.add_mutually_exclusive_group(required=True)
   g.add_argument('--dump', type=int, nargs='+', metavar='DOC_ID')
   g.add_argument('--load', metavar='FILE')
+  g.add_argument('--company', metavar='TICKER')
   p.add_argument('--out', help='--dump 출력 폴더')
+  p.add_argument('--doc-id', type=int, nargs='+', default=[], help='--company 와 함께 — 이 문서만(처리 표식 무시)')
+  p.add_argument('--since-days', type=int, default=SINCE_DAYS)
   p.add_argument('--dry-run', action='store_true')
   a = p.parse_args(argv)
   if a.dump and not a.out:
     p.error('--dump 는 --out 이 필요하다')
+  if a.doc_id and not a.company:
+    p.error('--doc-id 는 --company 와 함께')
   return a
 
 
@@ -83,9 +95,36 @@ def dump(client, session, doc_ids: list[int], out: pathlib.Path) -> int:
   return 1 if errors else 0
 
 
+def _store(ws, doc, ticker, content, summ, rows, totals: Counter, now: str, tag: str = '') -> bool:
+  """검사 → 건수·사유 한 줄 → 적재(ws 가 None 이면 dry-run). 저장 실패면 False."""
+  from lib.customer_breakdown import SourcePages, payloads, save_document, verify
+  src = SourcePages(content)
+  results = [(r, *verify(r, src)) for r in rows]
+  out, conflicts = payloads(doc, results)
+  notes = Counter(n.split(':')[0] for _, ok, n in results if not ok)
+  ok_n = sum(1 for p in out if p['verified'])
+  totals.update(docs=1, rows=len(out), verified=ok_n, conflicts=conflicts)
+  tail = (' · 실패 ' + ' '.join(f'{k} {v}' for k, v in notes.most_common())) if notes else ''
+  print(f'문서 {doc["id"]} · {ticker}{tag} · 행 {len(out)} · verified {ok_n}' + (f' · 충돌 {conflicts}' if conflicts else '')
+        + tail + (' · 요약 행 없음(표식 못 찍음)' if summ is None else ''))
+  if ws is None:
+    return True
+  try:
+    save_document(ws, doc['id'], out, now=now)
+    return True
+  except Exception as e:
+    print(f'문서 {doc["id"]} · 저장 실패({type(e).__name__})')
+    return False
+
+
+def _total_line(totals: Counter, dry_run: bool) -> str:
+  return (f'합계 · 문서 {totals["docs"]} · 행 {totals["rows"]} · verified {totals["verified"]} · 충돌 {totals["conflicts"]}'
+          + (' · dry-run(쓰기 0)' if dry_run else ''))
+
+
 def load(client, session, path: pathlib.Path, dry_run: bool) -> int:
   from lib import db
-  from lib.customer_breakdown import SourcePages, payloads, row_from_dict, save_document, verify
+  from lib.customer_breakdown import row_from_dict
   try:
     items = json.loads(path.read_text(encoding='utf-8'))
     assert isinstance(items, list) and all(isinstance(x, dict) and 'doc_id' in x for x in items)
@@ -105,23 +144,70 @@ def load(client, session, path: pathlib.Path, dry_run: bool) -> int:
         errors += 1
         print(f'문서 {doc_id} · 받기 실패({type(e).__name__})')
         continue
-      src = SourcePages(content)
-      results = [(r, *verify(r, src)) for r in rows]
-      out, conflicts = payloads(doc, results)
-      notes = Counter(n.split(':')[0] for _, ok, n in results if not ok)
-      ok_n = sum(1 for p in out if p['verified'])
-      totals.update(rows=len(out), verified=ok_n, conflicts=conflicts)
-      tail = (' · 실패 ' + ' '.join(f'{k} {v}' for k, v in notes.most_common())) if notes else ''
-      print(f'문서 {doc_id} · {ticker} · 행 {len(out)} · verified {ok_n}' + (f' · 충돌 {conflicts}' if conflicts else '')
-            + tail + (' · 요약 행 없음(표식 못 찍음)' if summ is None else ''))
-      if ws is not None:
-        try:
-          save_document(ws, doc_id, out, now=now)
-        except Exception as e:
-          errors += 1
-          print(f'문서 {doc_id} · 저장 실패({type(e).__name__})')
-  print(f'합계 · 문서 {len(plan)} · 행 {totals["rows"]} · verified {totals["verified"]} · 충돌 {totals["conflicts"]}'
-        + (' · dry-run(쓰기 0)' if dry_run else ''))
+      errors += not _store(ws, doc, ticker, content, summ, rows, totals, now)
+  print(_total_line(totals, dry_run))
+  return 1 if errors else 0
+
+
+def load_targets(client, company_id: str, doc_ids: list[int], since: str) -> list[int]:
+  """정기 대상 문서 id(게시일 순). doc_ids 를 주면 그 문서만(처리 표식·게시일 무시 · 재료 없는 문서는 뺀다)."""
+  from collect_customer_numbers import fetch_all
+
+  def q():
+    b = client.table('customer_doc_summaries').select('doc_id,c_materials').eq('company_id', company_id).eq('status', 'ok')
+    return b.in_('doc_id', doc_ids) if doc_ids else b.is_('breakdown_at', 'null')
+  ids = [s['doc_id'] for s in fetch_all(q, ('doc_id',)) if s.get('c_materials')]
+  if doc_ids:
+    return ids
+  keep = []
+  for i in range(0, len(ids), _IN_CHUNK):
+    got = (client.table('customer_documents').select('id,published_at').in_('id', ids[i:i + _IN_CHUNK])
+           .gte('published_at', since).execute().data)
+    keep += got
+  return [d['id'] for d in sorted(keep, key=lambda d: (d['published_at'], d['id']))]
+
+
+def run_company(client, session, ticker: str, doc_ids: list[int], since_days: int, dry_run: bool) -> int:
+  import os
+  from datetime import timedelta
+
+  from customer_parsers import breakdown
+  from lib import db
+  got = client.table('companies').select('id').eq('ticker', ticker).execute().data
+  if not got:
+    print(f'회사 없음: {ticker}')
+    return 2
+  since = (datetime.now(timezone(timedelta(hours=9))).date() - timedelta(days=since_days)).isoformat()
+  ids = load_targets(client, got[0]['id'], doc_ids, since)
+  print(f'대상 문서 {len(ids)}건 · {ticker}' + (f' · 게시일 {since} 이후' if not doc_ids else '')
+        + (' · dry-run' if dry_run else ''))
+  errors = 0
+  totals, skipped = Counter(), Counter()
+  now = datetime.now(timezone.utc).isoformat()
+  gha = bool(os.environ.get('GITHUB_ACTIONS'))
+  ctx = contextlib.nullcontext(None) if dry_run else db.WriteSession()
+  with ctx as ws:
+    for doc_id in ids:
+      try:
+        doc, _t, content, summ = _fetch(client, session, doc_id)
+      except Exception as e:
+        errors += 1
+        print(f'문서 {doc_id} · 받기 실패({type(e).__name__})')
+        continue
+      parsed = breakdown.parse(ticker, doc, content)
+      if parsed is None:
+        skipped['api_wait'] += 1   # SHORTCUT: API 읽기(Task C-4) 전까지 표식 없이 남는다 → C-4 가 이 자리를 채운다
+        continue
+      rows, unknown = parsed
+      if unknown:
+        print(f'문서 {doc_id} · 처음 보는 라벨 {len(unknown)}개(행 안 만듦 — 라벨 사전에 더할 것): {", ".join(unknown)}')
+      if not rows:
+        skipped['code_empty'] += 1
+        msg = f'문서 {doc_id} · 코드 파서가 서식은 알아봤는데 0행 — 꼴이 바뀌었을 수 있다(표식 안 찍음)'
+        print(f'::warning::{msg}' if gha else msg)
+        continue
+      errors += not _store(ws, doc, ticker, content, summ, rows, totals, now, ' · 코드')
+  print(_total_line(totals, dry_run) + ''.join(f' · {k} {v}' for k, v in sorted(skipped.items())))
   return 1 if errors else 0
 
 
@@ -136,6 +222,8 @@ def main(argv: list[str] | None = None) -> int:
   client, session = db.get_client(), requests.Session()
   if args.dump:
     return dump(client, session, args.dump, pathlib.Path(args.out))
+  if args.company:
+    return run_company(client, session, args.company, args.doc_id, args.since_days, args.dry_run)
   return load(client, session, pathlib.Path(args.load), args.dry_run)
 
 
