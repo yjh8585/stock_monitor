@@ -2,16 +2,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildVolumeSeries,
+  CHINA_JV_METRIC,
   droppedCurrencies,
   guidanceStatusNotes,
+  latestChinaJv,
   latestGuidance,
   latestGuidanceChange,
   nextEarnings,
   pickEarnings,
   quarterize,
+  regionQuarterCharts,
   type GuidanceRowTs,
   type ReportedRow,
   type VolumeRow,
+  type VolumeSeries,
 } from './ir';
 import type { CustomerEarnings, CustomerEarningsPoint } from './types';
 
@@ -444,6 +448,55 @@ describe('buildVolumeSeries', () => {
     ]);
     expect(out[0].annual).toEqual([{ period: '2025', value: 400 }]);
     expect(out[1].monthly).toEqual([{ period: '2026-04', value: 20 }]);
+  });
+});
+
+describe('regionQuarterCharts', () => {
+  const s = (region: string, quarterly: { period: string; value: number }[]): VolumeSeries => ({
+    metric: 'deliveries',
+    region,
+    definition: 'd',
+    monthly: [],
+    quarterly: quarterly.map((q) => ({ ...q, derived: false })),
+    annual: [],
+  });
+  it('중국 계열만 분기 막대 점으로 — 전체·다른 지역(북미)은 차트를 만들지 않는다', () => {
+    const out = regionQuarterCharts([
+      s('total', [{ period: '2026-Q1', value: 900 }]),
+      s('north_america', [{ period: '2026-Q1', value: 200 }]),
+      s('china', [
+        { period: '2025-Q1', value: 400 },
+        { period: '2026-Q1', value: 300 },
+      ]),
+    ]);
+    expect(out.map((c) => c.region)).toEqual(['china']);
+    expect(out[0].points).toEqual([
+      { period: '2025-Q1', period_label: '2025Q1', sales: 400, yoy_pct: null },
+      { period: '2026-Q1', period_label: '2026Q1', sales: 300, yoy_pct: -25 },
+    ]);
+  });
+  it('중국 분기 값이 없으면(월·연간만) 차트도 없다', () => {
+    expect(regionQuarterCharts([s('china', [])])).toEqual([]);
+  });
+});
+
+describe('latestChinaJv', () => {
+  const jv = (period: string, value: number) => row(period, CHINA_JV_METRIC, 'reported', value);
+  it('가장 최근 기간(같은 해면 1분기 < 상반기 < 9개월 < 연간) + 전년 같은 기간', () => {
+    const out = latestChinaJv([
+      jv('2025-9M', 744),
+      jv('2026-Q1', 50),
+      jv('2026-6M', 184),
+      jv('2026-9M', -113),
+      row('2026-9M', 'revenue', 'reported', 1000),
+    ]);
+    expect(out?.latest.period).toBe('2026-9M');
+    expect(out?.latest.value).toBe(-113);
+    expect(out?.prior?.value).toBe(744);
+  });
+  it('전년 같은 기간이 없으면 prior = null · 합작사 행이 없으면 null', () => {
+    expect(latestChinaJv([jv('2026-6M', 184)])?.prior).toBeNull();
+    expect(latestChinaJv([row('2026-9M', 'revenue', 'reported', 1000)])).toBeNull();
   });
 });
 

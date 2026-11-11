@@ -346,6 +346,21 @@ const VOLUME_REGION: Record<string, string> = {
   china: '중국',
 };
 
+/** 회사 발표 기간 이름 — 2026-9M → 2026년 1~9월 · 2026-6M → 2026년 상반기 · 2026-Q1·3M → 2026년 1분기 · 2026 → 2026년 연간. */
+export function reportedPeriodLabel(period: string): string {
+  const m = /^(\d{4})(?:-(?:Q([1-4])|([369])M))?$/.exec(period);
+  if (!m) return period;
+  if (m[2]) return `${m[1]}년 ${m[2]}분기`;
+  if (m[3]) return `${m[1]}년 ${m[3] === '3' ? '1분기' : m[3] === '6' ? '상반기' : '1~9월'}`;
+  return `${m[1]}년 연간`;
+}
+
+/** 회사 발표 금액 한 칸 — 'million' → 백만 · 'billion' → 십억(통화 코드 그대로 · 음수 부호 유지). */
+export function reportedAmountText(r: { value: number; unit: string; currency: string }): string {
+  const scale = r.unit === 'billion' ? '십억' : r.unit === 'million' ? '백만' : '';
+  return `${r.value.toLocaleString('en-US')}${scale ? ` ${scale}` : ''} ${r.currency}`;
+}
+
 /** 회사 발표 물량 계열 이름 — region 'total' 은 지표 이름만. */
 export function volumeSeriesLabel(metric: string, region: string): string {
   const m = VOLUME_METRIC[metric] ?? metric;

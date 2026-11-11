@@ -11,9 +11,15 @@ import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccess } from '@/lib/auth/permissions';
 import { todaySeoul } from '@/lib/currentYear';
 import { getCustomerDetail, getCustomerIr, pickCustomerEarnings } from '@/lib/customers/source';
-import { nextEarnings } from '@/lib/customers/ir';
+import { latestChinaJv, nextEarnings } from '@/lib/customers/ir';
 import type { CustomerEarnings } from '@/lib/customers/types';
-import { earningsFootnotes, pctClass, pctText } from '@/lib/customers/format';
+import {
+  earningsFootnotes,
+  pctClass,
+  pctText,
+  reportedAmountText,
+  reportedPeriodLabel,
+} from '@/lib/customers/format';
 
 /** Cache Components 는 dynamic route 에 generateStaticParams 결과를 최소 1개 요구한다(app/stock-popup/[id] 와 같은 방식). */
 export async function generateStaticParams() {
@@ -57,6 +63,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
       }
     : undefined;
   const next = ir ? nextEarnings(ir.earningsDates, todaySeoul()) : null;
+  const chinaJv = ir ? latestChinaJv(ir.reported) : null;
   const shareText = row.share.sharePct == null ? '해당 없음' : `${row.share.sharePct.toFixed(1)}%`;
   const shareScope = d.windowLabel
     ? ` (${d.windowLabel} · 연결${row.share_group ? ` · ${[row.name_kr, ...row.share_group_peers].join('·')} 합산` : ''})`
@@ -124,6 +131,22 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
             adjustedRows={adjustedColumns(earnings)}
             footnotes={footnotes}
           />
+          {chinaJv && (
+            // 결정 E10 — 연결 실적에 안 들어가는 중국 지분법 합작사 몫(회사 발표 각주)
+            <p className="text-sm tabular-nums">
+              중국 합작사 영업이익 몫{' '}
+              <span className="text-xs text-muted-foreground">
+                (지분법 · 연결 실적 밖 · 회사 발표)
+              </span>
+              : {reportedPeriodLabel(chinaJv.latest.period)} {reportedAmountText(chinaJv.latest)}
+              {chinaJv.prior && (
+                <span className="text-muted-foreground">
+                  {' '}
+                  · 전년 같은 기간 {reportedAmountText(chinaJv.prior)}
+                </span>
+              )}
+            </p>
+          )}
         </section>
         {ir && (
           <section className="space-y-3">

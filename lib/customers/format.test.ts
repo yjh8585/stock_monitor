@@ -12,6 +12,8 @@ import {
   pctText,
   periodText,
   rangeText,
+  reportedAmountText,
+  reportedPeriodLabel,
   seoulDate,
   toUnit,
   volumeSeriesLabel,
@@ -368,5 +370,19 @@ describe('라벨', () => {
     expect(volumeSeriesLabel('deliveries', 'us')).toBe('인도 · 미국');
     // 폭스바겐 인도 표의 China 행(Task 13)
     expect(volumeSeriesLabel('deliveries', 'china')).toBe('인도 · 중국');
+  });
+  it('회사 발표 기간·금액 문구(중국 합작사 몫 한 줄 · 결정 E10)', () => {
+    expect(reportedPeriodLabel('2026-9M')).toBe('2026년 1~9월');
+    expect(reportedPeriodLabel('2026-6M')).toBe('2026년 상반기');
+    expect(reportedPeriodLabel('2026-3M')).toBe('2026년 1분기');
+    expect(reportedPeriodLabel('2026-Q1')).toBe('2026년 1분기');
+    expect(reportedPeriodLabel('2026')).toBe('2026년 연간');
+    expect(reportedPeriodLabel('FY2026')).toBe('FY2026');
+    expect(reportedAmountText({ value: -113, unit: 'million', currency: 'EUR' })).toBe(
+      '-113 백만 EUR'
+    );
+    expect(reportedAmountText({ value: 1.5, unit: 'billion', currency: 'USD' })).toBe(
+      '1.5 십억 USD'
+    );
   });
 });

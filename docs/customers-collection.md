@@ -115,7 +115,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - KGM CEO IR설명회·Pressday 행사일 — 공시 본문을 받아야 한다(E8 · 지금은 «날짜 없음»).
 - 부문별·중기 수치(원가율·현지화율·EV 대수 목표 등) 신호 표(D5) · 기아 「비밀유지계약」 문구 PDF 캡처(D7) · VW 중국 서술형 동향 요약(E4).
 
-**사용자 결정 대기**
+**VW 중국 화면(사용자 결정 2026-11-11 · E9·E10)**
 
-- VW 중국 인도(`region='china'`)는 회사 발표 분기 표의 「인도 · 중국」 한 줄로만 보인다 — 물량 차트 선(`CustomerVolumeCompare` 의 차트는 `total` 만)으로 더할지.
-- VW 중국 합작사 영업 결과 몫(`china_jv_operating_result`)은 DB 에 쌓이지만 화면 자리가 없다(실적 표시는 매출·영업이익·순이익 계열만) — 자리를 만들지.
+- 중국 인도(`region='china'`)는 MarkLines 비교 차트에 섞지 않고 **따로 분기 막대 차트**(`CustomerVolumeCompare` → `CompanyTimeSeriesChart` 를 `hideModeToggle`·`seriesLabel` 선택 인자로 재사용 · 점 = `ir.regionQuarterCharts`)로 보인다. 차트를 그리는 지역은 `REGION_CHART_REGIONS`(지금 `china` 뿐) — GM 북미 같은 다른 지역 계열은 분기 표의 줄로만 남는다.
+- 중국 합작사 영업 결과 몫은 실적 표 아래 **한 줄**(가장 최근 기간 + 전년 같은 기간 · `ir.latestChinaJv`)이다. 연결 실적 밖 값이라 실적 표 칸·차트에는 넣지 않는다. 파서는 같은 문장 앞 절 «equity-accounted companies in China …;» 이 있을 때만 이 행을 만든다(다른 합작사 설명을 중국 값으로 싣지 않게).

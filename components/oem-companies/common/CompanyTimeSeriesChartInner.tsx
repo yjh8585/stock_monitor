@@ -37,6 +37,10 @@ interface Props {
   annual: CompanyTimeSeriesPoint[];
   /** 없으면(기본) 지금 동작 그대로 — 지금 보는 단위에 값이 있을 때만 선 하나·범례를 더 그린다. */
   secondary?: TimeSeriesSecondary;
+  /** 연/월 토글을 숨기고 막대(annual 자리)만 — 분기 값만 있는 계열(고객사 VW 중국 인도 · 결정 E9). 기본 false. */
+  hideModeToggle?: boolean;
+  /** 두 번째 계열이 없을 때 막대·영역의 툴팁 이름. 기본 「출하량」. */
+  seriesLabel?: string;
 }
 
 type ViewMode = 'year' | 'month';
@@ -74,7 +78,13 @@ function fmtYoy(value: unknown): string {
  * 연간: BarChart (oem MarketTrendChart 패턴)
  * 월간: AreaChart with gradient
  */
-export default function CompanyTimeSeriesChartInner({ monthly, annual, secondary }: Props) {
+export default function CompanyTimeSeriesChartInner({
+  monthly,
+  annual,
+  secondary,
+  hideModeToggle = false,
+  seriesLabel = '출하량',
+}: Props) {
   const [mode, setMode] = useState<ViewMode>('year');
   const height = useChartHeight(240, 280, 320);
 
@@ -94,6 +104,7 @@ export default function CompanyTimeSeriesChartInner({ monthly, annual, secondary
         role="tablist"
         aria-label="기간 단위 선택"
         className="flex items-center gap-2 mb-3 text-sm"
+        hidden={hideModeToggle}
       >
         <button
           role="tab"
@@ -222,10 +233,10 @@ export default function CompanyTimeSeriesChartInner({ monthly, annual, secondary
                 if (label === 'YoY') return [fmtYoy(value), label];
                 const yoy = (item?.payload as CompanyTimeSeriesPoint | undefined)?.yoy_pct;
                 const yoyText = yoy == null ? '' : ` (YoY ${fmtYoy(yoy)})`;
-                return [`${fmtFull(Number(value))}대${yoyText}`, '출하량'];
+                return [`${fmtFull(Number(value))}대${yoyText}`, seriesLabel];
               }}
             />
-            <Bar dataKey="sales" name="출하량" fill="#2563eb" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="sales" name={seriesLabel} fill="#2563eb" radius={[3, 3, 0, 0]}>
               <LabelList
                 dataKey="sales"
                 position="top"
@@ -260,13 +271,13 @@ export default function CompanyTimeSeriesChartInner({ monthly, annual, secondary
               formatter={(value, _name, item) => {
                 const yoy = (item?.payload as CompanyTimeSeriesPoint | undefined)?.yoy_pct;
                 const yoyText = yoy == null ? '' : ` (YoY ${fmtYoy(yoy)})`;
-                return [`${fmtFull(Number(value))}대${yoyText}`, '출하량'];
+                return [`${fmtFull(Number(value))}대${yoyText}`, seriesLabel];
               }}
             />
             <Area
               type="monotone"
               dataKey="sales"
-              name="출하량"
+              name={seriesLabel}
               stroke="#2563eb"
               strokeWidth={2}
               fill="url(#companyTimeSeriesGrad)"

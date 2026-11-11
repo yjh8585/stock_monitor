@@ -14,6 +14,10 @@ interface Props {
   title?: string;
   /** 비교용 두 번째 계열(고객사 페이지의 회사 발표 물량). 없으면 지금 동작 그대로. */
   secondary?: TimeSeriesSecondary;
+  /** 연/월 토글을 숨기고 막대만(분기 값만 있는 계열). 기본 false — 지금 동작 그대로. */
+  hideModeToggle?: boolean;
+  /** 막대·영역 툴팁 이름(두 번째 계열이 없을 때). 기본 「출하량」. */
+  seriesLabel?: string;
 }
 
 // recharts 의존을 클라이언트 번들에서만 로드 → SSR 비용 절감 + 초기 페이로드 축소.
@@ -36,6 +40,8 @@ export default function CompanyTimeSeriesChart({
   annual,
   title = '출하량 추이 (도매 wholesale)',
   secondary,
+  hideModeToggle,
+  seriesLabel,
 }: Props) {
   return (
     <Card size="sm" className="gap-3">
@@ -43,7 +49,13 @@ export default function CompanyTimeSeriesChart({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <TimeSeriesInner monthly={monthly} annual={annual} secondary={secondary} />
+        <TimeSeriesInner
+          monthly={monthly}
+          annual={annual}
+          secondary={secondary}
+          hideModeToggle={hideModeToggle}
+          seriesLabel={seriesLabel}
+        />
       </CardContent>
     </Card>
   );

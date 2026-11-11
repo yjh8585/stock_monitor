@@ -2,6 +2,7 @@
  * 고객사 공식 문서(공시·IR) 숫자의 순수 접기 함수 — source.ts(getCustomerIr)와 화면이 함께 쓴다.
  * 지시어 없는 파일이라 서버 컴포넌트가 값으로 import 해도 된다. 날짜(today)는 인자로만 받는다.
  */
+import type { CompanyTimeSeriesPoint } from '@/lib/types';
 import type { CellOrigin, CumulativeNote, CustomerEarnings, CustomerEarningsPoint } from './types';
 
 // ---------------------------------------------------------------- 누계 → 분기
@@ -331,6 +332,33 @@ export function buildVolumeSeries(rows: VolumeRow[]): VolumeSeries[] {
     .sort((a, b) => rank(a).localeCompare(rank(b)));
 }
 
+/** 따로 분기 막대 차트를 그리는 지역(결정 E9 — VW 중국 인도). 다른 지역 계열은 분기 표의 줄로만 보인다. */
+export const REGION_CHART_REGIONS: readonly string[] = ['china'];
+
+/** REGION_CHART_REGIONS 지역 중 분기 값이 있는 계열 → 분기 막대 점(YoY = 전년 같은 분기 대비 · 전년이 없거나 0 이하면 null). */
+export function regionQuarterCharts(
+  series: VolumeSeries[]
+): { metric: string; region: string; points: CompanyTimeSeriesPoint[] }[] {
+  return series
+    .filter((s) => REGION_CHART_REGIONS.includes(s.region) && s.quarterly.length > 0)
+    .map((s) => {
+      const byPeriod = new Map(s.quarterly.map((q) => [q.period, q.value]));
+      return {
+        metric: s.metric,
+        region: s.region,
+        points: s.quarterly.map((q) => {
+          const prev = byPeriod.get(`${Number(q.period.slice(0, 4)) - 1}${q.period.slice(4)}`);
+          return {
+            period: q.period,
+            period_label: q.period.replace('-', ''),
+            sales: q.value,
+            yoy_pct: prev != null && prev > 0 ? ((q.value - prev) / prev) * 100 : null,
+          };
+        }),
+      };
+    });
+}
+
 // ---------------------------------------------------------------- 실적 칸 출처 고르기(선택 7차)
 export interface ReportedRow {
   period_grain: 'quarter' | 'ytd' | 'year';
@@ -342,6 +370,30 @@ export interface ReportedRow {
   unit: 'million' | 'billion' | 'per_share';
   currency: string;
 }
+/** VW 중국 지분법 합작사 영업 결과 몫 — 연결 실적 밖 값이라 실적 표 칸이 아니라 표 아래 한 줄(결정 E10). */
+export const CHINA_JV_METRIC = 'china_jv_operating_result';
+
+/** 같은 해 안 기간 순서 — 1분기(Q1·3M) < 상반기(Q2·6M) < 9개월(Q3·9M) < 연간. 모르는 꼴은 null. */
+function periodOrder(period: string): number | null {
+  const m = /^(\d{4})(?:-(?:Q([1-4])|([369])M))?$/.exec(period);
+  if (!m) return null;
+  const step = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) / 3 : 4;
+  return Number(m[1]) * 10 + step;
+}
+
+/** 합작사 몫 행 중 가장 최근 기간 하나 + 전년 같은 기간(없으면 null). 행이 없으면 null. */
+export function latestChinaJv(
+  reported: ReportedRow[]
+): { latest: ReportedRow; prior: ReportedRow | null } | null {
+  const rows = reported.filter(
+    (r) => r.metric === CHINA_JV_METRIC && periodOrder(r.period) != null
+  );
+  if (rows.length === 0) return null;
+  const latest = rows.reduce((a, b) => (periodOrder(b.period)! > periodOrder(a.period)! ? b : a));
+  const priorPeriod = `${Number(latest.period.slice(0, 4)) - 1}${latest.period.slice(4)}`;
+  return { latest, prior: rows.find((r) => r.period === priorPeriod) ?? null };
+}
+
 /** 장부상 영업이익이 없을 때 대신 쓰는 회사 조정 영업이익 — 앞의 것이 먼저. EBITDA 는 영업이익이 아니라 넣지 않는다. */
 export const ADJUSTED_OPERATING_METRICS = ['ebit_adjusted', 'aoi', 'operating_result_bsi'] as const;
 

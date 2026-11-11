@@ -1,7 +1,7 @@
 // 서버 컴포넌트 — 차트는 기존 CompanyTimeSeriesChart(클라이언트)에 두 번째 계열만 넘긴다.
 import CompanyKpiCards from '@/components/oem-companies/common/CompanyKpiCards';
 import CompanyTimeSeriesChart from '@/components/oem-companies/common/CompanyTimeSeriesChart';
-import type { VolumeSeries } from '@/lib/customers/ir';
+import { regionQuarterCharts, type VolumeSeries } from '@/lib/customers/ir';
 import type { CustomerDetail } from '@/lib/customers/source';
 import { volumeSeriesLabel } from '@/lib/customers/format';
 
@@ -69,6 +69,17 @@ export default function CustomerVolumeCompare({ volume, series }: Props) {
             : 'MarkLines 에 이 회사 단독 그룹이 없다.'}
         </p>
       )}
+      {regionQuarterCharts(series).map((c) => (
+        // 결정 E9 — 지역 계열(VW 중국 인도)은 위 MarkLines 비교 차트에 섞지 않고 따로 분기 막대로
+        <CompanyTimeSeriesChart
+          key={`${c.metric}|${c.region}`}
+          monthly={[]}
+          annual={c.points}
+          title={`회사 발표 ${volumeSeriesLabel(c.metric, c.region)} (분기)`}
+          hideModeToggle
+          seriesLabel={volumeSeriesLabel(c.metric, c.region)}
+        />
+      ))}
       {series.length > 0 && (
         <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2 text-xs">
           <p className="flex flex-wrap items-center gap-2 font-medium text-sm">
