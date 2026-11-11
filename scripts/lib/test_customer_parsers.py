@@ -456,6 +456,12 @@ class GuidanceExtraTests(unittest.TestCase):
     later = [[[c.replace('2026', '2027') for c in r] for r in t] for t in self.G.RECON_2026Q3]
     res = self._gm(later)
     self.assertEqual((res.count(), res.recognized), (0, True))
+    # 머리에서 연도가 빠지거나 글자로 바뀐 대조표(Codex 재현 'TBD') — 대조표 없음과 갈라 failed 로
+    for year_text in ('TBD', ''):
+      blank = [[[c.replace('December 31, 2026', f'December 31, {year_text}'.strip()) for c in r] for r in t]
+               for t in self.G.RECON_2026Q3]
+      res = self._gm(blank)
+      self.assertEqual((res.count(), res.recognized), (0, True), year_text)
 
   def test_vw_adhoc_special_items_and_adjusted_margin(self):
     from lib import quote_check

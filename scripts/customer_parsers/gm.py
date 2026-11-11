@@ -232,13 +232,15 @@ def parse_recon_only(tables, published_year: str) -> tuple[list[GuidanceRow], bo
   필수 3지표는 대조표에서 읽지 않는다(Task 9 범위 = 새 4지표). 연도는 대조표 머리이고, 근거는 발표 연도와 같은지다
   (1월 4분기 판의 새 해 전망도 발표 연도 — 같은 판의 지난해 최종 대조표는 발표 연도보다 앞이라 건너뛴다).
   - 대조표 없음 · 지난해 표뿐 · 표는 맞는데 라벨이 바뀜 → 0행 + False(새 4지표는 «있으면 뽑는다» — 실패 아님)
-  - 대조표 연도가 발표 연도보다 뒤뿐 → 연도를 확정 못 함 → 0행 + True(문서를 failed 로 드러낸다 · 조용히 버리지 않게)"""
-  years = {m.group(1) for rows in tables if rows and rows[0]
-           for m in [_RECON_HEAD.match(norm_text(rows[0][0]))] if m}
+  - 대조표 연도가 발표 연도보다 뒤뿐 · 대조표 머리인데 연도를 못 읽음('Year Ending December 31, TBD' 꼴) → 연도를 확정
+    못 함 → 0행 + True(문서를 failed 로 드러낸다 · 조용히 버리지 않게)"""
+  heads = [norm_text(rows[0][0]) for rows in tables if rows and rows[0]]
+  years = {m.group(1) for h in heads for m in [_RECON_HEAD.match(h)] if m}
   if published_year in years:
     out = parse_guidance_recon(tables, published_year, set())
     return out, bool(out)
-  if any(y > published_year for y in years):
+  if any(y > published_year for y in years) or any(
+      h.startswith('Year Ending') and not _RECON_HEAD.match(h) for h in heads):
     return [], True
   return [], False
 
