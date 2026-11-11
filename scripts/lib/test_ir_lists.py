@@ -1337,10 +1337,10 @@ class GmListTest(unittest.TestCase):
         L.fetch_gm(MagicMock(), '2025-10-07')
 
   def test_may_be_empty_only_before_first_release(self):
-    """(순수) 기본 목록의 빈 표식 허용 = 서울 기준 그해 1월 15일 «전»만 · 경계 하루 전/당일 · 지난 해가 기본으로 보이면 허용 안 함."""
-    self.assertEqual(L.GM_FIRST_SALES_BY, (1, 15))
-    for today, want in ((date(2026, 1, 1), True), (date(2026, 1, 14), True), (date(2026, 1, 15), False),
-                        (date(2026, 4, 2), False), (date(2026, 8, 1), False)):
+    """(순수) 기본 목록의 빈 표식 허용 = 서울 기준 그해 1월 1·2일만(3일 «전») · 경계 하루 전/당일 · 지난 해가 기본으로 보이면 허용 안 함."""
+    self.assertEqual(L.GM_FIRST_SALES_BY, (1, 3))
+    for today, want in ((date(2026, 1, 1), True), (date(2026, 1, 2), True), (date(2026, 1, 3), False),
+                        (date(2026, 1, 6), False), (date(2026, 4, 2), False), (date(2026, 8, 1), False)):
       with self.subTest(today=today):
         self.assertEqual(L.gm_sales_may_be_empty(2026, today), want)
     self.assertFalse(L.gm_sales_may_be_empty(2025, date(2026, 1, 3)))
@@ -1367,11 +1367,16 @@ class GmListTest(unittest.TestCase):
       self._fetch_with_empty_current(date(2026, 8, 1))
 
   def test_current_year_empty_threshold_boundary(self):
-    """경계 — 1월 14일은 0건 정상(지난 해 보도의 상세만 받는다) · 1월 15일 당일은 멈춘다."""
-    calls = self._fetch_with_empty_current(date(2026, 1, 14))
+    """경계 — 1월 2일은 0건 정상(지난 해 보도의 상세만 받는다) · 1월 3일 당일은 멈춘다."""
+    calls = self._fetch_with_empty_current(date(2026, 1, 2))
     self.assertEqual(len(calls[-1]), 2)  # 2025-07-01 · 2025-10-01 상세(since 2025-06-27)
     with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
-      self._fetch_with_empty_current(date(2026, 1, 15))
+      self._fetch_with_empty_current(date(2026, 1, 3))
+
+  def test_current_year_empty_after_first_release_stops(self):
+    """수정 3회차(Codex 재현) — 첫 보도(01-05) 다음 날 1월 6일에 올해 목록이 빈 표식이면 2025 분량만 내지 않고 멈춘다."""
+    with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+      self._fetch_with_empty_current(date(2026, 1, 6))
 
   def test_fetch_gm_stages(self):
     """1회 = 결과 페이지 + 기본 판매 목록 · 2회 = since 가 걸친 다른 해 목록 · 3회 = since 이후 미국 판매 상세."""
