@@ -62,7 +62,7 @@ _OUT_END = re.compile(r'continues to pursue its objective|The adjustment of the 
 _OUT_MAX = 1500
 _EUR = r'(?:€ ?|EUR ?)?'
 _BN = r'([\d.]+)(?: billion(?: euros)?)?'
-_RANGE_WORD = r'(around|between|up to|in the range of)'
+_RANGE_WORD = r'(approximately|about|around|between|up to|in the range of)'
 _G = (  # (정규식, metric, 회사 라벨, 단위, basis, 항목 묶음) — 묶음이 같으면 하나로 센다(매출 금액·증감률)
   (re.compile(r'expects (?:Group )?sales revenue (?:in 20\d{2} )?of ' + _RANGE_WORD + ' ' + _EUR + _BN +
               r'(?: (?:and|to) ' + _EUR + r'([\d.]+))? billion', re.I),
@@ -91,7 +91,7 @@ _G = (  # (정규식, metric, 회사 라벨, 단위, basis, 항목 묶음) — �
    'operating_margin_adjusted', 'Operating return on sales adjusted for special effects', 'percent', 'adjusted',
    'margin_adjusted'),
 )
-_APPROX = ('around', 'about')   # 근사 낱말 — 숫자는 그대로 두고 원문 구절을 value_text 로
+_APPROX = ('around', 'about', 'approximately')   # 근사 낱말 — 숫자는 그대로 두고 원문 구절을 value_text 로
 # 문장이 스스로 밝힌 연도('… for the full year 2026 would amount to …') — 전망 머리 연도와 다르면 이번 전망이 아니다.
 # _G 의 범위 그룹 번호(1~3)를 밀지 않으려고 정규식 안이 아니라 매치 문장에서 따로 읽는다
 _SENT_YEAR = re.compile(r'for the full year (20\d{2})', re.I)
@@ -227,7 +227,7 @@ def parse_outlook(text: str) -> tuple[list[GuidanceRow], bool]:
                   if (sy := _SENT_YEAR.search(x.group(0))) is None or sy.group(1) == year), None)
         if m and group not in found:
           lo, hi = _range(m.group(1), m.group(2), m.group(3))
-          # 'around'·'about' 은 근사 — 숫자는 그대로 두고 원문 구절('around €315 billion')을 value_text 로 남겨 화면이
+          # 'around'·'about'·'approximately' 는 근사 — 숫자는 그대로 두고 원문 구절('around €315 billion')을 value_text 로 남겨 화면이
           # 「약」을 붙인다(전망을 단정으로 바꾸지 않기 · Task 15 Codex 대조). 구절은 quote 의 꼬리라 quote_check 를 그대로 통과한다
           approx = m.group(0)[m.start(1) - m.start(0):] if m.group(1).lower() in _APPROX else None
           found[group] = GuidanceRow(metric, label, f'FY{year}', lo, hi, approx, unit, basis, m.group(0))
@@ -357,6 +357,8 @@ DELIV_BEV = [DELIV_HEAD, ['USA', '5,100', '37,400', '-86.4', '14,900', '68,700',
              ['World', '240,200', '252,100', '-4.7', '678,700', '717,700', '-5.4']]
 
 MUST_HIT = [  # (표, 본문, 기대 {키: 값} · ('N',) = 값 행 수)
+  # 근사어 approximately(Task 10) — 숫자는 그대로
+  ([], OUT_9M.replace('of around €315', 'of approximately €315'), {('G', 'revenue', 'FY2026'): (315.0, 315.0)}),
   ([KPI_Q3, BRAND], '8.8 billion EUR Operating Result before special items in 9M 2026; operating return on sales '
                     'before special items of 3.8% … ' + OUT_9M,
    {('V', 'production', '2026-Q3'): 1786000, ('V', 'production', '2026-9M'): 5957000,
@@ -449,6 +451,9 @@ MUST_MISS = [  # (표, 본문, 판정(got) → 참이어야 함, 사유)
    'Q4|FY 판이 아닌 문서의 연간 BSI·다른 연도 BSI 를 읽었다'),
   # BEV 표 World(240,200)를 전체 인도로 읽지 않는다 — 표 순서가 바뀌어도
   ([DELIV_BEV, DELIV_Q3], '', lambda g: g.get(('V', 'deliveries', '2026-Q3')) == 1885300, 'BEV 표 World 를 읽었다'),
+  # 근사어(approximately·about)가 이전 전망 구절 안이면 읽지 않는다 — 이번 값(up to 1)만(Task 10)
+  ([], ADHOC.replace('previous forecast 4.0 to 5.5 percent', 'previous forecast approximately 5 percent'),
+   lambda g: g.get(('G', 'operating_margin', 'FY2026')) == (None, 1.0), 'ad-hoc 이전 전망의 근사 값을 읽었다'),
 ]
 # 0행 · recognized 여야 하는 (이름, 표, 본문) — 서식 표식은 있는데 늘 있는 행·칸이 빠졌다
 MUST_RECOGNIZED_EMPTY = [
@@ -495,6 +500,9 @@ APPROX_SAMPLES = [
   (OUT_2025, 'automotive_net_liquidity', 'around EUR 30 billion'),
   (ADHOC, 'special_items', 'around 10 billion'),               # 'Special effects totaling around 10 billion euros'
   (ADHOC, 'operating_margin_adjusted', 'about 4 percent'),     # 'about' 도 근사 — 'would amount to about 4 percent'
+  # Task 10 — 'approximately'·'about' 도 around 와 같은 근사(숫자 그대로 · 구절을 value_text)
+  (OUT_9M.replace('of around €315', 'of approximately €315'), 'revenue', 'approximately €315 billion'),
+  (OUT_9M.replace('of around €315', 'of about €315'), 'revenue', 'about €315 billion'),
 ]
 
 
