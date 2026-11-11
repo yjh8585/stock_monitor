@@ -22,6 +22,9 @@ check_failed 로 남긴다.
   — 아니면 두 끝 분기 표기가 둘 다 원문에 있어야 한다.
 - 「N년」·「FY」 꼴 연도는 원문 연도 표기(FY·CY·년·year·fiscal·Q/H/9M 옆·날짜 — _SRC_YEAR)에서 뽑은 후보와만 맞춘다.
   2자리 연도(FY26·'25·3Q25·1H26)는 20xx 로 본다. 「N월」은 영어 달 이름이나 같은 수.
+  맨 연도('in 2027'·'since 2015')도 후보 — 쉼표·소수점 없는 1990~2100 정수이고 바로 뒤에 배수 낱말·%, 바로 앞에 통화
+  표지가 없을 때만(소급 180건의 검사 실패 17건 중 10건이 이 꼴 — 2026-11-12).
+- 표 머리 % (「단위 : 억원, %」·「(%)」·XLSX 머리 칸 '| % |')가 있는 문서는 맨 수도 % 후보 · 'five percent' 꼴 낱말 % 도 후보.
 통화(currency_problems) — 요약 줄의 「수+통화 낱말」(달러·유로·원·엔·위안·파운드)이 원문 어딘가에 그 통화로 나와야 한다.
   원문 원화 근거는 수 뒤의 원·₩·KRW·단위 머리(십억원 …)만(맨 「원」은 원가·임직원에 걸린다).
 줄 — 빈 줄·공백만인 줄은 지적, 줄 수 3~5 는 내용 있는 줄로 센다. 근거 인용이 쪽 경계를 넘으면 시작 쪽으로 고치고, 쪽 번호가
@@ -84,7 +87,18 @@ _HEADERS = re.compile(
   r'|\(\s*(천|만|백만|십억|억|조)\s*(?:원|달러|유로|대)\s*\)'
   r'|\bin\s+(?:[€$£¥₩]|EUR|USD|GBP|JPY|KRW)?\s*(thousand|million|billion|mn|bn)s?\b'
   r'|\(\s*(?:[€$£₩¥]|EUR|USD|KRW|GBP|JPY)?\s*(thousand|million|billion|mn|bn)s?\s*\)'
-  r'|(?:€|\$|£|\bEUR|\bUSD)\s?(million|billion|mn|bn)\b', re.I)
+  r'|(?:€|\$|£|\bEUR|\bUSD)\s?(million|billion|mn|bn)\b'
+  # 단위 낱말이 통화 앞 — 포르쉐 fact_sheet XLSX 머리 칸 'million € | Q1 2026 | % |'(소급 2026-11-12 실측)
+  r'|\b(thousand|million|billion|mn|bn)s?\s*(?:€|\$|£|EUR\b|USD\b)', re.I)
+# 표 머리 % — 단위가 칸이 아니라 머리에 있는 표(DART 잠정실적 「단위 : 억원, %」·「증감율(%)」 · XLSX 머리 칸 '| % |').
+# 문서에 이 머리가 있으면 단위 낱말 없는 원문 수도 % 후보로 본다(소급 2026-11-12: 맞는 「25.3%」·「7.8%」가 걸렸다).
+# SHORTCUT: 문서 단위로 켠다 — 표 경계를 몰라 % 아닌 칸의 수도 % 후보가 된다 → 표 행·열 구조를 살린 대조로 좁힐 수 있다
+_PCT_HEADER = re.compile(r'단위\s*[:：][^|\n()]{0,20}%|\(\s*%\s*\)|\|\s*%\s*(?:\||$)|\bin\s+%', re.I | re.M)
+# 낱말로 쓴 % — 'decreased five percent'(PII 실적 발표 · 소급 2026-11-12)
+_WORD_NUM = {w: i for i, w in enumerate(
+  'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen '
+  'nineteen twenty'.split(), 1)}
+_WORD_PCT = re.compile(r'\b(' + '|'.join(_WORD_NUM) + r')\s+(?:percent|per\s?cent)\b', re.I)
 _HEADER_MULT = {'천': 1e3, '만': 1e4, '백만': 1e6, '십억': 1e9, '억': 1e8, '조': 1e12, 'thousand': 1e3, 'million': 1e6,
                 'mn': 1e6, 'billion': 1e9, 'bn': 1e9}
 # 수마다 통화(Codex 2회차 2026-11-12: '$1 billion … EUR 200 million' 원문에 「10억 유로」가 통과했다 — 수와 통화를 따로
@@ -205,7 +219,17 @@ class _Source:
     head_curs = {c for m in head_matches if (c := _currency_in(t[m.start():m.end() + 2]))}
     curs = _num_currencies(t, toks, next(iter(head_curs)) if len(head_curs) == 1 else None)
     self.years = {int(m.group(1)) for pat in _SRC_YEAR for m in pat.finditer(t)}
+    pct_head = bool(_PCT_HEADER.search(t))
     for k, p, b, o, c in zip(toks, pct, bp, own, curs):
+      raw = t[k.start:k.end]
+      # 맨 연도 — 쉼표·소수점 없는 1990~2100 정수이고 금액 배수 낱말·%·통화 표지가 안 붙은 수('in 2027'·'since 2015'
+      # ·'2024 VS. 2025' — 소급 2026-11-12 실측). '$2,027 million' 은 쉼표·배수 둘 다로 빠진다.
+      # 배수·% 는 «바로 뒤»만 본다 — 범위 잇기로 물려받은 것은 안 본다('since 2024' 다음 줄 '-29.4k' 가 '-' 로 이어졌다).
+      # SHORTCUT: 표 머리 배수 아래의 맨 수 2027(금액)도 연도 후보가 된다 → 표 칸 구조를 살리면 좁힐 수 있다
+      after = t[k.end:k.end + 24]
+      if (1990 <= k.n <= 2100 and ',' not in raw and '.' not in raw and _own_mult(after[:16]) is None
+              and not _SRC_PCT.match(after) and not _CUR_PRE.search(t[max(0, k.start - 6):k.start])):
+        self.years.add(int(k.n))
       if b:
         vals = {k.n / 100}                              # bp 는 %p 로 바꾼 값만(50bp 가 50%p 의 근거가 되면 안 된다)
       elif o is not None:
@@ -215,6 +239,9 @@ class _Source:
       if k.n < 100 and k.n == int(k.n) and _YEAR2_BEFORE.search(t[max(0, k.start - 4):k.start]):
         self.years.add(2000 + int(k.n))
       self.cands.extend((v, p, c) for v in vals)
+      if pct_head and o is None and not p:              # 표 머리 % 아래 맨 수 — 배수 없는 값만 % 후보
+        self.cands.append((k.n, True, None))
+    self.cands.extend((float(_WORD_NUM[m.group(1).lower()]), True, None) for m in _WORD_PCT.finditer(t))
     self.quarters = {int(m.group(1)) if m.group(1).isdigit() else _ORD[m.group(1).lower()]
                      for pat in _Q_PATTERNS for m in pat.finditer(t)}
     self.quarters |= {_QEND[m.group(1).lower()] for m in _Q_MONTHS_ENDED.finditer(t)}

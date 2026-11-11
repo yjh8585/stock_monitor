@@ -145,6 +145,47 @@ class Numbers(unittest.TestCase):
     self.assertEqual(unmatched_numbers('1~2분기 매출은 100억 달러였다.', '1H26 revenue was $10 billion.'), [])
     self.assertEqual(unmatched_numbers('1~3분기 매출은 100억 달러였다.', '9M revenue was $10 billion.'), [])
 
+  # ── 소급 180건의 검사 실패 17건(2026-11-12) — 요약이 맞는데 검사기가 원문 수를 못 찾은 꼴 ──
+  def test_plain_year_in_source(self):
+    # 실물: 'positive Industrial free cash flow in 2027' · 'since 2015' · 'Growth 2025-2035' · '2024 VS. 2025'
+    for src, line in (('positive Industrial free cash flow in 2027', '2027년 산업 잉여현금흐름'),
+                      ('highest market share since 2015', '2015년 이후 최고'),
+                      ('Growth 2025-2035 41%', '2025년부터 2035년까지 41% 성장'),
+                      ('Deliveries 2024 VS. 2025', '2024년보다 줄었다'),
+                      ('From 2026 to 2030, supply', '2026~2030년 공급'),
+                      # 다음 줄의 '-29.4k' 가 범위 잇기로 붙어도 2024 는 연도(VOW3 investor_day 실물)
+                      ('efficiency measures since 2024\n-29.4k1', '2024년 이후 감축')):
+      self.assertEqual(unmatched_numbers(line, src), [], src)
+    # 금액 배수·%·통화 표지가 붙은 수, 쉼표 있는 수는 여전히 연도가 아니다
+    for src in ('Revenue was $2,027 million.', 'Revenue was 2027 million.', 'Share was 2027 percent.',
+                'Price was $2027.', 'Revenue of 2027.5'):
+      self.assertTrue(unmatched_numbers('2027년 전망', src), src)
+
+  def test_unit_header_million_euro(self):
+    # 실물(포르쉐 fact_sheet XLSX): 머리 칸이 'million € | Q1 2026 | % |' — 단위 낱말이 통화 앞
+    src = 'million € | Q1 2026 | % | Q1 2025 | %\nSales revenue | 8,400 | 100.0 | 8,858 | 100.0'
+    self.assertEqual(unmatched_numbers('1분기 매출은 8,400백만 유로였다.', src), [])
+    self.assertEqual(unmatched_numbers('1분기 매출은 84억 유로였다.', src), [])
+    self.assertTrue(unmatched_numbers('1분기 매출은 84억 달러였다.', src))   # 머리 통화가 유로 — 달러는 지적
+
+  def test_percent_header(self):
+    # 실물: 포르쉐 XLSX 머리 칸 '| % |' · DART 잠정실적 '단위 : 억원, %' · '증감율(%)'
+    xlsx = 'million € | Q1 2026 | % | Q1 2025 | %\nOperating profit | 1,348 | 7.8 | 1,007 | 5.5'
+    self.assertEqual(unmatched_numbers('영업이익률은 7.8%로 전년(5.5%)보다 높았다.', xlsx), [])
+    dart = '1. 실적내용 단위 : 억원, % 구분 당기실적 전기실적 전기대비 증감율(%) 매출액 당해실적 11,365 11,112 2.3 - 9,070 25.3'
+    self.assertEqual(unmatched_numbers('매출은 전년 동기 대비 25.3%, 전기 대비 2.3% 늘었다.', dart), [])
+    self.assertEqual(unmatched_numbers('매출은 전년 대비 5.3% 늘었다.', '증감율(%) 매출액 28,017,510 5.3'), [])
+    # % 머리가 없으면 맨 수는 여전히 % 의 근거가 아니다 · 머리가 있어도 원문에 없는 수는 지적
+    self.assertTrue(unmatched_numbers('이익률은 7.8%였다.', 'million € | Q1 2026\nOperating profit | 1,348 | 7.8'))
+    self.assertTrue(unmatched_numbers('영업이익률은 9.9%였다.', xlsx))
+
+  def test_percent_number_word(self):
+    # 실물(PII 실적 발표): 'decreased five percent' — 수가 영어 낱말
+    src = 'International sales of $233 million represented 14 percent and decreased five percent.'
+    self.assertEqual(unmatched_numbers('해외 매출은 2.33억 달러로 5% 줄었다.', src), [])
+    self.assertTrue(unmatched_numbers('해외 매출은 6% 줄었다.', src))
+    self.assertTrue(unmatched_numbers('공장 5곳', 'five plants'))   # % 낱말이 붙어야만 후보
+
 
 class Currency(unittest.TestCase):
   def test_euro_on_dollar_source(self):
