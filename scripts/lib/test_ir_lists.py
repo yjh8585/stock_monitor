@@ -1621,9 +1621,12 @@ class DartReportedDatesTest(unittest.TestCase):
     return {'company_id': self.CO, 'period_grain': 'quarter', 'period': period, 'metric': 'revenue',
             'document_id': doc_id, 'verified': verified}
 
-  def _tables(self, docs, res, volume_doc_ids=()) -> dict:
+  def _tables(self, docs, res, volume_doc_ids=(), events=None) -> dict:
+    """events = {분기: 실적 발표일} — 숫자 수집기가 IR 개최 공시(I003)에서 읽은 customer_earnings_dates."""
     return {'customer_documents': docs, 'customer_reported_results': res,
-            'customer_volume_ir': [{'company_id': self.CO, 'document_id': i} for i in volume_doc_ids]}
+            'customer_volume_ir': [{'company_id': self.CO, 'document_id': i} for i in volume_doc_ids],
+            'customer_earnings_dates': [{'company_id': self.CO, 'period': p, 'event_date': d}
+                                        for p, d in (events or {}).items()]}
 
   def test_reported_results_give_kgm_dates(self):
     """MUST_HIT: 2026-Q3 = 실적 공시 11-04 · MUST_MISS: 같은 제목 월 판매(11-02)는 날짜가 되지 않는다."""
@@ -1646,40 +1649,61 @@ class DartReportedDatesTest(unittest.TestCase):
     self.assertNotIn('2026년 3분기 경영실적', [r['title'] for r in got])
     self.assertEqual(holds.get('dart'), 3)
 
+  # 정정 체인 표본 — 3분기 실적 원공시 11-04 · 월 판매 10-01·11-02·12-01 · 실적 정정 12-10 · 2분기 실적 07-28.
+  # 물량 표도 키에 document_id 가 없어 월 판매 정정본이 물량 참조를 가져갈 수 있다 → 물량 참조는 근거로 쓰지 않는다.
+  CORR = f'[기재정정]{SALES}'
+
+  def _chain(self, with_original: bool = True) -> list[dict]:
+    docs = [self._doc(30, '2026-10-01'), self._doc(31, '2026-11-02'), self._doc(32, '2026-12-01'),
+            self._doc(33, '2026-12-05', self.CORR),  # 12-01 월 판매의 정정본(물량 참조를 가져갔다)
+            self._doc(50, '2026-12-10', self.CORR), self._doc(20, '2026-07-28')]
+    return docs + [self._doc(41, '2026-11-04')] if with_original else docs
+
   def test_correction_keeps_original_date(self):
     """[검토 Important 3] 원공시(11-04) 적재 → 정정(12-10)이 실적 행 참조를 갈아 낀 상태 → 다음 목록 수집에도 원공시
-    날짜. 같은 제목 월 판매(10-01·11-02·12-01 — 물량 행이 걸린 문서)를 원공시로 고르지 않는다."""
-    docs = [self._doc(30, '2026-10-01'), self._doc(31, '2026-11-02'), self._doc(41, '2026-11-04'),
-            self._doc(32, '2026-12-01'), self._doc(50, '2026-12-10', f'[기재정정]{self.SALES}'),
-            self._doc(20, '2026-07-28')]  # 2분기 실적(분기 끝 전) — 3분기 원공시가 아니다
-    before = _fake_client(self._tables(docs, [self._res('2026-Q3', 41)], volume_doc_ids=[30, 31, 32]))
-    after = _fake_client(self._tables(docs, [self._res('2026-Q3', 50)], volume_doc_ids=[30, 31, 32]))
+    날짜. 원공시 확인 = 같은 분기 실적 발표일(I003 · 11-04)에 낸 같은 제목 비정정 공시."""
+    events = {'2026-Q3': '2026-11-04', '2026-Q2': '2026-07-28'}
+    before = _fake_client(self._tables(self._chain(), [self._res('2026-Q3', 41)], volume_doc_ids=[30, 31, 33],
+                                       events=events))
+    after = _fake_client(self._tables(self._chain(), [self._res('2026-Q3', 50)], volume_doc_ids=[30, 31, 33],
+                                      events=events))
     self.assertEqual(ccd.prelim_quarter_dates(before, self.CO), {'2026-Q3': '2026-11-04'})
     self.assertEqual(ccd.prelim_quarter_dates(after, self.CO), {'2026-Q3': '2026-11-04'})
     got, _ = L.resolve_dates(_rows('kgm'), ccd.prelim_quarter_dates(after, self.CO), '2026-01-01')
     self.assertEqual(next(r for r in got if r['title'] == '2026년 3분기 경영실적')['published_at'], '2026-11-04')
 
+  def test_correction_never_picks_sales_whose_volume_moved(self):
+    """[재검토] MUST_MISS: 월 판매 12-01 의 물량 참조가 정정본(12-05)으로 옮겨 간 상태 — 원실적(11-04)이 없어도 있어도
+    12-01 을 고르지 않는다. 원실적이 없으면 날짜 없음(정정일 12-10 도 아니다)."""
+    events = {'2026-Q3': '2026-11-04'}
+    for with_original, want in ((True, {'2026-Q3': '2026-11-04'}), (False, {})):
+      with self.subTest(with_original=with_original):
+        client = _fake_client(self._tables(self._chain(with_original), [self._res('2026-Q3', 50)],
+                                           volume_doc_ids=[30, 31, 33], events=events))
+        self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), want)
+
+  def test_correction_without_event_date_has_no_date(self):
+    """원공시 후보가 있어도 같은 분기 실적 발표일(I003)이 없으면 원공시임을 확인할 수 없다 → 날짜 없음."""
+    client = _fake_client(self._tables(self._chain(), [self._res('2026-Q3', 50)], volume_doc_ids=[30, 31, 33]))
+    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {})
+
   def test_correction_with_consolidated_title(self):
-    """기아 실물 꼴 — 「[기재정정]연결재무제표기준…」 → 머리를 뗀 같은 제목의 원공시."""
+    """기아 실물 꼴 — 「[기재정정]연결재무제표기준…」 → 실적 발표일에 낸 머리 뗀 같은 제목의 원공시."""
     title = '연결재무제표기준영업(잠정)실적(공정공시)'
     docs = [self._doc(60, '2025-04-24', title), self._doc(61, '2025-04-25', f'[기재정정]{title}')]
-    client = _fake_client(self._tables(docs, [self._res('2025-Q1', 61)]))
+    client = _fake_client(self._tables(docs, [self._res('2025-Q1', 61)], events={'2025-Q1': '2025-04-24'}))
     self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {'2025-Q1': '2025-04-24'})
-
-  def test_correction_without_original_has_no_date(self):
-    """원공시를 못 찾으면(적재 안 됨 · 같은 제목 후보가 월 판매뿐) 정정일을 쓰지 않고 날짜를 비운다."""
-    docs = [self._doc(31, '2026-11-02'), self._doc(50, '2026-12-10', f'[기재정정]{self.SALES}')]
-    client = _fake_client(self._tables(docs, [self._res('2026-Q3', 50)], volume_doc_ids=[31]))
-    self.assertEqual(ccd.prelim_quarter_dates(client, self.CO), {})
 
   def test_original_filing_pure(self):
     corr = {'title': '[기재정정] 영업(잠정)실적(공정공시)', 'published_at': '2026-12-10'}
     pool = [{'id': 1, 'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-11-04'},
             {'id': 2, 'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-12-01'},
-            {'id': 3, 'title': '[기재정정]영업(잠정)실적(공정공시)', 'published_at': '2026-11-20'},
-            {'id': 4, 'title': '영업(잠정)실적(공정공시)', 'published_at': '2026-12-11'}]  # 정정 뒤
-    self.assertEqual(ccd.original_filing('2026-Q3', corr, pool, {2}), '2026-11-04')
-    self.assertIsNone(ccd.original_filing('2026-Q3', corr, pool, {1, 2}))
+            {'id': 3, 'title': '[기재정정]영업(잠정)실적(공정공시)', 'published_at': '2026-11-04'},
+            {'id': 4, 'title': '연결재무제표기준영업(잠정)실적(공정공시)', 'published_at': '2026-10-29'}]
+    self.assertEqual(ccd.original_filing(corr, pool, '2026-11-04'), '2026-11-04')
+    self.assertIsNone(ccd.original_filing(corr, pool, None))  # 발표일 없음 = 확인 불가
+    self.assertIsNone(ccd.original_filing(corr, pool, '2026-10-29'))  # 그날 공시는 다른 제목
+    self.assertIsNone(ccd.original_filing(corr, [p for p in pool if p['id'] != 1], '2026-11-04'))  # 정정본만
 
 
 if __name__ == '__main__':
