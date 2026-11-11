@@ -13,8 +13,11 @@ scripts/lib/customer_breakdown.py. 읽을 문서·쪽 = 요약기가 남긴 cust
   --company TICKER [--doc-id N ...] [--since-days 365] [--dry-run]
                                  정기 — 요약 status ok · c_materials 있음 · breakdown_at 비어 있음 · 게시일 최근 1년(결정 C2).
                                  코드 파서(customer_parsers/breakdown.py)가 맡는 문서는 코드로 읽어 적재(extractor='code').
-                                 코드 몫이 아닌 문서는 «API 대기»로 세고 표식을 찍지 않는다(API 읽기 = Task C-4).
+                                 코드 몫이 아닌 문서는 --api 일 때만 API 로 읽는다(lib/llm_breakdown.py · 실제 과금 —
+                                 정기 GHA step 만 붙인다). --api 가 없으면 «API 대기»로 세고 표식을 찍지 않는다
+                                 (로컬엔 .env.local 에 키가 있어 인자 없이 부르면 과금되던 자리를 막는다).
                                  코드가 서식을 알아봤는데 0행이면 꼴이 바뀐 것 — 표식을 찍지 않고 경고(조용한 0행 금지).
+                                 API 가 읽고 0행이면 표식을 찍는다(읽었으나 수준 값 없는 문서를 매번 다시 사지 않게).
 
 출력엔 건수·검사 사유만 찍는다(값 목록은 --dry-run 에서도 찍지 않는다 — 결과 JSON 이 따로 있다).
 exit 0 정상 · 1 받기·DB 오류 1건 이상 · 2 인자 오류·파일 형식 오류.
@@ -41,12 +44,13 @@ def _args(argv):
   p.add_argument('--out', help='--dump 출력 폴더')
   p.add_argument('--doc-id', type=int, nargs='+', default=[], help='--company 와 함께 — 이 문서만(처리 표식 무시)')
   p.add_argument('--since-days', type=int, default=SINCE_DAYS)
+  p.add_argument('--api', action='store_true', help='--company 와 함께 — 코드 몫 아닌 문서를 API 로 읽는다(실제 과금)')
   p.add_argument('--dry-run', action='store_true')
   a = p.parse_args(argv)
   if a.dump and not a.out:
     p.error('--dump 는 --out 이 필요하다')
-  if a.doc_id and not a.company:
-    p.error('--doc-id 는 --company 와 함께')
+  if (a.doc_id or a.api) and not a.company:
+    p.error('--doc-id·--api 는 --company 와 함께')
   return a
 
 
@@ -167,12 +171,13 @@ def load_targets(client, company_id: str, doc_ids: list[int], since: str) -> lis
   return [d['id'] for d in sorted(keep, key=lambda d: (d['published_at'], d['id']))]
 
 
-def run_company(client, session, ticker: str, doc_ids: list[int], since_days: int, dry_run: bool) -> int:
+def run_company(client, session, ticker: str, doc_ids: list[int], since_days: int, dry_run: bool,
+                use_api: bool = False) -> int:
   import os
   from datetime import timedelta
 
   from customer_parsers import breakdown
-  from lib import db
+  from lib import db, llm_breakdown, llm_guidance
   got = client.table('companies').select('id').eq('ticker', ticker).execute().data
   if not got:
     print(f'회사 없음: {ticker}')
@@ -183,8 +188,14 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
         + (' · dry-run' if dry_run else ''))
   errors = 0
   totals, skipped = Counter(), Counter()
+  tok_in = tok_out = 0
   now = datetime.now(timezone.utc).isoformat()
   gha = bool(os.environ.get('GITHUB_ACTIONS'))
+  llm = llm_guidance.make_client() if use_api and ids else None
+  if use_api and ids and llm is None:
+    msg = 'ANTHROPIC_API_KEY 없음 — 코드 몫 아닌 문서는 API 대기로 남는다(Secret 확인)'
+    print(f'::warning::{msg}' if gha else msg)
+    errors += 1
   ctx = contextlib.nullcontext(None) if dry_run else db.WriteSession()
   with ctx as ws:
     for doc_id in ids:
@@ -196,7 +207,17 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
         continue
       parsed = breakdown.parse(ticker, doc, content)
       if parsed is None:
-        skipped['api_wait'] += 1   # SHORTCUT: API 읽기(Task C-4) 전까지 표식 없이 남는다 → C-4 가 이 자리를 채운다
+        if llm is None:
+          skipped['api_wait'] += 1   # 표식 없이 남는다 — --api 정기 실행이 집는다
+          continue
+        try:
+          rows, (i, o) = llm_breakdown.read_document(llm, doc, ticker, (summ or {}).get('c_materials') or [], content)
+        except Exception as e:
+          errors += 1
+          print(f'문서 {doc_id} · API 읽기 실패({type(e).__name__})')
+          continue
+        tok_in, tok_out = tok_in + i, tok_out + o
+        errors += not _store(ws, doc, ticker, content, summ, rows, totals, now, f' · API {i}+{o} 토큰')
         continue
       rows, unknown = parsed
       if unknown:
@@ -207,7 +228,8 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
         print(f'::warning::{msg}' if gha else msg)
         continue
       errors += not _store(ws, doc, ticker, content, summ, rows, totals, now, ' · 코드')
-  print(_total_line(totals, dry_run) + ''.join(f' · {k} {v}' for k, v in sorted(skipped.items())))
+  cost = (f' · API 토큰 {tok_in}+{tok_out} · 약 {llm_breakdown.usd(tok_in, tok_out):.2f} USD' if tok_in or tok_out else '')
+  print(_total_line(totals, dry_run) + ''.join(f' · {k} {v}' for k, v in sorted(skipped.items())) + cost)
   return 1 if errors else 0
 
 
@@ -223,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.dump:
     return dump(client, session, args.dump, pathlib.Path(args.out))
   if args.company:
-    return run_company(client, session, args.company, args.doc_id, args.since_days, args.dry_run)
+    return run_company(client, session, args.company, args.doc_id, args.since_days, args.dry_run, args.api)
   return load(client, session, pathlib.Path(args.load), args.dry_run)
 
 
