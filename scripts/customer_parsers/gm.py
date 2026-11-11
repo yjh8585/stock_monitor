@@ -71,7 +71,7 @@ def wants(doc: Doc) -> bool:
 def fetch(session, doc: Doc) -> Content:
   """🔴 모듈 단위 훅 — GM 의 «모든» 문서가 여기로 온다. EDGAR 는 숫자 수집기의 기본 받기 그대로.
   IR(investor.gm.com)은 Akamai 가 requests 를 403 으로 막아 실제 Chrome(ir_lists._chrome_fetch)으로 받는다.
-  실패는 lib 의 분류 예외(403 = HTTPError · Chrome 없음 = ConnectionError · 상한 초과 = lib 의 TooLarge)."""
+  실패는 lib 의 분류 예외(403 = HTTPError · Chrome 없음 = ChromeUnavailable(사유 「Chrome 없음」) · 시간 초과 = Timeout · 상한 초과 = lib 의 TooLarge)."""
   if doc.source != 'ir':
     from collect_customer_numbers import fetch_content   # 늦게 — 그 파일은 __main__ 으로 돈다(예외 클래스는 lib 것만)
     return fetch_content(session, doc)[0]

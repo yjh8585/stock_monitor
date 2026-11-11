@@ -1233,6 +1233,11 @@ _GM_EVENTS_HTML = (
   'General Motors Company Q1 2026 Earnings Conference Call</a>')
 
 
+# 보도 없는 해의 판매 목록 실물 마크업(2026-11-11 · 연도 필터 2015) — 사이트의 «빈 목록» 표식
+_GM_EMPTY_LIST = ('<div class="nir-widget--list "><article class="lfg-no-content nir-widget-article">'
+                  'More news releases are coming soon.</article></div>')
+
+
 def _ok(*bodies):
   return [(200, b.encode('utf-8') if isinstance(b, str) else b) for b in bodies]
 
@@ -1286,8 +1291,39 @@ class GmListTest(unittest.TestCase):
   def test_no_deliveries_is_empty_list_error(self):
     with self.assertRaisesRegex(L.EmptyListError, 'Deliveries'):
       L.parse_gm(_text('gm_quarterly_results.html'), [('<p>첨부 없음</p>', '2026-10-01')])
+    with self.assertRaisesRegex(L.EmptyListError, '상세'):
+      L.parse_gm(_text('gm_quarterly_results.html'), [])
     with self.assertRaisesRegex(L.EmptyListError, '분기 실적'):
       L.parse_gm('<html></html>', [(_text('gm_sales_detail.html'), '2026-10-01')])
+
+  def test_mixed_details_one_missing_stops(self):
+    """수정 1회차(Codex) — 정상 상세 하나 + 첨부 없는 상세 하나면 누락 분기를 숨긴 채 성공하지 않고 그 보도일을 실어 멈춘다."""
+    with self.assertRaisesRegex(L.EmptyListError, r'Deliveries 첨부 0건\(2026-07-01\)'):
+      L.parse_gm(_text('gm_quarterly_results.html'),
+                 [(_text('gm_sales_detail.html'), '2026-10-01'), ('<p>첨부 없음</p>', '2026-07-01')])
+
+  def test_sales_list_empty_only_with_site_marker_for_shown_year(self):
+    """목록 구조가 없으면 멈춘다 · 미국 보도 0건도 멈춘다 · 올해 목록이 사이트의 «빈 목록» 표식을 낼 때만 0건 허용."""
+    with self.assertRaisesRegex(L.EmptyListError, '구조'):
+      L.parse_gm_sales('<html></html>')
+    self.assertEqual(L.parse_gm_sales(_GM_EMPTY_LIST, may_be_empty=True), [])
+    with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+      L.parse_gm_sales(_GM_EMPTY_LIST)  # 지난 해 목록 — 표식이 있어도 멈춘다
+    with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+      L.parse_gm_sales('<div class="nir-widget--list "></div>', may_be_empty=True)  # 표식 없는 빈 목록
+    china_only = _text('gm_sales_list.html').replace('data-title="GM', 'data-title="GM China')
+    with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+      L.parse_gm_sales(china_only, may_be_empty=True)
+
+  def test_fetch_gm_past_year_empty_stops(self):
+    """since 가 걸친 지난 해 목록이 비면(표식이 있어도) 멈춘다 — 그 해 분기가 조용히 빠지지 않게."""
+    def fake(urls):
+      if urls[0] == L.GM_IR_URL:
+        return _ok(_text('gm_quarterly_results.html'), _text('gm_sales_list.html'))
+      return _ok(_GM_EMPTY_LIST)
+    with patch.object(L, '_chrome_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
+      with self.assertRaisesRegex(L.EmptyListError, '미국 판매 목록 0건'):
+        L.fetch_gm(MagicMock(), '2025-10-07')
 
   def test_fetch_gm_stages(self):
     """1회 = 결과 페이지 + 기본 판매 목록 · 2회 = since 가 걸친 다른 해 목록 · 3회 = since 이후 미국 판매 상세."""
@@ -1299,7 +1335,7 @@ class GmListTest(unittest.TestCase):
       if urls[0] == L.GM_IR_URL:
         return _ok(_text('gm_quarterly_results.html'), sales)
       if 'year' in urls[0]:
-        return _ok('<html></html>')  # 2025 목록(이 시험에선 빈 해)
+        return _ok(sales.replace('2026', '2025'))  # 2025 목록 — 보도가 전부 since 앞이라 상세를 받지 않는다
       return _ok(*[_text('gm_sales_detail.html')] * len(urls))
     with patch.object(L, '_chrome_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
       rows = L.fetch_gm(MagicMock(), '2026-06-01')
@@ -1310,7 +1346,7 @@ class GmListTest(unittest.TestCase):
     self.assertTrue([r for r in rows if r['form'] == 'us-deliveries'])
 
   def test_fetch_gm_blocked_and_no_chrome(self):
-    """403 = blocked(수집기 분류 그대로) · Chrome 없음·연결 실패(None) = error."""
+    """403 = blocked(수집기 분류 그대로) · 기동·연결 실패(None) = error · Chrome 없음 = error 「Chrome 없음」."""
     with patch.object(L, '_chrome_fetch', return_value=[(403, b''), (403, b'')]):
       with self.assertRaises(requests.HTTPError) as cm:
         L.fetch_gm(MagicMock(), '2026-06-01')
@@ -1318,7 +1354,11 @@ class GmListTest(unittest.TestCase):
     with patch.object(L, '_chrome_fetch', return_value=[(None, b''), (None, b'')]):
       with self.assertRaises(requests.ConnectionError) as cm:
         L.fetch_gm(MagicMock(), '2026-06-01')
-    self.assertEqual(ccd.failure_status('IR', cm.exception)[0], 'error')
+    self.assertEqual(ccd.failure_status('IR', cm.exception), ('error', 'ConnectionError'))
+    with patch.object(L, 'chrome_path', return_value=None):
+      with self.assertRaises(L.ChromeUnavailable) as cm:
+        L.fetch_gm(MagicMock(), '2026-06-01')
+    self.assertEqual(ccd.failure_status('IR', cm.exception), ('error', 'Chrome 없음'))
 
 
 class GmDatesTest(unittest.TestCase):
@@ -1348,17 +1388,31 @@ class GmDatesTest(unittest.TestCase):
 
   def test_fetch_falls_back_to_previous_call(self):
     """최신 콜 상세에 일정 문구가 아직 없으면 바로 앞 콜의 문구를 쓴다 · 둘 다 없으면 멈춘다."""
-    seq = [_ok(_GM_EVENTS_HTML), _ok('<p>곧 공지</p>', f'<p>{_GM_Q2_SENTENCE}</p>')]
-    with patch.object(L, '_chrome_fetch', side_effect=seq):
+    seq = [_ok(_GM_EVENTS_HTML), _ok('<p>곧 공지</p>'), _ok(f'<p>{_GM_Q2_SENTENCE}</p>')]
+    with patch.object(L, '_chrome_fetch', side_effect=seq) as cf:
       got = L.fetch_gm_dates(MagicMock(), '2026-01-01')
     self.assertEqual([d['period'] for d in got], ['2026-Q3', '2026-FY'])
-    seq = [_ok(_GM_EVENTS_HTML), _ok('<p>x</p>', '<p>y</p>')]
+    self.assertEqual([c.args[0] for c in cf.call_args_list[1:]], [[_GM_Q3_EVENT], [_GM_Q2_EVENT]])
+    seq = [_ok(_GM_EVENTS_HTML), _ok('<p>x</p>'), _ok('<p>y</p>')]
     with patch.object(L, '_chrome_fetch', side_effect=seq):
       with self.assertRaisesRegex(L.EmptyListError, '실적 일정'):
         L.fetch_gm_dates(MagicMock(), '2026-01-01')
 
+  def test_latest_ok_previous_blocked_keeps_latest(self):
+    """수정 1회차(Codex) — 최신 콜에 일정이 있으면 앞 콜 페이지는 받지 않는다(앞 콜이 403 이어도 최신 일정이 산다)."""
+    def fake(urls):
+      if urls == [L.GM_EVENTS]:
+        return _ok(_GM_EVENTS_HTML)
+      if urls == [_GM_Q3_EVENT]:
+        return _ok(_text('gm_event_detail.html'))
+      return [(403, b'')]
+    with patch.object(L, '_chrome_fetch', side_effect=fake) as cf:
+      got = L.fetch_gm_dates(MagicMock(), '2026-01-01')
+    self.assertEqual([d['period'] for d in got], ['2026-FY', '2027-Q1'])
+    self.assertNotIn([_GM_Q2_EVENT], [c.args[0] for c in cf.call_args_list])
+
   def test_fetch_filters_since(self):
-    seq = [_ok(_GM_EVENTS_HTML), _ok(_text('gm_event_detail.html'), '<p>y</p>')]
+    seq = [_ok(_GM_EVENTS_HTML), _ok(_text('gm_event_detail.html'))]
     with patch.object(L, '_chrome_fetch', side_effect=seq):
       got = L.fetch_gm_dates(MagicMock(), '2027-02-01')
     self.assertEqual([d['period'] for d in got], ['2027-Q1'])
@@ -1366,16 +1420,21 @@ class GmDatesTest(unittest.TestCase):
 
 class ChromeFetchTest(unittest.TestCase):
   def test_limit_is_an_argument(self):
-    """상한은 MAX_IR_BYTES 한곳 — JS 에 숫자를 박지 않고 인자로 넘긴다."""
-    self.assertNotIn(str(L.MAX_IR_BYTES), L._CHROME_FETCH_JS)
-    self.assertIn('max', L._CHROME_FETCH_JS)
+    """크기 상한 MAX_IR_BYTES · 시간 상한 CHROME_URL_TIMEOUT_S 한곳 — JS 에 숫자를 박지 않고 인자로 넘긴다."""
+    ms = L.CHROME_URL_TIMEOUT_S * 1000
+    for n in (L.MAX_IR_BYTES, ms, L.CHROME_URL_TIMEOUT_S):
+      self.assertNotIn(str(n), L._CHROME_FETCH_JS)
+    self.assertIn('async ([url, max, ms])', L._CHROME_FETCH_JS)
     self.assertIn('reader.cancel()', L._CHROME_FETCH_JS)
-    self.assertEqual(L.chrome_fetch_args('https://a.example/x'), ['https://a.example/x', L.MAX_IR_BYTES])
+    self.assertIn('setTimeout(() => ctl.abort(), ms)', L._CHROME_FETCH_JS)
+    self.assertIn('signal: ctl.signal', L._CHROME_FETCH_JS)
+    self.assertEqual(L.chrome_fetch_args('https://a.example/x'), ['https://a.example/x', L.MAX_IR_BYTES, ms])
 
   def test_result_decoding(self):
     import base64
     self.assertEqual(L.chrome_result({'status': 200, 'b64': base64.b64encode(b'%PDF-1').decode()}), (200, b'%PDF-1'))
     self.assertEqual(L.chrome_result({'status': 200, 'big': True}), (L.CHROME_TOO_LARGE, b''))
+    self.assertEqual(L.chrome_result({'timeout': True}), (L.CHROME_TIMEOUT, b''))
     self.assertEqual(L.chrome_result(None), (None, b''))
 
   def test_body_raises_known_classes(self):
@@ -1384,18 +1443,86 @@ class ChromeFetchTest(unittest.TestCase):
       L.chrome_body(L.CHROME_TOO_LARGE, b'')
     with self.assertRaises(requests.ConnectionError):
       L.chrome_body(None, b'')
+    with self.assertRaises(requests.Timeout):
+      L.chrome_body(L.CHROME_TIMEOUT, b'')
+    with self.assertRaises(L.ChromeUnavailable):
+      L.chrome_body(L.CHROME_MISSING, b'')
     with self.assertRaises(requests.HTTPError) as cm:
       L.chrome_body(403, b'')
     self.assertEqual(cm.exception.response.status_code, 403)
 
-  def test_no_chrome_gives_none_without_launch(self):
+  def test_no_chrome_gives_marker_without_launch(self):
     with patch.object(L, 'chrome_path', return_value=None), patch('subprocess.Popen') as pop:
-      self.assertEqual(L._chrome_fetch(['https://a.example/1', 'https://a.example/2']), [(None, b''), (None, b'')])
+      self.assertEqual(L._chrome_fetch(['https://a.example/1', 'https://a.example/2']),
+                       [(L.CHROME_MISSING, b''), (L.CHROME_MISSING, b'')])
     pop.assert_not_called()
 
   def test_chrome_path_env_first(self):
     with patch.dict('os.environ', {'CHROME_PATH': '/opt/c/chrome'}):
       self.assertEqual(L.chrome_path(), '/opt/c/chrome')
+
+
+class ChromeCleanupTest(unittest.TestCase):
+  """수정 1회차(Minor) — 실제 Chrome 대신 가짜 프로세스·연결로 정리 경로를 본다: 어느 갈래든 그 프로세스만 끝내고 임시 프로필을 지운다."""
+
+  def _run(self, *, connect_error=None, evaluate=None, wait_timeout=False):
+    import subprocess
+    import tempfile
+    made = []
+    real_mkdtemp = tempfile.mkdtemp
+
+    def mkdtemp(**kw):
+      made.append(real_mkdtemp(**kw))
+      return made[-1]
+    proc = MagicMock()
+    if wait_timeout:
+      proc.wait.side_effect = [subprocess.TimeoutExpired('chrome', 10), 0]
+    browser = MagicMock()
+    browser.contexts = [MagicMock()]
+    page = browser.contexts[0].new_page.return_value
+    page.evaluate.side_effect = evaluate or (lambda js, args: {'status': 200, 'b64': ''})
+    pw = MagicMock()
+    pw.chromium.connect_over_cdp.side_effect = connect_error
+    pw.chromium.connect_over_cdp.return_value = browser
+    sp = MagicMock()
+    sp.return_value.__enter__.return_value = pw
+    with patch.object(L, 'chrome_path', return_value='chrome-fake'), \
+         patch('subprocess.Popen', return_value=proc) as pop, \
+         patch('tempfile.mkdtemp', side_effect=mkdtemp), \
+         patch.object(L.requests, 'get'), \
+         patch('playwright.sync_api.sync_playwright', sp):
+      out = L._chrome_fetch(['https://a.example/1', 'https://a.example/2'])
+    pop.assert_called_once()
+    self.assertEqual(len(made), 1)
+    self.assertFalse(pathlib.Path(made[0]).exists(), '임시 프로필이 남았다')
+    self.assertIn(f'--user-data-dir={made[0]}', pop.call_args.args[0])
+    return out, proc, browser
+
+  def test_normal_run_closes_browser_and_removes_profile(self):
+    out, proc, browser = self._run()
+    self.assertEqual(out, [(200, b''), (200, b'')])
+    browser.new_browser_cdp_session.return_value.send.assert_called_once_with('Browser.close')
+    proc.wait.assert_called()
+    proc.kill.assert_not_called()
+
+  def test_cdp_connect_failure(self):
+    out, proc, _ = self._run(connect_error=RuntimeError('연결 실패'))
+    self.assertEqual(out, [(None, b''), (None, b'')])
+    proc.wait.assert_called()
+
+  def test_body_error_only_that_url(self):
+    def evaluate(js, args):
+      if args[0].endswith('/1'):
+        raise RuntimeError('본문 처리 예외')
+      return {'status': 200, 'b64': ''}
+    out, proc, browser = self._run(evaluate=evaluate)
+    self.assertEqual(out, [(None, b''), (200, b'')])
+    browser.new_browser_cdp_session.return_value.send.assert_called_once_with('Browser.close')
+    proc.wait.assert_called()
+
+  def test_hung_process_is_killed(self):
+    _, proc, _ = self._run(wait_timeout=True)
+    proc.kill.assert_called_once()
 
 
 # ── 수집기 연결(collect_customer_docs.py) ─────────────────────────────────────
@@ -1440,10 +1567,27 @@ class CollectorWiringTest(unittest.TestCase):
   def test_chrome_fetch_exceptions_ride_existing_classification(self):
     """Task 8 — _chrome_fetch 결과를 받는 쪽이 내는 예외가 failure_status 를 고치지 않고 기존 갈래를 탄다."""
     for status, want in ((403, ('blocked', 'IR 접근 차단(HTTP 403)')), (None, ('error', 'ConnectionError')),
-                         (L.CHROME_TOO_LARGE, ('error', 'TooLarge'))):
+                         (L.CHROME_TOO_LARGE, ('error', 'TooLarge')), (L.CHROME_TIMEOUT, ('error', 'Timeout')),
+                         (L.CHROME_MISSING, ('error', 'Chrome 없음'))):
       with self.subTest(status=status), self.assertRaises(Exception) as cm:
         L.chrome_body(status, b'')
       self.assertEqual(ccd.failure_status('IR', cm.exception), want)
+
+  def test_other_reasons_unchanged(self):
+    """수정 1회차 — 「Chrome 없음」 갈래를 더해도 다른 회사의 기존 사유 문구는 그대로다."""
+    resp = requests.Response()
+    resp.status_code = 401
+    resp500 = requests.Response()
+    resp500.status_code = 500
+    cases = ((requests.HTTPError('x', response=resp), 'DART', ('blocked', 'DART 접근 차단(HTTP 401)')),
+             (requests.HTTPError('x', response=resp500), 'EDGAR', ('error', 'HTTPError')),
+             (requests.ConnectionError('호스트 https://a.example/키'), 'IR', ('error', 'ConnectionError')),
+             (requests.Timeout('t'), 'IR', ('error', 'Timeout')),
+             (L.EmptyListError('VW ad-hoc 0건'), 'IR', ('error', 'VW ad-hoc 0건')),
+             (ValueError('내부 문장'), 'IR', ('error', 'ValueError')))
+    for e, label, want in cases:
+      with self.subTest(e=type(e).__name__, label=label):
+        self.assertEqual(ccd.failure_status(label, e), want)
 
   def test_sub_list_empty_reason_reaches_status(self):
     """어댑터 안의 하위 목록 0건도 같은 클래스 — 목록 이름이 상태 사유로 그대로 나간다."""

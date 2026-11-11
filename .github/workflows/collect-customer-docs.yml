@@ -120,7 +120,7 @@ jobs:
           python -c "import sys; from lib.ir_lists import probe_gm; sys.exit(probe_gm())"
 
       # 아래 두 step 은 앞 step 이 실패해도 돈다(!cancelled) — 시험 실패가 수집을, 목록 실패가 이미 쌓인 문서의 숫자를 막지 않게.
-      # GM IR 은 실제 Chrome 으로만 받힌다 — Chrome 이 없으면 GM 행이 「ConnectionError」 error 로 상태 표에 남는다(확인 줄은 실패로 만들지 않는다)
+      # GM IR 은 실제 Chrome 으로만 받힌다 — Chrome 이 없으면 GM 행이 사유 「Chrome 없음」 error 로 상태 표에 남는다(확인 줄은 실패로 만들지 않는다)
       - name: 문서 목록
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: |

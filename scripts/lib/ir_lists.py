@@ -1302,29 +1302,50 @@ def fetch_rivian(session: requests.Session, since: str) -> list[dict]:
 
 _CHROME_WIN_PATHS = (r'C:\Program Files\Google\Chrome\Application\chrome.exe',
                      r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe')
-CHROME_TOO_LARGE = 'too_large'  # _chrome_fetch 결과의 상태 자리 표식 — 받는 쪽이 TooLarge 로 바꾼다(chrome_body)
-# 페이지 안에서 도는 받기. 상한은 인자(max)로 받는다 — MAX_IR_BYTES 를 두 곳에 박지 않는다.
+# _chrome_fetch 결과의 상태 자리 표식 — 받는 쪽(chrome_body)이 기존 실패 분류가 알아듣는 예외로 바꾼다
+CHROME_TOO_LARGE = 'too_large'  # → TooLarge
+CHROME_TIMEOUT = 'timeout'  # → requests.Timeout
+CHROME_MISSING = 'no_chrome'  # → ChromeUnavailable(문장 「Chrome 없음」이 상태 표 사유로 나간다)
+# URL 하나(머리 + 본문 전체)의 시간 상한 — 느리게 흘려보내는 서버에서 page.evaluate 가 안 돌아오면 정리·뒤 수집이 밀린다
+# (워크플로 40분 제한). 50MB PDF 도 넉넉한 값. JS 에는 인자로만 넘긴다(두 곳에 박지 않는다).
+CHROME_URL_TIMEOUT_S = 120
+# 페이지 안에서 도는 받기. 상한(max 바이트 · ms 밀리초)은 인자로 받는다 — 상수를 두 곳에 박지 않는다.
 # Content-Length 가 넘으면 본문을 읽지 않고, 머리가 없으면 읽는 도중 누적이 넘는 순간 reader.cancel() 한다(ir_get 과 같은 규칙).
-_CHROME_FETCH_JS = """async ([url, max]) => {
-  const r = await fetch(url, {credentials: 'include'});
-  const len = Number(r.headers.get('content-length') || 0);
-  if (len > max) { if (r.body) await r.body.cancel(); return {status: r.status, big: true}; }
-  const parts = []; let total = 0;
-  if (r.body) {
-    const reader = r.body.getReader();
-    for (;;) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      total += value.length;
-      if (total > max) { await reader.cancel(); return {status: r.status, big: true}; }
-      parts.push(value);
+# 시간 상한은 AbortController — fetch 와 본문 읽기가 함께 끊긴다.
+_CHROME_FETCH_JS = """async ([url, max, ms]) => {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, {credentials: 'include', signal: ctl.signal});
+    const len = Number(r.headers.get('content-length') || 0);
+    if (len > max) { if (r.body) await r.body.cancel(); return {status: r.status, big: true}; }
+    const parts = []; let total = 0;
+    if (r.body) {
+      const reader = r.body.getReader();
+      for (;;) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > max) { await reader.cancel(); return {status: r.status, big: true}; }
+        parts.push(value);
+      }
     }
+    const buf = new Uint8Array(await new Blob(parts).arrayBuffer());
+    let s = '';
+    for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return {status: r.status, b64: btoa(s)};
+  } catch (e) {
+    if (e && e.name === 'AbortError') return {timeout: true};
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  const buf = new Uint8Array(await new Blob(parts).arrayBuffer());
-  let s = '';
-  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-  return {status: r.status, b64: btoa(s)};
 }"""
+
+
+class ChromeUnavailable(requests.ConnectionError):
+  """Chrome 을 못 찾았다. 문장(「Chrome 없음」)이 상태 표 사유로 그대로 나간다(collect_customer_docs.failure_status).
+  ConnectionError 갈래라 숫자 수집기(fetch_failure_kind)는 일시 실패(retry)로 본다."""
 
 
 def chrome_path() -> str | None:
@@ -1336,28 +1357,35 @@ def chrome_path() -> str | None:
 
 
 def chrome_fetch_args(url: str) -> list:
-  """페이지 안 받기(_CHROME_FETCH_JS)에 넘길 인자 — 상한은 MAX_IR_BYTES 한곳에서."""
-  return [url, MAX_IR_BYTES]
+  """페이지 안 받기(_CHROME_FETCH_JS)에 넘길 인자 — 크기 상한은 MAX_IR_BYTES · 시간 상한은 CHROME_URL_TIMEOUT_S 한곳에서."""
+  return [url, MAX_IR_BYTES, CHROME_URL_TIMEOUT_S * 1000]
 
 
 def chrome_result(res: dict | None) -> tuple[int | str | None, bytes]:
-  """(순수) 페이지 안 받기 결과 → (상태 | CHROME_TOO_LARGE | None, 바이트)."""
+  """(순수) 페이지 안 받기 결과 → (상태 | CHROME_TOO_LARGE | CHROME_TIMEOUT | None, 바이트)."""
   import base64
   if not res:
     return None, b''
   if res.get('big'):
     return CHROME_TOO_LARGE, b''
+  if res.get('timeout'):
+    return CHROME_TIMEOUT, b''
   return res.get('status'), base64.b64decode(res.get('b64') or '')
 
 
 def chrome_body(status: int | str | None, body: bytes) -> bytes:
   """(순수) _chrome_fetch 결과 한 건 → 바이트. 실패는 기존 실패 분류(failure_status·fetch_failure_kind)가 알아듣는 예외로:
-  크기 초과 = TooLarge · 401·403 등 = requests.HTTPError(응답 상태를 단다 → blocked) · None(Chrome 없음·연결 실패) =
-  requests.ConnectionError. 예외 문장에 URL 을 싣지 않는다."""
+  크기 초과 = TooLarge · 시간 초과 = requests.Timeout · Chrome 없음 = ChromeUnavailable · 401·403 등 =
+  requests.HTTPError(응답 상태를 단다 → blocked) · None(기동·CDP 연결 실패) = requests.ConnectionError.
+  예외 문장에 URL 을 싣지 않는다."""
   if status == CHROME_TOO_LARGE:
     raise TooLarge(None)
+  if status == CHROME_TIMEOUT:
+    raise requests.Timeout('Chrome 받기 시간 초과')
+  if status == CHROME_MISSING:
+    raise ChromeUnavailable('Chrome 없음')
   if status is None:
-    raise requests.ConnectionError('Chrome 없음 또는 CDP 연결 실패')
+    raise requests.ConnectionError('Chrome 기동 또는 CDP 연결 실패')
   if status != 200:
     resp = requests.Response()
     resp.status_code = status
@@ -1375,16 +1403,18 @@ def _free_port() -> int:
 def _chrome_fetch(urls: list[str]) -> list[tuple[int | str | None, bytes]]:
   """실제 Chrome 을 headless 로 띄워 첫 URL 로 이동한 뒤 «페이지 안 fetch()»로 각 URL 을 받는다 → [(상태, 바이트)].
 
-  Chrome 을 못 찾거나 연결에 실패하면 받지 못한 URL 은 (None, b'') — 예외 문장은 찍지 않는다.
+  Chrome 을 못 찾으면 전부 (CHROME_MISSING, b'') · 기동·연결에 실패하면 받지 못한 URL 은 (None, b'') — 예외 문장은 찍지 않는다.
   끝나면(예외여도) 브라우저를 닫고(안 닫히면 그 프로세스만 kill) 임시 프로필을 지운다."""
   import os
   import shutil
   import subprocess
   import tempfile
   import time
-  out: list[tuple[int | str | None, bytes]] = [(None, b'')] * len(urls)
   exe = chrome_path()
-  if not exe or not urls:
+  if not exe:
+    return [(CHROME_MISSING, b'')] * len(urls)
+  out: list[tuple[int | str | None, bytes]] = [(None, b'')] * len(urls)
+  if not urls:
     return out
   port, profile = _free_port(), tempfile.mkdtemp(prefix='ir_chrome_')
   args = [exe, '--headless=new', f'--remote-debugging-port={port}', f'--user-agent={BROWSER_UA}',
@@ -1500,11 +1530,18 @@ def gm_sales_year_url(html: str, year: int) -> str:
   return f'{GM_SALES}?{urlencode({_gm_year_select(html)["name"]: year})}'
 
 
-def parse_gm_sales(html: str) -> list[tuple[str, str, str]]:
-  """판매 목록 → 미국 분기 판매 보도 [(제목, 상세 URL, 보도일)]. 중국 판매 보도(제목에 China)는 뺀다.
-  한 해 목록은 비어 있을 수 있다(1월 첫 보도 전) — 0건 판정은 받는 쪽(parse_gm)이 since 범위 전체로 한다."""
+def parse_gm_sales(html: str, *, may_be_empty: bool = False) -> list[tuple[str, str, str]]:
+  """판매 목록(한 해) → 미국 분기 판매 보도 [(제목, 상세 URL, 보도일)]. 중국 판매 보도(제목에 China)는 뺀다.
+
+  미국 보도가 0건이면 멈춘다(EmptyListError). 예외는 하나 — 올해 목록(may_be_empty)이 사이트의 «빈 목록» 표식
+  (`article.lfg-no-content` 「More news releases are coming soon.」 · 2026-11-11 실물: 보도 없는 해의 목록)을 낼 때뿐
+  (1월 첫 판매 보도 전). 지난 해 목록은 분기 보도 4편이 있어야 정상이라 표식이 있어도 멈춘다."""
+  soup = BeautifulSoup(html, 'html.parser')
+  box = soup.select_one('div.nir-widget--list')
+  if box is None:
+    raise EmptyListError('GM 판매 목록 구조 없음')
   out = []
-  for art in BeautifulSoup(html, 'html.parser').find_all('article'):
+  for art in box.find_all('article'):
     title = _nfc(art.get('data-title') or '')
     a = art.select_one('.nir-widget--news--headline a[href]')
     day = art.select_one('.nir-widget--news--date-time')
@@ -1512,6 +1549,8 @@ def parse_gm_sales(html: str) -> list[tuple[str, str, str]]:
       continue
     out.append((title, urljoin(GM_BASE, a['href']),
                 datetime.strptime(' '.join(day.get_text().split()), '%B %d, %Y').date().isoformat()))
+  if not out and not (may_be_empty and box.select_one('article.lfg-no-content')):
+    raise EmptyListError('GM 미국 판매 목록 0건')
   return out
 
 
@@ -1527,9 +1566,17 @@ def parse_gm_deliveries(html: str, day: str) -> dict | None:
 
 
 def parse_gm(results_html: str, deliveries: list[tuple[str, str]]) -> list[dict]:
-  """분기 실적 묶음 + [(미국 판매 상세 HTML, 보도일)] → 행. since 범위 안 판매 상세에 Deliveries 가 하나도 없으면 멈춘다."""
+  """분기 실적 묶음 + [(미국 판매 상세 HTML, 보도일)] → 행.
+  상세 «하나라도» Deliveries 첨부가 없으면 그 보도일을 실어 멈춘다(정상 상세 하나에 섞여 누락 분기가 숨지 않게 ·
+  2026-11-11 실측: 2024 Q4~2026 Q3 미국 판매 상세 8편 모두 첨부가 있다). since 범위에 상세가 0건이어도 멈춘다."""
   rows = parse_gm_results(results_html)
-  return rows + _need('GM 미국 분기 판매 Deliveries', [r for h, day in deliveries if (r := parse_gm_deliveries(h, day))])
+  found = []
+  for h, day in _need('GM 미국 분기 판매 상세', deliveries):
+    row = parse_gm_deliveries(h, day)
+    if row is None:
+      raise EmptyListError(f'GM 미국 판매 상세 Deliveries 첨부 0건({day})')
+    found.append(row)
+  return rows + found
 
 
 def gm_earnings_calls(html: str) -> list[str]:
@@ -1557,7 +1604,7 @@ def parse_gm_dates(html: str, url: str) -> list[dict]:
 
 
 def _gm_pages(urls: list[str]) -> list[str]:
-  # 실패는 chrome_body 가 기존 분류 예외로 바꾼다(403 = blocked · Chrome 없음 = ConnectionError → error)
+  # 실패는 chrome_body 가 기존 분류 예외로 바꾼다(403 = blocked · Chrome 없음 = ChromeUnavailable · 시간 초과 = Timeout)
   return [chrome_body(status, body).decode('utf-8', errors='replace') for status, body in _chrome_fetch(urls)]
 
 
@@ -1566,17 +1613,19 @@ def fetch_gm(session: requests.Session, since: str) -> list[dict]:
   results, sales = _gm_pages([GM_IR_URL, GM_SALES])
   shown = gm_sales_shown_year(sales)
   others = [gm_sales_year_url(sales, y) for y in _years(since) if y != shown]
-  lists = [sales] + (_gm_pages(others) if others else [])
-  items = [it for h in lists for it in parse_gm_sales(h) if it[2] >= since]
+  items = parse_gm_sales(sales, may_be_empty=True)  # 올해 목록만 «빈 목록» 표식을 허용(1월 첫 보도 전)
+  for h in (_gm_pages(others) if others else []):
+    items += parse_gm_sales(h)
+  items = [it for it in items if it[2] >= since]
   details = _gm_pages([url for _, url, _ in items]) if items else []
   return parse_gm(results, [(h, day) for h, (_, _, day) in zip(details, items)])
 
 
 def fetch_gm_dates(session: requests.Session, since: str) -> list[dict]:
-  """최신 실적 콜 상세의 일정 문구. 아직 문구가 없으면(새 콜 공지 직후) 바로 앞 콜 상세의 것을 쓴다."""
-  calls = gm_earnings_calls(_gm_pages([GM_EVENTS])[0])[:2]
-  for html, url in zip(_gm_pages(calls), calls):
-    rows = parse_gm_dates(html, url)
+  """최신 실적 콜 상세의 일정 문구. 아직 문구가 없을 때만(새 콜 공지 직후) 바로 앞 콜 상세를 «따로» 받는다 —
+  함께 받으면 앞 콜 페이지 하나의 실패(403 등)가 최신 일정까지 버린다."""
+  for url in gm_earnings_calls(_gm_pages([GM_EVENTS])[0])[:2]:
+    rows = parse_gm_dates(_gm_pages([url])[0], url)
     if rows:
       return [d for d in rows if d['event_date'] >= since]
   raise EmptyListError('GM 실적 일정 문구 0건')
@@ -1660,7 +1709,7 @@ def probe_gm() -> int:
     print(f'GM IR Playwright: HTTP {codes[-1]}')
   cdp = _chrome_fetch([GM_IR_URL])[0][0]
   codes.append(cdp if isinstance(cdp, int) else None)
-  print(f'GM IR 실제 Chrome(CDP): HTTP {codes[-1]}' + ('' if chrome_path() else ' · Chrome 없음'))
+  print(f'GM IR 실제 Chrome(CDP): HTTP {codes[-1]}' + (' · Chrome 없음' if cdp == CHROME_MISSING else ''))
   status, reason = gm_probe_status(codes)
   print(f'판정: {status}' + (f' · {reason}' if reason else ''))
   return gm_probe_exit(status)

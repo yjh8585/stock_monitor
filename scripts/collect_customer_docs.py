@@ -304,7 +304,7 @@ def require_rows(label: str, rows: list[dict]) -> list[dict]:
 
 def failure_status(label: str, e: Exception) -> tuple[str, str]:
   """예외 → (status, reason). reason 은 화면에 그대로 나가므로 예외 문장(URL·키)을 싣지 않는다."""
-  if isinstance(e, EmptyListError):
+  if isinstance(e, (EmptyListError, ir_lists.ChromeUnavailable)):  # 문장이 곧 사유(「Chrome 없음」 · Task 8 수정 1회차)
     return 'error', str(e)
   code = getattr(getattr(e, 'response', None), 'status_code', None)
   if isinstance(e, requests.HTTPError) and code in ir_lists.BLOCKED_HTTP:
