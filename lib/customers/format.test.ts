@@ -366,5 +366,7 @@ describe('라벨', () => {
     expect(volumeSeriesLabel('x', 'y')).toBe('x · y');
     // GM IR 미국 분기 인도(Task 8) — 'total' 이면 전 세계 합계로 읽혀 따로 둔 키
     expect(volumeSeriesLabel('deliveries', 'us')).toBe('인도 · 미국');
+    // 폭스바겐 인도 표의 China 행(Task 13)
+    expect(volumeSeriesLabel('deliveries', 'china')).toBe('인도 · 중국');
   });
 });

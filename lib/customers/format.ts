@@ -343,6 +343,7 @@ const VOLUME_REGION: Record<string, string> = {
   special: '특수',
   vietnam: '베트남',
   us: '미국',
+  china: '중국',
 };
 
 /** 회사 발표 물량 계열 이름 — region 'total' 은 지표 이름만. */

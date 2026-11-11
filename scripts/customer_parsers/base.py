@@ -154,6 +154,8 @@ METRICS = (
   # Task 9 — 지표 밖 연간 전망: 조정 전 희석 EPS(per_share) · 자동차 부문 영업현금흐름 · 특수항목 총액 · 특수항목 조정 영업이익률.
   # 각각 독립 지표라 화면 METRIC_FAMILY(같은 지표의 다른 이름 묶음)에 넣지 않는다
   'eps_diluted', 'automotive_operating_cash_flow', 'special_items', 'operating_margin_adjusted',
+  # Task 13 — 폭스바겐 중국 지분법 합작사의 영업 결과 몫(연결 실적 밖 · 브랜드 그룹 표 각주)
+  'china_jv_operating_result',
   'other')
 VOLUME_METRICS = ('shipments', 'deliveries', 'production', 'wholesale', 'sales')   # DB CHECK 와 같음
 UNITS = ('million', 'billion', 'trillion', 'per_share', 'percent', 'units', 'text')

@@ -392,6 +392,7 @@ _METRIC_WORDS = {k: re.compile(p, re.I) for k, p in {
   'eps_diluted': r'\bEPS\b|earnings\s+per\s+share|주당',
   'automotive_operating_cash_flow': r'operating\s+cash\s*flow|cash\s+flows?\s+from\s+operating',
   'special_items': r'special\s+items',
+  'china_jv_operating_result': r'operating\s+result',   # Task 13 — 각주 원문 'share of the operating result'
   'operating_margin_adjusted': r'return\s+on\s+sales|operating\s+(?:income\s+|profit\s+)?margin|영업\s*이익\s*률',
 }.items()}
 MISMATCH_PERCENT = 'percent_on_non_ratio'
