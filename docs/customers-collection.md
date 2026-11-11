@@ -17,6 +17,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 2. **내용** `scripts/collect_customer_numbers.py` — `pending` 문서를 오래된 것부터: 자가 시험 → 내용 1회 받기 → 회사 파서 → (`llm_wants` 칸만) LLM → 어휘·기간 거르기 → 인용·숫자 대조 → 적재 → 가이던스 방향 재계산 → 상태.
 3. **화면** `lib/customers/`(`source.ts` 서버 조회 · `ir.ts`·`earnings.ts`·`volume.ts` 순수 계산) → `components/customers/`. **`verified=true` 행만** 나간다. 해외 실적은 `pickCustomerEarnings` 가 칸마다 출처를 고른다(아래 「실적 화면 규칙」).
 4. **정기 실행** GHA `collect-customer-docs.yml`(평일 1회 · 회사별 matrix job · 목록 → 숫자 순서). 2026-11-10 사용자 승인으로 커밋. 첫 실행 전 GitHub Secret `SEC_USER_AGENT`(연락처 있는 UA) 등록. 종료 코드 규약 = 파일 머리 주석 · `docs/commands.md`.
+   **비용**(2026-11-11 실측 · Task 12): 러너는 공개 레포라 0원 · 돈이 드는 곳은 숫자 수집기의 LLM(`llm_guidance.extract` 한곳 · 새 문서 중 `llm_wants` 만)뿐이다. 32회 실측 = 호출당 입력 3천~5.2만 · 출력 9~1.4천 토큰 · 평균 약 $0.03. LLM 이 읽은 문서는 2년치 44건(연 약 22건) → **연 약 $0.6**(재시도 3회 상한을 다 써도 약 $2 · 입력 12만 자·출력 16,000 상한을 매번 채우는 이론 최댓값 약 $20). 새 문서가 없는 날은 호출 0.
 
 ## 표 7개 — 전부 사외비
 
@@ -77,6 +78,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 - 🔴 **LLM 가이던스 행의 지표 키는 원문 낱말과 맞아야 verified** — 현대 CID 에서 LLM 이 「총주주환원율 35%」를 `free_cash_flow` 로 실어 대조를 통과한 실사고(2026-11-11). `llm_guidance.metric_mismatch` 가 (가) 비율 지표가 아닌 키에 `percent` (나) 키 낱말(`_METRIC_WORDS`)이 없음을 본다 — 낱말은 **quote 를 먼저**(각주 `(3)` 은 지우고) 보고, quote 가 숫자·단위뿐인 표 칸일 때만 라벨을 본다. 걸린 행은 버리지 않고 `verified=False` + note `metric_mismatch:<사유>`(문서 note 「LLM 거름 지표 불일치 N」). 낱말 규칙이 없는 키는 `metric_unverifiable`(확인 불가 = 미검증) — 자가 시험이 `METRICS` 전부에 규칙이 있는지 보므로 **새 지표 키를 넣으면 `_METRIC_WORDS` 도 한 줄** 더한다. 값 행이 «전부» LLM 행이고 그 전부가 지표 불일치인 문서는 같은 원문을 다시 물어도 무익해 **재시도 없이 failed**(note 맨 앞 「LLM 행 지표 불일치뿐 — 재시도 안 함」) · 인용 대조 실패가 하나라도 섞이면 지금처럼 재시도(상한 3) · 검증된 코드 값 행이 하나라도 있으면 문서는 parsed(exit 0)이고 불일치 LLM 행만 미검증으로 남는다.
 - 🔴 **GM 장부상 4지표의 «전망 대조표»는 머리 연도가 맞아야 읽는다** — 머리 `Year Ending December 31, <연도>`(실적 대조표는 `Years Ended` 라 안 걸린다) · 값은 `Updated` 칸. 전망 표가 있으면 그 연도와 같은 대조표만, 전망 표가 없는 판(「guidance is unchanged」)은 **발표 연도와 같은 대조표**에서 새 4지표만(필수 3지표는 대조표에서 읽지 않는다). 지난해 표뿐 = 0행(실패 아님) · 대조표 연도가 발표 연도보다 뒤뿐이거나 연도를 못 읽음(`TBD`) = 문서 failed.
 - **LLM 안 돈 문서 찾기** — `parse_note like 'LLM 대기%'`(키 없음·`--no-llm`·재시도 대기 — 전부 `pending` 이라 다음 실행이 다시 집는다). 코드 문구가 빠져 LLM 이 메운 문서 = `parse_note like '%코드 문구 미스%'`. 서식 미인식 = `parse_note = '서식 미인식'`.
+- ⚠️ **`--reparse` 한 문서가 LLM 은 돌았는데 parsed 가 아니면(`not_target`·`failed`) 옛 가이던스 행이 남는다** — 선삭제는 싣기(`_store`)에서만 돈다. 정기 실행은 새 문서뿐이라 해당 없음. 2026-11-11 현대 1740 이 이 꼴로 옛 `free_cash_flow` 행(345)을 남겨 손으로 지웠다 → 다시 처리 뒤 그 문서 행 수를 확인한다.
 
 ### `scripts/customer_parsers/`
 
@@ -94,6 +96,8 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 ## 수집 함정 (2026-11-09~10 실측)
 
 - **VW 실적 표의 퍼센트 칸이 독일식 소수점이다**(반기 판 `–6,3` · 값 칸에 `–`). 숫자만 세면 열이 밀리고 `6,3` 을 63 으로 읽는다 → 숫자를 세지 않고 «칸 위치»로 읽는다.
+- **포르쉐 2024~2025 상반기 보도는 서식이 다르다**(2026-11-11 2년 백필 · `6ac2060`) — 매출 `Turnover` · 인도 `Deliveries` · 대수에 독일식 천 단위 점(`71.470`). 소수로 읽으면 71 대가 된다 → 대수는 천 단위 꼴만 받고(`porsche._units`) 소수 꼴은 failed. 대조기는 1천 배수를 허용해 `71.470` 인용이 71,470 을 덮는다.
+- **기아 IR 목록이 죽은 링크를 건다**(2026-11-11) — 2025 CEO Investor Day 국문 발표·녹취 PDF 가 404. 목록에 다시 떠도 `--close` 로 닫혀 있다(2408·2409).
 - **VW 인도는 실적 표가 천 대 반올림(1,885) · 인도 보도자료는 대 단위(1,885,300)** 다. 실적 표 값을 인도 칸에 넣으면 같은 분기가 두 값으로 부딪친다 → 인도는 인도 보도자료만(실적 표 인도 행은 MUST_MISS). 판매·생산은 천 대 단위 발표라 정의 문구에 단위를 적는다.
 - **스텔란티스 EDGAR 출하 보도자료의 지역 표는 그림(jpg)** 이라 글로 0행이다 → 분기 «합계»는 실적 보도자료 표에서, 북미는 기존 IR 수집기(`collect_stellantis_shipments_ir.py`)에서. FY2025 표 머리는 `units million` 으로 잘못 적혀 있어 값을 천 대로 검산해 읽었다.
 - **GM IR(`investor.gm.com`)은 Akamai 차단** — 로컬 curl·Playwright·WebFetch 전부 403. 실제 Chrome `--headless=new` + 브라우저 UA + 페이지 안 `fetch`(CDP)로만 열린다(2026-11-11 이 PC 전부 200 · 리눅스에선 `--no-sandbox`). 🔴 **GHA 러너에서 통하는지는 미확인** — 푸시 뒤 `workflow_dispatch` 의 `probe_gm_ir` 로 러너 결과(`google-chrome --version` · requests/Playwright/CDP 각 HTTP)를 본다. 막히면 D1 의 «사용자 PC» 갈래(PC 정기 실행은 결과를 본 뒤 정한다). 매일 실행에서 실패하면 GM `ir_list` 상태가 `blocked`(「IR 접근 차단(HTTP 403)」) 또는 `error`(「Chrome 없음」 · 기동·연결 실패는 `ConnectionError`)로 화면에 뜬다. stellantis.com 도 curl 403 · Playwright 는 통과.
