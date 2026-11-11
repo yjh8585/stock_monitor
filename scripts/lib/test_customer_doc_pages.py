@@ -231,6 +231,49 @@ class RetryPages(unittest.TestCase):
     self.assertEqual((res['fixed'], res['still'], ws.writes), (0, 1, []))
 
 
+class Recheck(unittest.TestCase):
+  """--recheck — 검사 실패 행의 저장된 요약을 고친 검사기로 다시 검사(API 호출 0)."""
+
+  def setUp(self):
+    self.content = Content('', [], _pdf(P1, P2))
+    self.uploads = []
+    # 검사 실패 행은 캡처를 안 해 pages 에 key 가 없다
+    self.summary = {'doc_id': 11, 'company_id': 'c-1', 'status': 'check_failed', 'source_sha': 'sha',
+                    **{k: GOOD[k] for k in ('lines', 'importance', 'importance_reason', 'evidence', 'c_materials')},
+                    'pages': [{'page': 2, 'caption': '지역별 인도 표'}], 'check_note': '숫자 원문 없음: 옛 지적'}
+
+  def _up(self, key, png):
+    self.uploads.append(key)
+
+  def test_pass_sets_ok_and_captures(self):
+    ws = _WS()
+    res = scd.recheck_doc(self.summary, self.content, dry_run=False, ws=ws, uploader=self._up)
+    self.assertEqual((res['outcome'], self.uploads), ('ok', ['c-1/11/p2.png']))
+    name, row, kind, where = ws.writes[0]
+    self.assertEqual((name, kind, where), ('customer_doc_summaries', 'update', ('doc_id', 11)))
+    self.assertEqual(row['status'], 'ok')
+    self.assertEqual(row['pages'], [{'page': 2, 'caption': '지역별 인도 표', 'key': 'c-1/11/p2.png'}])
+    self.assertIsNone(row['check_note'])                        # 옛 지적은 지운다
+    self.assertTrue(row['updated_at'])
+    for kept in ('prompt_version', 'model', 'lines', 'input_tokens'):   # 요약 본문·판은 그대로
+      self.assertNotIn(kept, row)
+
+  def test_still_failing_updates_note_only(self):
+    ws = _WS()
+    res = scd.recheck_doc({**self.summary, 'lines': BAD['lines']}, self.content, dry_run=False, ws=ws,
+                          uploader=self._up)
+    self.assertEqual((res['outcome'], self.uploads), ('check_failed', []))
+    _, row, kind, _ = ws.writes[0]
+    self.assertEqual((kind, list(row)), ('update', ['check_note']))
+    self.assertIn('숫자 원문 없음', row['check_note'])
+    self.assertNotIn('옛 지적', row['check_note'])
+
+  def test_dry_run_writes_nothing(self):
+    ws = _WS()
+    res = scd.recheck_doc(self.summary, self.content, dry_run=True, ws=ws, uploader=self._up)
+    self.assertEqual((res['outcome'], self.uploads, ws.writes), ('ok', [], []))
+
+
 class DocContentOrder(unittest.TestCase):
   DOC = SimpleNamespace(source='ir', url='https://example.com/a.pdf')
 
