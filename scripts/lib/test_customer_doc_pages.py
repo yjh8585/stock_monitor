@@ -182,5 +182,24 @@ class DocContentOrder(unittest.TestCase):
     f.assert_called_once()
 
 
+class FetchFailureKind(unittest.TestCase):
+  """받기 실패 갈래 — 401·403·404·크기 초과는 경고(exit 0) · 그 밖은 오류(exit 1)."""
+
+  @staticmethod
+  def _http(code):
+    import requests
+    return requests.HTTPError(response=SimpleNamespace(status_code=code))
+
+  def test_warning_kinds(self):
+    from lib.ir_lists import TooLarge
+    for e in (self._http(401), self._http(403), self._http(404), TooLarge(60 * 1024 * 1024)):
+      self.assertTrue(scd.fetch_failure_is_warning(e), repr(e))
+
+  def test_error_kinds(self):
+    import requests
+    for e in (self._http(500), self._http(429), requests.ConnectionError(), ValueError('PDF 깨짐')):
+      self.assertFalse(scd.fetch_failure_is_warning(e), repr(e))
+
+
 if __name__ == '__main__':
   unittest.main()

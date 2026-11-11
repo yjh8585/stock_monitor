@@ -1,7 +1,7 @@
 """고객사 뉴스 → 회사별 주간 한국어 3~5줄 요약 + 대표 링크 2~3개(사외비 표 customer_news_weekly).
 
 순서: 자가 시험(exit 2) → 회사(collect_customer_docs.targets() ∩ customer_documents 에 문서가 있는 회사) → 주(KST 월~일 ·
-완결 주만 · 행 있으면 건너뜀) → 그 주 news 최대 60건 → 0건이면 status='empty' 만 저장(호출 없음) → API 호출·검사
+완결 주만 · 행 있으면 건너뜀) → 그 주 news 최대 150건(최신순) → 0건이면 status='empty' 만 저장(호출 없음) → API 호출·검사
 (lib.customer_summary_check.check_news)·지적 있으면 1회 재요청 → 링크 = 고른 기사 {news_id, title, url, source}.
 
 exit 0 정상(검사 실패·empty 포함) · 1 API 오류 1건 이상 / API 키 없음(대상 주가 있을 때) · 2 자가 시험 실패·인자 오류·회사 없음
@@ -19,7 +19,7 @@ import sys
 from datetime import date, datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
-MAX_ITEMS = 60
+MAX_ITEMS = 150   # 큰 회사는 60건이면 그 주 앞쪽이 빠졌다(2026-11-12 기아 실측) · 입력이 늘어도 주당 수 센트
 
 
 # ── 주 계산(순수) ────────────────────────────────────────────────────────────

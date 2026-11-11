@@ -119,5 +119,41 @@ class SummarizeWeek(unittest.TestCase):
     self.assertEqual(ws.writes[0][1]['input_tokens'], 1000)
 
 
+class _NewsQuery:
+  """news 조회 사슬을 받아 limit 값만 기록하는 가짜 클라이언트."""
+  def __init__(self, rows):
+    self.rows, self.limit_n = rows, None
+
+  def table(self, _name):
+    return self
+
+  def select(self, *_a):
+    return self
+
+  def eq(self, *_a):
+    return self
+
+  gte = lt = eq
+
+  def order(self, *_a, **_kw):
+    return self
+
+  def limit(self, n):
+    self.limit_n = n
+    return self
+
+  def execute(self):
+    return SimpleNamespace(data=list(self.rows))
+
+
+class LoadNews(unittest.TestCase):
+  def test_limit_150_and_time_order(self):
+    # 큰 회사는 한 주 기사가 60건을 넘어 그 주 앞쪽이 빠졌다(2026-11-12) — 상한 150
+    q = _NewsQuery(list(reversed(NEWS)))
+    rows = scn.load_news(q, 'c-1', MON)
+    self.assertEqual((scn.MAX_ITEMS, q.limit_n), (150, 150))
+    self.assertEqual([r['id'] for r in rows], ['uuid-a', 'uuid-b', 'uuid-c'])
+
+
 if __name__ == '__main__':
   unittest.main()

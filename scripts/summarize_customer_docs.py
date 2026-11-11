@@ -6,7 +6,10 @@ API 호출(구조화 출력) → 검사(lib.customer_summary_check) → 지적 �
 ok·PDF·쪽 있으면 렌더·업로드 → upsert(doc_id).
 
 exit 0 정상(검사 실패 check_failed · 글이 짧아 건너뜀 포함 — 저장 행·로그에 남는다)
-     1 받기 실패·API 오류가 1건 이상(그 문서는 행이 안 생겨 다음 실행이 다시 집는다) · API 키 없음(대상 문서가 있을 때)
+       · 원문 받기 «경고»(HTTP 401·403 접근 차단 · 404 없음 · 크기 초과) 포함 — GHA 에선 ::warning:: 으로 노랗게 뜬다
+         (수집기 collect_customer_numbers 의 401·403 꼴 · 행이 안 생겨 14일 창 안에서 다음 실행이 다시 집는다)
+     1 API 오류·DB 오류(요약·저장 실패) 1건 이상 · 그 밖 받기 실패(5xx·연결·시간 초과·형식 오류) 1건 이상 ·
+       API 키 없음(대상 문서가 있을 때)
      2 자가 시험 실패 · 인자 오류 · 회사 없음
 사용: summarize_customer_docs.py [--company TICKER] [--doc-id ID ...] [--since-days 14] [--backfill] [--limit N] [--dry-run]
 
@@ -37,6 +40,7 @@ DOC_COLS = 'id,company_id,source,source_id,doc_type,form,items,title,url,publish
 DEFAULT_SINCE_DAYS, BACKFILL_DAYS = 14, 365
 _IN_CHUNK = 100
 _NOTE_MAX = 500
+_FETCH_WARN_HTTP = (401, 403, 404)   # 받기 실패 중 경고(exit 0)로 셀 HTTP 상태
 
 
 def usd(in_tok: int, out_tok: int) -> float:
@@ -78,6 +82,14 @@ def ask(llm, system: str, schema: dict, user: str, check) -> dict:
 
 def now_iso() -> str:
   return datetime.now(timezone.utc).isoformat()
+
+
+def fetch_failure_is_warning(e: Exception) -> bool:
+  """원문 받기 실패 중 경고(exit 0)로 셀 것 — 접근 차단 401·403 · 없음 404 · 크기 초과(TooLarge).
+  그 밖(5xx·연결·시간 초과·형식 오류)은 오류(exit 1) — 수집기(collect_customer_numbers.fetch_failure_kind)의 차단 꼴."""
+  from collect_customer_numbers import http_status
+  from lib.ir_lists import TooLarge
+  return isinstance(e, TooLarge) or http_status(e) in _FETCH_WARN_HTTP
 
 
 # ── 원문 → 요약할 글 ─────────────────────────────────────────────────────────
@@ -207,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
   import requests
 
   import customer_parsers
-  from collect_customer_numbers import _to_doc, doc_content
+  from collect_customer_numbers import _to_doc, doc_content, http_status
   from lib import db, llm_guidance
 
   client = db.get_client()
@@ -235,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
   session = requests.Session()
-  counts = {'ok': 0, 'check_failed': 0, 'skipped': 0, 'error': 0}
+  counts = {'ok': 0, 'check_failed': 0, 'skipped': 0, 'fetch_warn': 0, 'error': 0}
   tok_in = tok_out = 0
   ctx = contextlib.nullcontext(None) if args.dry_run else db.WriteSession()
   with ctx as ws:
@@ -245,8 +257,14 @@ def main(argv: list[str] | None = None) -> int:
       try:
         content, sha = doc_content(customer_parsers.module_for(ticker), session, _to_doc(r, ticker))
       except Exception as e:
-        counts['error'] += 1
-        print(f'{label} · 받기 실패({type(e).__name__})')
+        code = http_status(e)
+        what = f'{type(e).__name__}' + (f' HTTP {code}' if code else '')   # 예외 문장엔 URL·키가 실릴 수 있다
+        if fetch_failure_is_warning(e):
+          counts['fetch_warn'] += 1
+          print(f'{label} · 받기 실패({what}) — 경고')
+        else:
+          counts['error'] += 1
+          print(f'{label} · 받기 실패({what})')
         continue
       try:
         res = summarize_doc(llm, r, name, content, sha, dry_run=args.dry_run, ws=ws)
@@ -275,8 +293,10 @@ def main(argv: list[str] | None = None) -> int:
         if row['check_note']:
           print(f'    검사: {row["check_note"]}')
   print(f'처리 {sum(counts.values())} · ok {counts["ok"]} · 검사 실패 {counts["check_failed"]} · 건너뜀 '
-        f'{counts["skipped"]} · 오류 {counts["error"]} · 토큰 입력 {tok_in:,} 출력 {tok_out:,} · '
-        f'추정 {usd(tok_in, tok_out):.2f} USD ({MODEL})')
+        f'{counts["skipped"]} · 받기 경고 {counts["fetch_warn"]} · 오류 {counts["error"]} · 토큰 입력 {tok_in:,} '
+        f'출력 {tok_out:,} · 추정 {usd(tok_in, tok_out):.2f} USD ({MODEL})')
+  if counts['fetch_warn'] and os.environ.get('GITHUB_ACTIONS'):
+    print(f'::warning::문서 {counts["fetch_warn"]}건 원문 받기 실패(HTTP 401·403·404·크기 초과) — 요약 건너뜀')
   return 1 if counts['error'] else 0
 
 
