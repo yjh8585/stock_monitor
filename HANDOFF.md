@@ -8,7 +8,31 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-11, **고객사 IR 확장 계획 전부 끝 — Task 1~13 · 최종 검토 · 2년 백필 · 푸시 완료**)
+## 최신 상태 · 재개 지점 (2026-11-12 새벽, **고객사 페이지 수정 회차 B(문서·뉴스 요약) 끝 — 소급 완료 · GHA 승인 대기 · 미푸시 16커밋**)
+
+> 이 세션의 관통 주제: 계획서 `docs/plans/2026-11-11-customers-page-revisions.md` 의 B 절(B1~B9 확정 → B-1~B-9 작업). 구현은 API 헤드리스(오퍼스 5.5 · effort high · API 키 과금 — 사용자 지시 「사용량 없으니깐 api 활용하고 나 잘거니까 쭉 진행해」), 검토는 Codex 2회, 메인은 중계·검산·직접 수정 1건.
+
+**결과**: `fd53521`(표 2·비공개 버킷) · `ad9bfeb`(지시서·검사기) · `e84d694`(문서 요약기·쪽 캡처) · `b83261a`(뉴스 주간 요약기) · `e547809`(받기 경고 갈래) · `1a33236`(캡처 인증 프록시) · `42c98e3`(조회·캐시 태그) · `cc71c83`(화면 3곳) · 수정 회차 `ec77e65`·`d0519fe`·`b8125d4`·`9029d25`·`45424dc`·`d784d36`·`afd59ec` · 문서 `e6d9b98`.
+
+**🔴 재개 지점**:
+
+1. **B-5 GHA 승인** — 워크플로 파일은 훅이 막는다. AskUserQuestion «질문 본문»에 `.github/workflows/collect-customer-docs.yml`·`.github/workflows/summarize-customer-news.yml` 를 적어 승인받는다. 명세 = 계획서 Task B-5(초안이 세션 scratchpad `b5_gha_draft/` 에 있었으나 세션이 끝나면 없어진다 → 명세대로 다시 쓴다). 승인 뒤 Architecture §10 · `docs/customers-collection.md` 「요약(B) — 남은 것」 첫 줄 · 흐름 5 의 「승인 대기」 문구를 고친다.
+2. **푸시 여부를 묻는다** — 미푸시 16커밋(전부 B). 푸시하면 Vercel 배포 · 프리렌더 timeout 이 나면 `npx vercel redeploy` 로 풀린 적이 있다.
+3. **C 묶음**(지역별·차종별·점유율 수집)은 grill-me 로 시작 — 출발점 = 계획서 C 절의 「C 재료」 표.
+
+**사용자 결정 (2026-11-11 밤 · 결정이행 반영)**: 뉴스 소급 = 남은 완결 주(약 9~10주)만 · 보존 연장 안 함 / 추정 50달러 이하면 묻지 않고 소급 / effort high.
+
+**소급 실측 (재조사 금지)** — 문서 ok 176 · 검사 실패 1 · 쪽 key 누락 0 / 뉴스 ok 82 · 검사 실패 1(VW 2026-10-19 주) · empty 5(포르쉐 — 뉴스 60일 17건뿐) · 비용 약 25 USD(+실측 약 1). 검사기 오탐 17건은 고친 뒤 `--recheck`(API 0)로 16건 살렸다. 리비안 주주서한 5건은 50MB 받기 상한으로 요약 없음. 함정 4건 = `docs/customers-collection.md` 「요약(B) 함정」.
+
+**🔴 이번에 배운 것**:
+
+- `doc_text.Content.tables` 는 세 겹 — 표 없는 PDF 로만 시험하면 안 걸린다. 비용 실측(진짜 원문 여러 종류)에서 처음 드러났다.
+- Architecture.md 가 상한을 넘었다(153KB / 151KB) — 새 표 설명은 도메인 문서로 보내고 Architecture 엔 한 줄 + 링크(고객사 표 7종이 이미 그 꼴이었다).
+- 파일 이름에 `*` 를 넣은 명령(`…revisions*.md`)은 계획서 훅이 «새 계획서»로 오인해 막는다 — 파일을 하나씩 적는다.
+
+**검증**: Python 시험 284 통과 · `npm run check-all` exit 0 · `verify_revalidate_tags.py` exit 0 · `verify_docs.py` 오류 0.
+
+## 이전 상태 · 재개 지점 (2026-11-11, **고객사 IR 확장 계획 전부 끝 — Task 1~13 · 최종 검토 · 2년 백필 · 푸시 완료**)
 
 > 이 세션의 관통 주제: IR 확장 계획서(`docs/plans/2026-11-10-customers-ir-expansion.md`)의 Task 9·10·13·11 → 최종 검토(Codex) → Task 12(2년 백필·다시 처리·화면 확인)를 끝냈다. 도중에 사용자 지시 「이제 더이상 api 쓰지말고 직접 해」로 **구현은 메인 직접 · 검토는 Codex** 로 돌아왔다.
 
@@ -228,26 +252,3 @@
 **재개 지점**: 끝났다. 남은 것은 별도 세션의 JBL 중복 행 정리뿐. 다음 분기(2027-01)에 Stellantis 이름표가 또 바뀌면 같은 처방(gotchas-data-collection 「판매」 줄).
 
 **검증**: `npm run check-all` EXIT 0(시험 535) · `test_stellantis_na_parsing.py` 25 passed · `verify_financials_sanity.py` 위반 0 · `verify_fnguide.py` 로컬 36/36 · DB 2026-Q3 29행(회사 합계 324,277 = 원문) · 야스카와 annual 5행.
-
-## 이전 상태 · 재개 지점 (2026-10-31, **「기타 > 경영표준」 신설 — 그룹웨어 경영표준 종합 보고서 14편(리포트 149~162) 게시**)
-
-> 이 세션의 관통 주제: 그룹웨어 경영표준 514건을 「분야별 지식노트 19편 → 회사 운영체계 보고서 12장+부록 2」 두 단계로 정리했다. 원고 → 검사기 → 검토 패널 6명(지적 약 160건) → 장별 수정자 6명이 원문 대조로 반영·기각 → 장 사이 넘김을 메인이 중계했다. Codex 는 전 장이 사외비라 원고 대조에 쓰지 않았고 코드 diff 검토에만 썼다.
-
-**결과**: `/etc/mgmt-standard`(장 목차 · 사외비 — admin·holdings·mobility 만) · `/etc/mgmt-standard/[id]`(`PostDetail` 공용). posts 149~162, category '경영표준', 전부 `is_confidential=true`, `source_published_at=2026-10-30T00:00:00Z`, `source_url`=그룹웨어 경영표준 화면. `/reports` 목록·카테고리·출처 드롭다운에서 감춘다(`HIDDEN_CATEGORIES`). 지식노트 19편 = 볼트 `20_경영/사내표준`(지식 폴더 아님 — Voyage 색인 대상 밖).
-
-**사용자 지시**: 원문 = `docs/참고/_최초지시_경영표준_2026-10-30.md`(gitignore) · 확정 결정 8개 = `docs/plans/2026-10-30-mgmt-standard.md`(이행 = `_결정이행.md`).
-
-**비자명한 사실 (재조사 금지)**:
-
-- 원고·도구는 레포 안 gitignore 폴더 `참고/경영표준/`(보고서/·도구/·묶음/·원본/) — 커밋되지 않는다. 다시 게시 = `npx tsx scripts/_mgmt_standard_publish.ts [--dry-run] 00 01 … 11 A B`(gitignore `scripts/_*.ts` · 같은 제목이면 UPDATE). 게시 전 검사 = `verify_report.py`·`verify_translationese.py`·`verify_report_krw.py`·`node 참고/경영표준/도구/verify_mermaid.mjs`·`verify_docnos.py`.
-- 검사기 둘(`verify_mermaid.mjs`·`verify_report.py`)은 CRLF 원고를 실패로 친다 — 파이썬 `write_text` 가 07장을 CRLF 로 바꿔 Mermaid 3개가 조용히 빠진 사고 뒤 넣었다(전역 gotchas §5).
-- 원문끼리 다른 값은 판정하지 않고 각 장 「확인이 필요한 곳」에 나란히 적었다(모으는 장: EPC·초기유동관리 종료·PQC·사내 R@R = 10장, PM 선정 = 07장). 경영검토 주기 = MS-A10 「정기적으로」·QM-A9.0 「최소한 매년」.
-- 07장 제목을 「일감에서 수금까지」로 바꿨다(장 경계는 그대로 · 제1원리 검토 지적). 장 번호는 사용자 결정 4로 고정.
-- 처리표(반영 177 · 기각 10 · 메인 결정 5 · 넘김 6 · 미결 0)·검토 원본은 세션 scratchpad 에만 있다 — 다음 세션엔 없다.
-- `revalidateTag(t, 'max')` 라 게시 직후 첫 요청은 옛 캐시 — 두 번 열어 확인한다.
-- 지식노트 07·11편에 고객사 이름이 남아 있다(노트 규칙엔 이름 금지가 없고 개인 볼트 사외비라 그대로 둠 — 사용자에게 알림, 답 없음).
-- 커밋 전 diff 검토(오퍼스·Codex 따로) — Critical·Important 0. 기각한 Minor(휴머노이드 상세와 같은 기존 방식이라 공용 컴포넌트를 건드려 세 화면을 함께 바꾸지 않았다): ① 상세가 카테고리를 확인하지 않는다(권한자가 남의 글 id 를 쳐도 이 경로에 보인다 — 권한 상승은 아님) ② `PostDeleteButton` 이 삭제 뒤 `/reports` 로 간다 ③ 사이드바 하위 메뉴 활성 표시가 정확 일치라 상세에서 꺼진다 ④ `/etc/mgmt-standard` 경로 문자열이 목차·상세·권한·사이드바 네 곳.
-
-**재개 지점**: 끝났다. 남은 선택지만 있다 — ① 운영 배포 뒤 운영 화면을 헤드리스로 한 번 열어 보기(로컬 3001 에서는 확인 완료) ② 노트 07·11 고객사 이름 정리 여부(사용자 판단).
-
-**검증**: `npm run check-all` EXIT 0(시험 535) · anon REST 경영표준 0행 / service 14행 전부 사외비 · 로컬 헤드리스(admin 목차 14·Mermaid SVG·별표 0·가로 넘침 0 · hmobility·guest 차단 · `/reports` 누출 0) · 원고 검사 다섯 종 EXIT 0(Mermaid 53/0).
