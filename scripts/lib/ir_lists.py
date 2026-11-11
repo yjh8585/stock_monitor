@@ -16,15 +16,16 @@
 실적 일정(customer_earnings_dates)은 문서가 아니라 `IR_EARNINGS_DATES` 로 따로 낸다(VW ICS · 포르쉐 EQS-AFR · 폴라리스 이벤트).
 기간 = 'YYYY-Qn' · 연간(4분기+연간 발표) = 'YYYY-FY'.
 
-GM IR 은 Akamai 가 로컬·Playwright 모두 403 이라 어댑터가 없다 — `probe_gm()` 이 GHA 러너에서 접근만 시험하고
-customer_collect_status(GM, 'ir_list') 에 결과를 남긴다(Task 12 워크플로가 부른다).
+GM IR 은 Akamai 가 requests·Playwright 를 403 으로 막는다 — 실제 Chrome 을 headless 로 띄워 페이지 안 fetch() 로만
+받힌다(`_chrome_fetch` · 2026-11-11 이 PC 실측 200). GHA 러너에서 통하는지는 미확인이라 `probe_gm()` 이 수동 입력으로
+접근만 시험한다(로그 전용 — 상태 표는 문서 목록 step 이 쓴다).
 """
 import json
 import re
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import Callable
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
@@ -1294,9 +1295,297 @@ def fetch_rivian(session: requests.Session, since: str) -> list[dict]:
   return parse_rivian(*(_next_data(_fetch(session, u).text) for u in (RIVN_INVESTORS, RIVN_EVENTS)))
 
 
+# ── 실제 Chrome(CDP) 받기 — GM IR(Akamai) 전용 ────────────────────────────────
+# 2026-11-10 실측(조사 ir_us.md): requests·curl·Playwright 자체 HTTP(page.request)는 403(TLS 지문) · Playwright 의
+# channel="chrome" 은 이 PC 에서 띄우지도 못했다. 「실제 Chrome + --headless=new + 일반 UA + 페이지 안 fetch()」만 200.
+# 그래서 Chrome 을 직접 띄우고 connect_over_cdp 로 붙는다. GHA 러너(데이터센터 IP)에서 통하는지는 미확인.
+
+_CHROME_WIN_PATHS = (r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+                     r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe')
+CHROME_TOO_LARGE = 'too_large'  # _chrome_fetch 결과의 상태 자리 표식 — 받는 쪽이 TooLarge 로 바꾼다(chrome_body)
+# 페이지 안에서 도는 받기. 상한은 인자(max)로 받는다 — MAX_IR_BYTES 를 두 곳에 박지 않는다.
+# Content-Length 가 넘으면 본문을 읽지 않고, 머리가 없으면 읽는 도중 누적이 넘는 순간 reader.cancel() 한다(ir_get 과 같은 규칙).
+_CHROME_FETCH_JS = """async ([url, max]) => {
+  const r = await fetch(url, {credentials: 'include'});
+  const len = Number(r.headers.get('content-length') || 0);
+  if (len > max) { if (r.body) await r.body.cancel(); return {status: r.status, big: true}; }
+  const parts = []; let total = 0;
+  if (r.body) {
+    const reader = r.body.getReader();
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > max) { await reader.cancel(); return {status: r.status, big: true}; }
+      parts.push(value);
+    }
+  }
+  const buf = new Uint8Array(await new Blob(parts).arrayBuffer());
+  let s = '';
+  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return {status: r.status, b64: btoa(s)};
+}"""
+
+
+def chrome_path() -> str | None:
+  """env CHROME_PATH → PATH 의 google-chrome·chrome → Windows 표준 경로. 없으면 None."""
+  import os
+  import shutil
+  return (os.environ.get('CHROME_PATH') or shutil.which('google-chrome') or shutil.which('chrome')
+          or next((p for p in _CHROME_WIN_PATHS if os.path.exists(p)), None))
+
+
+def chrome_fetch_args(url: str) -> list:
+  """페이지 안 받기(_CHROME_FETCH_JS)에 넘길 인자 — 상한은 MAX_IR_BYTES 한곳에서."""
+  return [url, MAX_IR_BYTES]
+
+
+def chrome_result(res: dict | None) -> tuple[int | str | None, bytes]:
+  """(순수) 페이지 안 받기 결과 → (상태 | CHROME_TOO_LARGE | None, 바이트)."""
+  import base64
+  if not res:
+    return None, b''
+  if res.get('big'):
+    return CHROME_TOO_LARGE, b''
+  return res.get('status'), base64.b64decode(res.get('b64') or '')
+
+
+def chrome_body(status: int | str | None, body: bytes) -> bytes:
+  """(순수) _chrome_fetch 결과 한 건 → 바이트. 실패는 기존 실패 분류(failure_status·fetch_failure_kind)가 알아듣는 예외로:
+  크기 초과 = TooLarge · 401·403 등 = requests.HTTPError(응답 상태를 단다 → blocked) · None(Chrome 없음·연결 실패) =
+  requests.ConnectionError. 예외 문장에 URL 을 싣지 않는다."""
+  if status == CHROME_TOO_LARGE:
+    raise TooLarge(None)
+  if status is None:
+    raise requests.ConnectionError('Chrome 없음 또는 CDP 연결 실패')
+  if status != 200:
+    resp = requests.Response()
+    resp.status_code = status
+    raise requests.HTTPError(f'HTTP {status}', response=resp)
+  return body
+
+
+def _free_port() -> int:
+  import socket
+  with socket.socket() as s:
+    s.bind(('127.0.0.1', 0))
+    return s.getsockname()[1]
+
+
+def _chrome_fetch(urls: list[str]) -> list[tuple[int | str | None, bytes]]:
+  """실제 Chrome 을 headless 로 띄워 첫 URL 로 이동한 뒤 «페이지 안 fetch()»로 각 URL 을 받는다 → [(상태, 바이트)].
+
+  Chrome 을 못 찾거나 연결에 실패하면 받지 못한 URL 은 (None, b'') — 예외 문장은 찍지 않는다.
+  끝나면(예외여도) 브라우저를 닫고(안 닫히면 그 프로세스만 kill) 임시 프로필을 지운다."""
+  import os
+  import shutil
+  import subprocess
+  import tempfile
+  import time
+  out: list[tuple[int | str | None, bytes]] = [(None, b'')] * len(urls)
+  exe = chrome_path()
+  if not exe or not urls:
+    return out
+  port, profile = _free_port(), tempfile.mkdtemp(prefix='ir_chrome_')
+  args = [exe, '--headless=new', f'--remote-debugging-port={port}', f'--user-agent={BROWSER_UA}',
+          f'--user-data-dir={profile}', '--no-first-run', '--no-default-browser-check']
+  if os.name != 'nt':
+    args.append('--no-sandbox')  # 리눅스 러너(Ubuntu 24.04)는 사용자 네임스페이스 제한으로 샌드박스가 안 뜬다
+  proc = None
+  try:
+    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    endpoint = f'http://127.0.0.1:{port}'
+    for _ in range(60):  # 최대 약 15초 — CDP 가 뜰 때까지
+      try:
+        requests.get(f'{endpoint}/json/version', timeout=1)
+        break
+      except requests.RequestException:
+        time.sleep(0.25)
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+      browser = p.chromium.connect_over_cdp(endpoint, timeout=30_000)
+      try:
+        ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+        page = ctx.new_page()
+        page.goto(urls[0], wait_until='domcontentloaded', timeout=60_000)
+        for i, url in enumerate(urls):
+          try:
+            out[i] = chrome_result(page.evaluate(_CHROME_FETCH_JS, chrome_fetch_args(url)))
+          except Exception:  # 그 URL 만 실패(None) — 나머지는 계속
+            out[i] = (None, b'')
+      finally:
+        try:
+          browser.new_browser_cdp_session().send('Browser.close')
+        except Exception:
+          pass
+  except Exception:  # Chrome 기동·CDP 연결 실패 = 남은 URL 은 None — 예외 문장은 찍지 않는다
+    pass
+  finally:
+    if proc is not None:
+      try:
+        proc.wait(timeout=10)
+      except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
+    shutil.rmtree(profile, ignore_errors=True)
+  return out
+
+
+# ── GM(investor.gm.com · 실제 Chrome 으로만 받힌다) ─────────────────────────────
+
+GM_BASE = 'https://investor.gm.com'
+GM_IR_URL = f'{GM_BASE}/shareholders/quarterly-results'
+GM_SALES = f'{GM_BASE}/news-events/sales'  # 기본 = 올해 · 다른 해는 연도 필터(위젯 해시 이름을 페이지에서 읽는다)
+GM_EVENTS = f'{GM_BASE}/news-events/events'  # 최신 먼저
+# 분기 실적 묶음의 받을 링크(링크 글 → doc_type). 덱 먼저 — 2022 Q2 처럼 서한·덱이 같은 파일(사이트 오류)이면 덱 한 행.
+# Earnings Release(EDGAR 99.1 과 같은 문서)·U.S./China Sales Release(서술형)는 받지 않는다.
+_GM_QUARTER_DOCS = (('Earnings Deck', 'presentation'), ('Shareholder Letter', 'shareholder_letter'))
+_GM_CALL = re.compile(r'\bQ[1-4] 20\d\d Earnings Conference Call\b', re.I)
+# 실적 콜 상세의 다음 일정 문구. 앞 분기 판은 연도를 뺀다(2026-11-11 실물: Q3 판 「Fourth quarter 2026 earnings …」 ·
+# Q2 판 「Third quarter earnings …」).
+_GM_NEXT = re.compile(r'\b(First|Second|Third|Fourth) quarter (?:(20\d\d) )?earnings announcement is scheduled for '
+                      r'(?:[A-Z][a-z]+, )?([A-Z][a-z]+ \d{1,2}, 20\d\d)', re.I)
+_GM_ORD = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4}
+
+
+def _links(soup) -> dict[str, str]:
+  return {' '.join(a.get_text(' ').split()): a['href'] for a in soup.find_all('a', href=True)}
+
+
+def parse_gm_results(html: str) -> list[dict]:
+  """분기 실적 묶음 표(분기마다 한 행) → 덱·서한 행. 날짜 = 같은 분기 EDGAR 실적 문서 접수일(wait='edgar').
+
+  표의 「Earnings Date」 칸은 쓰지 않는다 — 2026-11-11 실물에서 Q3 2026 이 TBD · 2023 Q3 이 「October 24 2024」(연도 오기).
+  링크는 칸 번호가 아니라 링크 글로 고른다(2020 Q3 행은 서한 칸이 없어 칸이 밀린다).
+  같은 파일이 다른 분기에도 걸려 있으면(2023 Q1 서한 = 2021 Q3 서한 · 사이트 오류) 어느 분기인지 모르니 둘 다 뺀다."""
+  soup = BeautifulSoup(html, 'html.parser')
+  out: dict[str, dict] = {}
+  ambiguous: set[str] = set()
+  for tr in soup.find_all('tr'):
+    head = tr.select_one('div.quarter')
+    m = re.fullmatch(r'Q([1-4]) (20\d\d)', ' '.join(head.get_text(' ').split())) if head else None
+    if not m:
+      continue
+    links = _links(tr)
+    for label, doc_type in _GM_QUARTER_DOCS:
+      if label not in links:
+        continue
+      row = _row(doc_type, f'GM Q{m.group(1)} {m.group(2)} {label}', urljoin(GM_BASE, links[label]), None,
+                 'quarterly-results', quarter=f'{m.group(2)}-Q{m.group(1)}', wait='edgar')
+      prev = out.setdefault(row['source_id'], row)
+      if prev['_quarter'] != row['_quarter']:
+        ambiguous.add(row['source_id'])
+  return _need('GM 분기 실적 묶음', [r for k, r in out.items() if k not in ambiguous])
+
+
+def _gm_year_select(html: str):
+  sel = next((s for s in BeautifulSoup(html, 'html.parser').find_all('select')
+              if (s.get('name') or '').endswith('_year[value]')), None)
+  if sel is None:
+    raise EmptyListError('GM 판매 목록 연도 필터 0건')
+  return sel
+
+
+def gm_sales_shown_year(html: str) -> int:
+  """판매 목록이 보여 주는 해(연도 필터의 선택값)."""
+  opt = _gm_year_select(html).find('option', selected=True)
+  if opt is None or not (opt.get('value') or '').isdigit():
+    raise EmptyListError('GM 판매 목록 선택 연도 0건')
+  return int(opt['value'])
+
+
+def gm_sales_year_url(html: str, year: int) -> str:
+  """다른 해 판매 목록 URL — 필터 이름(위젯 해시)은 박지 않고 페이지의 select 에서 읽는다."""
+  return f'{GM_SALES}?{urlencode({_gm_year_select(html)["name"]: year})}'
+
+
+def parse_gm_sales(html: str) -> list[tuple[str, str, str]]:
+  """판매 목록 → 미국 분기 판매 보도 [(제목, 상세 URL, 보도일)]. 중국 판매 보도(제목에 China)는 뺀다.
+  한 해 목록은 비어 있을 수 있다(1월 첫 보도 전) — 0건 판정은 받는 쪽(parse_gm)이 since 범위 전체로 한다."""
+  out = []
+  for art in BeautifulSoup(html, 'html.parser').find_all('article'):
+    title = _nfc(art.get('data-title') or '')
+    a = art.select_one('.nir-widget--news--headline a[href]')
+    day = art.select_one('.nir-widget--news--date-time')
+    if not (a and day) or re.search(r'\bChina\b', title, re.I):
+      continue
+    out.append((title, urljoin(GM_BASE, a['href']),
+                datetime.strptime(' '.join(day.get_text().split()), '%B %d, %Y').date().isoformat()))
+  return out
+
+
+def parse_gm_deliveries(html: str, day: str) -> dict | None:
+  """미국 분기 판매 상세의 「Deliveries」 PDF 첨부 → sales_release 행(날짜 = 목록의 보도일). 첨부가 없으면 None.
+  분기 = 보도일 직전 분기(1월 보도 = 전년 4분기). 파일 제목(「Deliveries Q3 2026.pdf」·「Q4 deliveries final.pdf」)은
+  들쭉날쭉해 쓰지 않는다."""
+  href = _links(BeautifulSoup(html, 'html.parser')).get('Deliveries')
+  if not href:
+    return None
+  year, q = next(iter(_earliest_by_quarter([day]))).split('-Q')
+  return _row('sales_release', f'GM U.S. Deliveries Q{q} {year}', urljoin(GM_BASE, href), day, 'us-deliveries')
+
+
+def parse_gm(results_html: str, deliveries: list[tuple[str, str]]) -> list[dict]:
+  """분기 실적 묶음 + [(미국 판매 상세 HTML, 보도일)] → 행. since 범위 안 판매 상세에 Deliveries 가 하나도 없으면 멈춘다."""
+  rows = parse_gm_results(results_html)
+  return rows + _need('GM 미국 분기 판매 Deliveries', [r for h, day in deliveries if (r := parse_gm_deliveries(h, day))])
+
+
+def gm_earnings_calls(html: str) -> list[str]:
+  """이벤트 목록(최신 먼저) → 실적 콜 상세 URL(목록 순서 그대로)."""
+  urls: list[str] = []
+  for a in BeautifulSoup(html, 'html.parser').find_all('a', href=True):
+    url = urljoin(GM_BASE, a['href'])
+    if '/event-details/' in url and _GM_CALL.search(' '.join(a.get_text(' ').split())) and url not in urls:
+      urls.append(url)
+  return _need('GM 실적 콜 이벤트', urls)
+
+
+def parse_gm_dates(html: str, url: str) -> list[dict]:
+  """실적 콜 상세의 다음 일정 문구 → 일정 행. 기간 = 'YYYY-Qn' · 4분기(연간 발표) = 'YYYY-FY'.
+  연도가 빠진 문구는 발표일에서 읽는다 — 1~3분기 = 발표일의 해 · 4분기 = 발표일의 전년(1~2월 발표).
+  이 콜 자신의 발표 문장(「will release its third quarter 2026 financial results on …」)은 일정 문구가 아니라 읽지 않는다."""
+  out: dict[str, dict] = {}
+  for m in _GM_NEXT.finditer(html_to_text(html)):
+    n, d = _GM_ORD[m.group(1).lower()], datetime.strptime(m.group(3), '%B %d, %Y').date()
+    year = int(m.group(2)) if m.group(2) else (d.year - 1 if n == 4 else d.year)
+    period = f'{year}-FY' if n == 4 else f'{year}-Q{n}'
+    out.setdefault(period, {'period': period, 'event_date': d.isoformat(), 'quote': m.group(0), 'source': 'ir',
+                            'source_ref': urlsplit(url).path, 'url': url})
+  return list(out.values())
+
+
+def _gm_pages(urls: list[str]) -> list[str]:
+  # 실패는 chrome_body 가 기존 분류 예외로 바꾼다(403 = blocked · Chrome 없음 = ConnectionError → error)
+  return [chrome_body(status, body).decode('utf-8', errors='replace') for status, body in _chrome_fetch(urls)]
+
+
+def fetch_gm(session: requests.Session, since: str) -> list[dict]:
+  # Chrome 기동 3회: ① 결과 페이지 + 기본(올해) 판매 목록 ② since 가 걸친 다른 해 목록 ③ since 이후 미국 판매 상세
+  results, sales = _gm_pages([GM_IR_URL, GM_SALES])
+  shown = gm_sales_shown_year(sales)
+  others = [gm_sales_year_url(sales, y) for y in _years(since) if y != shown]
+  lists = [sales] + (_gm_pages(others) if others else [])
+  items = [it for h in lists for it in parse_gm_sales(h) if it[2] >= since]
+  details = _gm_pages([url for _, url, _ in items]) if items else []
+  return parse_gm(results, [(h, day) for h, (_, _, day) in zip(details, items)])
+
+
+def fetch_gm_dates(session: requests.Session, since: str) -> list[dict]:
+  """최신 실적 콜 상세의 일정 문구. 아직 문구가 없으면(새 콜 공지 직후) 바로 앞 콜 상세의 것을 쓴다."""
+  calls = gm_earnings_calls(_gm_pages([GM_EVENTS])[0])[:2]
+  for html, url in zip(_gm_pages(calls), calls):
+    rows = parse_gm_dates(html, url)
+    if rows:
+      return [d for d in rows if d['event_date'] >= since]
+  raise EmptyListError('GM 실적 일정 문구 0건')
+
+
 # ── 등록부 ────────────────────────────────────────────────────────────────────
 
-# 스텔란티스 = EDGAR 로 충분(어댑터 없음) · 빈패스트·리비안 = 링크만(숫자 파서는 EDGAR 만 받는다) · GM = 접근 차단(아래 probe_gm)
+# 스텔란티스 = EDGAR 로 충분(어댑터 없음) · 빈패스트·리비안 = 링크만(숫자 파서는 EDGAR 만 받는다)
+# GM = 실제 Chrome(CDP)으로만 받힌다(_chrome_fetch · GHA 러너에서 통하는지는 미확인 — probe_gm 으로 본다)
 IR_LISTS: dict[str, Callable[[requests.Session, str], list[dict]]] = {
   'VOW3.DE': fetch_vw,
   'P911.DE': fetch_porsche,
@@ -1307,6 +1596,7 @@ IR_LISTS: dict[str, Callable[[requests.Session, str], list[dict]]] = {
   '003620': fetch_kgm,
   'VFS': fetch_vinfast,
   'RIVN': fetch_rivian,
+  'GM': fetch_gm,
 }
 
 # customer_earnings_dates 행({'period','event_date','quote','source','source_ref','url'}) — 문서가 아니다.
@@ -1314,12 +1604,12 @@ IR_EARNINGS_DATES: dict[str, Callable[[requests.Session, str], list[dict]]] = {
   'VOW3.DE': fetch_vw_dates,
   'P911.DE': fetch_porsche_dates,
   'PII': fetch_polaris_dates,
+  'GM': fetch_gm_dates,
 }
 
 
-# ── GM IR 접근 시험(Task 12 워크플로가 GHA 러너에서 부른다) ────────────────────
+# ── GM IR 접근 시험(워크플로 수동 입력 probe_gm_ir 로 GHA 러너에서 부른다) ──────
 
-GM_IR_URL = 'https://investor.gm.com/shareholders/quarterly-results'
 GM_BLOCKED_REASON = 'GM IR 사이트가 자동 접근을 막아(HTTP 403) 실적 발표자료·미국 분기 소매 판매를 못 모읍니다'
 
 
@@ -1354,12 +1644,11 @@ def _playwright_status(url: str) -> int | None:
 
 
 def probe_gm() -> int:
-  """requests(브라우저 UA) → 실패 시 Playwright 1회. HTTP 상태만 찍고 customer_collect_status(GM, 'ir_list') 에 남긴다."""
-  sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-  from lib.bootstrap import init_script
-  init_script(__file__)
-  from lib import db
+  """requests(브라우저 UA) → 실패 시 Playwright 1회 → 실제 Chrome(CDP · 매일 문서 목록이 쓰는 경로라 늘 시험). HTTP 상태만 찍는다.
 
+  🔴 상태 표에는 쓰지 않는다(로그 전용) — GM 이 등록부(IR_LISTS)에 들어가 문서 목록 step 이 customer_collect_status(GM,
+  'ir_list') 를 쓴다. 이 시험이 같은 칸을 쓰면 두 step 이 서로의 결과를 지운다."""
+  sys.stdout.reconfigure(encoding='utf-8', errors='replace')
   codes: list[int | None] = []
   try:
     codes.append(requests.get(GM_IR_URL, headers={'User-Agent': BROWSER_UA}, timeout=TIMEOUT_S).status_code)
@@ -1369,16 +1658,9 @@ def probe_gm() -> int:
   if codes[-1] != 200:
     codes.append(_playwright_status(GM_IR_URL))
     print(f'GM IR Playwright: HTTP {codes[-1]}')
+  cdp = _chrome_fetch([GM_IR_URL])[0][0]
+  codes.append(cdp if isinstance(cdp, int) else None)
+  print(f'GM IR 실제 Chrome(CDP): HTTP {codes[-1]}' + ('' if chrome_path() else ' · Chrome 없음'))
   status, reason = gm_probe_status(codes)
-
-  found = db.get_client().table('companies').select('id').eq('ticker', 'GM').eq('status', 'active').execute().data
-  if not found:
-    print('GM 회사 행 없음 — 상태를 남기지 않는다')
-    return 1
-  with db.WriteSession() as ws:
-    ws.table('customer_collect_status').upsert(
-      {'company_id': found[0]['id'], 'collector': 'ir_list', 'status': status, 'reason': reason,
-       'checked_at': datetime.now(timezone.utc).isoformat()},
-      on_conflict='company_id,collector').execute()
-  print(f'상태 기록: ir_list = {status}')
+  print(f'판정: {status}' + (f' · {reason}' if reason else ''))
   return gm_probe_exit(status)

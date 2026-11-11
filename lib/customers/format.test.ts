@@ -364,5 +364,7 @@ describe('라벨', () => {
     expect(volumeSeriesLabel('deliveries', 'total')).toBe('인도');
     expect(volumeSeriesLabel('wholesale', 'north_america')).toBe('도매 판매 · 북미');
     expect(volumeSeriesLabel('x', 'y')).toBe('x · y');
+    // GM IR 미국 분기 인도(Task 8) — 'total' 이면 전 세계 합계로 읽혀 따로 둔 키
+    expect(volumeSeriesLabel('deliveries', 'us')).toBe('인도 · 미국');
   });
 });

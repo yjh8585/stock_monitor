@@ -64,6 +64,8 @@ def _rows(company: str) -> list[dict]:
   if company == 'rivian':
     nd = _json('rivian_next_data.json')
     return L.parse_rivian(nd['investors'], nd['events'])
+  if company == 'gm':  # 분기 실적 묶음 + Q3 2026 판매 상세(판매 목록 날짜 2026-10-01) — 2026-11-11 실물
+    return L.parse_gm(_text('gm_quarterly_results.html'), [(_text('gm_sales_detail.html'), '2026-10-01')])
   raise KeyError(company)
 
 
@@ -154,6 +156,14 @@ MUST_HIT = {
     ('Rivian and Volkswagen Group Announce the Launch of their Joint Venture (Shareholder Letter)', 'investor_day',
      '2024-11-12'),  # VW 합작 덱 — 실물 라벨이 「Shareholder Letter」
   ],
+  # 덱·서한은 날짜 칸이 TBD·오기(2023 Q3 「October 24 2024」)라 쓰지 않는다 → EDGAR 실적 문서 접수일(wait='edgar')
+  'gm': [
+    ('GM Q3 2026 Earnings Deck', 'presentation', None),
+    ('GM Q3 2026 Shareholder Letter', 'shareholder_letter', None),
+    ('GM Q4 2025 Earnings Deck', 'presentation', None),
+    ('GM Q2 2022 Earnings Deck', 'presentation', None),  # 서한·덱이 같은 파일(사이트 오류) — 덱 한 행
+    ('GM U.S. Deliveries Q3 2026', 'sales_release', '2026-10-01'),  # 날짜 = 판매 목록의 보도일
+  ],
 }
 
 MUST_MISS = {
@@ -174,6 +184,8 @@ MUST_MISS = {
   'vinfast': ['Webcast', 'Newsletter', 'Takeaway', 'Earnings Report Q1/2024 (Restated)'],  # 증권사 리포트는 VinFastTest
   'rivian': ['Impact', 'Supplier', 'Proxy', 'Letter to Shareholders', 'Annual Meeting', 'Barclays', 'Webcast',
              'Investor Call'],  # 실물 Investor Call 의 「Shareholder letter」 는 URL 없는 내부 링크
+  # Earnings Release = EDGAR 99.1 과 같은 문서 · 판매 보도·중국 판매는 서술형 · 2022 Q2 서한은 덱과 같은 파일
+  'gm': ['Earnings Release', 'Sales Release', 'China', 'GM Q2 2022 Shareholder Letter'],
 }
 
 
@@ -1186,12 +1198,204 @@ class GmProbeTest(unittest.TestCase):
     self.assertEqual(L.GM_BLOCKED_REASON,
                      'GM IR 사이트가 자동 접근을 막아(HTTP 403) 실적 발표자료·미국 분기 소매 판매를 못 모읍니다')
 
-  def test_gm_has_no_adapter(self):
-    self.assertNotIn('GM', L.IR_LISTS)
+  def test_gm_registered(self):
+    """Task 8 — 실제 Chrome(CDP)으로 뚫려 목록·일정 어댑터가 등록됐다."""
+    self.assertIs(L.IR_LISTS['GM'], L.fetch_gm)
+    self.assertIs(L.IR_EARNINGS_DATES['GM'], L.fetch_gm_dates)
+
+  def test_cdp_code_joins_list(self):
+    """판정 함수는 그대로 — CDP 결과 코드가 목록 끝에 더해질 뿐(requests 403 · Playwright 연결 실패 · CDP 200)."""
+    self.assertEqual(L.gm_probe_status([403, None, 200]), ('ok', None))
 
   def test_exit_code(self):
     """차단은 알려진 상태(0) · 그 밖의 실패는 워크플로에서 눈에 띄게(1)."""
     self.assertEqual([L.gm_probe_exit(s) for s in ('ok', 'blocked', 'error')], [0, 0, 1])
+
+
+# ── GM(실제 Chrome · CDP) ───────────────────────────────────────────────────
+
+# Q2 2026 실적 콜 상세 원문(2026-11-11 실물) — 앞 분기 판은 연도를 빼고 쓴다
+_GM_Q2_SENTENCE = ('Third quarter earnings announcement is scheduled for Tuesday, October 20, 2026 and the fourth quarter '
+                   'earnings announcement is scheduled for Wednesday, January 27, 2027.')
+_GM_Q3_EVENT = 'https://investor.gm.com/events/event-details/general-motors-company-q3-2026-earnings-conference-call'
+_GM_Q2_EVENT = 'https://investor.gm.com/events/event-details/general-motors-company-q2-2026-earnings-conference-call'
+# 이벤트 목록(/news-events/events) 실물 링크 꼴 — 실적 콜과 컨퍼런스가 섞인다(2026-11-11)
+_GM_EVENTS_HTML = (
+  '<a href="/events/event-details/general-motors-participate-barclays-17th-annual-global-automotive-and-mobility">'
+  'General Motors to participate in the Barclays 17th Annual Global Automotive and Mobility Technology Conference</a>'
+  '<a href="/events/event-details/general-motors-company-q3-2026-earnings-conference-call">'
+  'General Motors Company Q3 2026 Earnings Conference Call</a>'
+  '<a href="/events/event-details/general-motors-participate-jp-morgan-us-all-stars-conference-0">'
+  'General Motors to participate in the J.P. Morgan U.S. All Stars Conference</a>'
+  '<a href="/events/event-details/general-motors-company-q2-2026-earnings-conference-call">'
+  'General Motors Company Q2 2026 Earnings Conference Call</a>'
+  '<a href="/events/event-details/general-motors-company-q1-2026-earnings-conference-call">'
+  'General Motors Company Q1 2026 Earnings Conference Call</a>')
+
+
+def _ok(*bodies):
+  return [(200, b.encode('utf-8') if isinstance(b, str) else b) for b in bodies]
+
+
+class GmListTest(unittest.TestCase):
+  def test_quarterly_rows_wait_for_edgar(self):
+    rows = [r for r in _rows('gm') if r['form'] == 'quarterly-results']
+    self.assertTrue(rows)
+    for r in rows:
+      self.assertIsNone(r['published_at'])
+      self.assertEqual(r['_wait'], 'edgar')
+    deck = next(r for r in rows if r['title'] == 'GM Q3 2026 Earnings Deck')
+    self.assertEqual(deck['_quarter'], '2026-Q3')
+    self.assertEqual(deck['url'], 'https://investor.gm.com/static-files/65b797d0-a099-4994-8dfb-44f806b36263')
+    letter = next(r for r in rows if r['title'] == 'GM Q3 2026 Shareholder Letter')
+    self.assertEqual(letter['url'],
+                     'https://investor.gm.com/news-releases/news-release-details/q3-2026-letter-shareholders')
+
+  def test_same_file_in_two_quarters_is_dropped(self):
+    """2023 Q1 서한 링크가 2021 Q3 서한과 같은 파일(사이트 오류) — 어느 분기인지 모르니 둘 다 싣지 않는다."""
+    rows = _rows('gm')
+    self.assertNotIn('investor.gm.com/static-files/78c6f699-0fc6-47df-a04f-9a06f22f5471', [r['source_id'] for r in rows])
+    self.assertFalse([r for r in rows if r['title'] in ('GM Q1 2023 Shareholder Letter', 'GM Q3 2021 Shareholder Letter')])
+    self.assertTrue([r for r in rows if r['title'] == 'GM Q3 2021 Earnings Deck'])
+
+  def test_sales_list_us_only_with_dates(self):
+    got = L.parse_gm_sales(_text('gm_sales_list.html'))
+    self.assertEqual([d for _, _, d in got], ['2026-10-01', '2026-07-01', '2026-04-01', '2026-01-05'])
+    self.assertFalse([t for t, _, _ in got if 'China' in t])
+    self.assertEqual(got[0][1], 'https://investor.gm.com/news-releases/news-release-details/'
+                                'gms-winning-portfolio-continues-getting-stronger')
+
+  def test_sales_year_url_from_page(self):
+    """연도 필터 이름(위젯 해시)은 박지 않고 페이지 select 에서 읽는다 · 기본 목록 = 선택된 해."""
+    html = _text('gm_sales_list.html')
+    self.assertEqual(L.gm_sales_shown_year(html), 2026)
+    self.assertEqual(L.gm_sales_year_url(html, 2025),
+                     'https://investor.gm.com/news-events/sales?5082aa6bce9d55a68e133bfb456edc7718989695ccbb6bf15b62c0e37e8f900b'
+                     '_year%5Bvalue%5D=2025')
+    with self.assertRaises(L.EmptyListError):
+      L.gm_sales_year_url('<html></html>', 2025)
+
+  def test_deliveries_quarter_from_release_date(self):
+    """1월 보도 = 전년 4분기(파일 제목은 「Q4 deliveries final.pdf」처럼 들쭉날쭉해 쓰지 않는다)."""
+    row = L.parse_gm_deliveries(_text('gm_sales_detail.html'), '2026-01-05')
+    self.assertEqual((row['title'], row['form'], row['published_at'], row['doc_type']),
+                     ('GM U.S. Deliveries Q4 2025', 'us-deliveries', '2026-01-05', 'sales_release'))
+    self.assertEqual(row['url'], 'https://investor.gm.com/static-files/1294f515-0131-4d38-986e-f4d3160e7a68')
+    self.assertIsNone(L.parse_gm_deliveries('<a href="/static-files/x">Sales Release</a>', '2026-10-01'))
+
+  def test_no_deliveries_is_empty_list_error(self):
+    with self.assertRaisesRegex(L.EmptyListError, 'Deliveries'):
+      L.parse_gm(_text('gm_quarterly_results.html'), [('<p>첨부 없음</p>', '2026-10-01')])
+    with self.assertRaisesRegex(L.EmptyListError, '분기 실적'):
+      L.parse_gm('<html></html>', [(_text('gm_sales_detail.html'), '2026-10-01')])
+
+  def test_fetch_gm_stages(self):
+    """1회 = 결과 페이지 + 기본 판매 목록 · 2회 = since 가 걸친 다른 해 목록 · 3회 = since 이후 미국 판매 상세."""
+    sales = _text('gm_sales_list.html')
+    calls = []
+
+    def fake(urls):
+      calls.append(list(urls))
+      if urls[0] == L.GM_IR_URL:
+        return _ok(_text('gm_quarterly_results.html'), sales)
+      if 'year' in urls[0]:
+        return _ok('<html></html>')  # 2025 목록(이 시험에선 빈 해)
+      return _ok(*[_text('gm_sales_detail.html')] * len(urls))
+    with patch.object(L, '_chrome_fetch', side_effect=fake), patch.object(L, '_years', return_value=range(2025, 2027)):
+      rows = L.fetch_gm(MagicMock(), '2026-06-01')
+    self.assertEqual(calls[0], [L.GM_IR_URL, L.GM_SALES])
+    self.assertEqual(len(calls[1]), 1)
+    self.assertIn('2025', calls[1][0])
+    self.assertEqual(len(calls[2]), 2)  # 2026-07-01 · 2026-10-01 만(since 2026-06-01)
+    self.assertTrue([r for r in rows if r['form'] == 'us-deliveries'])
+
+  def test_fetch_gm_blocked_and_no_chrome(self):
+    """403 = blocked(수집기 분류 그대로) · Chrome 없음·연결 실패(None) = error."""
+    with patch.object(L, '_chrome_fetch', return_value=[(403, b''), (403, b'')]):
+      with self.assertRaises(requests.HTTPError) as cm:
+        L.fetch_gm(MagicMock(), '2026-06-01')
+    self.assertEqual(ccd.failure_status('IR', cm.exception), ('blocked', 'IR 접근 차단(HTTP 403)'))
+    with patch.object(L, '_chrome_fetch', return_value=[(None, b''), (None, b'')]):
+      with self.assertRaises(requests.ConnectionError) as cm:
+        L.fetch_gm(MagicMock(), '2026-06-01')
+    self.assertEqual(ccd.failure_status('IR', cm.exception)[0], 'error')
+
+
+class GmDatesTest(unittest.TestCase):
+  def test_must_hit_q3_event(self):
+    got = L.parse_gm_dates(_text('gm_event_detail.html'), _GM_Q3_EVENT)
+    self.assertEqual([(d['period'], d['event_date']) for d in got], [('2026-FY', '2027-01-27'), ('2027-Q1', '2027-04-21')])
+    self.assertEqual(got[0]['quote'],
+                     'Fourth quarter 2026 earnings announcement is scheduled for Wednesday, January 27, 2027')
+    self.assertEqual({d['source'] for d in got}, {'ir'})
+    self.assertEqual(got[0]['url'], _GM_Q3_EVENT)
+    self.assertEqual(got[0]['source_ref'], '/events/event-details/general-motors-company-q3-2026-earnings-conference-call')
+
+  def test_year_omitted_reads_announcement_year(self):
+    """앞 분기 판은 연도가 없다 — 1~3분기 = 발표일의 해 · 4분기(연간) = 발표일의 전년."""
+    got = L.parse_gm_dates(f'<p>{_GM_Q2_SENTENCE}</p>', _GM_Q2_EVENT)
+    self.assertEqual([(d['period'], d['event_date']) for d in got], [('2026-Q3', '2026-10-20'), ('2026-FY', '2027-01-27')])
+
+  def test_must_miss_this_call_date(self):
+    """이 콜 자신의 발표 문장(「will release its third quarter 2026 financial results on …」)은 일정 문구가 아니다."""
+    got = L.parse_gm_dates(_text('gm_event_detail.html'), _GM_Q3_EVENT)
+    self.assertNotIn('2026-Q3', [d['period'] for d in got])
+
+  def test_earnings_calls_newest_first(self):
+    self.assertEqual(L.gm_earnings_calls(_GM_EVENTS_HTML)[:2], [_GM_Q3_EVENT, _GM_Q2_EVENT])
+    with self.assertRaises(L.EmptyListError):
+      L.gm_earnings_calls('<a href="/events/event-details/x">Annual Meeting</a>')
+
+  def test_fetch_falls_back_to_previous_call(self):
+    """최신 콜 상세에 일정 문구가 아직 없으면 바로 앞 콜의 문구를 쓴다 · 둘 다 없으면 멈춘다."""
+    seq = [_ok(_GM_EVENTS_HTML), _ok('<p>곧 공지</p>', f'<p>{_GM_Q2_SENTENCE}</p>')]
+    with patch.object(L, '_chrome_fetch', side_effect=seq):
+      got = L.fetch_gm_dates(MagicMock(), '2026-01-01')
+    self.assertEqual([d['period'] for d in got], ['2026-Q3', '2026-FY'])
+    seq = [_ok(_GM_EVENTS_HTML), _ok('<p>x</p>', '<p>y</p>')]
+    with patch.object(L, '_chrome_fetch', side_effect=seq):
+      with self.assertRaisesRegex(L.EmptyListError, '실적 일정'):
+        L.fetch_gm_dates(MagicMock(), '2026-01-01')
+
+  def test_fetch_filters_since(self):
+    seq = [_ok(_GM_EVENTS_HTML), _ok(_text('gm_event_detail.html'), '<p>y</p>')]
+    with patch.object(L, '_chrome_fetch', side_effect=seq):
+      got = L.fetch_gm_dates(MagicMock(), '2027-02-01')
+    self.assertEqual([d['period'] for d in got], ['2027-Q1'])
+
+
+class ChromeFetchTest(unittest.TestCase):
+  def test_limit_is_an_argument(self):
+    """상한은 MAX_IR_BYTES 한곳 — JS 에 숫자를 박지 않고 인자로 넘긴다."""
+    self.assertNotIn(str(L.MAX_IR_BYTES), L._CHROME_FETCH_JS)
+    self.assertIn('max', L._CHROME_FETCH_JS)
+    self.assertIn('reader.cancel()', L._CHROME_FETCH_JS)
+    self.assertEqual(L.chrome_fetch_args('https://a.example/x'), ['https://a.example/x', L.MAX_IR_BYTES])
+
+  def test_result_decoding(self):
+    import base64
+    self.assertEqual(L.chrome_result({'status': 200, 'b64': base64.b64encode(b'%PDF-1').decode()}), (200, b'%PDF-1'))
+    self.assertEqual(L.chrome_result({'status': 200, 'big': True}), (L.CHROME_TOO_LARGE, b''))
+    self.assertEqual(L.chrome_result(None), (None, b''))
+
+  def test_body_raises_known_classes(self):
+    self.assertEqual(L.chrome_body(200, b'x'), b'x')
+    with self.assertRaises(L.TooLarge):
+      L.chrome_body(L.CHROME_TOO_LARGE, b'')
+    with self.assertRaises(requests.ConnectionError):
+      L.chrome_body(None, b'')
+    with self.assertRaises(requests.HTTPError) as cm:
+      L.chrome_body(403, b'')
+    self.assertEqual(cm.exception.response.status_code, 403)
+
+  def test_no_chrome_gives_none_without_launch(self):
+    with patch.object(L, 'chrome_path', return_value=None), patch('subprocess.Popen') as pop:
+      self.assertEqual(L._chrome_fetch(['https://a.example/1', 'https://a.example/2']), [(None, b''), (None, b'')])
+    pop.assert_not_called()
+
+  def test_chrome_path_env_first(self):
+    with patch.dict('os.environ', {'CHROME_PATH': '/opt/c/chrome'}):
+      self.assertEqual(L.chrome_path(), '/opt/c/chrome')
 
 
 # ── 수집기 연결(collect_customer_docs.py) ─────────────────────────────────────
@@ -1232,6 +1436,14 @@ class CollectorWiringTest(unittest.TestCase):
       with self.assertRaises(ccd.EmptyListError) as cm:
         fetch(MagicMock())
     self.assertEqual(ccd.failure_status('IR', cm.exception), ('error', 'IR 목록 0건'))
+
+  def test_chrome_fetch_exceptions_ride_existing_classification(self):
+    """Task 8 — _chrome_fetch 결과를 받는 쪽이 내는 예외가 failure_status 를 고치지 않고 기존 갈래를 탄다."""
+    for status, want in ((403, ('blocked', 'IR 접근 차단(HTTP 403)')), (None, ('error', 'ConnectionError')),
+                         (L.CHROME_TOO_LARGE, ('error', 'TooLarge'))):
+      with self.subTest(status=status), self.assertRaises(Exception) as cm:
+        L.chrome_body(status, b'')
+      self.assertEqual(ccd.failure_status('IR', cm.exception), want)
 
   def test_sub_list_empty_reason_reaches_status(self):
     """어댑터 안의 하위 목록 0건도 같은 클래스 — 목록 이름이 상태 사유로 그대로 나간다."""

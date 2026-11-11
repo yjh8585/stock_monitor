@@ -62,8 +62,50 @@ _STATED_METRIC = {'ebit-adjusted': 'ebit_adjusted', 'adjusted automotive free ca
 
 
 def wants(doc: Doc) -> bool:
-  # 8-K 7.01(분기 중 전망 수정 · 2025-05-01 실측)도 같은 전망 표가 있으면 읽는다
-  return doc.source == 'edgar' and doc.doc_type in ('earnings_release', 'current_report')
+  # 8-K 7.01(분기 중 전망 수정 · 2025-05-01 실측)도 같은 전망 표가 있으면 읽는다.
+  # IR 은 미국 분기 Deliveries PDF 만(Task 8) — 덱·서한은 3단계 몫이라 내려받지 않는다(pending 그대로)
+  return ((doc.source == 'edgar' and doc.doc_type in ('earnings_release', 'current_report'))
+          or (doc.source == 'ir' and doc.form == 'us-deliveries'))
+
+
+def fetch(session, doc: Doc) -> Content:
+  """🔴 모듈 단위 훅 — GM 의 «모든» 문서가 여기로 온다. EDGAR 는 숫자 수집기의 기본 받기 그대로.
+  IR(investor.gm.com)은 Akamai 가 requests 를 403 으로 막아 실제 Chrome(ir_lists._chrome_fetch)으로 받는다.
+  실패는 lib 의 분류 예외(403 = HTTPError · Chrome 없음 = ConnectionError · 상한 초과 = lib 의 TooLarge)."""
+  if doc.source != 'ir':
+    from collect_customer_numbers import fetch_content   # 늦게 — 그 파일은 __main__ 으로 돈다(예외 클래스는 lib 것만)
+    return fetch_content(session, doc)[0]
+  from lib import ir_lists
+  from lib.doc_text import html_to_text, pdf_text
+  (status, body), = ir_lists._chrome_fetch([doc.url])
+  b = ir_lists.chrome_body(status, body)
+  if len(b) > ir_lists.MAX_IR_BYTES:   # 페이지 안 받기가 이미 끊지만 받는 쪽도 같은 상한으로 한 번 더
+    raise ir_lists.TooLarge(len(b))
+  if b[:5] == b'%PDF-':
+    return Content(pdf_text(b), [], b)
+  return Content(html_to_text(b.decode('utf-8', errors='replace')), [], b)
+
+
+# 미국 분기 인도(IR Deliveries PDF) — 제목 + 총계 행만 읽는다(모델별 행은 차종 칸이 없어 읽지 않는다).
+# 2026-11-11 실물 3편(Q4 2025·Q1 2026·Q3 2026) 모두 제목 「GM U.S. DELIVERIES FOR QUARTER n  YYYY」(공백 2칸) ·
+# 총계 라벨 「GM Vehicle Total*」 · 숫자 = 올해 분기 · 전년 분기 · 증감% · 누계 올해 · 누계 전년 · 증감%.
+_DELIV_HEAD = re.compile(r'GM U\.S\. DELIVERIES FOR QUARTER ([1-4])\s+(20\d{2})')
+_DELIV_TOTAL = re.compile(r'GM Vehicle Total\*?\s+([\d,]+)\s+([\d,]+)')
+DELIVERIES_DEF = ('GM 미국 인도(deliveries): 미국 고객 인도 대수 · 단종 모델 포함(원문 Deliveries 표의 GM Vehicle Total). '
+                  '중국 등 해외 제외 — 도매(wholesale)와 다른 지표')
+
+
+def parse_us_deliveries(text: str) -> tuple[list[VolumeRow], bool]:
+  """Deliveries PDF 글 → (분기 총계 행, 서식을 알아봤나). 제목은 있는데 총계 행이 없으면 0행 + True(failed 로 드러난다)."""
+  head = _DELIV_HEAD.search(text)
+  if not head:
+    return [], False
+  total = _DELIV_TOTAL.search(text, head.end())
+  if not total:
+    return [], True
+  period = f'{head.group(2)}-Q{head.group(1)}'
+  return [VolumeRow('deliveries', 'us', 'quarter', period, int(total.group(1).replace(',', '')), DELIVERIES_DEF,
+                    norm_text(total.group(0)))], True
 
 
 def _label(row: list[str]) -> str:
@@ -178,6 +220,9 @@ def apply_stated(rows: list[GuidanceRow], text: str) -> list[GuidanceRow]:
 
 def parse(doc: Doc, content: Content) -> ParseResult:
   r = ParseResult()
+  if doc.source == 'ir':   # IR 은 Deliveries PDF 만 들어온다(wants)
+    r.volume, r.recognized = parse_us_deliveries(content.text)
+    return r
   r.results, results_ok = parse_results(content.tables)
   if r.results:
     r.results += parse_operating_income(content.tables, r.results[0].period)
@@ -350,6 +395,18 @@ MUST_MISS = [
 ]
 
 
+# IR Deliveries PDF — 2026-11-11 실물(Deliveries Q3 2026.pdf)의 pdf_text 결과에서 머리·총계 구간만 그대로(줄바꿈·공백 포함)
+DELIVERIES_Q3_2026 = (
+  'GM U.S. DELIVERIES FOR QUARTER 3  2026\n2026\n2025\n%Change \nVolume\n2026\n2025\n%Change \nVolume\nEnclave\n'
+  '                    8,523               8,239 \n3.4\n           30,726            28,624 \n7.3\nEncore GX\n'
+  'GM Vehicle Total*\n                 670,974            710,347 \n-5.5\n       2,012,299        2,150,298 \n-6.4\n'
+  '77 selling days for QUARTER 3 this year and 77 selling days for the same QUARTER last year.\n'
+  'Vehicle Total * Includes discontinued models.\n')
+DELIVERIES_MUST_HIT = [(DELIVERIES_Q3_2026, ('us', '2026-Q3', 670974))]
+# 제목은 알아봤는데 총계 행이 없음 — 모델별·브랜드 합계(Buick Total* 등)로 새지 않고 0행 + recognized
+DELIVERIES_MUST_RECOGNIZED_EMPTY = [DELIVERIES_Q3_2026.replace('GM Vehicle Total*', 'Buick Total*')]
+
+
 def _flatten(r: ParseResult) -> dict:
   out = {}
   for x in r.results:
@@ -384,4 +441,13 @@ def self_test() -> list[str]:
     got = {x.metric: x.stated for x in parse(doc, Content(text=text, tables=MUST_HIT[0][0])).guidance}
     if got != want:
       errs.append(f'stated: 기대 {want} · 실제 {got} ({text[:40]}…)')
+  ir = Doc(0, 'test', 'GM', 'ir', 'sales_release', 'us-deliveries', '', '', '', '2026-10-01')
+  for text, want in DELIVERIES_MUST_HIT:
+    got = [(v.region, v.period, v.value) for v in parse(ir, Content(text=text)).volume]
+    if got != [want]:
+      errs.append(f'Deliveries MUST_HIT: 기대 {[want]} · 실제 {got}')
+  for text in DELIVERIES_MUST_RECOGNIZED_EMPTY:
+    res = parse(ir, Content(text=text))
+    if res.count() or not res.recognized:
+      errs.append(f'Deliveries 총계 없음: 행 {res.count()} · recognized={res.recognized} (기대 0행 · True)')
   return errs

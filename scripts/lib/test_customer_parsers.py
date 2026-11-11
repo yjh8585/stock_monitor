@@ -250,6 +250,84 @@ class MobisScriptTests(unittest.TestCase):
     self.assertEqual(self.K.parse(perf, base.Content(text=self.K.SCRIPT_3Q26)).count(), 0)
 
 
+class GmUsDeliveriesTests(unittest.TestCase):
+  """Task 8 — GM IR 미국 분기 판매 상세의 Deliveries PDF(목록 어댑터가 form='us-deliveries' 로 낸 행) → 미국 분기 인도 총계.
+  본문 = 2026-11-11 실물 PDF(Deliveries Q3 2026)의 pdf_text 결과에서 머리·총계 구간만 옮겼다(gm.DELIVERIES_Q3_2026)."""
+
+  @classmethod
+  def setUpClass(cls):
+    from customer_parsers import gm
+    cls.G = gm
+
+  def _doc(self, form='us-deliveries', source='ir', doc_type='sales_release'):
+    return base.Doc(0, 'cid', 'GM', source, doc_type, form, '', 'GM U.S. Deliveries Q3 2026',
+                    'https://investor.gm.com/static-files/1294f515-0131-4d38-986e-f4d3160e7a68', '2026-10-01')
+
+  def test_list_rows_to_doc_wants(self):
+    """목록 픽스처 행 → 숫자 수집기 Doc 꼴 → Deliveries 는 받고, 덱·서한(3단계 몫)은 안 받는다."""
+    from lib import ir_lists
+    fx = pathlib.Path(__file__).resolve().parent / 'fixtures' / 'ir_lists'
+    rows = ir_lists.parse_gm((fx / 'gm_quarterly_results.html').read_text(encoding='utf-8'),
+                             [((fx / 'gm_sales_detail.html').read_text(encoding='utf-8'), '2026-10-01')])
+    for r in rows:
+      with self.subTest(title=r['title']):
+        doc = base.Doc(0, 'cid', 'GM', r['source'], r['doc_type'], r['form'], '', r['title'], r['url'],
+                       r['published_at'] or '', r['source_id'])
+        self.assertEqual(self.G.wants(doc), r['form'] == 'us-deliveries')
+    # EDGAR 경로는 그대로
+    self.assertTrue(self.G.wants(self._doc(form='8-K', source='edgar', doc_type='earnings_release')))
+
+  def test_parse_total_row(self):
+    res = self.G.parse(self._doc(), base.Content(text=self.G.DELIVERIES_Q3_2026))
+    self.assertTrue(res.recognized)
+    self.assertEqual([(v.metric, v.region, v.period_grain, v.period, v.value) for v in res.volume],
+                     [('deliveries', 'us', 'quarter', '2026-Q3', 670974)])
+    self.assertEqual(base.check_vocab(res), [])
+
+  def test_quote_passes_quote_check(self):
+    from lib import quote_check
+    res = self.G.parse(self._doc(), base.Content(text=self.G.DELIVERIES_Q3_2026))
+    self.assertEqual(quote_check.check_row(res.volume[0], self.G.DELIVERIES_Q3_2026)[0], True)
+
+  def test_missing_total_row_is_recognized_empty(self):
+    """제목은 알아봤는데 총계 행이 없으면 0행 + recognized → 숫자 수집기가 failed 로 드러낸다(모델별 행은 읽지 않는다)."""
+    text = self.G.DELIVERIES_Q3_2026.replace('GM Vehicle Total*', 'Grand Total')
+    res = self.G.parse(self._doc(), base.Content(text=text))
+    self.assertEqual((res.count(), res.recognized), (0, True))
+
+  def test_fetch_ir_uses_chrome_and_pdf_text(self):
+    from unittest import mock
+    from lib import ir_lists
+    with mock.patch.object(ir_lists, '_chrome_fetch', return_value=[(200, b'%PDF-1.7 x')]) as cf, \
+         mock.patch('lib.doc_text.pdf_text', return_value=self.G.DELIVERIES_Q3_2026):
+      content = self.G.fetch(object(), self._doc())
+    cf.assert_called_once_with([self._doc().url])
+    self.assertEqual(content.text, self.G.DELIVERIES_Q3_2026)
+    self.assertEqual(content.raw, b'%PDF-1.7 x')
+
+  def test_fetch_ir_failures_are_lib_classes(self):
+    """403 = HTTPError(응답 403 → 숫자 수집기 blocked) · 크기 초과 = lib 의 TooLarge(바이트가 상한을 넘어도)."""
+    import requests
+    from unittest import mock
+    from lib import ir_lists
+    with mock.patch.object(ir_lists, '_chrome_fetch', return_value=[(403, b'')]):
+      with self.assertRaises(requests.HTTPError) as cm:
+        self.G.fetch(object(), self._doc())
+    self.assertEqual(cm.exception.response.status_code, 403)
+    for result in ([(ir_lists.CHROME_TOO_LARGE, b'')], [(200, b'x' * 11)]):
+      with mock.patch.object(ir_lists, '_chrome_fetch', return_value=result), \
+           mock.patch.object(ir_lists, 'MAX_IR_BYTES', 10), self.assertRaises(ir_lists.TooLarge):
+        self.G.fetch(object(), self._doc())
+
+  def test_fetch_edgar_delegates_to_default(self):
+    from unittest import mock
+    import collect_customer_numbers as ccn_mod
+    want = base.Content('본문')
+    with mock.patch.object(ccn_mod, 'fetch_content', return_value=(want, 'sha')) as f:
+      self.assertIs(self.G.fetch(object(), self._doc(form='8-K', source='edgar', doc_type='earnings_release')), want)
+    f.assert_called_once()
+
+
 class VocabTests(unittest.TestCase):
   def test_base_self_test(self):
     self.assertEqual(base.self_test(), [])
