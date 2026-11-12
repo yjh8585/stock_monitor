@@ -16,6 +16,7 @@ import { canAccess } from '@/lib/auth/permissions';
 import { todaySeoul } from '@/lib/currentYear';
 import { getCustomerDetail, getCustomerIr, pickCustomerEarnings } from '@/lib/customers/source';
 import { latestChinaJv, nextEarnings } from '@/lib/customers/ir';
+import { ytdAnnualPoint } from '@/lib/customers/earnings';
 import type { CustomerEarnings } from '@/lib/customers/types';
 import {
   earningsFootnotes,
@@ -68,6 +69,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
         annual: earningsFootnotes(earnings.annual, earnings.currency),
       }
     : undefined;
+  // 연간 차트 = 회사 연간 행 + 아직 연간 행이 없는 올해 YTD(아래 표와 같은 함수 · 2026-11-12 사용자 지시).
+  const ytd = ytdAnnualPoint(earnings.quarterly, earnings.annual);
+  const annualWithYtd = ytd ? [...earnings.annual, ytd] : earnings.annual;
   const next = ir ? nextEarnings(ir.earningsDates, todaySeoul()) : null;
   const chinaJv = ir ? latestChinaJv(ir.reported) : null;
   const shareText = row.share.sharePct == null ? '해당 없음' : `${row.share.sharePct.toFixed(1)}%`;
@@ -115,18 +119,21 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
           {earnings.currency && (
             <HyundaiQuarterlyEarningsChart
               data={earnings.quarterly}
-              annual={earnings.annual}
+              annual={annualWithYtd}
               revenueKey="revenue_bn"
               currency={earnings.currency}
               allowNegativeMargin={hasNegativeMargin(earnings)}
               showMarginLabels
+              splitBands
               titleLabel="실적"
               sourceNote={
                 companyFirst
                   ? '회사 공시 우선 · 없는 칸은 시장 데이터(yfinance) · 현지 통화'
                   : 'financials(yfinance·DART) · 현지 통화'
               }
-              annualNote={`연간 = 회사 발표 연간 실적 · 매출 단위: ${
+              annualNote={`연간 = 회사 발표 연간 실적${
+                ytd ? ` · ${ytd.period_label} = 발표된 분기 합` : ''
+              } · 매출 단위: ${
                 earnings.currency === 'KRW' ? '조원' : `${earnings.currency} bn`
               }, 영업이익률(%)`}
             />

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { CellOrigin, CustomerEarnings, CustomerEarningsPoint } from '@/lib/customers/types';
 import { quarterRows, ytdAnnualPoint, type QuarterRowView } from '@/lib/customers/earnings';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import {
   originNote,
   pctClass,
@@ -45,6 +46,7 @@ interface Props {
 /** 고객사 실적 표 — 분기/연간 토글, 최신 기간이 위. 금액은 현지 통화 십억(bn). */
 export default function CustomerEarningsTable({ earnings, adjustedRows = [], footnotes }: Props) {
   const [mode, setMode] = useState<'quarter' | 'annual'>('quarter');
+  const { highlighted, rowToggleProps } = useRowHighlight();
   if (!earnings.currency) return <p className="text-sm text-muted-foreground">재무 데이터 없음</p>;
   const isQ = mode === 'quarter';
   // 분기 = QoQ·누적 칸이 붙은 줄 · 연간 = 회사 연간 행 + 아직 연간 행이 없는 올해의 YTD 행(맨 위).
@@ -132,7 +134,13 @@ export default function CustomerEarningsTable({ earnings, adjustedRows = [], foo
             {rows.map((p) => (
               <tr
                 key={p.period_label}
-                className={cn('border-t border-border', p === ytd && 'bg-muted/30')}
+                {...rowToggleProps(`${mode}|${p.period_label}`, p.period_label)}
+                className={cn(
+                  'border-t border-border cursor-pointer',
+                  highlighted.has(`${mode}|${p.period_label}`)
+                    ? ROW_HIGHLIGHT_CLASS
+                    : p === ytd && 'bg-muted/30'
+                )}
               >
                 <td className="px-3 py-1.5 text-left">{p.period_label}</td>
                 <td className={TD}>

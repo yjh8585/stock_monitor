@@ -1,6 +1,7 @@
 // 서버 컴포넌트 — 'use client' 면 화면에 안 쓰는 사외비 칸(share.topProducts)까지 RSC payload 로 브라우저에 실린다.
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import HighlightRow from './HighlightRow';
 // 타입만 쓰므로 import type — 값 import 가 아니라 조회 모듈('use cache' 함수)을 끌어오지 않는다.
 import type { CustomerOverviewIr, CustomerOverviewTableRow } from '@/lib/customers/source';
 // 지시어 없는 lib — 서버 컴포넌트가 값으로 불러도 된다('use client' 파일의 함수는 안 된다).
@@ -119,7 +120,11 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
             const q = r.latestQuarter;
             const next = nextEarnings(r.ir.earningsDates, today);
             return (
-              <tr key={r.company_id} className="border-t border-border hover:bg-muted/30">
+              <HighlightRow
+                key={r.company_id}
+                label={r.name_kr}
+                className="border-t border-border hover:bg-muted/30"
+              >
                 <td className={TD}>
                   <Link
                     href={`/customers/${r.slug}`}
@@ -195,7 +200,7 @@ export default function CustomersOverviewTable({ rows, windowLabel, today }: Pro
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-              </tr>
+              </HighlightRow>
             );
           })}
         </tbody>

@@ -5,6 +5,7 @@ import { regionQuarterCharts, type VolumeSeries } from '@/lib/customers/ir';
 import type { CustomerDetail } from '@/lib/customers/source';
 import { volumeSeriesLabel } from '@/lib/customers/format';
 import { monthlyToQuarterly } from '@/lib/customers/volume';
+import HighlightRow from './HighlightRow';
 
 /** MarkLines 판매와 견줄 회사 계열 — 전체(total) 중 판매 성격이 가까운 지표부터. */
 const CHART_METRIC_ORDER = ['sales', 'wholesale', 'deliveries', 'shipments', 'production'];
@@ -122,7 +123,11 @@ export default function CustomerVolumeCompare({ volume, series }: Props) {
                   {quarterly.map((s) => {
                     const byPeriod = new Map(s.quarterly.map((q) => [q.period, q]));
                     return (
-                      <tr key={`${s.metric}|${s.region}`} className="border-t border-border">
+                      <HighlightRow
+                        key={`${s.metric}|${s.region}`}
+                        label={volumeSeriesLabel(s.metric, s.region)}
+                        className="border-t border-border"
+                      >
                         <td className="px-2 py-1 whitespace-nowrap">
                           {volumeSeriesLabel(s.metric, s.region)}
                         </td>
@@ -142,7 +147,7 @@ export default function CustomerVolumeCompare({ volume, series }: Props) {
                             </td>
                           );
                         })}
-                      </tr>
+                      </HighlightRow>
                     );
                   })}
                 </tbody>

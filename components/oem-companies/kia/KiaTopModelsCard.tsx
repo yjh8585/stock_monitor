@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import type { CompanyTopModelsResult } from '@/lib/types';
 
 type Dataset = 'wholesale' | 'retail';
@@ -78,6 +79,7 @@ export default function KiaTopModelsCard({
   ytdPeriodLabel,
   prevPeriodPartialNote,
 }: Props) {
+  const { highlighted, rowToggleProps } = useRowHighlight();
   const [dataset, setDataset] = useState<Dataset>('wholesale');
   const [plant, setPlant] = useState<string>('all');
 
@@ -204,7 +206,14 @@ export default function KiaTopModelsCard({
             </TableHeader>
             <TableBody>
               {data.map((row, idx) => (
-                <TableRow key={row.model}>
+                <TableRow
+                  key={row.model}
+                  {...rowToggleProps(row.model, row.model)}
+                  className={cn(
+                    'cursor-pointer',
+                    highlighted.has(row.model) && ROW_HIGHLIGHT_CLASS
+                  )}
+                >
                   <TableCell className="text-muted-foreground tabular-nums">{idx + 1}</TableCell>
                   <TableCell className="font-medium">{row.model}</TableCell>
                   {showYtd && (

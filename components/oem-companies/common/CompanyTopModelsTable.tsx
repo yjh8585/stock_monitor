@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { ROW_HIGHLIGHT_CLASS, useRowHighlight } from '@/lib/useRowHighlight';
 import type { CompanyTopModelRow, CompanyTopModelsResult } from '@/lib/types';
 
 /** 2단계 region 옵션 — `dataKoreaShip` 안에서 추가 분류. value='all'은 그대로 dataKoreaShip 사용. */
@@ -121,6 +122,7 @@ export default function CompanyTopModelsTable({
   hidePtColumn = false,
   hideUnifiedNote = false,
 }: Props) {
+  const { highlighted, rowToggleProps } = useRowHighlight();
   const groups = useMemo<GroupEntry[]>(() => {
     const list: GroupEntry[] = [
       {
@@ -289,7 +291,14 @@ export default function CompanyTopModelsTable({
             </TableHeader>
             <TableBody>
               {data.map((row, idx) => (
-                <TableRow key={row.model}>
+                <TableRow
+                  key={row.model}
+                  {...rowToggleProps(row.model, row.model)}
+                  className={cn(
+                    'cursor-pointer',
+                    highlighted.has(row.model) && ROW_HIGHLIGHT_CLASS
+                  )}
+                >
                   <TableCell className="text-muted-foreground tabular-nums">{idx + 1}</TableCell>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">

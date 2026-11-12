@@ -38,6 +38,8 @@ interface Props {
   allowNegativeMargin?: boolean;
   /** 영업이익률 점 위에 숫자(소수 1자리 %)를 표시한다. 기본 false — OEM 현대 탭은 그대로. */
   showMarginLabels?: boolean;
+  /** 막대(하단)·꺾은선(상단) 영역을 나눈다(chart-guide §4-F). 기본 false — OEM 현대 탭은 그대로 · 고객사 상세가 켠다. 음수 마진이면 늘 나눈다. */
+  splitBands?: boolean;
 }
 
 function fmtOpmTick(n: number): string {
@@ -63,7 +65,9 @@ export default function HyundaiAnnualEarningsChartInner({
   currency = 'KRW',
   allowNegativeMargin = false,
   showMarginLabels = false,
+  splitBands = false,
 }: Props) {
+  const banded = allowNegativeMargin || splitBands;
   const fmt = revenueFormat(currency);
   // 배열 유니온(A[] | B[])은 ComposedChart 제네릭이 못 받아 원소 유니온 배열로 넓힌다(캐스트 아님).
   const rows: readonly (HyundaiAnnualEarningsPoint | CustomerEarningsPoint)[] = data;
@@ -91,8 +95,8 @@ export default function HyundaiAnnualEarningsChartInner({
           tickFormatter={fmt.tick}
           className="text-sm"
           width={50}
-          // 음수 마진 갈래만 §4-F 하단 밴드로 압축. 기본 갈래는 기존 축 그대로.
-          domain={allowNegativeMargin ? BAR_BAND_DOMAIN : Y_AXIS_PADDED_DOMAIN}
+          // 밴드 갈래(음수 마진·splitBands)만 §4-F 하단 밴드로 압축. 기본 갈래는 기존 축 그대로.
+          domain={banded ? BAR_BAND_DOMAIN : Y_AXIS_PADDED_DOMAIN}
           label={{ value: fmt.axisLabel, angle: -90, position: 'insideLeft', fontSize: 11 }}
         />
         <YAxis
@@ -101,8 +105,8 @@ export default function HyundaiAnnualEarningsChartInner({
           tickFormatter={fmtOpmTick}
           className="text-sm"
           width={50}
-          // 음수 마진 갈래: 0 을 품은 [min, max] 를 상단 밴드(55~95%)에 사상해 막대와 겹치지 않게 한다.
-          domain={allowNegativeMargin ? bandDomain(marginValues(rows)) : [0, 'auto']}
+          // 밴드 갈래: 0 을 품은 [min, max] 를 상단 밴드(55~95%)에 사상해 막대와 겹치지 않게 한다.
+          domain={banded ? bandDomain(marginValues(rows)) : [0, 'auto']}
           label={{ value: '영업이익률(%)', angle: 90, position: 'insideRight', fontSize: 11 }}
         />
         <Tooltip
