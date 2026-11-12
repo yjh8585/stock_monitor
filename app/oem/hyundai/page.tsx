@@ -1,9 +1,7 @@
 import CompanyKpiCards from '@/components/oem-companies/common/CompanyKpiCards';
 import CompanyPowertrainMixChart from '@/components/oem-companies/common/CompanyPowertrainMixChart';
 import CompanyTimeSeriesChart from '@/components/oem-companies/common/CompanyTimeSeriesChart';
-import CompanyTopModelsTable, {
-  type FactoryOption,
-} from '@/components/oem-companies/common/CompanyTopModelsTable';
+import CompanyTopModelsTable from '@/components/oem-companies/common/CompanyTopModelsTable';
 import HyundaiEuRetailChart from '@/components/oem-companies/hyundai/HyundaiEuRetailChart';
 import HyundaiEuRetailTopCard from '@/components/oem-companies/hyundai/HyundaiEuRetailTopCard';
 import HyundaiExportRegionChart from '@/components/oem-companies/hyundai/HyundaiExportRegionChart';
@@ -15,27 +13,8 @@ import HyundaiQuarterlyEarningsChart from '@/components/oem-companies/hyundai/Hy
 import { HyundaiRetailWholesaleRegionCard } from '@/components/oem-companies/hyundai/HyundaiRetailWholesaleCard';
 import HyundaiUsRetailTopCard from '@/components/oem-companies/hyundai/HyundaiUsRetailTopCard';
 import HyundaiVehicleTypeMixChart from '@/components/oem-companies/hyundai/HyundaiVehicleTypeMixChart';
+import { factoryOptionsOf, irFooterOf } from '@/components/oem-companies/hyundai/hyundaiPageProps';
 import { getHyundaiData } from '@/lib/oem-companies/hyundai/source';
-
-/** IR 정합성 요약 문구 — IR Regions 통합 차트 footer. */
-function buildIrFooterText(
-  latestYear: string | null,
-  latestIr: number,
-  latestDb: number,
-  latestDiff: number,
-  latestPct: number | null
-): string {
-  const base =
-    '연간(ir-summary, 9 region 도매 합) ↔ 분기(ir-quarterly, IR PDF p.5~6 region 분기 도매)를 토글로 비교. 단위: 연간=대, 분기=천대. 2021-2022는 8 region(러시아 포함).';
-  if (latestYear == null) return base;
-  const fmt = (n: number) => n.toLocaleString('ko-KR');
-  const pct = latestPct == null ? '' : ` (${latestPct >= 0 ? '+' : ''}${latestPct.toFixed(3)}%)`;
-  const match =
-    Math.abs(latestDiff) < 1000
-      ? '거의 일치'
-      : `${latestDiff >= 0 ? '+' : ''}${fmt(latestDiff)}대${pct}`;
-  return `${base} · 정합성(연간): ${latestYear}년 IR ${fmt(latestIr)}대 vs DB ${fmt(latestDb)}대 — ${match}`;
-}
 
 /** 현대차 차종/공장별 판매 대시보드 (월 데이터, 연/월 토글). */
 export default async function HyundaiPage() {
@@ -58,21 +37,9 @@ export default async function HyundaiPage() {
     );
   }
 
-  const irFooter = buildIrFooterText(
-    data.irComparison.latestYear,
-    data.irComparison.latestIrTotal,
-    data.irComparison.latestDbTotal,
-    data.irComparison.latestDiff,
-    data.irComparison.latestDiffPct
-  );
-
-  // CompanyTopModelsTable의 factoryOptions 형식으로 변환 (#7 region 분기 포함).
-  const factoryOptions: Record<string, FactoryOption> = {};
-  for (const [code, entry] of Object.entries(data.topModels.factories)) {
-    factoryOptions[code] = entry.regions
-      ? { result: entry.result, regions: entry.regions }
-      : entry.result;
-  }
+  // 인자 빚기는 고객사 상세와 같은 함수(hyundaiPageProps) — 두 화면이 같은 인자로 그린다.
+  const irFooter = irFooterOf(data);
+  const factoryOptions = factoryOptionsOf(data);
 
   return (
     <div className="p-6 space-y-6">

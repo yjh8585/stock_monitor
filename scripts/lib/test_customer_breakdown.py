@@ -39,6 +39,39 @@ def _row(**kw) -> cb.Row:
   return cb.Row(**base)
 
 
+class HierarchyTest(unittest.TestCase):
+  """상위 합계 ↔ 하위 구분 — 같은 metric 이면 화면이 두 번 쌓는다(GM 인도 2026-11-12). 값은 가짜."""
+
+  def _found(self, spec, **kw):
+    rows = [_row(label_raw=l, value=v, **kw) for l, v in spec]
+    before = [r.metric for r in rows]
+    found = cb.suspect_parent_sums(rows)
+    self.assertEqual([r.metric for r in rows], before)   # 행은 안 바꾼다(경고만)
+    return found
+
+  def test_parent_then_children(self):
+    got = self._found([('Total North America', 1000), ('United States', 870), ('Other', 130), ('China', 500)])
+    self.assertEqual(got, [('Total North America', ['Other', 'United States'])])
+
+  def test_children_then_parent(self):
+    got = self._found([('China', 500), ('United States', 870), ('Other', 130), ('Total North America', 1000)])
+    self.assertEqual(got, [('Total North America', ['Other', 'United States'])])
+
+  def test_no_hierarchy(self):
+    self.assertEqual(self._found([('North America', 1000), ('Europe', 600), ('China', 350)]), [])
+
+  def test_prefix_children_left_to_screen(self):
+    self.assertEqual(self._found([('Macan', 100), ('Macan BEV', 60), ('Macan ICE', 40)]), [])
+
+  def test_percent_skipped(self):
+    self.assertEqual(self._found([('A', 100), ('B', 60), ('C', 40)], unit='pct'), [])
+
+  def test_share_only_for_domestic(self):
+    rows = [_row(), _row(kind='share', metric='market_share', unit='share_pct', value=7.5)]
+    self.assertEqual([r.kind for r in cb.keep_for_company('005380', rows)], ['share'])
+    self.assertEqual(len(cb.keep_for_company('GM', rows)), 2)
+
+
 class ShapeTest(unittest.TestCase):
   def test_period_formats(self):
     good = [('month', '2026-10'), ('quarter', '2026-Q3'), ('half', '2026-H1'), ('ytd', '2026-9M'), ('year', '2026'),

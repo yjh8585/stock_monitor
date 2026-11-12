@@ -9,6 +9,8 @@ import CustomerDocSummaries from '@/components/customers/CustomerDocSummaries';
 import CustomerNewsWeekly from '@/components/customers/CustomerNewsWeekly';
 import CustomerVolumeCompare from '@/components/customers/CustomerVolumeCompare';
 import CustomerEarningsSchedule from '@/components/customers/CustomerEarningsSchedule';
+import CustomerBreakdown from '@/components/customers/CustomerBreakdown';
+import { domesticOemNodes } from '@/components/customers/CustomerDomesticOem';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { canAccess } from '@/lib/auth/permissions';
 import { todaySeoul } from '@/lib/currentYear';
@@ -54,6 +56,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
   const [d, ir] = await Promise.all([getCustomerDetail(slug), getCustomerIr(slug)]);
   if (!d) notFound();
   const { row, volume } = d;
+  // 국내 3사 = OEM 탭 부품(같은 인자 · 결정 C1). 해외·모비스는 undefined.
+  const domestic = await domesticOemNodes(row.ticker);
   // 해외는 칸마다 회사 공시 → 시장 데이터 순으로 고른 결과만 그린다(공시 원본 행은 화면에 뿌리지 않는다). 국내는 1단계 그대로.
   const companyFirst = ir?.earningsRule === 'company_first';
   const earnings =
@@ -170,6 +174,12 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
             </Link>
           )}
         </section>
+        {/* 「물량」 아래 — 지역·차종·점유율(결정 C4). breakdown 은 'use cache' 새 필드라 옛 캐시 항목엔 없을 수 있다(chart-guide §7-A). */}
+        <CustomerBreakdown
+          tabs={ir?.breakdown ?? []}
+          anchoredDocIds={(ir?.docSummaries ?? []).map((s) => s.docId)}
+          domestic={domestic}
+        />
         {ir && <CustomerDocSummaries summaries={ir.docSummaries} />}
         {ir && (
           <section className="space-y-3">

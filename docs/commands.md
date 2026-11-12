@@ -76,12 +76,13 @@ UI 변경은 `npm run dev` 띄워 브라우저에서 골든 패스 + 엣지 케�
 
 ## 고객사 수집 종료 코드 (GHA `collect-customer-docs.yml` · `summarize-customer-news.yml`)
 
-| 스크립트                      | 0                            | 1                                                                | 2                            |
-| ----------------------------- | ---------------------------- | ---------------------------------------------------------------- | ---------------------------- |
-| `collect_customer_docs.py`    | 정상 · 차단(blocked) 포함    | 출처 error 1건 이상                                              | 인자 오류                    |
-| `collect_customer_numbers.py` | 정상 · LLM 재시도 대기 포함  | 파싱 실패 · LLM 3회 상한 failed · 내용 받기 실패(일시 오류 포함) | 자가 시험 실패 · 인자 오류   |
-| `summarize_customer_docs.py`  | 정상 · 검사 실패 · 받기 경고 | API·DB 오류 · 그 밖 받기 실패 · 키 없음                          | 자가 시험 · 인자 · 회사 없음 |
-| `summarize_customer_news.py`  | 정상 · 검사 실패 · empty     | API·DB 오류 · 키 없음                                            | 자가 시험 · 인자 · 회사 없음 |
+| 스크립트                        | 0                                           | 1                                                                | 2                            |
+| ------------------------------- | ------------------------------------------- | ---------------------------------------------------------------- | ---------------------------- |
+| `collect_customer_docs.py`      | 정상 · 차단(blocked) 포함                   | 출처 error 1건 이상                                              | 인자 오류                    |
+| `collect_customer_numbers.py`   | 정상 · LLM 재시도 대기 포함                 | 파싱 실패 · LLM 3회 상한 failed · 내용 받기 실패(일시 오류 포함) | 자가 시험 실패 · 인자 오류   |
+| `summarize_customer_docs.py`    | 정상 · 검사 실패 · 받기 경고                | API·DB 오류 · 그 밖 받기 실패 · 키 없음                          | 자가 시험 · 인자 · 회사 없음 |
+| `summarize_customer_news.py`    | 정상 · 검사 실패 · empty                    | API·DB 오류 · 키 없음                                            | 자가 시험 · 인자 · 회사 없음 |
+| `collect_customer_breakdown.py` | 정상 · 코드 꼴 바뀜 0행·상위 합계 의심 경고 | 받기·API 읽기·DB 오류 · 키 없음                                  | 인자·파일 형식 · 회사 없음   |
 
 - 차단(두 스크립트 모두)·`ANTHROPIC_API_KEY` 누락·서식 미인식(숫자 수집)은 exit 0 이지만 GHA 에선 `::warning::` 으로 실행 요약에 노랗게 뜬다.
 - 숫자 수집: **50MB 상한 초과(`too_large`)는 exit 0** — 문서를 `not_target`(「크기 초과 — 링크만」)으로 닫고 상태 사유에 「크기 초과 n건」. **`--close DOC_ID --note` 의 인자 오류(`--note` 없음 · `--reparse`·`--add-file` 동반 · `--close` 없이 `--note`)와 문서 없음 · parsed 문서(숫자가 실려 있다 — `--reparse` 로)는 exit 2.** LLM 3회 상한이 «LLM 행 대조 실패»로 끝나면 그 LLM 행을 미검증으로 싣고 옛 LLM 행을 지운다(다시 처리한 문서의 옛 verified 행이 화면에 남지 않게). 값 행이 전부 LLM 행이고 그 전부가 «지표 불일치»인 문서는 재시도 없이 failed(exit 1 · 「LLM 3회 상한」과 같은 끝) — 검증된 코드 값 행이 하나라도 있으면 parsed(exit 0)이고 불일치 LLM 행만 `verified=False` 로 남는다.

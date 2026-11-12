@@ -101,7 +101,17 @@ def dump(client, session, doc_ids: list[int], out: pathlib.Path) -> int:
 
 def _store(ws, doc, ticker, content, summ, rows, totals: Counter, now: str, tag: str = '') -> bool:
   """검사 → 건수·사유 한 줄 → 적재(ws 가 None 이면 dry-run). 저장 실패면 False."""
-  from lib.customer_breakdown import SourcePages, payloads, save_document, verify
+  import os
+
+  from lib.customer_breakdown import SourcePages, keep_for_company, payloads, save_document, suspect_parent_sums, verify
+  dropped = len(rows)
+  rows = keep_for_company(ticker, rows)
+  dropped -= len(rows)
+  tag += f' · 점유율 외 {dropped}행 버림(국내 3사)' if dropped else ''
+  # 경고만 — 상위 합계와 하위 구분이 같은 metric 이면 화면이 두 번 쌓는다(이름만 찍는다 · 값은 안 찍는다).
+  for parent, kids in suspect_parent_sums(rows):
+    msg = f'문서 {doc["id"]} · 상위 합계 의심 {parent} ← {" + ".join(kids)} — 하위면 metric 을 _detail 로 다시 적재'
+    print(f'::warning::{msg}' if os.environ.get('GITHUB_ACTIONS') else msg)
   src = SourcePages(content)
   results = [(r, *verify(r, src)) for r in rows]
   out, conflicts = payloads(doc, results)

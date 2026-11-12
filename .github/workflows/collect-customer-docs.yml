@@ -1,6 +1,7 @@
 name: 고객사 공식 문서·숫자 수집 (평일 1회 · 회사별 격리)
 
-# 순서 = 문서 목록(collect_customer_docs.py) → 숫자(collect_customer_numbers.py) → 요약(summarize_customer_docs.py · 새 문서만).
+# 순서 = 문서 목록(collect_customer_docs.py) → 숫자(collect_customer_numbers.py) → 요약(summarize_customer_docs.py · 새 문서만)
+#        → 분해(collect_customer_breakdown.py · 지역·차종·점유율 · 요약이 남긴 c_materials 를 읽는다).
 #   만료된 URL(현대모비스 fileId 등)은 목록 수집이 갱신하므로 숫자 수집이 반드시 그 뒤에 돈다.
 # 회사마다 job 하나(matrix · fail-fast: false) — 한 회사의 실패가 다른 회사를 막지 않는다.
 #
@@ -13,6 +14,7 @@ name: 고객사 공식 문서·숫자 수집 (평일 1회 · 회사별 격리)
 #   collect_customer_numbers.py 0 정상(LLM 재시도 대기·차단·서식 미인식 포함) · 1 «이번 실행에서 새로 생긴» 파싱 실패(LLM 3회 상한 failed·내용 받기 실패(일시 오류 포함) · 이미 닫힌 실패는 상태 표 사유로만) · 2 자가 시험 실패·인자 오류
 #   probe_gm()                  requests → Playwright → 실제 Chrome(CDP) · 로그 전용(상태 표는 문서 목록 step 이 쓴다) · 0 ok·blocked(알려진 상태) · 1 error(접근 실패)
 #   summarize_customer_docs.py  0 정상(검사 실패·건너뜀 · 원문 받기 경고 401·403·404·크기 초과 — ::warning::) · 1 API·DB 오류 · 그 밖 받기 실패 · 키 없음 · 2 자가 시험·인자
+#   collect_customer_breakdown.py 0 정상(코드 꼴 바뀜 0행·상위 합계 의심은 ::warning::) · 1 받기·API 읽기·DB 오류 · 키 없음 · 2 인자 · 회사 없음
 # 정본 = 각 스크립트 docstring · docs/commands.md 「고객사 수집 종료 코드」.
 
 on:
@@ -137,3 +139,9 @@ jobs:
       - name: 요약
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: python summarize_customer_docs.py --company "${{ matrix.ticker }}"
+
+      # C — 요약 행(status ok · c_materials 있음 · breakdown_at 없음 · 게시일 최근 1년)만 읽는다. 코드 파서 몫은 API 0.
+      # --api 는 이 step 에만 붙인다(로컬은 --dump/--load 소급 · API 0). 요약 step 이 실패해도 이미 요약된 문서는 읽는다.
+      - name: 분해
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        run: python collect_customer_breakdown.py --company "${{ matrix.ticker }}" --api

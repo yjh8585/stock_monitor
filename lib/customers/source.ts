@@ -19,6 +19,7 @@ import { computeShares } from './share';
 import { buildEarnings } from './earnings';
 import { priceReturns } from './prices';
 import { groupMonthToSaleRows } from './volume';
+import { buildBreakdown, type BreakdownRow, type BreakdownTab } from './breakdown';
 import { revenueKrw, type RateRow } from './krw';
 import { guidanceSignal, type SignalColor } from './signals';
 import {
@@ -130,6 +131,8 @@ export interface CustomerIr {
   docSummaries: DocSummary[];
   /** 주간 뉴스 요약 — status ok · 최근 4주(최신순). */
   newsWeeks: NewsWeek[];
+  /** 「지역·차종·점유율」 탭 — verified 만 · 값 없는 탭은 빠진다(결정 C4·C8). */
+  breakdown: BreakdownTab[];
 }
 
 export interface CustomerDetail {
@@ -579,6 +582,37 @@ async function fetchVolume(companyId: string): Promise<VolumeRow[]> {
   }));
 }
 
+/** 지역·차종·점유율 — verified 만 · 문서 제목·URL 은 document_id 외래키로. 정렬 = PK(id). */
+async function fetchBreakdown(companyId: string): Promise<BreakdownRow[]> {
+  const rows = await fetchAllPages('customer_breakdown_ir', (from, to) =>
+    confidentialDb
+      .from('customer_breakdown_ir')
+      .select(
+        'document_id,page,kind,metric,label_raw,label_ko,period_grain,period,value,unit,definition,published_at,customer_documents(title,url)'
+      )
+      .eq('company_id', companyId)
+      .eq('verified', true)
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  return rows.map((r) => ({
+    document_id: r.document_id,
+    page: r.page,
+    kind: r.kind as BreakdownRow['kind'],
+    metric: r.metric,
+    label_raw: r.label_raw,
+    label_ko: r.label_ko,
+    period_grain: r.period_grain as BreakdownRow['period_grain'],
+    period: r.period,
+    value: Number(r.value),
+    unit: r.unit as BreakdownRow['unit'],
+    definition: r.definition,
+    published_at: r.published_at,
+    doc_title: r.customer_documents?.title ?? null,
+    doc_url: r.customer_documents?.url ?? null,
+  }));
+}
+
 /** 검증된 회사 공시 실적 행 — 회사별. 정렬 = PK 전체(company_id, period_grain, period, metric). */
 async function fetchReportedMany(ids: string[]): Promise<Map<string, ReportedRow[]>> {
   const rows = await fetchAllPages('customer_reported_results', (from, to) =>
@@ -725,6 +759,7 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
   cacheTag('customer_collect_status');
   cacheTag('customer_doc_summaries');
   cacheTag('customer_news_weekly');
+  cacheTag('customer_breakdown_ir');
   const account = (await fetchAccounts()).find((a) => a.slug === slug);
   if (!account) return null;
   const id = account.company_id;
@@ -738,6 +773,7 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
     collectStatus,
     docSummaries,
     newsWeeks,
+    breakdownRows,
   ] = await Promise.all([
     fetchCompanies([id]),
     fetchDocuments(id),
@@ -748,6 +784,7 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
     fetchCollectStatus(id),
     fetchDocSummaries(id),
     fetchNewsWeeks(id),
+    fetchBreakdown(id),
   ]);
   const company = companies.get(id);
   if (!company) return null; // hidden·병합된 회사 — getCustomerDetail 과 같은 판정
@@ -765,6 +802,7 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
     collectStatus,
     docSummaries,
     newsWeeks,
+    breakdown: buildBreakdown(breakdownRows),
   };
 }
 

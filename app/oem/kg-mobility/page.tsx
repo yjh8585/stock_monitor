@@ -3,6 +3,7 @@ import CompanyPowertrainMixChart from '@/components/oem-companies/common/Company
 import CompanyTimeSeriesChart from '@/components/oem-companies/common/CompanyTimeSeriesChart';
 import CompanyTopModelsTable from '@/components/oem-companies/common/CompanyTopModelsTable';
 import KgDomesticExportSplit from '@/components/oem-companies/kg-mobility/KgDomesticExportSplit';
+import KgModelNameNote from '@/components/oem-companies/kg-mobility/KgModelNameNote';
 import { getKgMobilityData } from '@/lib/oem-companies/kg-mobility/source';
 
 /** KG모빌리티 차종별 판매 대시보드 (월 데이터, 연/월 토글). */
@@ -66,14 +67,7 @@ export default async function KgMobilityPage() {
         ytdPeriodLabel={data.kpi.ytdLabel}
         hideUnifiedNote
       />
-      <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        ※ 차종명 통일:{' '}
-        <span className="font-medium text-foreground">
-          R/Sports = Rexton Sports / R/Sports KHAN = Rexton Sports Khan / Musso sports / Musso Khan
-        </span>{' '}
-        는 모두 <span className="font-medium text-foreground">Musso</span>로 합산 (2026년 IR 표기
-        통합 기준). Musso EV는 별도.
-      </p>
+      <KgModelNameNote />
     </div>
   );
 }

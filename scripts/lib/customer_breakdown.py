@@ -57,6 +57,53 @@ def row_from_dict(d: dict, extractor: str = 'manual') -> Row:
   return Row(**kw)
 
 
+# 결정 C1 — 국내 3사(현대차·기아·KGM)의 지역·차종은 OEM 탭 자료가 맡고 IR 에서는 점유율만 싣는다(공개 상장사 코드).
+SHARE_ONLY_TICKERS = frozenset({'005380', '000270', '003620'})
+
+
+def keep_for_company(ticker: str, rows: list[Row]) -> list[Row]:
+  """국내 3사면 점유율 행만 남긴다(결정 C1 · 화면도 같은 규칙으로 IR 지역·차종을 안 그린다).
+  SHORTCUT: API 는 문서 전체를 읽고 여기서 버린다 → 비용이 눈에 띄면 지시문·스키마의 kind 를 회사별로 좁힌다."""
+  return [r for r in rows if r.kind == 'share'] if ticker in SHARE_ONLY_TICKERS else rows
+
+
+_SUM_TOL = 0.0005
+
+
+def suspect_parent_sums(rows: list[Row]) -> list[tuple[str, list[str]]]:
+  """상위 합계와 그 하위 구분이 같은 metric 으로 실린 «의심» 묶음 — [(상위 원문 이름, [하위 원문 이름…])]. 행은 안 바꾼다.
+
+  같은 (kind, metric, unit, 기간) 묶음에서 어떤 행 값이 바로 뒤(또는 바로 앞) «연속» 2행 이상의 합과 0.05% 안에서 같으면
+  의심으로 낸다. LLM 지시문 규칙 9(하위는 `<metric>_detail`)를 놓치면 화면이 합계를 두 번 쌓는다(GM 인도가 분기 약 2배로
+  보인 실사고 2026-11-12 — 값마다 원문과 맞아 verified 로 통과했다). 비율(pct·share_pct)은 쌓지 않아 안 본다.
+  하위가 모두 「상위 이름 + 공백」 으로 시작하면(Macan ↔ Macan BEV) 화면 dropSubLabels 몫이라 내지 않는다.
+  🔴 자동으로 고치지 않는다 — 소급 자료 실측(2026-11-12)에서 진짜 계층(GM)은 절반쯤만 잡히고(원문 순서가 연속이 아닌 표)
+  계층이 없는 모비스 지역 매출에서 우연한 합 일치 5행이 잡혔다. 고치면 멀쩡한 지역이 「세분」 차트로 옮겨진다 → 경고만.
+  SHORTCUT: 연속 구간만 본다 → 하위가 흩어져 실리면 못 잡는다 · 오탐이 남는다(작은 묶음에서 우연한 합).
+  """
+  groups: dict[tuple, list[Row]] = {}
+  for r in rows:
+    if r.unit in ('pct', 'share_pct') or r.metric.endswith('_detail'):
+      continue
+    groups.setdefault((r.kind, r.metric, r.unit, r.period_grain, r.period), []).append(r)
+  found: dict[tuple[str, tuple[str, ...]], None] = {}
+  for g in groups.values():
+    for i, p in enumerate(g):
+      if p.value <= 0:
+        continue
+      for step in (1, -1):
+        run, s, j = [], 0.0, i + step
+        while 0 <= j < len(g) and s <= p.value * (1 + _SUM_TOL):
+          run.append(g[j])
+          s += g[j].value
+          if len(run) >= 2 and abs(s - p.value) <= p.value * _SUM_TOL:
+            if not all(k.label_raw.startswith(f'{p.label_raw} ') for k in run):
+              found[(p.label_raw, tuple(sorted(k.label_raw for k in run)))] = None
+            break
+          j += step
+  return [(parent, list(kids)) for parent, kids in found]
+
+
 def shape_problem(r: Row) -> str | None:
   if r.kind not in KINDS:
     return f'kind:{r.kind}'

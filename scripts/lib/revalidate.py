@@ -112,6 +112,7 @@ COLUMN_TO_TAGS = {
     'customer_collect_status': ['customer_collect_status'],
     'customer_doc_summaries': ['customer_doc_summaries'],
     'customer_news_weekly': ['customer_news_weekly'],
+    'customer_breakdown_ir': ['customer_breakdown_ir'],
     'pnl_cost_structure': ['pnl_cost_structure'],
     'pnl_fixed_variable': ['pnl_fixed_variable'],
     'pnl_plan': ['pnl_plan'],

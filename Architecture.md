@@ -853,7 +853,7 @@ GHA runner: sync_management_excel.py (apply)
 | 보강 | enrich-company (재무 + 메타: 설명·제품·고객사·홈페이지 + **비상장 기업가치**. `business_summary` 는 한국어 판정을 통과해야 보강 완료로 본다 — 값이 차 있어도 영어면 다시 조사한다) | 매월 1일 |
 | 휴머노이드 | collect-humanoid (`enrich_company.py --page humanoid` + `collect_news.py`. 전역 워크플로가 분기(재무)·월(메타) 주기라 신규 등재·비상장 비중이 큰 이 페이지만 따로 당겨 돈다) | 주 1회 (월 05:00 KST) |
 | 증권사 리포트 | collect-naver-research (네이버 리서치 목록·메타. 🔴 **요약은 없다** — agents 레포 헤드리스 CLI(구독 인증)라 러너에서 못 돈다. 선별은 `is_relevant()` 로 수집 단계에서 끝나며 비관련은 저장 자체를 안 한다) | 평일 18:00 KST |
-| 고객사 공식 문서 | collect-customer-docs (회사별 matrix job · 목록→숫자→요약), summarize-customer-news (뉴스 주간 요약) | 평일 08:00 KST · 뉴스 월 06:00 KST |
+| 고객사 공식 문서 | collect-customer-docs (회사별 matrix job · 목록→숫자→요약→분해), summarize-customer-news (뉴스 주간 요약) | 평일 08:00 KST · 뉴스 월 06:00 KST |
 | 경영관리 엑셀 업로드 | sync-management (workflow_dispatch — dry-run/apply) | 수동 |
 | 보고서 자동생성 | collect-yt-report (workflow_dispatch — `/reports/new` 유튜브 제출 시 텍스트 확정 후 `/api/posts`가 트리거, `--enrich`로 주요장면·차트 이미지 보강. 기본 활성`YT_AUTO_REPORT!=0`. ⚠️GHA IP 봇차단 잦아 `YOUTUBE_COOKIES` 없이는 이미지 대개 안 붙음→텍스트 유지) | 자동 트리거 |
 | 수집 계약 점검 | verify-fnguide (`scripts/verify_fnguide.py` — fnguide 신버전 JSON 계약·계정 코드·셀렉터 생존 확인. DB·시크릿 미사용 읽기 전용. 재무 수집이 분기 1회라 사이트 변경을 최대 3개월 늦게 아는 문제의 조기 경보) | 주 1회 (월 09:00 KST) |
@@ -1114,7 +1114,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - `layout/`, `common/`, `charts/` — 공용 / 나머지는 페이지별(`related-stocks/`, `oem/`, `hansae/`, `management/` 등)
 - **그림 클릭 확대는 `components/common/ImageLightbox.tsx` 를 재사용**(인라인 재구현 금지) — `ZoomableImage`(클릭하면 열리는 그림) / `ImageLightbox`(열림을 바깥에서 제어할 때. 조직도가 이 쪽). 원본 해상도 스크롤 + 화면 맞춤 전환 + grab-to-pan + Esc 닫기가 한 벌로 붙어 있다. 쓰는 곳은 보고서 본문(`MarkdownView` 의 `img`) · 증권사 리포트 하단 갤러리 · 조직도.
 - **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
-- `components/customers/` — 고객사 요약·실적 표
+- `components/customers/` — 고객사 요약·실적 표·지역·차종·점유율 절
 
 ### `lib/`
 

@@ -12,7 +12,7 @@ json_schema · 반환 (결과, 본문, 토큰) · max_tokens·refusal 은 Incomp
 """
 import base64
 
-PROMPT_VERSION = 'c1-2026-11-12'
+PROMPT_VERSION = 'c2-2026-11-12'
 MAX_PAGES = 6
 MAX_CHARS = 120_000   # 비PDF 본문 상한(가장 긴 EDGAR 보도자료 ≈ 5만 자)
 
@@ -31,6 +31,8 @@ SYSTEM = """너는 자동차 회사 IR 문서에서 지역별·차종(브랜드�
    label_ko 는 한국어 이름. metric 은 원문 성격(deliveries·sales·wholesale·shipments·retail·revenue·orders·market_share 등).
 7. definition 은 그 값의 뜻을 한국어 한 줄로(문서에 정의가 있으면 그 뜻) — 모르면 null.
 8. 문서가 전년 같은 기간 값을 같은 표에 실으면 그 값도 낸다(기간이 다른 행). 없는 값을 짐작해 채우지 않는다.
+9. 상위 합계와 그 하위 구분이 함께 실리면(North America 와 그 안의 United States · 브랜드그룹과 그 안의 브랜드)
+   하위 행의 metric 끝에 _detail 을 붙인다(예 deliveries_detail) — 같은 metric 으로 두면 화면이 합계를 두 번 쌓는다.
 값이 하나도 없으면 rows 를 빈 배열로."""
 
 _NULLABLE_INT = {'anyOf': [{'type': 'integer'}, {'type': 'null'}]}

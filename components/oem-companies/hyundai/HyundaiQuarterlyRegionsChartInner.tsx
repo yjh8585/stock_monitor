@@ -19,8 +19,17 @@ import type { HyundaiQuarterlyRegionPoint } from '@/lib/types';
 import { DATA_LABEL_STYLE, GRID_STROKE_OPACITY } from '../common/chartStyle';
 import { useHiddenSeries } from '../common/useHiddenSeries';
 
+/** 값 단위 — label 은 툴팁 꼬리, tick 'thousand_units' = 천대 값을 만/M 로 접는 축(기본) · 'plain' = 숫자 그대로. */
+export interface RegionsChartUnit {
+  label: string;
+  tick: 'thousand_units' | 'plain';
+}
+
+const DEFAULT_UNIT: RegionsChartUnit = { label: '천대', tick: 'thousand_units' };
+
 interface Props {
   data: HyundaiQuarterlyRegionPoint[];
+  unit?: RegionsChartUnit;
 }
 
 /** Y축 tick — 천대(k) → 만/M 자동 변환. */
@@ -28,6 +37,10 @@ function fmtUnitsTick(n: number): string {
   if (n >= 10_000) return `${(n / 1_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 10).toFixed(0)}만`;
   return n.toLocaleString('ko-KR');
+}
+
+function fmtPlainTick(n: number): string {
+  return n.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
 }
 
 /** 막대 위 합계 라벨 — value는 천대 단위. */
@@ -49,9 +62,9 @@ function sortRegionsByTotal(data: HyundaiQuarterlyRegionPoint[]): string[] {
   return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
 }
 
-/** 분기별 region stacked bar (천대). 막대 위 합계 라벨 + 합계 큰 region 우선 stack.
+/** 분기별 region stacked bar (기본 천대). 막대 위 합계 라벨 + 합계 큰 region 우선 stack.
  *  Legend 클릭으로 시리즈 hide/show 토글 (#1). */
-export default function HyundaiQuarterlyRegionsChartInner({ data }: Props) {
+export default function HyundaiQuarterlyRegionsChartInner({ data, unit = DEFAULT_UNIT }: Props) {
   const height = useChartHeight(280, 320, 360);
   const { isHidden, legendProps } = useHiddenSeries();
 
@@ -80,7 +93,11 @@ export default function HyundaiQuarterlyRegionsChartInner({ data }: Props) {
           interval="preserveStartEnd"
           minTickGap={20}
         />
-        <YAxis tickFormatter={fmtUnitsTick} className="text-sm" width={60} />
+        <YAxis
+          tickFormatter={unit.tick === 'thousand_units' ? fmtUnitsTick : fmtPlainTick}
+          className="text-sm"
+          width={60}
+        />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
           contentStyle={TOOLTIP_CONTENT_STYLE}
@@ -88,7 +105,7 @@ export default function HyundaiQuarterlyRegionsChartInner({ data }: Props) {
             const v = Number(value ?? 0);
             const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);
             const pct = total > 0 ? (v / total) * 100 : 0;
-            return [`${v.toLocaleString('ko-KR')}천대 (${pct.toFixed(1)}%)`, String(name)];
+            return [`${v.toLocaleString('ko-KR')}${unit.label} (${pct.toFixed(1)}%)`, String(name)];
           }}
           itemSorter={(item) => -(item.value as number)}
         />
