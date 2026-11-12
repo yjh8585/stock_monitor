@@ -68,15 +68,19 @@ export default function HyundaiQuarterlyRegionsChartInner({ data, unit = DEFAULT
   const height = useChartHeight(280, 320, 360);
   const { isHidden, legendProps } = useHiddenSeries();
 
-  const { regions, chartData } = useMemo(() => {
+  const { regions, chartData, yoyByLabel } = useMemo(() => {
     const names = sortRegionsByTotal(data);
     const rows = data.map((d) => ({
       period_label: d.period_label,
       total: d.total,
       ...d.regions,
     }));
-    return { regions: names, chartData: rows };
+    // 전년 동기 대비(있는 점만) — 툴팁이 기간 이름으로 찾는다(계열 이름과 섞이지 않게 행 밖에 둔다).
+    const yoy = new Map(data.filter((d) => d.yoy).map((d) => [d.period_label, d]));
+    return { regions: names, chartData: rows, yoyByLabel: yoy };
   }, [data]);
+  const fmtYoy = (v: number | null | undefined) =>
+    v == null ? '' : ` · YoY ${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -103,9 +107,20 @@ export default function HyundaiQuarterlyRegionsChartInner({ data, unit = DEFAULT
           contentStyle={TOOLTIP_CONTENT_STYLE}
           formatter={(value, name, item) => {
             const v = Number(value ?? 0);
-            const total = Number((item?.payload as { total?: number } | undefined)?.total ?? 0);
+            const p = item?.payload as { total?: number; period_label?: string } | undefined;
+            const total = Number(p?.total ?? 0);
             const pct = total > 0 ? (v / total) * 100 : 0;
-            return [`${v.toLocaleString('ko-KR')}${unit.label} (${pct.toFixed(1)}%)`, String(name)];
+            const yoy = yoyByLabel.get(p?.period_label ?? '')?.yoy?.regions[String(name)];
+            return [
+              `${v.toLocaleString('ko-KR')}${unit.label} (${pct.toFixed(1)}%)${fmtYoy(yoy)}`,
+              String(name),
+            ];
+          }}
+          labelFormatter={(label) => {
+            // YoY 가 있는 차트만 머리에 합계·비교 기간을 붙인다(현대차 OEM 탭은 그대로).
+            const d = yoyByLabel.get(String(label));
+            if (!d?.yoy) return String(label);
+            return `${label} · 합계 ${d.total.toLocaleString('ko-KR')}${unit.label}${fmtYoy(d.yoy.total)} (${d.yoy.label} 대비)`;
           }}
           itemSorter={(item) => -(item.value as number)}
         />

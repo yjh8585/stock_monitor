@@ -88,7 +88,8 @@ export default function CustomerBreakdown({
               {tab?.charts.map((c) => (
                 <HyundaiQuarterlyRegionsChart
                   key={c.key}
-                  data={c.data}
+                  data={c.views[0].data}
+                  views={c.views}
                   title={c.title}
                   unit={c.unit}
                 />

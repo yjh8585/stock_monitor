@@ -50,6 +50,9 @@ describe('pickGrain', () => {
   it('분기 1개면 연간', () => {
     expect(pickGrain(m({ quarter: ['2026-Q1'], year: ['2025'] }))).toBe('year');
   });
+  it('같은 분기 번호 둘(25Q1·26Q1)은 흐름이 아니다 → 연간', () => {
+    expect(pickGrain(m({ quarter: ['2025-Q1', '2026-Q1'], year: ['2025'] }))).toBe('year');
+  });
   it('둘 다 없으면 기간이 가장 많은 꼴', () => {
     expect(pickGrain(m({ ytd: ['2025-9M', '2026-9M'], half: ['2026-H1'] }))).toBe('ytd');
   });
@@ -94,9 +97,12 @@ describe('buildBreakdown', () => {
     ]);
     const c = tab.charts[0];
     expect(c.unit).toEqual({ label: '천대', tick: 'thousand_units' });
-    expect(c.data.map((p) => p.period_label)).toEqual(['26Q1', '26Q2']);
-    expect(c.data[1].regions).toEqual({ 북미: 120, 유럽: 80.5 });
-    expect(c.data[1].total).toBe(200.5);
+    // 연간 보기 없음 — 연간 값이 없고, 분기마다 구분 이름이 달라(26Q2 에 유럽이 새로) 분기 합 누계도 만들지 않는다.
+    expect(c.views.map((v) => v.label)).toEqual(['분기']);
+    const data = c.views[0].data;
+    expect(data.map((p) => p.period_label)).toEqual(['26Q1', '26Q2']);
+    expect(data[1].regions).toEqual({ 북미: 120, 유럽: 80.5 });
+    expect(data[1].total).toBe(200.5);
     expect(tab.tables).toEqual([]);
   });
 
@@ -157,7 +163,7 @@ describe('buildBreakdown', () => {
         value: 5_500,
       }),
     ]);
-    const q1 = tab.charts[0].data[0];
+    const q1 = tab.charts[0].views[0].data[0];
     expect(q1.regions).toEqual({ '모델 X': 10, '모델 Z': 5, '모델 W': 1 }); // 하위(BEV)도 빠진다
   });
 
@@ -188,10 +194,10 @@ describe('buildBreakdown', () => {
     const [q, y] = tab.tables;
     expect(q.columns.map((c) => c.label)).toEqual(['26Q1', '26Q2']);
     expect(q.rows).toEqual([
-      { label: '북미', values: [7.1, 7.4] },
-      { label: '유럽', values: [null, 3.4] },
+      { label: '북미', values: [7.1, 7.4], yoy: [null, null] },
+      { label: '유럽', values: [null, 3.4], yoy: [null, null] },
     ]);
-    expect(y.rows).toEqual([{ label: '북미', values: [6.8] }]); // 최신 공시가 이긴다
+    expect(y.rows).toEqual([{ label: '북미', values: [6.8], yoy: [null] }]); // 최신 공시가 이긴다
   });
 
   it('sales 는 단위로 판매/매출을 가른다 · 외화는 백만', () => {
@@ -199,8 +205,8 @@ describe('buildBreakdown', () => {
       row({ metric: 'sales', unit: 'USD', value: 1_815_000_000 }),
       row({ metric: 'sales', unit: 'USD', period: '2026-Q2', value: 1_900_000_000 }),
     ]);
-    expect(tab.charts[0].title).toBe('매출 (분기 · 백만 USD)');
-    expect(tab.charts[0].data[0].regions).toEqual({ 북미: 1815 });
+    expect(tab.charts[0].title).toBe('매출 (백만 USD)');
+    expect(tab.charts[0].views[0].data[0].regions).toEqual({ 북미: 1815 });
   });
 
   it('하위 구분(_detail)은 상위와 다른 차트 「(세분)」 — 북미 합계와 미국을 한 차트에 쌓지 않는다', () => {
@@ -220,8 +226,8 @@ describe('buildBreakdown', () => {
       }),
     ]);
     expect(tab.charts.map((c) => c.title.split(' (')[0])).toEqual(['인도', '인도(세분)']);
-    expect(tab.charts[0].data[0].total).toBe(300);
-    expect(tab.charts[1].data[0].regions).toEqual({ 미국: 250, '기타 북미': 50 });
+    expect(tab.charts[0].views[0].data[0].total).toBe(300);
+    expect(tab.charts[1].views[0].data[0].regions).toEqual({ 미국: 250, '기타 북미': 50 });
   });
 
   it('합계는 반올림 전 값으로 — 50대 둘은 0.1천대', () => {
@@ -230,7 +236,7 @@ describe('buildBreakdown', () => {
       row({ label_raw: 'Europe', label_ko: '유럽', value: 50 }),
       row({ period: '2026-Q2', value: 1_000 }),
     ]);
-    expect(tab.charts[0].data[0].total).toBe(0.1);
+    expect(tab.charts[0].views[0].data[0].total).toBe(0.1);
   });
 
   it('문서 고르기는 하위 라벨을 뺀 뒤 — 최신 문서의 다른 구분이 사라지지 않는다', () => {
@@ -243,7 +249,7 @@ describe('buildBreakdown', () => {
       ),
       row({ period: '2026-Q2', label_raw: 'Model X', label_ko: 'X', document_id: 3 }),
     ]);
-    expect(Object.keys(tab.charts[0].data[0].regions)).toEqual(['X', 'Y']);
+    expect(Object.keys(tab.charts[0].views[0].data[0].regions)).toEqual(['X', 'Y']);
     // 출처 = 실제로 그린 문서만(고르지 않은 문서 1 은 빠진다) · 최신 공시부터.
     expect(tab.sources.map((s) => s.docId)).toEqual([2, 3]);
   });
@@ -289,5 +295,115 @@ describe('buildBreakdown', () => {
       [2, [7]],
       [1, [3]],
     ]);
+  });
+});
+
+describe('올해 누계(YTD)·전년 동기 대비(YoY)', () => {
+  it('1분기 보고서의 25Q1·26Q1 뿐이면 분기 차트를 고르지 않고 연간 + 회사 발표 누계', () => {
+    const [tab] = buildBreakdown([
+      row({ period: '2025-Q1', value: 10_000 }),
+      row({ period: '2026-Q1', value: 11_000 }),
+      row({ period_grain: 'year', period: '2024', value: 40_000 }),
+      row({ period_grain: 'year', period: '2025', value: 44_000 }),
+      row({ period_grain: 'ytd', period: '2025-9M', value: 30_000 }),
+      row({ period_grain: 'ytd', period: '2026-9M', value: 36_000 }),
+    ]);
+    const [v] = tab.charts[0].views;
+    expect(tab.charts[0].views).toHaveLength(1);
+    expect(v.label).toBe('연간');
+    expect(v.data.map((p) => p.period_label)).toEqual(['2024', '2025', '26 1~9월']);
+    expect(v.note).toBe('26 1~9월 = 회사 발표 누계');
+    expect(v.data[1].yoy).toEqual({ label: '2024', total: 10, regions: { 북미: 10 } });
+    expect(v.data[2].yoy).toEqual({ label: '25 1~9월', total: 20, regions: { 북미: 20 } });
+    expect(v.data[0].yoy).toBeUndefined();
+  });
+
+  it('누계 발표가 없으면 분기 합(Q1 부터) — 전년도 같은 분기까지 합과 YoY · 분기 보기도 전년 동기 YoY', () => {
+    const q = (period: string, value: number) => row({ period, value });
+    const [tab] = buildBreakdown([
+      q('2025-Q1', 100_000),
+      q('2025-Q2', 100_000),
+      q('2025-Q3', 100_000),
+      q('2025-Q4', 100_000),
+      q('2026-Q1', 110_000),
+      q('2026-Q2', 130_000),
+      row({ period_grain: 'year', period: '2025', value: 400_000 }),
+    ]);
+    const [quarter, annual] = tab.charts[0].views;
+    expect([quarter.label, annual.label]).toEqual(['분기', '연간']);
+    expect(quarter.data.at(-1)!.yoy).toEqual({ label: '25Q2', total: 30, regions: { 북미: 30 } });
+    expect(quarter.data[0].yoy).toBeUndefined(); // 25Q1 의 전년(24Q1)이 없다
+    expect(annual.data.map((p) => [p.period_label, p.total])).toEqual([
+      ['2025', 400],
+      ['26 1~6월', 240],
+    ]);
+    expect(annual.data[1].yoy?.label).toBe('25 1~6월');
+    expect(annual.data[1].yoy?.total).toBe(20);
+    expect(annual.note).toBe('26 1~6월 = 발표된 분기 합');
+  });
+
+  it('구분 이름이 다른 해끼리는 합계 YoY 를 비운다(구분별 YoY 는 남는다)', () => {
+    const [tab] = buildBreakdown([
+      row({ period_grain: 'year', period: '2025', value: 100_000 }),
+      row({
+        period_grain: 'year',
+        period: '2025',
+        label_raw: 'Korea',
+        label_ko: '한국',
+        value: 80_000,
+      }),
+      row({ period_grain: 'year', period: '2026', value: 110_000 }),
+    ]);
+    expect(tab.charts[0].views[0].data[1].yoy).toEqual({
+      label: '2025',
+      total: null,
+      regions: { 북미: 10 },
+    });
+  });
+
+  it('연간 발표가 없거나 구분이 적은 해는 Q1~Q4 분기 합 · 누계 후보는 구분이 많은 쪽', () => {
+    const qs = ['2025-Q1', '2025-Q2', '2025-Q3', '2025-Q4', '2026-Q1', '2026-Q2', '2026-Q3'];
+    const [tab] = buildBreakdown([
+      ...qs.flatMap((period) => [
+        row({ period, value: 10_000 }),
+        row({ period, label_raw: 'Europe', label_ko: '유럽', value: 5_000 }),
+      ]),
+      // 연간·누계 발표는 북미 하나뿐 — 분기 합(전 지역)이 이긴다.
+      row({ period_grain: 'year', period: '2025', value: 40_000 }),
+      row({ period_grain: 'ytd', period: '2026-9M', value: 30_000 }),
+    ]);
+    const annual = tab.charts[0].views.find((v) => v.key === 'annual')!;
+    expect(annual.data.map((p) => [p.period_label, p.total])).toEqual([
+      ['2025', 60],
+      ['26 1~9월', 45],
+    ]);
+    expect(annual.note).toBe('2025 = 발표된 분기 합 · 26 1~9월 = 발표된 분기 합');
+  });
+
+  it('마지막 해 연간 값이 이미 있으면 누계 막대를 붙이지 않는다', () => {
+    const [tab] = buildBreakdown([
+      row({ period_grain: 'year', period: '2025', value: 400_000 }),
+      row({ period_grain: 'ytd', period: '2025-9M', value: 300_000 }),
+    ]);
+    expect(tab.charts[0].views[0].data.map((p) => p.period_label)).toEqual(['2025']);
+  });
+
+  it('점유율 연간 표 끝에 올해 누계 칸 · 칸 호버 = 전년 동기 대비 %p', () => {
+    const share = (o: Partial<BreakdownRow>) =>
+      row({ kind: 'share', metric: 'market_share', unit: 'share_pct', ...o });
+    const [tab] = buildBreakdown([
+      share({ period_grain: 'year', period: '2024', value: 6.0 }),
+      share({ period_grain: 'year', period: '2025', value: 6.5 }),
+      share({ period_grain: 'ytd', period: '2025-9M', value: 6.4 }),
+      share({ period_grain: 'ytd', period: '2026-6M', value: 6.6 }),
+      share({ period_grain: 'ytd', period: '2026-9M', value: 6.9 }),
+    ]);
+    const [y] = tab.tables;
+    expect(y.columns.map((c) => [c.label, c.prevLabel])).toEqual([
+      ['2024', '2023'],
+      ['2025', '2024'],
+      ['26 1~9월', '25 1~9월'],
+    ]);
+    expect(y.rows).toEqual([{ label: '북미', values: [6, 6.5, 6.9], yoy: [null, 0.5, 0.5] }]);
   });
 });

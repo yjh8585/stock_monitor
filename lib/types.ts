@@ -618,6 +618,8 @@ export interface HyundaiQuarterlyRegionPoint {
   total: number;
   /** region_name(한글) → 판매량(천대). 누락 region은 키 자체 없음. */
   regions: Record<string, number>;
+  /** 전년 동기 대비 증감률(%) — 있으면 툴팁에 붙는다(고객사 「지역·차종·점유율」 차트). label = 비교 기간 이름. */
+  yoy?: { label: string; total: number | null; regions: Record<string, number> };
 }
 
 /** IR 사이트 9개 region (연 합계) vs DB(model+factory) 연 합계 cross-check 요약 문구.
