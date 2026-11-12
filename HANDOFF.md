@@ -23,7 +23,7 @@
 
 **🔴 재개 지점**:
 
-1. **배포 확인 뒤 리비안 행 UPDATE — 아직 안 했다면 이것부터**. 순서가 중요하다: 새 코드가 배포되기 «전»에 `marklines_group` 을 넣으면 옛 코드가 묶음 그룹(`Small and Medium OEM`) 전체를 그린다.
+1. ✅ **리비안 행 UPDATE 끝**(2026-11-12 `5d15086` Vercel success 뒤 · 1행 · 프로덕션 `customer_accounts` 무효화 200). 다른 묶음 그룹 회사를 차종 모드로 돌릴 때도 같은 순서다: 새 코드가 배포되기 «전»에 `marklines_group` 을 넣으면 옛 코드가 묶음 그룹(`Small and Medium OEM`) 전체를 그린다.
    `update customer_accounts set marklines_group='Small and Medium OEM', marklines_models=array['R1S','R1T','Rivian EDV','Rivian EDV 500','Rivian EDV 500/700','Rivian R2'] where company_id=(select id from companies where ticker='RIVN');`
    → 프로덕션 `/api/revalidate` 로 `customer_accounts` 태그 무효화. 차종명 6개는 2026-11-12 DB 에서 철자 확인(EDV 500 계열은 판매 표에만 · 생산 표는 「Rivian EDV」 하나).
 2. 프로덕션 눈 확인(사용자 몫 · 로그인 필요): 리비안 물량 절 「MarkLines 차종 합 판매」 차트 + 차종별 분기 표(행 클릭 노란 강조) · 지역·차종·점유율 연간 보기 맨 오른쪽 YTD 막대 · 호버에 YoY · VW 분기 보기.
