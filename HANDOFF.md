@@ -4,11 +4,36 @@
 직전 블록은 `## 이전 상태 …` 로 강등한다.
 
 **여기엔 최근 10블록만 둔다.** 그보다 오래된 블록은 지우지 않고
-[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **22블록** · 2026-11-11 실측)로 옮긴다.
+[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **24블록** · 2026-11-12 실측)로 옮긴다.
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-12 새벽, **고객사 페이지 수정 회차 B(문서·뉴스 요약) 끝 — 소급 완료 · GHA 적용(사용자 승인) · 푸시**)
+## 최신 상태 · 재개 지점 (2026-11-12 오전, **고객사 페이지 수정 회차 C(지역·차종·점유율) 끝 + 화면 추가 요청 3건 — 푸시·배포**)
+
+> 이 세션의 관통 주제: 계획서 `docs/plans/2026-11-11-customers-page-revisions.md` 의 C 절(C1~C10 · Task C-1~C-7). 사용자 지시 「Api 사용하지 마 이제. 직접 해」로 소급 값 뽑기·구현은 이 세션이 직접(API 0) · 검토는 Codex + 오퍼스 검토자 따로. 끝에 화면 추가 요청 3건(원문 = `_최초지시.md` 「추가 지시 (2026-11-12 · C 마무리 중)」).
+
+**결과**: C 계획·C-1(표)·C-2(검사·적재·소급 CLI)·C-3(코드 파서)·C-4(정기 API 읽기)·C-6·C-7(화면·GHA 「분해」 step·문서) · 화면 추가 3건(연간 YTD · 막대/선 영역 분리 · 표 행 강조) — 푸시 `4bcf668`(백업 봇 커밋 위로 rebase).
+
+**🔴 재개 지점**:
+
+1. **프로덕션 화면 눈 확인은 사용자 몫으로 남았다** — 로그인이 필요한 화면이라 에이전트가 프로덕션에 비밀번호를 넣지 않는다(안전 규칙 · 사용자 허락으로도 안 됨). 에이전트는 배포 상태·보호 경로·축 계산만 확인했다. 확인 목록: (가) 실적 차트 「연간」에 맨 오른쪽 「2026 YTD(1~n분기)」 막대 (나) 막대는 아래·선은 위로 갈라져 숫자가 안 겹치나(gm) (다) 표 행 클릭 → 노란 음영 · 다시 클릭 → 해제(요약·실적·물량·구성비·국내 3사 차종 표) (라) 「지역·차종·점유율」 절(gm 인도 「(세분)」 차트 · volkswagen · stellantis · mobis · polaris · vinfast · 국내 3사는 OEM 차트 + 점유율).
+2. **첫 정기 실행 확인(미확인)** — `collect-customer-docs.yml` 의 「요약」·「분해」 step(평일 08:00 KST) · `summarize-customer-news.yml`(월 06:00). 「분해」는 `--api` 첫 실호출이다(사용자 「정기 수집부터 api가 하고」). `::warning::` 「상위 합계 의심」이 뜨면 그 문서 하위 행을 `_detail` 로 다시 적재.
+3. 포르쉐 「분기 전체」 제안(사용자 답 없음) — 묻지 않고 두었다.
+
+**사용자 결정 (2026-11-12)**: 지역 탭은 `customer_volume_ir` 지역 행을 되풀이 안 함(물량 절에만) · C: 0MB 사고 뒤 dev 촬영 건너뜀 → 배포 뒤 프로덕션 점검(「개발서버로 하지말고」) · 계획 파일 새로 만들지 않음.
+
+**🔴 이번에 배운 것**:
+
+- GM 8-K 는 「Total North America」 와 그 안의 United States·Other 를 함께 싣는다 — 같은 metric 이면 차트가 2배로 쌓인다. 하위는 `<metric>_detail`. 자동 판별기는 계층 없는 모비스 지역 매출에서 우연한 합 일치 5행을 잡아 «경고만» 둔다(`suspect_parent_sums`).
+- 이름 앞부분만 겹치는 형제(「VF 8」·「VF 8 Plus」)가 있다 — 하위 라벨 제거는 하위 합 ≤ 상위 값일 때만.
+- 서버 컴포넌트 표에 행 강조를 붙일 땐 표 전체를 `'use client'` 로 바꾸지 말고 행만(`components/customers/HighlightRow.tsx`) — 사외비 칸이 RSC payload 로 실린다.
+- 고객사 실적 차트는 `splitBands` 로 §4-F 영역 분리. OEM 현대 탭은 그대로(같은 부품 · 기본 false) — §4-F 위반이 남아 있다.
+- C: 가 0MB 까지 찼다(dev 촬영 중 · `.next` 3.2GB). 촬영·check-all 전 `df -h /c`.
+- GHA 상태 API(`gh api repos/<repo>/commits/<sha>/statuses`)로 Vercel 빌드 결과를 볼 수 있다 — Vercel MCP 가 없는 세션의 대안.
+
+**검증**: `npm run check-all` exit 0(시험 717) · Python 시험 38 통과 · `verify_docs.py` 오류 0 · Vercel 빌드 success(`4bcf668` Production 배포) · 프로덕션 `/login` 200 · `/customers/gm` 307 → `/login?next=…`(보호 경로 정상).
+
+## 이전 상태 · 재개 지점 (2026-11-12 새벽, **고객사 페이지 수정 회차 B(문서·뉴스 요약) 끝 — 소급 완료 · GHA 적용(사용자 승인) · 푸시**)
 
 > 이 세션의 관통 주제: 계획서 `docs/plans/2026-11-11-customers-page-revisions.md` 의 B 절(B1~B9 확정 → B-1~B-9 작업). 구현은 API 헤드리스(오퍼스 5.5 · effort high · API 키 과금 — 사용자 지시 「사용량 없으니깐 api 활용하고 나 잘거니까 쭉 진행해」), 검토는 Codex 2회, 메인은 중계·검산·직접 수정 1건.
 
@@ -231,23 +256,3 @@
 **재개 지점**: 끝났다. 다음 분기 재무 수집(2027-01-14) 뒤 `verify_financials_sanity.py` 가 exit 0 인지만 보면 된다(결산일 중복이 생기면 5번이 잡는다). 수집 로그의 「연간 손익이 비어 … 스킵」 경고가 같은 회사에 연속으로 뜨면 yfinance 쪽 문제다.
 
 **검증**: `npm run check-all` EXIT 0(vitest 535) · `pytest scripts/lib`(엑셀 의존 1개 제외) 520 passed · `verify_financials_sanity.py` 위반 0 · DB 결산일 중복 0묶음.
-
-## 이전 상태 · 재개 지점 (2026-11-02, **GHA 실패 점검 — Stellantis 3분기 · 2월 결산 재무 복구**)
-
-> 이 세션의 관통 주제: 「GHA 오류 확인」 요청에서 오늘 실패 1건(일시 장애)보다 **10월에 실패한 채 다음 분기까지 방치될 뻔한 분기 워크플로 2건**이 더 컸다. 분기 1회 워크플로는 마지막 실행이 실패면 그 분기 데이터가 3개월 빈다 — 실패 목록은 「오늘」이 아니라 **워크플로별 최신 실행**으로 본다.
-
-**결과**: 커밋 `a9713ad`. ① `collect_stellantis_na_sales.py` — 회사 합계 줄 이름 `STELLANTIS US` 추가 · Dodge 허용치 Q 25→40 · YTD 100→200(PR 원문 자체의 차이) · 회귀 2건 → GHA 수동 실행(41448376816)으로 2026-Q3 29행 적재. ② 마이그레이션 `20261102000001` — `financials_period_semantic_check` 허용 결산월에 2 추가(야스카와 6506.T) → 10-14 재무 수집 실패 작업만 재실행, 2,275행 적재 · 야스카와 연간 5개년 확인.
-
-**사용자 지시**: _"GHA 오류가 있던데 확인해봐"_ → _"둘 다 고쳐"_ → _"커밋하고 적재"_ (2026-11-02).
-
-**비자명한 사실 (재조사 금지)**:
-
-- 11-02 `verify-fnguide` 실패는 `ConnectTimeout`(응답 0) — 계약 변경 아님. 로컬 36/36 OK · 재실행 성공. 검사기 안내문(「계약이 바뀌었을 수 있다」)은 접속 실패에도 같은 문구를 낸다.
-- 글로벌(yfinance) 경로는 `companies.fiscal_year_end_month` 를 쓰지 않는다(데이터 첫 연간 결산일로 판단). 글로벌 비-12월 결산사 36곳이 12 로 남아 있는 것이 현행이라 **야스카와만 고치지 않았다**. CHECK 허용 월 목록은 이제 Architecture §7-J 에 있다.
-- 비-12월 결산사의 분기 번호는 「달력 분기 + 회계연도 -1」(덴소 2025-06-30 = FY2024 Q2) — 기존 규칙. 자빌(JBL)에만 같은 `period_end_date` 가 `fiscal_year` 만 달리 두 번 있는 중복 행이 있다 → 별도 세션(「비-12월 결산 글로벌사 재무 분기 중복 행 정리」, 워크트리)이 맡았다.
-- `collect_stellantis_na_sales.py --auto-discover` 는 dry-run 에서도 `scripts/lib/stellantis_pr_urls.json` 을 CRLF·끝 줄바꿈 없이 다시 써서 `format:check` 를 깬다 → `npx prettier --write` 로 맞춘다.
-- `collect_financials.py` 엔 dry-run 이 없다. 회사별 결산월 대조는 일회용 읽기 스크립트로 했다(scratchpad · 남지 않음).
-
-**재개 지점**: 끝났다. 남은 것은 별도 세션의 JBL 중복 행 정리뿐. 다음 분기(2027-01)에 Stellantis 이름표가 또 바뀌면 같은 처방(gotchas-data-collection 「판매」 줄).
-
-**검증**: `npm run check-all` EXIT 0(시험 535) · `test_stellantis_na_parsing.py` 25 passed · `verify_financials_sanity.py` 위반 0 · `verify_fnguide.py` 로컬 36/36 · DB 2026-Q3 29행(회사 합계 324,277 = 원문) · 야스카와 annual 5행.
