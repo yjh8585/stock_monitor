@@ -18,6 +18,9 @@ exit 0 정상(검사 실패 check_failed · 글이 짧아 건너뜀 포함 — �
 사용: summarize_customer_docs.py [--company TICKER] [--doc-id ID ...] [--since-days 14] [--backfill] [--limit N] [--dry-run]
       summarize_customer_docs.py --retry-pages [--company TICKER] [--doc-id ID ...] [--limit N] [--dry-run]
       summarize_customer_docs.py --recheck [--company TICKER] [--doc-id ID ...] [--limit N] [--dry-run]
+      summarize_customer_docs.py --from-json FILE --doc-id ID [--dry-run]
+        (직접 쓴 요약 JSON 하나를 같은 검사기로 대조해 저장 · API 호출 0 · exit 1 = 지적·받기 실패.
+         50MB 를 넘는 PDF 는 정기 실행·수동 모두 임시 폴더로 받아 파일에서 글자층을 읽는다 — 상한 600MB)
 
 🔴 GHA 정기 실행은 새 문서만(게시일 최근 14일 · 요약 행 없음). 소급(--backfill = 365일)은 사용자 승인 뒤 로컬 수동 —
    정기 실행이 소급을 대신하면 비용 관문(B8)이 무너진다.
@@ -31,7 +34,9 @@ import contextlib
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 MODEL = os.environ.get('CUSTOMER_SUMMARY_MODEL', 'claude-opus-5-5')
 EFFORT = os.environ.get('CUSTOMER_SUMMARY_EFFORT', 'high')
@@ -99,12 +104,54 @@ def fetch_failure_is_warning(e: Exception) -> bool:
   return isinstance(e, TooLarge) or http_status(e) in _FETCH_WARN_HTTP
 
 
+# ── 원문 받기 ────────────────────────────────────────────────────────────────
+
+class LargePdf:
+  """MAX_IR_BYTES(50MB)를 넘는 PDF — 임시 파일 경로로 연다(raw 는 None · 글자층·쪽 그림만 뽑는다)."""
+
+  def __init__(self, path: str):
+    self.path, self.raw, self.text, self.tables = path, None, '', []
+
+
+def pdf_source(content):
+  """쪽 렌더·글자 뽑기에 넘길 것 — 큰 PDF 면 파일 경로, 아니면 바이트."""
+  return getattr(content, 'path', None) or (content.raw or b'')
+
+
+@contextlib.contextmanager
+def summary_source(mod, session, doc):
+  """원문 → (content, sha) — 받기 순서 정본(doc_content) 그대로. 50MB 를 넘는 PDF 만 임시 폴더에 받아 LargePdf 로 내주고
+  블록을 나가면 지운다(리비안 주주 자료 63~410MB 가 「크기 초과」로 요약에서 빠져 있었다 · 2026-11-12).
+  PDF 주소가 아니거나 받은 것이 PDF 가 아니면 원래 예외(TooLarge 경고)를 그대로 올린다."""
+  from collect_customer_numbers import doc_content
+  from lib.ir_lists import TooLarge, ir_get_to_file
+  try:
+    got = doc_content(mod, session, doc)
+  except TooLarge:
+    if not urlsplit(doc.url).path.lower().endswith('.pdf'):
+      raise
+    got = None
+  if got is not None:
+    yield got
+    return
+  with tempfile.TemporaryDirectory(prefix='custdoc-') as td:
+    path = os.path.join(td, 'doc.pdf')
+    sha = ir_get_to_file(session, doc.url, path)
+    with open(path, 'rb') as f:
+      if f.read(5) != b'%PDF-':
+        raise TooLarge(os.path.getsize(path))
+    yield LargePdf(path), sha
+
+
 # ── 원문 → 요약할 글 ─────────────────────────────────────────────────────────
 
 def source_text(content) -> tuple[str, bool, int]:
   """(글, PDF 인가, 쪽 수). PDF 면 쪽 표식 글 · 아니면 본문 + 표 행. DART 는 raw 가 빈 바이트다(본문만)."""
   from lib.customer_doc_pages import page_marked_text
   from lib.doc_text import row_text
+  if getattr(content, 'path', None):
+    text, pages = page_marked_text(content.path)
+    return text, True, pages
   raw = content.raw or b''
   if raw[:5] == b'%PDF-':
     text, pages = page_marked_text(raw)
@@ -119,10 +166,11 @@ def _page_fail_note(page, why: str) -> str:
   return f'{page}쪽 캡처 실패({why})'
 
 
-def _capture(raw: bytes, company_id: str, doc_id: int, page: int, dry_run: bool, uploader) -> tuple[str | None, str | None]:
-  """한 쪽 렌더 → 업로드. (key, 실패 사유) — 성공이면 사유 None · 실패면 key None. dry_run 은 렌더까지만(key 는 채운다)."""
+def _capture(pdf, company_id: str, doc_id: int, page: int, dry_run: bool, uploader) -> tuple[str | None, str | None]:
+  """한 쪽 렌더 → 업로드. pdf = pdf_source(content)(바이트 또는 파일 경로).
+  (key, 실패 사유) — 성공이면 사유 None · 실패면 key None. dry_run 은 렌더까지만(key 는 채운다)."""
   from lib import customer_doc_pages as pages_lib
-  png = pages_lib.render_page(raw, page)
+  png = pages_lib.render_page(pdf, page)
   if png is None:
     return None, '렌더'
   key = pages_lib.page_key(company_id, doc_id, page)
@@ -150,7 +198,7 @@ def retry_pages(summary: dict, content, *, dry_run: bool, ws=None, uploader=None
   for p in pages:
     if p.get('key'):
       continue
-    key, why = _capture(content.raw or b'', summary['company_id'], summary['doc_id'], int(p['page']), dry_run, uploader)
+    key, why = _capture(pdf_source(content), summary['company_id'], summary['doc_id'], int(p['page']), dry_run, uploader)
     if why:
       still.append(p['page'])
       print(f'    문서 {summary["doc_id"]} {_page_fail_note(p["page"], why)} — 다시 실패')
@@ -182,7 +230,7 @@ def recheck_doc(summary: dict, content, *, dry_run: bool, ws=None, uploader=None
   else:
     pages = []
     for p in r['pages'] if is_pdf else []:
-      key, why = _capture(content.raw, summary['company_id'], summary['doc_id'], int(p['page']), dry_run, uploader)
+      key, why = _capture(pdf_source(content), summary['company_id'], summary['doc_id'], int(p['page']), dry_run, uploader)
       if why:
         print(f'    문서 {summary["doc_id"]} {_page_fail_note(p["page"], why)} — key 없이 남김')
         notes.append(_page_fail_note(p['page'], why))
@@ -214,14 +262,51 @@ def summarize_doc(llm, row: dict, company: str, content, sha: str | None, *, dry
   user = sp.doc_user_message(company, DOC_TYPE_KO.get(row['doc_type'], row['doc_type']), row['title'],
                              str(row['published_at']), text, is_pdf, page_count)
   got = ask(llm, sp.DOC_SYSTEM, sp.DOC_SCHEMA, user, lambda r: check_doc(r, text, is_pdf, page_count))
-  r, problems = got['result'], got['problems']
+  out = _store(row, content, sha, got['result'], got['problems'], is_pdf, model=MODEL, tok_in=got['in'],
+               tok_out=got['out'], dry_run=dry_run, ws=ws, uploader=uploader)
+  return {'outcome': out['status'], 'row': out, 'problems': got['problems'], 'tries': got['tries'],
+          'picked': len(got['result']['pages']), 'first_problems': got.get('first_problems', [])}
+
+
+# 직접 쓴 요약(--from-json)의 model 칸 — API 요약(MODEL)과 가른다(사용자 지시 2026-11-12 「Api 사용하지 마 이제. 직접 해」).
+MANUAL_MODEL = f'{MODEL} (수동 · API 0)'
+
+
+def save_manual(row: dict, content, sha: str | None, data: dict, *, dry_run: bool, ws=None, uploader=None) -> dict:
+  """--from-json — 직접 쓴 요약(DOC_SCHEMA 꼴)을 API 요약과 «같은» 검사기로 원문과 대조해 통과할 때만 저장한다.
+  지적이 하나라도 있으면 저장하지 않고 지적을 돌려준다(API 요약처럼 check_failed 로 남기지 않는다 — 고쳐서 다시 넣으면 된다)."""
+  from lib.customer_summary_check import check_doc
+  from lib.llm_guidance import MAX_CHARS
+  from lib import customer_summary_prompt as sp
+  # API 경로는 구조화 출력이 DOC_SCHEMA 를 보장하지만 손으로 쓴 JSON 은 아니다 — check_doc 은 빠진 배열을 빈 배열로
+  # 메우고 중요도는 보지 않아, 중요도 없는 요약이 「ok」로 저장된다(Codex 2026-11-12). 맨 윗단 칸만 여기서 막는다.
+  schema = sp.DOC_SCHEMA
+  shape = [f'필수 항목 없음: {k}' for k in schema['required'] if k not in data]
+  shape += [f'모르는 항목: {k}' for k in data if k not in schema['properties']]
+  if 'importance' in data and data['importance'] not in schema['properties']['importance']['enum']:
+    shape.append(f"importance 값 오류: {data['importance']!r}")
+  if shape:
+    return {'outcome': 'check_failed', 'problems': shape}
+  text, is_pdf, page_count = source_text(content)
+  r, problems = check_doc(data, text[:MAX_CHARS], is_pdf, page_count)   # 요약 때 넘기는 글과 같은 자르기
+  if problems:
+    return {'outcome': 'check_failed', 'problems': problems}
+  out = _store(row, content, sha, r, [], is_pdf, model=MANUAL_MODEL, tok_in=0, tok_out=0, dry_run=dry_run, ws=ws,
+               uploader=uploader)
+  return {'outcome': 'ok', 'row': out, 'problems': []}
+
+
+def _store(row: dict, content, sha: str | None, r: dict, problems: list[str], is_pdf: bool, *, model: str,
+           tok_in: int, tok_out: int, dry_run: bool, ws, uploader) -> dict:
+  """검사 끝난 결과 → 쪽 캡처(ok 일 때만) → customer_doc_summaries 행(dry_run 이 아니고 ws 가 있을 때만 upsert)."""
+  from lib import customer_summary_prompt as sp
   status = 'check_failed' if problems else 'ok'
   notes = [n for n in (r.get('check_note'), ' · '.join(problems) if problems else None) if n]
 
   pages = []
   if status == 'ok' and is_pdf:
     for p in r['pages']:
-      key, why = _capture(content.raw, row['company_id'], row['id'], int(p['page']), dry_run, uploader)
+      key, why = _capture(pdf_source(content), row['company_id'], row['id'], int(p['page']), dry_run, uploader)
       if why:   # 요약은 ok 로 저장하고 그 쪽은 key=None 으로 남긴다 → --retry-pages 가 다시 집는다(Codex 2026-11-12)
         print(f'    문서 {row["id"]} {_page_fail_note(p["page"], why)} — key 없이 남김')
         notes.append(_page_fail_note(p['page'], why))
@@ -234,13 +319,12 @@ def summarize_doc(llm, row: dict, company: str, content, sha: str | None, *, dry
     'importance': r.get('importance'), 'importance_reason': r.get('importance_reason'),
     'lines': r['lines'], 'evidence': r['evidence'], 'pages': pages, 'c_materials': r['c_materials'],
     'check_note': ' · '.join(notes)[:_NOTE_MAX] or None,
-    'model': MODEL, 'prompt_version': sp.PROMPT_VERSION,
-    'input_tokens': got['in'], 'output_tokens': got['out'], 'source_sha': sha, 'updated_at': now_iso(),
+    'model': model, 'prompt_version': sp.PROMPT_VERSION,
+    'input_tokens': tok_in, 'output_tokens': tok_out, 'source_sha': sha, 'updated_at': now_iso(),
   }
   if not dry_run and ws is not None:
     ws.table('customer_doc_summaries').upsert(out, on_conflict='doc_id').execute()
-  return {'outcome': status, 'row': out, 'problems': problems, 'tries': got['tries'], 'picked': len(r['pages']),
-          'first_problems': got.get('first_problems', [])}
+  return out
 
 
 # ── 대상 ─────────────────────────────────────────────────────────────────────
@@ -281,7 +365,7 @@ def _with_sources(client, targets: list[dict], dry_run: bool, counts: dict, labe
   import requests
 
   import customer_parsers
-  from collect_customer_numbers import _to_doc, doc_content, http_status
+  from collect_customer_numbers import _to_doc, http_status
   from lib import db
   docs = {}
   ids = [t['doc_id'] for t in targets]
@@ -300,19 +384,21 @@ def _with_sources(client, targets: list[dict], dry_run: bool, counts: dict, labe
         counts['error'] += 1
         print(f'{label} · 원문 행 없음')
         continue
+      stack = contextlib.ExitStack()   # 큰 PDF 임시 파일 — 이 문서를 다 쓰면 지운다
       try:
-        content, sha = doc_content(customer_parsers.module_for(ticker), session, _to_doc(d, ticker))
+        content, sha = stack.enter_context(summary_source(customer_parsers.module_for(ticker), session, _to_doc(d, ticker)))
       except Exception as e:
         code = http_status(e)
         warn = fetch_failure_is_warning(e)
         counts['fetch_warn' if warn else 'error'] += 1
         print(f'{label} · 받기 실패({type(e).__name__}' + (f' HTTP {code}' if code else '') + ')' + (' — 경고' if warn else ''))
         continue
-      if sha and t.get('source_sha') and sha != t['source_sha']:
-        counts['changed'] += 1
-        print(f'{label} · 원문이 요약 때와 다르다 — 건너뜀(--doc-id 로 요약을 다시 만들 것)')
-        continue
-      yield t, content, ws, label
+      with stack:
+        if sha and t.get('source_sha') and sha != t['source_sha']:
+          counts['changed'] += 1
+          print(f'{label} · 원문이 요약 때와 다르다 — 건너뜀(--doc-id 로 요약을 다시 만들 것)')
+          continue
+        yield t, content, ws, label
 
 
 def run_retry_pages(client, company_id: str | None, doc_ids: list[int], limit: int | None, dry_run: bool) -> int:
@@ -373,6 +459,44 @@ def run_recheck(client, company_id: str | None, doc_ids: list[int], limit: int |
   return 1 if counts['error'] else 0
 
 
+def run_from_json(client, doc_id: int, path: str, dry_run: bool) -> int:
+  """--from-json — 직접 쓴 요약 하나를 원문(큰 PDF 포함)과 검사기로 대조해 통과하면 저장(API 호출 0).
+  exit = 0 저장(또는 dry-run 통과) · 1 검사 지적·받기 실패(저장 안 함). 지적은 전부 출력한다(고쳐서 다시 넣는다)."""
+  import requests
+
+  import customer_parsers
+  from collect_customer_numbers import _to_doc, http_status
+  from lib import db
+  with open(path, encoding='utf-8') as f:
+    data = json.load(f)
+  rows = load_targets(client, None, [doc_id], '')
+  if not rows:
+    print(f'문서 없음(또는 요약 대상 종류 아님): {doc_id}')
+    return 1
+  row = rows[0]
+  ticker = load_company_names(client, {row['company_id']}).get(row['company_id'], ('?', '?'))[0]
+  label = f'  문서 {doc_id} {ticker} {row["doc_type"]} {row["published_at"]}'
+  try:
+    with summary_source(customer_parsers.module_for(ticker), requests.Session(), _to_doc(row, ticker)) as (content, sha):
+      ctx = contextlib.nullcontext(None) if dry_run else db.WriteSession()
+      with ctx as ws:
+        res = save_manual(row, content, sha, data, dry_run=dry_run, ws=ws)
+  except Exception as e:
+    code = http_status(e)
+    print(f'{label} · 받기 실패({type(e).__name__}' + (f' HTTP {code}' if code else '') + ')')
+    return 1
+  if res['outcome'] != 'ok':
+    print(f'{label} · 검사 지적 {len(res["problems"])}건 — 저장 안 함')
+    for p in res['problems']:
+      print(f'    지적: {p}')
+    return 1
+  out = res['row']
+  print(f'{label} · ok' + (' (dry-run · 저장 안 함)' if dry_run else ' · 저장') +
+        f' · 쪽 {sum(1 for p in out["pages"] if p["key"])}/{len(out["pages"])}' +
+        (f' · 고침 {out["check_note"]}' if out['check_note'] else '') + ' · API 호출 0')
+  return 0
+
+
 def load_company_names(client, ids: set[str]) -> dict[str, tuple[str, str]]:
   """company_id → (ticker, 표시 이름)."""
   ids, out = sorted(ids), {}
@@ -393,10 +517,14 @@ def _args(argv):
                  help='key 없는 쪽이 있는 ok 행만 원문을 다시 받아 렌더·업로드(API 호출 0 · --company·--doc-id·--limit 적용)')
   p.add_argument('--recheck', action='store_true',
                  help='check_failed 행의 저장된 요약을 원문과 다시 검사(API 호출 0 · --company·--doc-id·--limit 적용)')
+  p.add_argument('--from-json', metavar='FILE',
+                 help='직접 쓴 요약(DOC_SCHEMA 꼴 JSON)을 검사기로 원문과 대조해 통과하면 저장(API 호출 0 · --doc-id 하나와 함께)')
   p.add_argument('--dry-run', action='store_true')
   a = p.parse_args(argv)
   if a.retry_pages and a.recheck:
     p.error('--retry-pages 와 --recheck 는 함께 쓸 수 없다')
+  if a.from_json and (len(a.doc_id) != 1 or a.retry_pages or a.recheck):
+    p.error('--from-json 은 --doc-id 하나와만 쓴다')
   return a
 
 
@@ -419,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
   import requests
 
   import customer_parsers
-  from collect_customer_numbers import _to_doc, doc_content, http_status
+  from collect_customer_numbers import _to_doc, http_status
   from lib import db, llm_guidance
   from lib.customer_summary_check import problem_kinds
 
@@ -435,6 +563,8 @@ def main(argv: list[str] | None = None) -> int:
     return run_retry_pages(client, company_id, args.doc_id, args.limit, args.dry_run)
   if args.recheck:
     return run_recheck(client, company_id, args.doc_id, args.limit, args.dry_run)
+  if args.from_json:
+    return run_from_json(client, args.doc_id[0], args.from_json, args.dry_run)
   days = BACKFILL_DAYS if args.backfill else args.since_days
   since = (datetime.now(timezone(timedelta(hours=9))).date() - timedelta(days=days)).isoformat()
   rows = load_targets(client, company_id, args.doc_id, since)
@@ -455,12 +585,15 @@ def main(argv: list[str] | None = None) -> int:
   counts = {'ok': 0, 'check_failed': 0, 'skipped': 0, 'fetch_warn': 0, 'error': 0}
   tok_in = tok_out = 0
   ctx = contextlib.nullcontext(None) if args.dry_run else db.WriteSession()
-  with ctx as ws:
+  source = contextlib.ExitStack()   # 큰 PDF 임시 파일 — 다음 문서로 넘어갈 때·끝날 때 지운다(디스크에 쌓지 않는다)
+  with ctx as ws, contextlib.closing(source):
     for r in rows:
+      source.close()
       ticker, name = names.get(r['company_id'], ('?', '?'))
       label = f'  문서 {r["id"]} {ticker} {r["doc_type"]} {r["published_at"]}'
       try:
-        content, sha = doc_content(customer_parsers.module_for(ticker), session, _to_doc(r, ticker))
+        content, sha = source.enter_context(
+          summary_source(customer_parsers.module_for(ticker), session, _to_doc(r, ticker)))
       except Exception as e:
         code = http_status(e)
         what = f'{type(e).__name__}' + (f' HTTP {code}' if code else '')   # 예외 문장엔 URL·키가 실릴 수 있다

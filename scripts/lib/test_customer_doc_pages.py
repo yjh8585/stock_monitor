@@ -318,5 +318,163 @@ class FetchFailureKind(unittest.TestCase):
       self.assertFalse(scd.fetch_failure_is_warning(e), repr(e))
 
 
+class _Resp:
+  """stream 응답 흉내 — iter_content 가 조각을 차례로 준다."""
+
+  def __init__(self, body: bytes, length: str | None = None):
+    self.body, self.headers, self.closed = body, ({'Content-Length': length} if length else {}), False
+
+  def raise_for_status(self):
+    pass
+
+  def iter_content(self, n):
+    for i in range(0, len(self.body), n):
+      yield self.body[i:i + n]
+
+  def close(self):
+    self.closed = True
+
+
+class LargePdfDownload(unittest.TestCase):
+  """50MB 를 넘는 PDF — 디스크로 받아 파일에서 글자층·쪽 그림을 뽑는다(2026-11-12 리비안 63~410MB)."""
+
+  def setUp(self):
+    import tempfile
+    self.td = tempfile.mkdtemp()
+    self.path = str(pathlib.Path(self.td) / 'doc.pdf')
+
+  def tearDown(self):
+    import shutil
+    shutil.rmtree(self.td, ignore_errors=True)
+
+  def test_writes_file_and_sha(self):
+    import hashlib
+
+    from lib import ir_lists
+    body = _pdf(P1, P2)
+    s = SimpleNamespace(get=lambda *a, **k: _Resp(body))
+    sha = ir_lists.ir_get_to_file(s, 'https://example.com/a.pdf', self.path)
+    self.assertEqual(sha, hashlib.sha256(body).hexdigest())
+    self.assertEqual(pathlib.Path(self.path).read_bytes(), body)
+
+  def test_over_cap_removes_partial_file(self):
+    from lib import ir_lists
+    s = SimpleNamespace(get=lambda *a, **k: _Resp(b'x' * (3 << 20)))   # 머리 없음 — 쓰는 도중에 넘는다
+    with self.assertRaises(ir_lists.TooLarge):
+      ir_lists.ir_get_to_file(s, 'https://example.com/a.pdf', self.path, max_bytes=2 << 20)
+    self.assertFalse(pathlib.Path(self.path).exists())
+
+  def test_over_cap_by_header_reads_nothing(self):
+    from lib import ir_lists
+    resp = _Resp(b'', length=str(10 << 20))
+    with self.assertRaises(ir_lists.TooLarge):
+      ir_lists.ir_get_to_file(SimpleNamespace(get=lambda *a, **k: resp), 'https://e.com/a.pdf', self.path,
+                              max_bytes=2 << 20)
+    self.assertTrue(resp.closed)
+    self.assertFalse(pathlib.Path(self.path).exists())
+
+  def _source(self, url, body):
+    from lib import ir_lists
+
+    def fake_get(session, u, path, max_bytes=None):
+      pathlib.Path(path).write_bytes(body)
+      return 'sha-big'
+    doc = SimpleNamespace(source='ir', url=url)
+    return (patch.object(ccn, 'doc_content', side_effect=ir_lists.TooLarge(60 << 20)),
+            patch.object(ir_lists, 'ir_get_to_file', side_effect=fake_get), doc)
+
+  def test_summary_source_falls_back_to_file_and_cleans_up(self):
+    p1, p2, doc = self._source('https://example.com/Q3.PDF?v=1', _pdf(P1, P2))
+    with p1, p2:
+      with scd.summary_source(None, None, doc) as (content, sha):
+        path = content.path
+        self.assertEqual(sha, 'sha-big')
+        text, is_pdf, n = scd.source_text(content)
+        self.assertEqual((is_pdf, n), (True, 2))
+        self.assertIn('[p.2]', text)
+        self.assertTrue(scd.pdf_source(content) == path and pathlib.Path(path).exists())
+    self.assertFalse(pathlib.Path(path).exists())   # 블록을 나가면 임시 파일이 지워진다
+
+  def test_summary_source_small_doc_passes_through(self):
+    doc = SimpleNamespace(source='ir', url='https://example.com/a.pdf')
+    c = Content('', [], _pdf(P1))
+    with patch.object(ccn, 'doc_content', return_value=(c, 'h')):
+      with scd.summary_source(None, None, doc) as (content, sha):
+        self.assertEqual((content, sha), (c, 'h'))
+        self.assertEqual(scd.pdf_source(content), c.raw)
+
+  def test_summary_source_non_pdf_url_keeps_warning(self):
+    from lib import ir_lists
+    p1, p2, doc = self._source('https://example.com/report.html', b'<html>')
+    with p1, p2 as g, self.assertRaises(ir_lists.TooLarge):
+      with scd.summary_source(None, None, doc):
+        pass
+    g.assert_not_called()
+
+  def test_summary_source_not_a_pdf_raises(self):
+    from lib import ir_lists
+    p1, p2, doc = self._source('https://example.com/a.pdf', b'<html>login</html>')
+    with p1, p2, self.assertRaises(ir_lists.TooLarge):
+      with scd.summary_source(None, None, doc):
+        pass
+
+  def test_summarize_large_pdf_captures_from_file(self):
+    p1, p2, doc = self._source('https://example.com/a.pdf', _pdf(P1, P2))
+    ups = []
+    with p1, p2, scd.summary_source(None, None, doc) as (content, sha):
+      res = scd.summarize_doc(_LLM(GOOD), ROW, '가나자동차', content, sha, dry_run=False, ws=_WS(),
+                              uploader=lambda k, png: ups.append((k, png[:4])))
+    self.assertEqual(res['outcome'], 'ok')
+    self.assertEqual(ups, [('c-1/11/p2.png', b'\x89PNG')])
+
+
+class SaveManual(unittest.TestCase):
+  """--from-json — 직접 쓴 요약도 같은 검사기를 통과해야 저장된다(API 호출 0)."""
+
+  def setUp(self):
+    self.content = Content('', [], _pdf(P1, P2))
+    self.uploads = []
+
+  def test_ok_saves_with_manual_model_and_zero_tokens(self):
+    ws = _WS()
+    res = scd.save_manual(ROW, self.content, 'sha', GOOD, dry_run=False, ws=ws,
+                          uploader=lambda k, png: self.uploads.append(k))
+    self.assertEqual(res['outcome'], 'ok')
+    (name, row, conflict), = ws.writes
+    self.assertEqual((name, conflict), ('customer_doc_summaries', 'doc_id'))
+    self.assertEqual((row['input_tokens'], row['output_tokens']), (0, 0))
+    self.assertIn('수동', row['model'])   # 상수를 베끼지 않는다 — 수동 표시가 상수에서 빠지면 걸려야 한다
+    self.assertEqual((row['status'], row['source_sha']), ('ok', 'sha'))
+    self.assertEqual(self.uploads, ['c-1/11/p2.png'])
+
+  def test_check_failure_saves_nothing(self):
+    ws = _WS()
+    res = scd.save_manual(ROW, self.content, 'sha', BAD, dry_run=False, ws=ws,
+                          uploader=lambda k, png: self.uploads.append(k))
+    self.assertEqual(res['outcome'], 'check_failed')
+    self.assertTrue(res['problems'])
+    self.assertEqual((ws.writes, self.uploads), ([], []))
+
+  def test_missing_or_bad_fields_save_nothing(self):
+    bad = [
+      {k: v for k, v in GOOD.items() if k != 'importance'},
+      {**GOOD, 'importance': 'urgent'},
+      {**GOOD, 'extra': 1},
+    ]
+    for data in bad:
+      ws = _WS()
+      res = scd.save_manual(ROW, self.content, 'sha', data, dry_run=False, ws=ws,
+                            uploader=lambda k, png: self.uploads.append(k))
+      self.assertEqual(res['outcome'], 'check_failed', data)
+      self.assertEqual((ws.writes, self.uploads), ([], []))
+
+  def test_dry_run_writes_nothing(self):
+    ws = _WS()
+    res = scd.save_manual(ROW, self.content, 'sha', GOOD, dry_run=True, ws=ws,
+                          uploader=lambda k, png: self.uploads.append(k))
+    self.assertEqual(res['outcome'], 'ok')
+    self.assertEqual((ws.writes, self.uploads), ([], []))
+
+
 if __name__ == '__main__':
   unittest.main()

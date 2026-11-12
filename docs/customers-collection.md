@@ -28,7 +28,7 @@ IR 확장(2026-11-10~11)의 계획·결정은 [`plans/2026-11-10-customers-ir-ex
 
 전부 RLS on + 정책 없음 → service_role 전용(`confidentialDb` · 명단 정본 = `lib/supabase/confidential.ts` 의 `CONFIDENTIAL_TABLES`). 캐시 태그 = 표 이름. `customer_collect_status`(`checked_at` 이 매번 바뀌어 제외) 외 2단계 5개는 `trg_skip_identical_update` 부착([`Architecture.md`](../Architecture.md) §7-J — 같은 값 upsert 는 0행 반환).
 
-- `customer_accounts`(1단계 · 20261109000003) — 고객사 페이지 명단·손익 고객명 매핑. PK `company_id`(→ `companies.id`) · `slug` unique. 행은 로컬 1회 INSERT(공개 레포에 명단 없음).
+- `customer_accounts`(1단계 · 20261109000003) — 고객사 페이지 명단·손익 고객명 매핑. PK `company_id`(→ `companies.id`) · `slug` unique. 행은 로컬 1회 INSERT(공개 레포에 명단 없음). `marklines_models text[]`(20261112000002) — MarkLines 에 단독 그룹이 없는 회사(묶음 그룹 안)면 차종명 목록. 있으면 물량 = 그 차종 합(`oem_sales_model_country_month`) + 차종별 분기 생산·판매 표, 없으면 그룹 전체. 차종명은 철자 그대로 맞아야 한다(다르면 조용히 0행) · `marklines_group` 없이 채우면 CHECK 위반.
 - `customer_documents` — EDGAR·DART·IR 문서 목록. PK `id` · UNIQUE (`source`, `source_id`) · `parse_status` 로 추출 대기 판정 · `llm_attempts`(LLM 재시도 횟수, 3 이면 닫음 · 20261109000005)
 - `customer_guidance` — 연간 가이던스(범위·문구). UNIQUE (`document_id`, `metric`, `period`) · `period` 는 `FY2026` 꼴 · `stated`(원문 낱말 — 방향은 코드가 정한다 · GM 은 지표를 특정한 문장만) · `value_text` = 숫자 없는 문장 전망 «또는» 숫자 행의 근사 구절(VW `around …` → 화면 「약」 — `value_text` 가 있다고 문장 전망으로 판정하지 말 것) · `currency`(null = 회사 보고 통화 · 외화 LLM 행만 KRW·USD·EUR·VND · 20261109000005)
 - `customer_volume_ir` — 회사 공표 출하·인도·생산·도매·판매 물량. PK (`company_id`, `metric`, `region`, `period_grain`, `period`) · `definition`(정의 문구)

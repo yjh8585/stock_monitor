@@ -18,7 +18,13 @@ import type { CompanyKpiSummary, CompanyTimeSeriesPoint, OemSalesGroupMonth } fr
 import { computeShares } from './share';
 import { buildEarnings } from './earnings';
 import { priceReturns } from './prices';
-import { groupMonthToSaleRows } from './volume';
+import {
+  groupMonthToSaleRows,
+  modelMonthsToGroupMonth,
+  modelQuarterTable,
+  type ModelMonthRow,
+  type ModelQuarterTable,
+} from './volume';
 import { buildBreakdown, type BreakdownRow, type BreakdownTab } from './breakdown';
 import { revenueKrw, type RateRow } from './krw';
 import { guidanceSignal, type SignalColor } from './signals';
@@ -142,9 +148,15 @@ export interface CustomerDetail {
   earnings: CustomerEarnings;
   volume: {
     group: string | null;
+    /** 차종 모드 — 그룹 전체가 아니라 이 차종들의 합(`customer_accounts.marklines_models`). 그룹 모드면 null. */
+    models: string[] | null;
+    /** 차종 모드에서 판매·생산 어느 표에도 없는 차종명(철자 불일치 의심) — 그룹 모드면 빈 배열. */
+    missingModels: string[];
     monthly: CompanyTimeSeriesPoint[];
     annual: CompanyTimeSeriesPoint[];
     kpi: CompanyKpiSummary | null;
+    /** 차종 모드의 차종별 분기 생산·판매 표(MarkLines 추정). 그룹 모드면 null. */
+    modelTable: ModelQuarterTable | null;
   };
   oemTabPath: string | null;
 }
@@ -156,13 +168,16 @@ interface AccountRow {
   pnl_customers: string[];
   share_group: string | null;
   marklines_group: string | null;
+  marklines_models: string[] | null;
   oem_tab_path: string | null;
 }
 
 async function fetchAccounts(): Promise<AccountRow[]> {
   const { data, error } = await confidentialDb
     .from('customer_accounts')
-    .select('company_id,slug,display_order,pnl_customers,share_group,marklines_group,oem_tab_path')
+    .select(
+      'company_id,slug,display_order,pnl_customers,share_group,marklines_group,marklines_models,oem_tab_path'
+    )
     .order('display_order', { ascending: true });
   if (error) {
     logger.error({ err: error }, 'customer_accounts 조회 실패');
@@ -806,6 +821,45 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
   };
 }
 
+/**
+ * 차종 모드의 월 행(나라별) — 판매 = 판매 시장별 · 생산 = 공장 국가별(합만 쓰니 의미 차이는 상관없다 · docs/oem-collection.md).
+ * 🔴 차종명이 MarkLines 표기와 한 글자라도 다르면 에러 없이 0행이다 — 값을 넣을 때 차종마다 행 수를 확인한다.
+ */
+async function fetchModelMonths(
+  kind: 'sales' | 'production',
+  group: string,
+  models: string[]
+): Promise<ModelMonthRow[]> {
+  const sb = createSupabaseAnonClient();
+  const out: ModelMonthRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    // .range() 는 PK 전체로 정렬해야 페이지 경계에서 행이 빠지지 않는다(AGENTS 「.range() 다중 페이지」).
+    const q =
+      kind === 'sales'
+        ? sb.from('oem_sales_model_country_month').select('model,country,year_month,value:sales')
+        : sb
+            .from('oem_production_model_country_month')
+            .select('model,country,year_month,value:production');
+    const { data, error } = await q
+      .eq('oem_group', group)
+      .in('model', models)
+      .order('model', { ascending: true })
+      .order('country', { ascending: true })
+      .order('year_month', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`MarkLines 차종 ${kind} 조회 실패: ${error.message}`);
+    out.push(
+      ...(data ?? []).map((r) => ({
+        model: r.model,
+        year_month: r.year_month,
+        value: Number(r.value),
+      }))
+    );
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
 async function fetchGroupMonth(group: string): Promise<OemSalesGroupMonth[]> {
   const sb = createSupabaseAnonClient();
   const out: OemSalesGroupMonth[] = [];
@@ -833,6 +887,8 @@ export async function getCustomerDetail(slug: string): Promise<CustomerDetail | 
   cacheTag('stock_prices');
   cacheTag('companies');
   cacheTag('oem_sales_group_month');
+  cacheTag('oem_sales_model_country_month');
+  cacheTag('oem_production_model_country_month');
   const accounts = await fetchAccounts();
   const target = accounts.find((a) => a.slug === slug);
   if (!target) return null;
@@ -842,13 +898,41 @@ export async function getCustomerDetail(slug: string): Promise<CustomerDetail | 
   if (!hit) return null;
 
   const group = hit.account.marklines_group;
-  let volume: CustomerDetail['volume'] = { group, monthly: [], annual: [], kpi: null };
+  // 차종 모드 — 묶음 그룹(단독 그룹 없음) 안의 회사는 그룹 전체가 아니라 그 회사 차종 합(마이그레이션 20261112000002).
+  const models =
+    group && hit.account.marklines_models?.length ? hit.account.marklines_models : null;
+  let volume: CustomerDetail['volume'] = {
+    group,
+    models,
+    missingModels: [],
+    monthly: [],
+    annual: [],
+    kpi: null,
+    modelTable: null,
+  };
   if (group) {
-    const saleRows = groupMonthToSaleRows(await fetchGroupMonth(group), group);
+    const [modelSales, modelProduction] = models
+      ? await Promise.all([
+          fetchModelMonths('sales', group, models),
+          fetchModelMonths('production', group, models),
+        ])
+      : [[], []];
+    const saleRows = groupMonthToSaleRows(
+      models ? modelMonthsToGroupMonth(modelSales, group) : await fetchGroupMonth(group),
+      group
+    );
+    // 차종명은 철자가 어긋나면 조용히 0행 — 판매·생산 어느 쪽에도 없는 이름은 화면에 알린다(Codex 2026-11-12).
+    const found = new Set([...modelSales, ...modelProduction].map((r) => r.model));
+    volume = {
+      ...volume,
+      missingModels: models ? models.filter((m) => !found.has(m)) : [],
+      // 판매가 0행이어도 생산 표는 그린다(함수는 갈래를 따로 본다).
+      modelTable: models ? modelQuarterTable(modelProduction, modelSales) : null,
+    };
     // 그룹은 있는데 판매 행이 0개면 「0대」 KPI 대신 kpi null — 화면이 「자료가 아직 없다」를 띄운다.
     if (saleRows.length > 0) {
       volume = {
-        group,
+        ...volume,
         monthly: aggregateMonthlySeries(saleRows),
         annual: aggregateAnnualSeries(saleRows),
         // 그룹 월 표엔 PT 가 없어 EV 비중을 계산하지 않는다(카드에 「—」).

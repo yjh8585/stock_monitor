@@ -97,8 +97,9 @@ describe('buildBreakdown', () => {
     ]);
     const c = tab.charts[0];
     expect(c.unit).toEqual({ label: '천대', tick: 'thousand_units' });
-    // 연간 보기 없음 — 연간 값이 없고, 분기마다 구분 이름이 달라(26Q2 에 유럽이 새로) 분기 합 누계도 만들지 않는다.
-    expect(c.views.map((v) => v.label)).toEqual(['분기']);
+    // 연간 값이 없고 26Q2 에 유럽이 새로 생겨 1~6월 합은 못 만든다 → 이름이 같은 1~3월까지로 물러선다.
+    expect(c.views.map((v) => v.label)).toEqual(['분기', '연간']);
+    expect(c.views[1].data.map((p) => [p.period_label, p.total])).toEqual([['26 1~3월', 100]]);
     const data = c.views[0].data;
     expect(data.map((p) => p.period_label)).toEqual(['26Q1', '26Q2']);
     expect(data[1].regions).toEqual({ 북미: 120, 유럽: 80.5 });
@@ -405,5 +406,105 @@ describe('올해 누계(YTD)·전년 동기 대비(YoY)', () => {
       ['26 1~9월', '25 1~9월'],
     ]);
     expect(y.rows).toEqual([{ label: '북미', values: [6, 6.5, 6.9], yoy: [null, 0.5, 0.5] }]);
+  });
+});
+
+// Codex diff 검토(2026-11-12)가 찾은 경계 — 앞 시험들은 이 입력을 덮지 못했다.
+describe('누계·전년 비교의 경계', () => {
+  const share = (o: Partial<BreakdownRow>) =>
+    row({ kind: 'share', metric: 'market_share', unit: 'share_pct', ...o });
+
+  it('월·반기 H2 의 전년 동기 — 같은 꼬리의 한 해 전(시점은 없음)', () => {
+    const [tab] = buildBreakdown([
+      row({ period_grain: 'month', period: '2025-09', value: 10_000 }),
+      row({ period_grain: 'month', period: '2026-09', value: 12_000 }),
+    ]);
+    const v = tab.charts[0].views[0];
+    expect(v.key).toBe('month');
+    expect(v.data[1].yoy).toEqual({ label: '25.09', total: 20, regions: { 북미: 20 } });
+  });
+
+  it('12개월 누계는 그 해 연간 값이다(사라지지 않는다)', () => {
+    const [tab] = buildBreakdown([
+      row({ period_grain: 'year', period: '2025', value: 400_000 }),
+      row({ period_grain: 'ytd', period: '2026-12M', value: 440_000 }),
+    ]);
+    const v = tab.charts[0].views[0];
+    expect(v.data.map((p) => [p.period_label, p.total])).toEqual([
+      ['2025', 400],
+      ['2026', 440],
+    ]);
+    expect(v.data[1].yoy?.total).toBe(10);
+  });
+
+  it('흐름이 아닌 분기(25Q2·26Q2)나 단독 Q2 도 분기 보기로 남는다', () => {
+    const [two] = buildBreakdown([
+      row({ period: '2025-Q2', value: 100_000 }),
+      row({ period: '2026-Q2', value: 110_000 }),
+    ]);
+    expect(two.charts[0].views.map((v) => v.key)).toEqual(['quarter']);
+    expect(two.charts[0].views[0].data[1].yoy?.total).toBe(10);
+    const [one] = buildBreakdown([row({ period: '2026-Q2', value: 100_000 })]);
+    expect(one.charts[0].views[0].data.map((p) => p.period_label)).toEqual(['26Q2']);
+  });
+
+  it('최신 분기에서 구분이 바뀌면 이름이 같은 앞 분기까지의 합으로 물러선다', () => {
+    const [tab] = buildBreakdown([
+      row({ period: '2025-Q1', value: 90_000 }),
+      row({ period: '2025-Q2', value: 90_000 }),
+      row({ period: '2026-Q1', value: 100_000 }),
+      row({ period: '2026-Q2', value: 100_000 }),
+      row({ period: '2026-Q3', value: 100_000 }),
+      row({ period: '2026-Q3', label_raw: 'Europe', label_ko: '유럽', value: 50_000 }),
+    ]);
+    const annual = tab.charts[0].views.find((v) => v.key === 'annual')!;
+    expect(annual.data.map((p) => [p.period_label, p.total])).toEqual([['26 1~6월', 200]]);
+    expect(annual.data[0].yoy?.label).toBe('25 1~6월');
+  });
+
+  it('출처에는 올해 막대에 있는 구분의 전년 행만 — 안 그린 전년 누계의 다른 구분 쪽은 빠진다', () => {
+    // 전년 1~9월 누계는 막대가 아니라 YoY 의 바탕일 뿐이다 — 거기서 쓰인 것은 올해에도 있는 북미뿐.
+    const [tab] = buildBreakdown([
+      row({ period_grain: 'year', period: '2024', value: 400_000, page: 3 }),
+      row({ period_grain: 'ytd', period: '2025-9M', value: 300_000, page: 3 }),
+      row({
+        period_grain: 'ytd',
+        period: '2025-9M',
+        label_raw: 'Europe',
+        label_ko: '유럽',
+        value: 100_000,
+        page: 99,
+      }),
+      row({ period_grain: 'ytd', period: '2026-9M', value: 330_000, document_id: 2, page: 5 }),
+    ]);
+    expect(tab.charts[0].views[0].data.map((p) => p.period_label)).toEqual(['2024', '26 1~9월']);
+    expect(tab.sources.find((s) => s.docId === 1)?.pages).toEqual([3]);
+    expect(tab.terms.map((t) => t.label)).not.toContain('유럽');
+  });
+
+  it('점유율 — 그 해 분기가 Q1 뿐이면 1분기를 1~3월 누계 칸으로', () => {
+    const [tab] = buildBreakdown([
+      share({ period_grain: 'year', period: '2025', value: 6 }),
+      share({ period_grain: 'quarter', period: '2025-Q1', value: 5.5 }),
+      share({ period_grain: 'quarter', period: '2026-Q1', value: 7 }),
+    ]);
+    const y = tab.tables.find((t) => t.key.endsWith('|year'))!;
+    expect(y.columns.map((c) => [c.label, c.prevLabel])).toEqual([
+      ['2025', '2024'],
+      ['26 1~3월', '25 1~3월'],
+    ]);
+    expect(y.rows[0].values).toEqual([6, 7]);
+    expect(y.rows[0].yoy).toEqual([null, 1.5]);
+  });
+
+  it('점유율 — 올해 「1~6월 누계」 와 전년 「상반기」 는 같은 기간으로 비교한다', () => {
+    const [tab] = buildBreakdown([
+      share({ period_grain: 'year', period: '2025', value: 6 }),
+      share({ period_grain: 'half', period: '2025-H1', value: 6 }),
+      share({ period_grain: 'ytd', period: '2026-6M', value: 7 }),
+    ]);
+    const y = tab.tables.find((t) => t.key.endsWith('|year'))!;
+    expect(y.columns.at(-1)).toMatchObject({ label: '26 1~6월', prevLabel: '25 1~6월' });
+    expect(y.rows[0].yoy.at(-1)).toBe(1);
   });
 });

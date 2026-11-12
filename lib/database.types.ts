@@ -302,6 +302,7 @@ export type Database = {
           created_at: string;
           display_order: number;
           marklines_group: string | null;
+          marklines_models: string[] | null;
           note: string | null;
           oem_tab_path: string | null;
           pnl_customers: string[];
@@ -313,6 +314,7 @@ export type Database = {
           created_at?: string;
           display_order: number;
           marklines_group?: string | null;
+          marklines_models?: string[] | null;
           note?: string | null;
           oem_tab_path?: string | null;
           pnl_customers?: string[];
@@ -324,6 +326,7 @@ export type Database = {
           created_at?: string;
           display_order?: number;
           marklines_group?: string | null;
+          marklines_models?: string[] | null;
           note?: string | null;
           oem_tab_path?: string | null;
           pnl_customers?: string[];

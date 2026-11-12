@@ -21,6 +21,7 @@ GM IR 은 Akamai 가 requests·Playwright 를 403 으로 막는다 — 실제 Ch
 접근만 시험한다(로그 전용 — 상태 표는 문서 목록 step 이 쓴다).
 """
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -106,6 +107,41 @@ def ir_get(session, url: str) -> requests.Response:
     r._content = b''.join(chunks)
     r._content_consumed = True
     return r
+  return with_retry(_once, _label=urlsplit(url).netloc)
+
+
+# 요약기 전용 — MAX_IR_BYTES 를 넘는 PDF 는 메모리 대신 디스크 파일로 받는다(리비안 주주 자료 63~410MB 가 요약에서
+# 빠져 있었다 · 2026-11-12). 글자층·쪽 그림은 pymupdf 가 그 파일을 열어 뽑는다(통째로 메모리에 올리지 않는다).
+MAX_LARGE_PDF_BYTES = 600 * 1024 * 1024
+
+
+def ir_get_to_file(session, url: str, path: str, max_bytes: int = MAX_LARGE_PDF_BYTES) -> str:
+  """IR 문서를 path 에 1MB 씩 써서 받는다 → sha256(16진). max_bytes 를 넘으면 쓰던 파일을 지우고 TooLarge.
+  ir_get 과 같은 브라우저 UA · 5xx 만 재시도(시도마다 파일을 새로 연다)."""
+  import hashlib
+
+  def _once():
+    r = session.get(url, headers={'User-Agent': BROWSER_UA}, timeout=60, stream=True)
+    r.raise_for_status()
+    length = r.headers.get('Content-Length')
+    if length and length.isdigit() and int(length) > max_bytes:
+      r.close()
+      raise TooLarge(int(length))
+    h, total = hashlib.sha256(), 0
+    try:
+      with open(path, 'wb') as f:
+        for chunk in r.iter_content(1 << 20):
+          total += len(chunk)
+          if total > max_bytes:
+            raise TooLarge(None)
+          h.update(chunk)
+          f.write(chunk)
+    except BaseException:
+      r.close()
+      if os.path.exists(path):
+        os.remove(path)
+      raise
+    return h.hexdigest()
   return with_retry(_once, _label=urlsplit(url).netloc)
 
 

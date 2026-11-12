@@ -606,7 +606,7 @@ UNIQUE: (source, note_date)
 
 #### 고객사 10종 (사외비 · 20261109~12)
 
-`customer_accounts`(명단) + 2단계 6종 + 요약 2종(`customer_doc_summaries`·`customer_news_weekly`) + C `customer_breakdown_ir` + 비공개 버킷 `customer-doc-pages`. 전부 RLS on·정책 없음 → `confidentialDb`. 이름·키·칸 → [`docs/customers-collection.md`](./docs/customers-collection.md).
+`customer_accounts`(명단 · 20261112000002 `marklines_models` = 묶음 그룹 회사의 차종 합 물량) + 2단계 6종 + 요약 2종(`customer_doc_summaries`·`customer_news_weekly`) + C `customer_breakdown_ir` + 비공개 버킷 `customer-doc-pages`. 전부 RLS on·정책 없음 → `confidentialDb`. 이름·키·칸 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 

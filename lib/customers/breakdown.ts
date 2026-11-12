@@ -309,6 +309,15 @@ function pointOf(
   return { ...point, yoy: { label: prev.label, total, regions } };
 }
 
+/**
+ * 출처에 넣을 전년 행 — 올해 막대에 있는 구분만(그 구분의 YoY 만 그린다 · 이름이 다 같을 때의 합계 YoY 도 이 행들뿐이다).
+ * 올해에 없는 구분의 전년 행까지 넣으면 화면에 안 보이는 값의 쪽·용어가 출처·뜻 상자에 섞인다(Codex 검토 2026-11-12).
+ */
+function prevShown(cur: BreakdownRow[], prev: BreakdownRow[] | undefined): BreakdownRow[] {
+  const names = new Set(cur.map((r) => r.label_ko));
+  return (prev ?? []).filter((r) => names.has(r.label_ko));
+}
+
 /** 한 꼴의 흐름(분기·월·반기…) — 최근 CHART_PERIODS 개 · 전년 동기는 잘린 앞 기간에서도 찾는다. */
 function seriesView(
   grain: BreakdownGrain,
@@ -321,7 +330,7 @@ function seriesView(
   const data = ps.map((p) => {
     const pp = prevPeriod(grain, p);
     const prevRows = pp ? picked.get(pp) : undefined;
-    used.push(...picked.get(p)!, ...(prevRows ?? []));
+    used.push(...picked.get(p)!, ...prevShown(picked.get(p)!, prevRows));
     return pointOf(
       p,
       breakdownPeriodLabel(grain, p),
@@ -358,9 +367,15 @@ function ytdOf(
   if (h1) cands.push({ month: 6, rows: h1, how: 'half' });
   let n = 0;
   while (n < 4 && maps.quarter.has(`${year}-Q${n + 1}`)) n++;
-  const k = month == null ? n : month / 3;
-  const summed = Number.isInteger(k) && k >= 1 ? quarterSum(year, k, maps.quarter) : null;
-  if (summed) cands.push({ month: k * 3, rows: summed, how: 'quarters' });
+  // 분기 합 — 최신 분기의 구분 이름이 바뀌었으면 이름이 같은 앞 분기까지로 물러선다(Q3 에 유럽이 새로 생겨도 1~6월은 낸다).
+  const ks = month == null ? [3, 2, 1].filter((k) => k <= n) : [month / 3]; // 4분기 합은 연간(yearOf)
+  for (const k of ks) {
+    const summed = Number.isInteger(k) && k >= 1 ? quarterSum(year, k, maps.quarter) : null;
+    if (summed) {
+      cands.push({ month: k * 3, rows: summed, how: 'quarters' });
+      break;
+    }
+  }
   return (
     cands
       .filter((c) => (month == null ? c.month < 12 : c.month === month))
@@ -388,14 +403,14 @@ function quarterSum(year: number, k: number, quarter: Picked): BreakdownRow[] | 
   return head.every((rs) => names(rs) === names(head[0])) ? head.flat() : null;
 }
 
-/** 한 해 연간 값 — 회사 발표 연간 · Q1~Q4 분기 합 중 구분이 많은 쪽(같으면 발표). */
+/** 한 해 연간 값 — 회사 발표 연간(없으면 12개월 누계) · Q1~Q4 분기 합 중 구분이 많은 쪽(같으면 발표). */
 function yearOf(
   year: number,
   years: Picked,
-  quarter: Picked
+  maps: { ytd: Picked; quarter: Picked }
 ): { rows: BreakdownRow[]; how: 'reported' | 'quarters' } | null {
-  const reported = years.get(String(year));
-  const summed = quarterSum(year, 4, quarter);
+  const reported = years.get(String(year)) ?? maps.ytd.get(`${year}-12M`);
+  const summed = quarterSum(year, 4, maps.quarter);
   if (reported && (!summed || nameCount(reported) >= nameCount(summed)))
     return { rows: reported, how: 'reported' };
   return summed ? { rows: summed, how: 'quarters' } : null;
@@ -413,21 +428,22 @@ function annualView(
   used: BreakdownRow[]
 ): BreakdownChartView | null {
   const reported = pickPerPeriod(rows, 'year');
-  // 연간 값 = 발표 연간 또는 Q1~Q4 분기 합(연간 발표가 없거나 구분이 적은 해 — 포르쉐 지역·폴라리스 지역).
+  // 연간 값 = 발표 연간(또는 12개월 누계) 또는 Q1~Q4 분기 합(연간 발표가 없거나 구분이 적은 해 — 포르쉐 지역·폴라리스 지역).
   const yearsWith = new Set([
     ...reported.keys(),
+    ...[...maps.ytd.keys()].filter((p) => p.endsWith('-12M')).map((p) => p.slice(0, 4)),
     ...[...maps.quarter.keys()].map((p) => p.slice(0, 4)),
   ]);
   const years = new Map<number, { rows: BreakdownRow[]; how: 'reported' | 'quarters' }>();
   for (const y of yearsWith) {
-    const v = yearOf(Number(y), reported, maps.quarter);
+    const v = yearOf(Number(y), reported, maps);
     if (v) years.set(Number(y), v);
   }
   const data = [...years.keys()]
     .sort((a, b) => a - b)
     .map((y) => {
       const prev = years.get(y - 1);
-      used.push(...years.get(y)!.rows, ...(prev?.rows ?? []));
+      used.push(...years.get(y)!.rows, ...prevShown(years.get(y)!.rows, prev?.rows));
       return pointOf(
         String(y),
         String(y),
@@ -447,7 +463,7 @@ function annualView(
   const cur = years.has(last) ? null : ytdOf(last, maps);
   if (cur) {
     const prev = ytdOf(last - 1, maps, cur.month);
-    used.push(...cur.rows, ...(prev?.rows ?? []));
+    used.push(...cur.rows, ...prevShown(cur.rows, prev?.rows));
     data.push(
       pointOf(
         `${last}-YTD`,
@@ -465,7 +481,8 @@ function annualView(
 
 /**
  * 대수·매출 차트 — 보기 = 분기(흐름일 때) · 연간(연도 + 올해 누계).
- * 둘 다 없거나 연간이 막대 하나뿐이면 월·반기·시점 중 기간이 가장 많은 꼴(2개 이상)을 앞에 둔다.
+ * 둘 다 없거나 연간이 막대 하나뿐이면 분기·월·반기·시점 중 기간이 가장 많은 꼴(2개 이상 · 연간도 없으면 1개도)을 앞에 둔다.
+ * 분기도 후보다 — 흐름이 아닌 「25Q2·26Q2」나 단독 Q2 는 연간·누계를 못 만들면 갈 곳이 없어 사라졌다(Codex 검토 2026-11-12).
  */
 function chartOf(
   key: string,
@@ -486,9 +503,9 @@ function chartOf(
   }
   const annual = annualView(rows, maps, u, used);
   if (views.length === 0 && (annual?.data.length ?? 0) < 2) {
-    const other = (['month', 'half', 'asof'] as const)
-      .map((g) => ({ g, picked: g === 'half' ? maps.half : pickPerPeriod(rows, g) }))
-      .filter((x) => x.picked.size >= 2)
+    const other = (['quarter', 'month', 'half', 'asof'] as const)
+      .map((g) => ({ g, picked: g === 'month' || g === 'asof' ? pickPerPeriod(rows, g) : maps[g] }))
+      .filter((x) => x.picked.size >= (annual ? 2 : 1))
       .sort((a, b) => b.picked.size - a.picked.size)[0];
     const v = other ? seriesView(other.g, other.picked, u, used) : null;
     if (v) views.push(v);
@@ -500,11 +517,29 @@ function chartOf(
 
 const TABLE_COLUMNS = 8;
 
-/** 표 칸 하나의 꼴·기간 — 연간 표 끝에 붙는 올해 누계 칸은 누계(또는 상반기) 꼴이다. */
+/** 표 칸 하나의 꼴·기간 — 연간 표 끝에 붙는 올해 누계 칸은 누계(또는 상반기·1분기) 꼴이고 months(1~N월)를 단다. */
 interface TableCol {
   grain: BreakdownGrain;
   period: string;
   label: string;
+  months?: number;
+}
+
+/**
+ * 전년 동기 칸 후보 — 같은 꼴이 먼저. 누계 칸은 같은 달 수의 다른 꼴도 본다
+ * (올해 「1~6월 누계」 ↔ 전년 「상반기」 · 「1~3월」 ↔ 「1분기」 — 회사가 해마다 표기를 바꾼다).
+ */
+function prevCols(c: TableCol): { grain: BreakdownGrain; period: string }[] {
+  const pp = prevPeriod(c.grain, c.period);
+  const out = pp ? [{ grain: c.grain, period: pp }] : [];
+  if (c.months == null) return out;
+  const y = Number(c.period.slice(0, 4)) - 1;
+  const alts: { grain: BreakdownGrain; period: string }[] = [
+    { grain: 'ytd', period: `${y}-${c.months}M` },
+    ...(c.months === 6 ? [{ grain: 'half' as const, period: `${y}-H1` }] : []),
+    ...(c.months === 3 ? [{ grain: 'quarter' as const, period: `${y}-Q1` }] : []),
+  ];
+  return [...out, ...alts.filter((a) => a.grain !== c.grain)];
 }
 
 /**
@@ -538,10 +573,10 @@ function tableOf(
     label: breakdownPeriodLabel(grain, p),
   }));
   if (extra) cols.push(extra);
-  const prevCol = (c: TableCol) => {
-    const pp = prevPeriod(c.grain, c.period);
-    return pp ? { grain: c.grain, period: pp } : null;
-  };
+  const atPrev = (c: TableCol, label: string) =>
+    prevCols(c)
+      .map((pc) => at(pc, label))
+      .find((r) => r != null);
   const labels = [
     ...new Set(
       cols.flatMap((c) =>
@@ -555,8 +590,7 @@ function tableOf(
     .map((label) => {
       const values = cols.map((c) => at(c, label)?.value ?? null);
       const yoy = cols.map((c, i) => {
-        const pc = prevCol(c);
-        const prev = pc ? at(pc, label) : undefined;
+        const prev = atPrev(c, label);
         return values[i] != null && prev ? round1(values[i]! - prev.value) : null;
       });
       return { label, values, yoy };
@@ -571,8 +605,7 @@ function tableOf(
     for (const { label } of tableRows) {
       const r = at(c, label);
       if (r) used.push(r);
-      const pc = prevCol(c);
-      const p = pc && r ? at(pc, label) : undefined;
+      const p = r ? atPrev(c, label) : undefined;
       if (p) used.push(p);
     }
   return {
@@ -580,25 +613,26 @@ function tableOf(
     title: `${title} (${GRAIN_LABEL[grain]})`,
     unitLabel: '%',
     columns: cols.map((c) => {
-      const pc = prevCol(c);
+      const pp = prevPeriod(c.grain, c.period);
       return {
         period: `${c.grain}:${c.period}`,
         label: c.label,
         prevLabel:
-          pc == null
-            ? null
-            : c === extra && c.grain === 'half'
-              ? ytdLabel(Number(pc.period.slice(0, 4)), 6)
-              : c === extra
-                ? ytdLabel(Number(pc.period.slice(0, 4)), parseInt(pc.period.slice(5), 10))
-                : breakdownPeriodLabel(c.grain, pc.period),
+          c.months != null
+            ? ytdLabel(Number(c.period.slice(0, 4)) - 1, c.months)
+            : pp == null
+              ? null
+              : breakdownPeriodLabel(c.grain, pp),
       };
     }),
     rows: tableRows,
   };
 }
 
-/** 구성비·점유율의 올해 누계 칸 — 마지막 해의 연간 값이 아직 없을 때만 · 회사 발표 누계(가장 긴 것) > 상반기. %는 더할 수 없어 분기 합은 없다. */
+/**
+ * 구성비·점유율의 올해 누계 칸 — 마지막 해의 연간 값이 아직 없을 때만 · 회사 발표 누계(가장 긴 것) > 상반기 >
+ * 1분기(그 해 분기가 Q1 뿐일 때 — 1분기는 그 자체로 1~3월 누계다). %는 더할 수 없어 분기 합은 없다.
+ */
 function pctYtdCol(rows: BreakdownRow[]): TableCol | null {
   const last = latestYear(rows);
   const has = (g: BreakdownGrain, p: string) =>
@@ -612,9 +646,20 @@ function pctYtdCol(rows: BreakdownRow[]): TableCol | null {
         .map((r) => r.period)
     )
   ).at(-1);
-  if (ytd) return { grain: 'ytd', period: ytd, label: breakdownPeriodLabel('ytd', ytd) };
+  if (ytd)
+    return {
+      grain: 'ytd',
+      period: ytd,
+      label: breakdownPeriodLabel('ytd', ytd),
+      months: parseInt(ytd.slice(5), 10),
+    };
   if (has('half', `${last}-H1`))
-    return { grain: 'half', period: `${last}-H1`, label: ytdLabel(last, 6) };
+    return { grain: 'half', period: `${last}-H1`, label: ytdLabel(last, 6), months: 6 };
+  const quarters = rows.filter(
+    (r) => r.period_grain === 'quarter' && r.period.startsWith(`${last}-`)
+  );
+  if (quarters.length > 0 && quarters.every((r) => r.period === `${last}-Q1`))
+    return { grain: 'quarter', period: `${last}-Q1`, label: ytdLabel(last, 3), months: 3 };
   return null;
 }
 
