@@ -32,7 +32,12 @@ from lib.series_sources import SHFE_ALU_PRODUCT, SHFE_DAILY_URL, SHFE_HRC_PRODUC
 # (series_code, SHFE 품목 코드)
 PRODUCTS = [('HRC_CN', SHFE_HRC_PRODUCT), ('ALU_CN', SHFE_ALU_PRODUCT)]
 DEFAULT_LOOKBACK_DAYS = 10
-SHFE_REQUEST_SLEEP_SEC = 0.5  # 정적 파일이라 짧게 둔다(5년 ≈ 1,300건)
+SHFE_REQUEST_SLEEP_SEC = 1.0  # 정적 파일이지만 연달아 받으면 끊긴다(아래 COOLDOWN 주석) · 5년 ≈ 1,300건 ≈ 22분
+SHFE_RETRY_BACKOFF_SEC = 5.0  # 재시도 대기 5s → 10s (기본 2s → 4s 로는 끊긴 상태가 안 풀렸다)
+# 🔴 2026-11-10·11-12 GHA 실패: 앞쪽 며칠은 받다가 어느 순간부터 남은 날이 전부 `Connection reset by peer`
+# (재시도 4초 뒤에도 그대로 · 다음 날 실행은 같은 날짜를 다 받았다). 그래서 실패한 날만 모아 1분 쉰 뒤 한 번 더 연다.
+# 두 번째에도 실패하면 진짜 차단·장애로 보고 그대로 exit 1.
+SHFE_COOLDOWN_SEC = 60
 FLUSH_EVERY = 100
 
 # 🔴 파서 자가 시험 — 2026-11-06 실제 파일의 행 일부. 품목마다 미결제약정 최대 «월물»의 결산가를 골라야 한다.
@@ -116,7 +121,7 @@ def collect(backfill_years: int) -> None:
   pending: list[dict] = []
   loaded = {code: 0 for code, _ in PRODUCTS}
   missing = {code: 0 for code, _ in PRODUCTS}
-  holidays = errors = 0
+  holidays = 0
 
   def flush() -> None:
     nonlocal pending
@@ -125,19 +130,20 @@ def collect(backfill_years: int) -> None:
       loaded[r['series_code']] += 1
     pending = []
 
-  for i, d in enumerate(targets, 1):
+  def handle(d: date) -> bool:
+    """하루치를 받아 pending 에 쌓는다. 조회 오류면 False(다시 열 대상)."""
+    nonlocal holidays
     ymd = d.strftime('%Y%m%d')
     try:
-      body = with_retry(_fetchDay, ymd, _label=f'SHFE {ymd}')
+      body = with_retry(_fetchDay, ymd, _label=f'SHFE {ymd}', _backoff=SHFE_RETRY_BACKOFF_SEC)
     except Exception as e:
-      errors += 1
       logger.warning(f"SHFE: {ymd} 조회 실패 — {e}")
-      continue
+      return False
     finally:
       time.sleep(SHFE_REQUEST_SLEEP_SEC)
     if body is None:
       holidays += 1
-      continue
+      return True
     for code, product in PRODUCTS:
       if d.isoformat() in existing[code]:
         continue
@@ -149,9 +155,21 @@ def collect(backfill_years: int) -> None:
         logger.warning(f"{code}: {ymd} 파일에 {product} 결산가 없음")
         continue
       pending.append({'series_code': code, 'trade_date': d.isoformat(), 'close': price})
+    return True
+
+  failed: list[date] = []
+  for i, d in enumerate(targets, 1):
+    if not handle(d):
+      failed.append(d)
     if len(pending) >= FLUSH_EVERY:
       flush()
       logger.info(f"SHFE: {i}/{len(targets)}일 처리 · 누적 {loaded}")
+
+  if failed:
+    logger.info(f"SHFE: 조회 실패 {len(failed)}일 — {SHFE_COOLDOWN_SEC}초 쉰 뒤 한 번 더 연다")
+    time.sleep(SHFE_COOLDOWN_SEC)
+    failed = [d for d in failed if not handle(d)]
+  errors = len(failed)
 
   if pending:
     flush()
