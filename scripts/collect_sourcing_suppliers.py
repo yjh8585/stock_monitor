@@ -11,9 +11,12 @@
 상세 실패가 전체의 10% 를 넘으면 DB 에 쓰기 전에 멈춘다(exit 3) — 화면 구조가 바뀌었는데
 일부만 적재되는 것을 막는다. 적재 전에 받은 상세를 참고/협력사/_collect_rows_<시각>.json(gitignore)에
 저장해, 적재가 실패해도 다시 받지 않고 되살릴 수 있게 한다. 적재 upsert 는 일시 오류만 재시도한다.
+상세 도중 로그인이 풀리면(401·403) 받은 것을 _collect_partial_<시각>.json 에 저장하고 exit 4 —
+쿠키를 다시 채취한 뒤 --resume <그 파일> 로 이어 받는다(이미 받은 업체는 건너뛴다).
 
 사용: scripts/venv/Scripts/python.exe scripts/collect_sourcing_suppliers.py [--dry-run] [--max-details 3000]
       [--solo-max-hits N]   # 품목군 단독 검색 합집합이 N 곳 넘는 품목군은 단독 결과를 받지 않는다
+      [--resume 참고/협력사/_collect_partial_<시각>.json]
 """
 import argparse
 import json
@@ -25,6 +28,37 @@ from pathlib import Path
 
 # 상세 실패 비율이 이 값을 넘으면 적재하지 않는다.
 MAX_FAIL_RATIO = 0.10
+STATE_DIR = Path(__file__).resolve().parents[1] / '참고' / '협력사'  # gitignore — 실명이 든다
+
+Hits = dict[str, list[tuple[int, int | None]]]
+
+
+def merge_hits(a: Hits, b: Hits) -> Hits:
+  """두 검색 결과를 rand_code 별로 합친다(같은 (품목군, 경쟁사) 짝은 한 번만)."""
+  out: Hits = {}
+  for src in (a, b):
+    for code, pairs in src.items():
+      seen = out.setdefault(code, [])
+      seen.extend(p for p in pairs if p not in seen)
+  return out
+
+
+def pending_codes(hits: Hits, rows: list[dict]) -> list[str]:
+  """상세를 아직 받지 않은 rand_code — 이미 받은 행(rows)의 ml_rand_code 는 건너뛴다."""
+  done = {r['ml_rand_code'] for r in rows}
+  return [code for code in hits if code not in done]
+
+
+def save_state(kind: str, rows: list[dict], hits: Hits) -> Path:
+  path = STATE_DIR / f'_collect_{kind}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text(json.dumps({'rows': rows, 'hits': hits}, ensure_ascii=False), encoding='utf-8')
+  return path
+
+
+def load_state(path: str) -> tuple[list[dict], Hits]:
+  state = json.loads(Path(path).read_text(encoding='utf-8'))
+  return state['rows'], {code: [tuple(p) for p in pairs] for code, pairs in state['hits'].items()}
 
 
 def main() -> int:
@@ -42,7 +76,10 @@ def main() -> int:
   ap.add_argument('--solo-max-hits', type=int, default=0,
                   help='품목군마다 부품명 단독 검색 결과의 합집합이 이 값 이하일 때만 단독 결과를 받는다'
                        f'(단독 검색 하나라도 {SEARCH_CAP} 곳에 닿으면 건너뜀) · 0 = 단독 검색 안 함')
+  ap.add_argument('--resume', metavar='JSON',
+                  help='앞 실행이 저장한 _collect_partial_*.json(또는 _collect_rows_*.json) — 이미 받은 업체는 건너뛴다')
   args = ap.parse_args()
+  prev_rows, prev_hits = load_state(args.resume) if args.resume else ([], {})
 
   c = get_client()
   groups = c.table('sourcing_part_groups').select('id,product_id,ml_part_names').order('id').execute().data
@@ -78,18 +115,23 @@ def main() -> int:
         for code in solo:
           hits.setdefault(code, []).append((g['id'], None))
   print(f'검색 {searches}회')
+  # 이어받기면 이번 검색 결과에 앞 실행의 검색 결과를 합친다(앞에서 받은 업체의 연결을 잃지 않게).
+  hits = merge_hits(hits, prev_hits)
   print(f'상세 받을 업체: {len(hits)}')
   if len(hits) > args.max_details:
     print(f'🔴 {len(hits)} > --max-details {args.max_details} — 멈춘다(사용자에게 상한을 묻는다)')
     return 2
+  todo = pending_codes(hits, prev_rows)
+  if args.resume:
+    print(f'이어받기: 이미 받음 {len(prev_rows)} · 이번에 받을 {len(todo)}')
   if args.dry_run:
     return 0
 
   # 기본값 now() 는 INSERT 때만 들어간다 — 다시 받은 업체도 받은 시각이 갱신되게 명시한다.
   fetched_at = datetime.now(timezone.utc).isoformat()
-  rows, failed = [], 0
+  rows, failed = list(prev_rows), 0
   started = time.monotonic()
-  for i, code in enumerate(hits, 1):
+  for i, code in enumerate(todo, 1):
     try:
       detail = db.detail(code)
       # 요청한 업체가 아닌 응답이면 엉뚱한 회사 행을 적재하지 않도록 실패로 센다.
@@ -97,30 +139,31 @@ def main() -> int:
         raise ValueError('응답 rand_code 불일치')
       rows.append({**parse_detail(detail, code), 'fetched_at': fetched_at})
     except NotLoggedIn:
-      raise  # 로그인이 풀리면 전체를 멈춘다 — 빈 값으로 덮지 않는다.
+      # 로그인이 풀리면 즉시 멈춘다 — 빈 값으로 덮지 않고, 받은 것은 저장해 이어 받게 한다.
+      path = save_state('partial', rows, hits)
+      print('🔴 로그인 풀림 — 쿠키를 다시 채취한 뒤 --resume <경로> 로 이어 받는다')
+      print(f'저장: {path} · 받음 {len(rows)} · 남음 {len(pending_codes(hits, rows))}')
+      return 4
     except Exception as e:  # 한 업체 실패는 건너뛴다(외부 입력 경계).
       failed += 1
       print(f'상세 실패 #{i}: {type(e).__name__}')
     if i % 100 == 0:
-      eta_min = (time.monotonic() - started) / i * (len(hits) - i) / 60
-      print(f'  {i}/{len(hits)} · 실패 {failed} · 남은 시간 약 {eta_min:.0f}분')
+      eta_min = (time.monotonic() - started) / i * (len(todo) - i) / 60
+      print(f'  {i}/{len(todo)} · 실패 {failed} · 남은 시간 약 {eta_min:.0f}분')
 
-  if hits and failed / len(hits) > MAX_FAIL_RATIO:
-    print(f'🔴 상세 실패 {failed}/{len(hits)} > {MAX_FAIL_RATIO:.0%} — 적재하지 않고 멈춘다(화면 구조 변경 의심)')
+  # 분모는 이번 실행에서 요청한 건수다(이어받기로 건너뛴 업체는 세지 않는다).
+  if todo and failed / len(todo) > MAX_FAIL_RATIO:
+    print(f'🔴 상세 실패 {failed}/{len(todo)} > {MAX_FAIL_RATIO:.0%} — 적재하지 않고 멈춘다(화면 구조 변경 의심)')
     return 3
+
+  # 적재가 실패해도 상세를 다시 받지 않고 --resume 으로 되살릴 수 있게 먼저 저장한다.
+  print(f'상세 저장: {save_state("rows", rows, hits)}')
 
   # 같은 업체(ml_supplier_id)가 두 rand_code 로 오면 한 배치 upsert 가 「같은 행을 두 번」으로 실패한다.
   # 뒤에 받은 행을 남기고, 지운 쪽 rand_code 는 남은 행의 rand_code 로 이어 links 가 빠지지 않게 한다.
   kept_by_id = {r['ml_supplier_id']: r for r in rows}
   kept_code = {r['ml_rand_code']: kept_by_id[r['ml_supplier_id']]['ml_rand_code'] for r in rows}
   rows = list(kept_by_id.values())
-
-  # 적재가 실패해도 상세를 다시 받지 않고 되살릴 수 있게 먼저 저장한다(참고/ 는 gitignore).
-  backup = (Path(__file__).resolve().parents[1] / '참고' / '협력사'
-            / f'_collect_rows_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
-  backup.parent.mkdir(parents=True, exist_ok=True)
-  backup.write_text(json.dumps(rows, ensure_ascii=False), encoding='utf-8')
-  print(f'상세 저장: {backup}')
 
   with WriteSession() as ws:
     id_by_code: dict[str, int] = {}

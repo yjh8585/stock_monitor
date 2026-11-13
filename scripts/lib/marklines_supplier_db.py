@@ -51,7 +51,12 @@ class SupplierDb:
         time.sleep(wait)
       self._last = time.monotonic()
       resp = self._s.get(url, params=params, timeout=60)
-      # 4xx 는 즉시 raise — 단 429 는 retry.py 가 일시적 오류로 보고 재시도한다(retry.py:24).
+      # 🔴 수집 도중 세션이 끊기면 상세가 401 JSON 으로 온다(2026-11-13 본 수집 #480 부터 1,416건).
+      # HTTPError 로 두면 「한 업체 실패」로 세어 헛요청을 계속하므로 로그인 풀림으로 즉시 멈춘다.
+      # NotLoggedIn 은 retry.py 의 일시 오류 판정에 걸리지 않아 재시도하지 않는다.
+      if resp.status_code in (401, 403):
+        raise NotLoggedIn(f'HTTP {resp.status_code}')
+      # 그 밖의 4xx 는 즉시 raise — 단 429 는 retry.py 가 일시적 오류로 보고 재시도한다(retry.py:24).
       resp.raise_for_status()
       return resp
     return with_retry(call, _label='marklines supplier_db')

@@ -305,5 +305,6 @@ MarkLines 분석 보고서는 표가 본체다(실측: 일본편 24개 · 유럽
 ### 수집 스크립트
 
 - `collect_sourcing_suppliers.py` — 협력사 후보 수집(MarkLines 서플라이어 DB → `sourcing_suppliers`·`sourcing_supplier_links`). **로컬 수동 실행 전용**(GHA 금지) · `--dry-run` 으로 상세 받을 업체 수부터 확인 · 단독 검색 상한은 품목군별 합집합 기준(`--solo-max-hits`) · 상세 실패 10% 초과면 적재 없이 exit 3. 🔴 stdout 에 id·건수만.
+  - 🔴 **수집 도중 세션이 끊긴다**(2026-11-13 본 수집 — 상세 #480 부터 401 `Unauthenticated.`). 401·403 은 `NotLoggedIn` 으로 즉시 멈추고 받은 것을 `참고/협력사/_collect_partial_<시각>.json` 에 저장한 뒤 **exit 4** → 쿠키를 다시 채취하고 `--resume <그 파일>` 로 이어 받는다(이미 받은 업체는 건너뛴다). 적재 직전 백업 `_collect_rows_<시각>.json` 도 같은 형식이라 적재 실패 때 `--resume` 으로 되살린다.
 - `scripts/lib/sourcing_parse.py` — MarkLines 서플라이어 상세 JSON → `sourcing_suppliers` 행 순수 함수 · `test_sourcing_parse.py`. 모르는 국가는 「기타」로 떨구고 `UNKNOWN_COUNTRIES` 에 모은다 — 수집기가 끝에 출력해 지역 표를 보강한다.
 - `scripts/lib/marklines_supplier_db.py` — MarkLines 서플라이어 DB 검색 id·상세 JSON. 🔴 쿠키는 `scripts/.env` 만 · 요청 간격 1초 · 검색 결과는 3,000 곳에서 잘린다(`SEARCH_CAP`).
