@@ -1153,6 +1153,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
     - `china/` 는 차트를 새로 만들지 않고 **기존 차트가 받는 입력 모양**(`OemSalesGroupMonth`·`CompanyPtMixPoint`·`KgRegionSeriesPoint` 등)으로 줄여 내준다 — 화면은 「전체」 탭·회사 탭 차트 재사용(짝짓기 표 = `docs/plans/2026-10-29-oem-china-tab.md` 「화면」). 순위용 (묶음, 월) 행은 앵커 연도 − 2 부터만 싣는다(ISR Write).
   - `lib/oem-competition/` — `/oem/competition` 조회 계층(`types.ts` + `source.ts`). `'use cache'` 함수엔 **`cacheLife('days')`를 반드시 붙일 것** — 빠뜨리면 기본값 15분마다 재생성돼 ISR Write를 낭비한다(월 1회 갱신 데이터). JSONB 컬럼은 형태가 어긋날 수 있어 배열 아니면 버린다.
   - `lib/customers/` — 고객사 페이지 조회·계산(손익·명단은 `confidentialDb`, 결과만 반환)
+  - `lib/sourcing/` — 협력사 점수 `score.ts`(순수 함수 · 저장 안 하고 조회 때 계산). 사외비 · 실명 금지
 
 ### `scripts/` — Python 데이터 수집
 
