@@ -67,7 +67,8 @@ export default function SupplierRankingTable({ rows, total, productSlug }: Props
               <th className={`${TD} text-left`}>국가</th>
               <th className={`${TD} text-right`}>점수</th>
               <th className={`${TD} text-left`}>경쟁사 납품</th>
-              <th className={`${TD} text-left`}>일치 단계</th>
+              {/* 점수와 같은 근거(제품 전체 최고 단계) — 품목군을 골라도 그 품목군 단계가 아니다. */}
+              <th className={`${TD} text-left`}>최고 일치 단계</th>
               <th className={`${TD} text-right`}>종업원</th>
               <th className={`${TD} text-left`}>인증</th>
               <th className={`${TD} text-left`}>출처</th>
