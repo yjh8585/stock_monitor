@@ -308,3 +308,15 @@ MarkLines 분석 보고서는 표가 본체다(실측: 일본편 24개 · 유럽
   - 🔴 **수집 도중 세션이 끊긴다**(2026-11-13 본 수집 — 상세 #480 부터 401 `Unauthenticated.`). 401·403 은 `NotLoggedIn` 으로 즉시 멈추고 받은 것을 `참고/협력사/_collect_partial_<시각>.json` 에 저장한 뒤 **exit 4** → 쿠키를 다시 채취하고 `--resume <그 파일>` 로 이어 받는다(이미 받은 업체는 건너뛴다). 적재 직전 백업 `_collect_rows_<시각>.json` 도 같은 형식이라 적재 실패 때 `--resume` 으로 되살린다.
 - `scripts/lib/sourcing_parse.py` — MarkLines 서플라이어 상세 JSON → `sourcing_suppliers` 행 순수 함수 · `test_sourcing_parse.py`. 모르는 국가는 「기타」로 떨구고 `UNKNOWN_COUNTRIES` 에 모은다 — 수집기가 끝에 출력해 지역 표를 보강한다.
 - `scripts/lib/marklines_supplier_db.py` — MarkLines 서플라이어 DB 검색 id·상세 JSON. 🔴 쿠키는 `scripts/.env` 만 · 요청 간격 1초 · 검색 결과는 3,000 곳에서 잘린다(`SEARCH_CAP`).
+- 순서: `seed_sourcing.py`(시드 = `참고/협력사/sourcing_seed.json` · gitignore) → `probe_sourcing_queries.py`(검색 건수만) → `collect_sourcing_suppliers.py --dry-run` → 본 실행(사용자 선택 2026-11-13: `--solo-max-hits 450` · dry-run 상세 대상 1,895곳 · 검색 198회).
+
+### 🔴 MarkLines 계정 정지 의심 — 다음 수집 전 반드시 읽을 것 (2026-11-13)
+
+- 본 수집 1회차가 **1초 간격으로 약 30분 · 요청 약 700회**(검색 198 + 상세 479)를 보낸 뒤 401 로 끊겼고, 이어 쿠키를 다시 받으려 한 로그인이 되지 않았다(사용자 판단: 계정 정지 의심). 원인은 미확인 — 요청 속도·양이 가장 유력하다.
+- 그래서 **적재된 협력사는 0곳**이다. 화면(`/oem/suppliers`)은 빈 상태로 완성돼 있다.
+- 다시 돌리기 전에: ① 계정 상태를 사용자가 MarkLines 에 확인 ② 이용 약관·요청 한도 확인 ③ 간격을 늘리고(예: 3초 이상) 하루 상한을 두는 안을 **사용자 승인 뒤** 넣는다. 중간에 끊겨도 `_collect_partial_*.json` + `--resume` 으로 받은 것은 잃지 않는다.
+
+### 화면 `/oem/suppliers`
+
+- 목록 `app/oem/suppliers/page.tsx`(제품·지역·품목군 탭 · 상위 200행만 client 로) · 상세 `[id]/page.tsx`(본인·제품 미연결 업체는 404) · 조회 `lib/sourcing/source.ts`(캐시 태그 `sourcing` · `cacheLife('days')`).
+- 권한 = `canAccessSuppliers`(admin·holdings·mobility) — `proxy.ts`·`app/oem/suppliers/layout.tsx`·각 page 가 한 번씩 막는다. 탭은 `components/oem/OemTabs.tsx` 가 역할에 따라 붙인다.
