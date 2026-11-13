@@ -221,7 +221,7 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 - **`competition_metrics.py`** — `compute_market_metrics()`/`compute_competitor_table()` 둘 다 **공통 기준월(`anchor`)** 을 받는다. 대상 차종과 경쟁군이 각자의 `max(year_month)`를 쓰면 비교 기간이 어긋나 점유율이 왜곡되므로, `anchor` 미지정 시 양쪽 최신월 중 **더 이른 쪽**을 자동 선택한다. 산출한 `anchor_month`는 프롬프트 헤더와 `market_breakdown`(→ 카드의 "2026.07 기준 12개월")에 "언제 기준 수치인지"로 노출된다 — 없으면 12개월 누계가 월간 실적으로 오해된다.
 - **`perplexity_client.py`** — Claude 내장 웹검색 대신 쓰는 이유는 **검색어를 고정**할 수 있어 매 회차 같은 관점의 결과가 보장되기 때문(모델 자율 검색은 회차마다 검색어가 달라져 편차가 크다). 가격도 절반($5/1,000 vs $10/1,000). 최신성 필터는 API가 받지 않아 검색어의 연도 표기로 확보한다. 키 `PERPLEXITY_API_KEY`가 없으면 **빈 리스트로 조용히 흡수**하고 평가 자체는 진행한다.
 - **`nhtsa_client.py`** — `NHTSA_MODEL_MAP`이 `model_key` → (make, 모델 리스트). MarkLines 표기와 달라 수동 매핑이며 `ram_truck`(1500/2500/3500)·`rivian_r1`(R1T/R1S)은 합산한다. 미국 미판매 차종(`avante_china`)은 매핑에서 제외. 모델연도가 아직 등록 전이면 Count 0/HTTP 400이 오므로 최신 연도부터 폴백한다.
-- **`outlook_prompt.py`** — v1 실패 원인은 입력이 '모회사 주식 뉴스 헤드라인 8개'뿐이라 모델이 사전지식만 쓴 것이었다(그래서 매주 돌려도 내용이 안 바뀌었다). v2는 DB 실적·경쟁표·생산-판매 갭·Cox 재고일수·NHTSA·웹검색을 블록으로 넣고, 시스템 프롬프트가 **입력에 있는 숫자만 쓸 것**과 "경쟁차 A가 +40%인 동안 대상은 −6%" 식의 **대비 구조**를 강제한다.
+- **`outlook_prompt.py`** — v2([v1 경위](./docs/history/Architecture-경위.md))는 DB 실적·경쟁표·생산-판매 갭·Cox 재고일수·NHTSA·웹검색을 블록으로 넣고, 시스템 프롬프트가 **입력에 있는 숫자만 쓸 것**과 "경쟁차 A가 +40%인 동안 대상은 −6%" 식의 **대비 구조**를 강제한다.
 
 ## 7. 데이터 모델 (DB 스키마 상세)
 
@@ -413,11 +413,9 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 
 - **⚠️ `countries`가 실제 집계 필터다.** `oem_sales_model_country_month.country`엔 `'Europe'` 같은 대륙 값이 없고 개별 국가만 있다 — 유럽 시장(`niro`)은 서유럽 14개국 배열로 정의. `GLOBAL`만 `countries IS NULL`(전 국가).
 - 모델명은 국가마다 MarkLines 표기가 다르다 — 행마다 실제 표기를 조회해 넣는다([경위](./docs/history/Architecture-경위.md)).
-- 🔴 **배열째 교체하는 UPDATE는 손대지 않을 항목까지 삭제할 수 있다** — 같은 `20260813000004`가 각 행의 `target_models`/`competitor_models`를 통째로 재작성하며 실제로는 유효한 항목 2건이 함께 빠졌다(코드 리뷰 2건, 모두 재검토자가 DB 직접 조회로 확정):
-  - `niro/Europe`의 `'Captur'`(르노 캡처, 유럽 14개국 중 10개국에서 202501~ 데이터 존재) — `20260813000005`로 `ARRAY['Kona','Captur','Ford Puma','Peugeot 2008']`로 복원.
-  - `avante_china/China`의 `'Elantra Yuedong'`(오타가 아니라 MarkLines 상 별개 항목 — `'Elantra/Yuedong/Langdong/Elantra 2016'`과 202001~202312 41개월간 서로 다른 판매수치로 공존, `lib/oem/aggregate.ts`의 `OTHER_MODEL_TARGETS`도 이미 두 표기를 합산) — `20260813000006`로 `ARRAY['Elantra/Yuedong/Langdong/Elantra 2016','Elantra Yuedong']`로 복원.
+- 🔴 **배열째 교체하는 UPDATE는 손대지 않을 항목까지 삭제할 수 있다** — 같은 `20260813000004`에서 유효 항목 2건이 빠져 `20260813000005`·`20260813000006`으로 복원했다([경위](./docs/history/Architecture-경위.md)).
   - 배열 UPDATE는 "바꿀 항목만"이 아니라 **전체 항목을 다시 나열**해야 하므로, 교정 전 원본 배열을 옆에 두고 작성할 것.
-- 🔴 **모델 실존 확인에 최근 기간 필터(`gte year_month`)를 쓰면 과거 전용 표기를 "없음"으로 오판한다** — `'Elantra Yuedong'`이 202312에서 끊겨 `.gte('year_month', 202501)` 필터에 걸리자 "China엔 없음"으로 오판해 위 누락이 발생했다. 모델 실존 확인은 **연도 필터 없이 전 기간**으로 해야 한다.
+- 🔴 **모델 실존 확인에 최근 기간 필터(`gte year_month`)를 쓰면 과거 전용 표기를 "없음"으로 오판한다** — 모델 실존 확인은 **연도 필터 없이 전 기간**으로 해야 한다.
 - 검증은 `scripts/lib/test_competitor_set.py`(DB 실접속 필요, `SUPABASE_URL` 없으면 스킵). `test_모든_경쟁군_모델이_판매테이블에_존재한다`는 연도 필터 없이 전 기간 실존을 확인하고, `test_경쟁군에서_유효한_모델이_누락되지_않았다`는 14개 시장 **전부**의 `target_models`·`competitor_models`를 `EXPECTED_COMPETITOR_SETS` 정본과 집합 대조해 배열째 교체 UPDATE로 인한 조용한 누락 재발을 막는다.
 
 - **⚠️ `country`가 판매 테이블과 의미가 정반대다** — 여기선 **생산국**, `oem_sales_*`에선 **판매 시장**. 이름이 같아 차감하기 쉽지만 그러면 국가 간 수출입이 결과에 섞인다. `/management/stellantis` 차트 1이 이 차감을 하고 있고, 그래서 "항등식이 아니라 근사"라고 화면에 밝힌다.
@@ -608,22 +606,9 @@ UNIQUE: (source, note_date)
 
 `customer_accounts`(명단 · 20261112000002 `marklines_models` = 묶음 그룹 회사의 차종 합 물량) + 2단계 6종 + 요약 2종(`customer_doc_summaries`·`customer_news_weekly`) + C `customer_breakdown_ir` + 비공개 버킷 `customer-doc-pages`. 전부 RLS on·정책 없음 → `confidentialDb`. 이름·키·칸 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 
-#### 협력사 5종 `sourcing_*` (사외비 · 20261113000001) — `/oem/suppliers` 소싱 후보
+#### 협력사 5종 `sourcing_*` (사외비 · 20261113000001)
 
-| 표                        | 내용                                                                   |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `sourcing_products`       | 우리 제품(`slug` 유일 · `display_order`)                               |
-| `sourcing_part_groups`    | 제품별 품목군 — BOM 부품명·MarkLines 분류명·공정명·검색 단어 배열      |
-| `sourcing_competitors`    | 제품별 경쟁사 — 납품처 부분일치용 `aliases`                            |
-| `sourcing_suppliers`      | 협력사 후보 원자료(`source` = `marklines`·`web` · `region` 8값 CHECK)  |
-| `sourcing_supplier_links` | 후보 × 품목군 × 경쟁사(null = 경쟁사 무관 검색) — 어떤 검색에서 걸렸나 |
-
-#### 상세
-
-- 전부 RLS on·정책 없음 → `confidentialDb` 전용. 캐시 태그는 `sourcing` 하나(5개 표 모두 이 태그로 무효화).
-- 🔴 **행은 마이그레이션에 넣지 않는다** — 제품 구성·경쟁사·검색어가 구매 전략이라 공개 레포에 남기지 않고 로컬 `service_role` 로만 적재한다.
-- 일치 단계·점수는 저장하지 않는다(화면에서 계산). `sourcing_supplier_links` 의 유일 키는 `unique nulls not distinct (supplier_id, part_group_id, competitor_id)`.
-- `sourcing_supplier_links` 에 `trg_skip_identical_update` 부착(§7-J) — 수집기는 upsert 에 `found_at` 을 보내지 않는다. `sourcing_suppliers` 는 `fetched_at` 이 매번 바뀌어 붙이지 않는다.
+`sourcing_products`·`sourcing_part_groups`·`sourcing_competitors`·`sourcing_suppliers`·`sourcing_supplier_links` — 전부 RLS on·정책 없음 → `confidentialDb`. 🔴 행은 마이그레이션에 넣지 않는다. 칸·약속 → [`docs/oem-collection.md`](./docs/oem-collection.md) 「협력사」.
 
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
@@ -685,7 +670,7 @@ UNIQUE: (source, note_date)
 
 **인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
 
-**RLS**: `posts_select_public`(20260806000001) — anon·authenticated 는 **`is_confidential = false` 행만** SELECT. 그 전 정책 `posts_select_all`(USING(true))은 anon 키만으로 전 보고서를 덤프할 수 있어 사외비 문서를 담을 수 없었다. 사외비 행은 **service_role 로만** 조회되며, 열람 역할 게이트는 `lib/auth/permissions.ts`의 `canAccessConfidentialReports`(admin·holdings·mobility — 2026-11-16 부터 조직도보다 넓다)가 담당한다. 목록·상세의 `'use cache'` 함수는 `includeConfidential` 를 **인자로 받아 캐시 키를 분리**하므로 역할 간에 목록이 새지 않는다.
+**RLS**: `posts_select_public`(20260806000001) — anon·authenticated 는 **`is_confidential = false` 행만** SELECT(옛 정책 경위 → [history](./docs/history/Architecture-경위.md)). 사외비 행은 **service_role 로만** 조회되며, 열람 역할 게이트는 `lib/auth/permissions.ts`의 `canAccessConfidentialReports`(admin·holdings·mobility — 2026-11-16 부터 조직도보다 넓다)가 담당한다. 목록·상세의 `'use cache'` 함수는 `includeConfidential` 를 **인자로 받아 캐시 키를 분리**하므로 역할 간에 목록이 새지 않는다.
 
 **버킷 `reports-html`** (비공개, public=false, 정책 없음 → service_role 전용, 20260821000001):  
 자체 디자인을 가진 원본 HTML 보고서를 저장한다. 객체 키는 `posts.html_path`(NULL = 첨부 없음), 열람은 인증 프록시 `/api/reports/[id]/html` 로만 — 그 라우트가 로그인(proxy) + `post.is_confidential` 행 단위 역할 게이트(`canAccessConfidentialReports`)를 다시 확인한 뒤 스트리밍한다(`blob.stream()` — Vercel 응답 4.5MB 상한 회피). 상세 페이지는 이것을 same-origin iframe(`components/reports/report-embed.tsx`)으로 마크다운 본문 **위에** 띄운다.
@@ -722,10 +707,10 @@ UNIQUE: (source, note_date)
 
 ### 7-H. 토큰 · 매핑
 
-| 테이블                 | 컬럼                                   | 용도                                                                                                                                            |
-| ---------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kis_tokens`           | env_key, token, expires_at, updated_at | 한국투자증권 API 토큰 (자체 갱신)                                                                                                               |
-| `product_category_map` | raw_category, normalized               | 제품 카테고리 정규화 매핑 (**141행 · 정규화값 22종**, 2026-09-11 실측. 74행은 로봇 시드 `20260824000002`·`20260824000005` 이전의 낡은 값이었다) |
+| 테이블                 | 컬럼                                   | 용도                                                                                                                 |
+| ---------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `kis_tokens`           | env_key, token, expires_at, updated_at | 한국투자증권 API 토큰 (자체 갱신)                                                                                    |
+| `product_category_map` | raw_category, normalized               | 제품 카테고리 정규화 매핑 (**141행 · 정규화값 22종**, 2026-09-11 실측 · [경위](./docs/history/Architecture-경위.md)) |
 
 ---
 
@@ -838,7 +823,7 @@ GHA runner: sync_management_excel.py (apply)
 | COLUMN_TO_TAGS 값 ⊄ ALL_TAGS                     | 수집기가 존재하지 않는 태그를 부른다(오타·삭제 잔재) |
 | **역방향** — cacheTag 인데 원천 테이블 매핑 없음 | **수집이 성공해도 그 페이지는 영원히 낡는다**        |
 
-역방향 검사는 2026-09-09 추가분이다. 초판(①②만)이 `hyundai_retail_sales` 구멍을 **통과시킨** 것이 계기다 — 태그 `oem-hyundai-retail` 은 TS 에도 `ALL_TAGS` 에도 있었지만 그것을 부르는 매핑이 없었다. 첫 실행에서 **누락 태그 9개**를 잡았다(눈으로 찾은 건 2개였다).
+역방향 검사를 더한 경위(2026-09-09) → [history](./docs/history/Architecture-경위.md).
 
 🔴 **매핑 면제는 `TAGS_WITHOUT_COLLECTOR` 뿐이다** — 현재 `oem_model_brand`(마이그레이션 전용 SSOT) 하나. 여기 태그를 더하는 것은 「수집기가 안 건드린다」는 주장이므로 함부로 늘리면 검사기가 조용히 무력해진다. 판정은 순수 함수 `evaluate()` 이고 `scripts/lib/test_verify_revalidate_tags.py` 가 **검사기 자신을 시험한다**(위반을 심어 실제로 잡히는지 · 면제가 이웃 태그까지 풀어 주지 않는지 · 낡은 면제를 경고하는지).
 
@@ -1075,7 +1060,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - 🔴 **고객사는 수집하지 않는다**(사용자 결정 · 상위 계획서 확정 결정 12). 뷰가 `customers` 를 빈 배열로 내보내 매퍼만 호환시키고, 표는 그 자리에 비상장 기업가치를 그린다.
   🔴 **화면에 안 보이므로 위반이 조용히 일어난다**(실례 = [경위](./docs/history/Architecture-경위.md)). 판정은 `enrich_company.py` 의 **`_skips_customers()`**(로봇 역할 + **다른 페이지에 없음**)가 맡는다. ⚠️ **겸업사는 제외** — 현대차·현대모비스는 관련주·국내자동차에서 고객사를 쓴다.
 - 🔴 **제품군 11종의 정본은 `product_category_map`**(`lib/types.ts` 의 `ROBOT_PRODUCT_CATEGORIES` 는 UI 사본). **카테고리를 늘릴 때 정규화 결과값을 raw 키로도 넣을 것** — 함정 4종(왕복 뭉갬·자동 페이지 매핑·`data_source` NOT NULL·트랜잭션 롤백) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md) 「휴머노이드 기업 데이터 함정」.
-- 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설. 그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
+- 🔴 **비상장 기업가치(`valuation_usd`·`funding_total_usd`·`valuation_asof`)의 유일한 수집 경로는 `enrich_company.py`** 다(2026-08-25 신설 · [경위](./docs/history/Architecture-경위.md)). `valuation_asof` 가 **기존보다 최신일 때만** 덮어쓴다 — 오래된 라운드로 덮으면 조용히 후퇴한다.
 
 #### `/humanoid/reports` 상세
 
@@ -1175,7 +1160,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 - `collect_*.py` — 외부 → DB 수집. **Stellantis 북미 출하(도매)** → `stellantis_shipments`는 **수집기 2개, IR 홈페이지(`collect_stellantis_shipments_ir.py`)가 primary·EDGAR(`collect_stellantis_shipments.py`)가 보완·백필**(사용자 지시 2026-07-16). 🔴 **fnguide 접근은 반드시 `scripts/lib/fnguide_client.py` 경유**하고, **계약이 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**한다(주 1회 `verify-fnguide.yml`). Cox 재고일수·PDF-only(UzAuto)·현대 분기 IR 등 개별 수집기 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** · `docs/oem-collection.md` · 계약표 [`docs/fnguide-wcomp-migration.md`](./docs/fnguide-wcomp-migration.md).
 - **`scripts/customer_parsers/`**(회사별 숫자 파서) · `collect_customer_docs.py`(목록) · `collect_customer_numbers.py`(내용)·`collect_customer_breakdown.py` · `summarize_customer_docs.py`·`summarize_customer_news.py`(문서·뉴스 주간 요약) — 고객사 수집. 약속 → [`docs/customers-collection.md`](./docs/customers-collection.md).
-- `collect_sourcing_suppliers.py` — 협력사 후보 수집(MarkLines 서플라이어 DB → `sourcing_suppliers`·`sourcing_supplier_links`, §7-G). **로컬 수동 실행 전용**(GHA 금지) · `--dry-run` 으로 상세 받을 업체 수부터 확인 · 단독 검색 상한은 품목군별 합집합 기준(`--solo-max-hits`) · 상세 실패 10% 초과면 적재 없이 exit 3. 🔴 stdout 에 id·건수만.
+- `collect_sourcing_suppliers.py` — 협력사 후보 수집(MarkLines → `sourcing_*`). **로컬 수동 전용**(GHA 금지) · 🔴 stdout 에 id·건수만 · 옵션·종료 코드 → [`docs/oem-collection.md`](./docs/oem-collection.md) 「협력사」.
 - `enrich_*.py` — 기존 행 보강(외부 LLM·검색). **append-only**. `onboard_company.py`는 신규 회사 추가 직후 1회 실행하며 **멱등**이라 부분 실패 시 같은 명령을 재실행하면 된다(비-12월 결산은 `--fiscal-year-end-month`).
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
 - **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
@@ -1186,7 +1171,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
 
-- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `product_categories.py`(제품군 카테고리 목록을 **DB 정본**(`product_category_map`)에서 읽어 LLM enum 으로 준다. 🔴 **목록을 수집기에 박지 말 것** — UI 에 이미 사본이 3벌 있다. `split_domains()` 로 자동차/로봇을 **반드시 가를 것**: 22종을 통째로 주면 자동차 부품이 로봇 칸으로 새고 «맞던 값까지» 망가진다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `china_excel.py`(MarkLines 중국 엑셀 3종 → `oem_china_*` 행. 순수 함수, `test_china_excel.py`. 🔴 **그룹 표기 정규화는 `GROUP_ALIASES` 한 곳** — 없는 이름은 원문 그대로 둬 새 그룹이 조용히 사라지지 않게 한다. NEV·승용차 두 파일의 전 차종 월합이 같다는 교차 검증을 `import_oem_china.py` 가 돌린다) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `naver_market_cap.py`(시가총액 대체 출처. 🔴 **KRX 시총 계열이 죽었을 때 쓴다**(경위 = [history](./docs/history/Architecture-경위.md)). 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주므로 파싱이 필요하고, 🔴 **반환값은 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱 자가 시험(`self_test()`)을 수집 시작 «전에» 부를 것) · `komis.py`(KOMIS 광물 가격 일별 조회 — 철광석·LME 구리 공용. 🔴 **가격기준 코드는 박지 말고 이름으로 조회**: KOMIS 가 예고 없이 바꾸며 옛 코드는 HTTP 200 빈 배열을 준다(2026-11 초 793→878)) · `market_series.py`(`existing_trade_dates()` — 백필 때 이미 적재된 날짜를 건너뛴다) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다) · `doc_text.py`·`edgar.py`·`dart_api.py`·`ir_lists.py`·`quote_check.py`·`guidance_direction.py`·`llm_guidance.py`·`customer_summary_prompt.py`·`customer_summary_check.py`·`customer_doc_pages.py`·`customer_breakdown.py`·`llm_breakdown.py`(고객사 수집·요약 공용 — 약속 → [`docs/customers-collection.md`](./docs/customers-collection.md)) · `sourcing_parse.py`(MarkLines 서플라이어 상세 JSON → `sourcing_suppliers` 행 순수 함수 · `test_sourcing_parse.py`. 모르는 국가는 「기타」로 떨구고 `UNKNOWN_COUNTRIES` 에 모은다 — 수집기가 끝에 출력해 지역 표를 보강한다) · `marklines_supplier_db.py`(MarkLines 서플라이어 DB 검색 id·상세 JSON. 🔴 쿠키는 `scripts/.env` 만 · 요청 간격 1초 · 검색 결과는 3,000 곳에서 잘린다(`SEARCH_CAP`))
+- `db.py`(**모든 DB 접근이 경유**. 분 단위 수집 테이블을 새로 만들면 `purge_older_than()` 보존 정책을 **반드시 함께** 붙일 것 — 없으면 무한 누적) · `revalidate.py`(**수집 후 캐시 무효화 — 필수**) · `financial_sources.py`(**financials에 행을 쓰는 수집기는 `source`를 반드시 채운다**. 문자열 직접 입력 금지 — 상수만) · `fnguide_client.py`(**fnguide URL을 스크립트에 직접 박지 말고 이 모듈 경유**) · `nhtsa_client.py`(NHTSA 무료 API — 리콜·불만 데이터, 매핑+폴백 로직) · `competition_metrics.py`(OEM 차종 경쟁 지표 계산 — 순수 함수. **대상·경쟁군의 기준월을 공통 앵커로 맞출 것** — 각자의 최신월을 쓰면 점유율이 조용히 왜곡된다) · `perplexity_client.py`(웹 검색. 🔴 **키가 없으면 검색만 조용히 건너뛰고 수집은 성공**한다 — 품질 저하로만 나타난다) · `product_categories.py`(제품군 카테고리 목록을 **DB 정본**(`product_category_map`)에서 읽어 LLM enum 으로 준다. 🔴 **목록을 수집기에 박지 말 것** — UI 에 이미 사본이 3벌 있다. `split_domains()` 로 자동차/로봇을 **반드시 가를 것**: 22종을 통째로 주면 자동차 부품이 로봇 칸으로 새고 «맞던 값까지» 망가진다 → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)) · `model_segment.py`·`outlook_prompt.py`(세그먼트 매핑 · 프롬프트 조립) · `china_excel.py`(MarkLines 중국 엑셀 3종 → `oem_china_*` 행. 순수 함수, `test_china_excel.py`. 🔴 **그룹 표기 정규화는 `GROUP_ALIASES` 한 곳** — 없는 이름은 원문 그대로 둬 새 그룹이 조용히 사라지지 않게 한다. NEV·승용차 두 파일의 전 차종 월합이 같다는 교차 검증을 `import_oem_china.py` 가 돌린다) · `krx_auth.py`(pykrx **import 전** `disable_pykrx_autologin()`) · `naver_market_cap.py`(시가총액 대체 출처. 🔴 **KRX 시총 계열이 죽었을 때 쓴다**(경위 = [history](./docs/history/Architecture-경위.md)). 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주므로 파싱이 필요하고, 🔴 **반환값은 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱 자가 시험(`self_test()`)을 수집 시작 «전에» 부를 것) · `komis.py`(KOMIS 광물 가격 일별 조회 — 철광석·LME 구리 공용. 🔴 **가격기준 코드는 박지 말고 이름으로 조회**: KOMIS 가 예고 없이 바꾸며 옛 코드는 HTTP 200 빈 배열을 준다(2026-11 초 793→878)) · `market_series.py`(`existing_trade_dates()` — 백필 때 이미 적재된 날짜를 건너뛴다) · `bootstrap.py`(boilerplate `init_script(__file__)`) · `retry.py`(외부 요청 1회 실패로 수집 전체가 죽지 않게 — 5xx·연결 끊김만 재시도, **4xx는 즉시 raise**. `upsert_rows` 적용됨) · `pdf_figures.py`(PDF 에서 차트·도표 영역을 찾아 PNG 로 잘라낸다 — 증권사 리포트 차트는 **벡터 도형**이라 `get_images()` 로는 0건이다. 🔴 **표준 재무제표 부록·컴플라이언스 페이지는 통째로 건너뛴다**(사용자 지시 2026-08-25). 본문 글자를 이미지로 심는 증권사가 있어 `is_image_body`(쪽당 밀도)로 가려 `render_pages` 로 우회한다 — **총 길이로 재면 오판한다.** 순수 함수는 `test_pdf_figures.py`) · `research_priority.py`(요약할 리포트를 고른다. **평소 = `select_ongoing`(점수 문턱만)이 기본**이고 `select_priority`(점수 + 대상별 최소 1편)는 빈 페이지를 메우는 초기 채우기 전용이다. 🔴 **선별은 반드시 기본값이어야 한다** — 정기 스케줄이 인자 없이 부르므로 플래그로 두면 아무것도 안 걸린다) · `doc_text.py`·`edgar.py`·`dart_api.py`·`ir_lists.py`·`quote_check.py`·`guidance_direction.py`·`llm_guidance.py`·`customer_summary_prompt.py`·`customer_summary_check.py`·`customer_doc_pages.py`·`customer_breakdown.py`·`llm_breakdown.py`(고객사 수집·요약 공용 — 약속 → [`docs/customers-collection.md`](./docs/customers-collection.md)) · `sourcing_parse.py`·`marklines_supplier_db.py`(협력사 수집 공용 — 🔴 쿠키는 `scripts/.env` 만 · 약속 → [`docs/oem-collection.md`](./docs/oem-collection.md) 「협력사」)
 
 ### `supabase/migrations/`
 

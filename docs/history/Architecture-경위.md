@@ -79,3 +79,32 @@ Supabase 가 `ap-southeast-1`(싱가포르)인데 함수는 기본값 iad1(미�
 브리프 초안 대비 실측 표기 불일치 4건을 `20260813000004`로 정정했다: `avante_ex_china/USA`는 `'Avante (Elantra)'`만
 존재(`'Avante'`는 Korea 전용 표기), `avante_ex_china/Korea`는 반대로 `'Avante'`만 존재, `niro/Europe` 경쟁모델은
 `'Puma'`→`'Ford Puma'`·`'2008'`→`'Peugeot 2008'`.
+
+## `oem_competitor_set` — 배열째 교체 UPDATE 가 유효 항목 2건을 지운 경위 (2026-08-13)
+
+같은 `20260813000004`가 각 행의 `target_models`/`competitor_models`를 통째로 재작성하며 실제로는 유효한 항목 2건이 함께 빠졌다(코드 리뷰 2건, 모두 재검토자가 DB 직접 조회로 확정):
+
+- `niro/Europe`의 `'Captur'`(르노 캡처, 유럽 14개국 중 10개국에서 202501~ 데이터 존재) — `20260813000005`로 `ARRAY['Kona','Captur','Ford Puma','Peugeot 2008']`로 복원.
+- `avante_china/China`의 `'Elantra Yuedong'`(오타가 아니라 MarkLines 상 별개 항목 — `'Elantra/Yuedong/Langdong/Elantra 2016'`과 202001~202312 41개월간 서로 다른 판매수치로 공존, `lib/oem/aggregate.ts`의 `OTHER_MODEL_TARGETS`도 이미 두 표기를 합산) — `20260813000006`로 `ARRAY['Elantra/Yuedong/Langdong/Elantra 2016','Elantra Yuedong']`로 복원.
+
+두 번째 누락의 원인: `'Elantra Yuedong'`이 202312에서 끊겨 `.gte('year_month', 202501)` 필터에 걸리자 "China엔 없음"으로 오판해 위 누락이 발생했다.
+
+## `outlook_prompt.py` — v1 실패 원인
+
+v1 실패 원인은 입력이 '모회사 주식 뉴스 헤드라인 8개'뿐이라 모델이 사전지식만 쓴 것이었다(그래서 매주 돌려도 내용이 안 바뀌었다).
+
+## `verify_revalidate_tags.py` 역방향 검사 — 더한 경위 (2026-09-09)
+
+역방향 검사는 2026-09-09 추가분이다. 초판(①②만)이 `hyundai_retail_sales` 구멍을 **통과시킨** 것이 계기다 — 태그 `oem-hyundai-retail` 은 TS 에도 `ALL_TAGS` 에도 있었지만 그것을 부르는 매핑이 없었다. 첫 실행에서 **누락 태그 9개**를 잡았다(눈으로 찾은 건 2개였다).
+
+## `posts` RLS — 옛 정책 `posts_select_all` 을 바꾼 이유 (20260806000001)
+
+그 전 정책 `posts_select_all`(USING(true))은 anon 키만으로 전 보고서를 덤프할 수 있어 사외비 문서를 담을 수 없었다.
+
+## 비상장 기업가치 수집 경로 `enrich_company.py` — 신설 전 (2026-08-25)
+
+그 전엔 seed 마이그레이션 하드코딩이 전부라 갱신 경로가 없었다.
+
+## `product_category_map` — 2026-09-11 실측 때의 낡은 행
+
+141행 중 74행은 로봇 시드 `20260824000002`·`20260824000005` 이전의 낡은 값이었다.

@@ -278,3 +278,32 @@ MarkLines 분석 보고서는 표가 본체다(실측: 일본편 24개 · 유럽
 같은 보고서를 웹 클리퍼로 받아 두면 셀의 글자는 살아도 `bgcolor` 같은 **속성에 실린 값이 사라져**
 빈칸이 된다(2026-09-15 파워스티어링편 실사고 — 「조사 중」을 「공급 없음」으로 읽을 뻔했다).
 범례 행도 함께 날아간다. **표가 중요한 보고서는 클리핑 말고 쿠키로 원문을 받을 것.**
+
+---
+
+## 협력사(`/oem/suppliers`) — 사외비 표 5종·수집
+
+`Architecture.md` §7-G 에서 옮겨 왔다(2026-11-13 · 크기 상한 회복).
+
+### 협력사 5종 `sourcing_*` (사외비 · 20261113000001) — `/oem/suppliers` 소싱 후보
+
+| 표                        | 내용                                                                   |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `sourcing_products`       | 우리 제품(`slug` 유일 · `display_order`)                               |
+| `sourcing_part_groups`    | 제품별 품목군 — BOM 부품명·MarkLines 분류명·공정명·검색 단어 배열      |
+| `sourcing_competitors`    | 제품별 경쟁사 — 납품처 부분일치용 `aliases`                            |
+| `sourcing_suppliers`      | 협력사 후보 원자료(`source` = `marklines`·`web` · `region` 8값 CHECK)  |
+| `sourcing_supplier_links` | 후보 × 품목군 × 경쟁사(null = 경쟁사 무관 검색) — 어떤 검색에서 걸렸나 |
+
+#### 상세
+
+- 전부 RLS on·정책 없음 → `confidentialDb` 전용. 캐시 태그는 `sourcing` 하나(5개 표 모두 이 태그로 무효화).
+- 🔴 **행은 마이그레이션에 넣지 않는다** — 제품 구성·경쟁사·검색어가 구매 전략이라 공개 레포에 남기지 않고 로컬 `service_role` 로만 적재한다.
+- 일치 단계·점수는 저장하지 않는다(화면에서 계산). `sourcing_supplier_links` 의 유일 키는 `unique nulls not distinct (supplier_id, part_group_id, competitor_id)`.
+- `sourcing_supplier_links` 에 `trg_skip_identical_update` 부착(`Architecture.md` §7-J) — 수집기는 upsert 에 `found_at` 을 보내지 않는다. `sourcing_suppliers` 는 `fetched_at` 이 매번 바뀌어 붙이지 않는다.
+
+### 수집 스크립트
+
+- `collect_sourcing_suppliers.py` — 협력사 후보 수집(MarkLines 서플라이어 DB → `sourcing_suppliers`·`sourcing_supplier_links`). **로컬 수동 실행 전용**(GHA 금지) · `--dry-run` 으로 상세 받을 업체 수부터 확인 · 단독 검색 상한은 품목군별 합집합 기준(`--solo-max-hits`) · 상세 실패 10% 초과면 적재 없이 exit 3. 🔴 stdout 에 id·건수만.
+- `scripts/lib/sourcing_parse.py` — MarkLines 서플라이어 상세 JSON → `sourcing_suppliers` 행 순수 함수 · `test_sourcing_parse.py`. 모르는 국가는 「기타」로 떨구고 `UNKNOWN_COUNTRIES` 에 모은다 — 수집기가 끝에 출력해 지역 표를 보강한다.
+- `scripts/lib/marklines_supplier_db.py` — MarkLines 서플라이어 DB 검색 id·상세 JSON. 🔴 쿠키는 `scripts/.env` 만 · 요청 간격 1초 · 검색 결과는 3,000 곳에서 잘린다(`SEARCH_CAP`).
