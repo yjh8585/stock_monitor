@@ -608,6 +608,23 @@ UNIQUE: (source, note_date)
 
 `customer_accounts`(명단 · 20261112000002 `marklines_models` = 묶음 그룹 회사의 차종 합 물량) + 2단계 6종 + 요약 2종(`customer_doc_summaries`·`customer_news_weekly`) + C `customer_breakdown_ir` + 비공개 버킷 `customer-doc-pages`. 전부 RLS on·정책 없음 → `confidentialDb`. 이름·키·칸 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 
+#### 협력사 5종 `sourcing_*` (사외비 · 20261113000001) — `/oem/suppliers` 소싱 후보
+
+| 표                        | 내용                                                                   |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `sourcing_products`       | 우리 제품(`slug` 유일 · `display_order`)                               |
+| `sourcing_part_groups`    | 제품별 품목군 — BOM 부품명·MarkLines 분류명·공정명·검색 단어 배열      |
+| `sourcing_competitors`    | 제품별 경쟁사 — 납품처 부분일치용 `aliases`                            |
+| `sourcing_suppliers`      | 협력사 후보 원자료(`source` = `marklines`·`web` · `region` 8값 CHECK)  |
+| `sourcing_supplier_links` | 후보 × 품목군 × 경쟁사(null = 경쟁사 무관 검색) — 어떤 검색에서 걸렸나 |
+
+#### 상세
+
+- 전부 RLS on·정책 없음 → `confidentialDb` 전용. 캐시 태그는 `sourcing` 하나(5개 표 모두 이 태그로 무효화).
+- 🔴 **행은 마이그레이션에 넣지 않는다** — 제품 구성·경쟁사·검색어가 구매 전략이라 공개 레포에 남기지 않고 로컬 `service_role` 로만 적재한다.
+- 일치 단계·점수는 저장하지 않는다(화면에서 계산). `sourcing_supplier_links` 의 유일 키는 `unique nulls not distinct (supplier_id, part_group_id, competitor_id)`.
+- `sourcing_supplier_links` 에 `trg_skip_identical_update` 부착(§7-J) — 수집기는 upsert 에 `found_at` 을 보내지 않는다. `sourcing_suppliers` 는 `fetched_at` 이 매번 바뀌어 붙이지 않는다.
+
 #### `management_uploads` (신규, 20260624000001) — 경영관리 엑셀 업로드 작업 (사외비)
 
 | 컬럼          | 타입        | 설명                                                                                                   |
@@ -740,7 +757,7 @@ UNIQUE: (source, note_date)
 - 비-12월 결산 글로벌사 fiscal_year 한국식 -1 보정 (20260521000002 일본 / 20260521000003 일본 외)
 - `parts_top100_stocks_view` 미래 period_end_date 가드 (20260521000001)
 - `companies.status` — `active` / `hidden` / `merged_into` (구 `delisted` 명칭 변경, 20260520)
-- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`) — 전체 행 upsert 의 WAL 폭증 차단(20260803000002 · 배경 = 경위 문서). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개(`customer_collect_status` 제외 · 20261109000004).
+- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`) — 전체 행 upsert 의 WAL 폭증 차단(20260803000002 · 배경 = 경위 문서). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개(`customer_collect_status` 제외 · 20261109000004) · `sourcing_supplier_links`(20261113000001).
   - 실측 배경(2026-08-03 · 누적 UPDATE·WAL 폭증) = [경위](./docs/history/Architecture-경위.md).
   - **부작용 주의**: 동일 값 upsert는 이제 **0행을 반환**한다. 반환 행 수로 성공을 판정하는 코드를 쓰지 말 것(현재 `upsert_rows`는 입력 길이를 반환해 무관).
   - `updated_at`처럼 매번 바뀌는 컬럼이 있는 테이블에는 붙이지 말 것(항상 값이 달라 무의미). 기존 BEFORE 트리거가 있는 `companies`·`financials`·`posts`는 상호작용 회피를 위해 제외했다.
@@ -880,7 +897,7 @@ python scripts/onboard_company.py --ticker 005380
 | **권한** | `lib/auth/permissions.ts` — 역할별 라우트 화이트리스트 |
 | **API 토큰** | `/api/revalidate*`은 `x-revalidate-secret` 헤더 검증 + SSRF·쿠키 가드 |
 | **DB** | RLS 활성화 (Supabase 호스팅). `service_role`은 server 전용 (`lib/supabase/admin.ts`) |
-| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, 고객사 10종(`customer_*`, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20261112). `management-excel`·`org-charts`·`customer-doc-pages` 버킷도 service_role 전용(비공개) |
+| **사외비 테이블** | `pnl_entries`, `pnl_cost_structure`, `pnl_fixed_variable`, `pnl_plan`, `inventory_entries`, `personnel_entries`, `finance_entries`, `loan_entries`, `management_uploads`, `org_charts`, `chat_audit_log`, `longterm_revenue_plan`, 고객사 10종(`customer_*`, §7-G), 협력사 5종(`sourcing_*`, §7-G) — RLS 정책 없음 → anon 차단. `confidentialDb.from(...)` 전용 (20260523~20261113). `management-excel`·`org-charts`·`customer-doc-pages` 버킷도 service_role 전용(비공개) |
 | **백업 테이블** | 일회성 백업(`*_dropped_*`·`*_reverted_*`)도 **만들 때 RLS를 켠다**. 2026-08-25에 남긴 2개가 RLS 없이 public 에 있어 anon 키로 읽히고 있었고 Security Advisor 가 ERROR 로 잡았다(20260907000002 로 차단) |
 | **AI 외부 전송** | 챗봇은 Anthropic API로 데이터 전송 → 사외비(손익)는 도구·system-prompt에서 완전 제외. 입력창에 외부 전송 경고 배너. 모든 도구 호출 `chat_audit_log` 기록 |
 | **Secrets** | `.env.local`, `scripts/.env`, GitHub Actions Secrets. **코드 커밋 금지** |

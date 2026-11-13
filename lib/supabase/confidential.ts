@@ -43,6 +43,8 @@ import { createSupabaseAdminClient } from './admin';
  *   customer_earnings_dates · customer_collect_status: 고객사 공식 문서와 거기서 뽑은 숫자·수집 상태 (migration 20261109000004)
  * - customer_doc_summaries · customer_news_weekly: 고객사 문서 요약·뉴스 주간 요약 (migration 20261111000001)
  * - customer_breakdown_ir: 고객사 IR 문서의 지역별·차종별·점유율 값 (migration 20261112000001)
+ * - sourcing_products · sourcing_part_groups · sourcing_competitors · sourcing_suppliers ·
+ *   sourcing_supplier_links: 협력사(소싱 후보) 페이지 (migration 20261113000001)
  */
 export const CONFIDENTIAL_TABLES = [
   'pnl_entries',
@@ -67,6 +69,11 @@ export const CONFIDENTIAL_TABLES = [
   'customer_doc_summaries',
   'customer_news_weekly',
   'customer_breakdown_ir',
+  'sourcing_products',
+  'sourcing_part_groups',
+  'sourcing_competitors',
+  'sourcing_suppliers',
+  'sourcing_supplier_links',
 ] as const;
 
 /**

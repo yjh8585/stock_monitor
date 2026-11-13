@@ -2878,6 +2878,218 @@ export type Database = {
           },
         ];
       };
+      sourcing_competitors: {
+        Row: {
+          aliases: string[];
+          id: number;
+          name: string;
+          product_id: number;
+        };
+        Insert: {
+          aliases?: string[];
+          id?: never;
+          name: string;
+          product_id: number;
+        };
+        Update: {
+          aliases?: string[];
+          id?: never;
+          name?: string;
+          product_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sourcing_competitors_product_id_fkey';
+            columns: ['product_id'];
+            isOneToOne: false;
+            referencedRelation: 'sourcing_products';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sourcing_part_groups: {
+        Row: {
+          bom_parts: string[];
+          display_order: number;
+          id: number;
+          keywords: string[];
+          ml_part_names: string[];
+          ml_processes: string[];
+          name_ko: string;
+          product_id: number;
+          slug: string;
+        };
+        Insert: {
+          bom_parts?: string[];
+          display_order: number;
+          id?: never;
+          keywords?: string[];
+          ml_part_names?: string[];
+          ml_processes?: string[];
+          name_ko: string;
+          product_id: number;
+          slug: string;
+        };
+        Update: {
+          bom_parts?: string[];
+          display_order?: number;
+          id?: never;
+          keywords?: string[];
+          ml_part_names?: string[];
+          ml_processes?: string[];
+          name_ko?: string;
+          product_id?: number;
+          slug?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sourcing_part_groups_product_id_fkey';
+            columns: ['product_id'];
+            isOneToOne: false;
+            referencedRelation: 'sourcing_products';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sourcing_products: {
+        Row: {
+          display_order: number;
+          id: number;
+          name_ko: string;
+          slug: string;
+        };
+        Insert: {
+          display_order: number;
+          id?: never;
+          name_ko: string;
+          slug: string;
+        };
+        Update: {
+          display_order?: number;
+          id?: never;
+          name_ko?: string;
+          slug?: string;
+        };
+        Relationships: [];
+      };
+      sourcing_supplier_links: {
+        Row: {
+          competitor_id: number | null;
+          found_at: string;
+          part_group_id: number;
+          supplier_id: number;
+        };
+        Insert: {
+          competitor_id?: number | null;
+          found_at?: string;
+          part_group_id: number;
+          supplier_id: number;
+        };
+        Update: {
+          competitor_id?: number | null;
+          found_at?: string;
+          part_group_id?: number;
+          supplier_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sourcing_supplier_links_competitor_id_fkey';
+            columns: ['competitor_id'];
+            isOneToOne: false;
+            referencedRelation: 'sourcing_competitors';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'sourcing_supplier_links_part_group_id_fkey';
+            columns: ['part_group_id'];
+            isOneToOne: false;
+            referencedRelation: 'sourcing_part_groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'sourcing_supplier_links_supplier_id_fkey';
+            columns: ['supplier_id'];
+            isOneToOne: false;
+            referencedRelation: 'sourcing_suppliers';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sourcing_suppliers: {
+        Row: {
+          address: string | null;
+          certifications: string[];
+          country: string | null;
+          delivers_oem: string[];
+          delivers_supplier: string[];
+          employees: number | null;
+          established: string | null;
+          fetched_at: string;
+          homepage: string | null;
+          id: number;
+          location: string | null;
+          ml_rand_code: string | null;
+          ml_supplier_id: number | null;
+          name: string;
+          parts_comments: string[];
+          processes: string[];
+          product_categories: string[];
+          region: string;
+          remarks: string[];
+          sales_text: string | null;
+          source: string;
+          source_url: string | null;
+        };
+        Insert: {
+          address?: string | null;
+          certifications?: string[];
+          country?: string | null;
+          delivers_oem?: string[];
+          delivers_supplier?: string[];
+          employees?: number | null;
+          established?: string | null;
+          fetched_at?: string;
+          homepage?: string | null;
+          id?: never;
+          location?: string | null;
+          ml_rand_code?: string | null;
+          ml_supplier_id?: number | null;
+          name: string;
+          parts_comments?: string[];
+          processes?: string[];
+          product_categories?: string[];
+          region: string;
+          remarks?: string[];
+          sales_text?: string | null;
+          source: string;
+          source_url?: string | null;
+        };
+        Update: {
+          address?: string | null;
+          certifications?: string[];
+          country?: string | null;
+          delivers_oem?: string[];
+          delivers_supplier?: string[];
+          employees?: number | null;
+          established?: string | null;
+          fetched_at?: string;
+          homepage?: string | null;
+          id?: never;
+          location?: string | null;
+          ml_rand_code?: string | null;
+          ml_supplier_id?: number | null;
+          name?: string;
+          parts_comments?: string[];
+          processes?: string[];
+          product_categories?: string[];
+          region?: string;
+          remarks?: string[];
+          sales_text?: string | null;
+          source?: string;
+          source_url?: string | null;
+        };
+        Relationships: [];
+      };
       stellantis_na_sales: {
         Row: {
           brand: string;
