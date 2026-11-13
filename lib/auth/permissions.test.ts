@@ -4,6 +4,7 @@ import {
   canAccess,
   canAccessConfidentialReports,
   canAccessCustomers,
+  canAccessSuppliers,
   canPublishReports,
   canReadPost,
   canUseChat,
@@ -140,6 +141,30 @@ describe('고객사 페이지 접근(/customers)', () => {
 
   it('비슷한 접두사는 막지 않는다', () => {
     expect(canAccess('/customersfoo', 'guest')).toBe(true);
+  });
+});
+
+describe('협력사 페이지 접근(/oem/suppliers)', () => {
+  it('사외비 역할만 들어간다', () => {
+    expect(canAccessSuppliers('admin')).toBe(true);
+    expect(canAccessSuppliers('holdings')).toBe(true);
+    expect(canAccessSuppliers('mobility')).toBe(true);
+    expect(canAccessSuppliers('hmobility')).toBe(false);
+    expect(canAccessSuppliers('guest')).toBe(false);
+  });
+
+  it('canAccess 가 목록·상세를 같은 기준으로 막는다', () => {
+    for (const path of ['/oem/suppliers', '/oem/suppliers/123']) {
+      expect(canAccess(path, 'mobility')).toBe(true);
+      expect(canAccess(path, 'hmobility')).toBe(false);
+      expect(canAccess(path, 'guest')).toBe(false);
+    }
+  });
+
+  it('다른 OEM 탭은 그대로 열려 있다', () => {
+    expect(canAccess('/oem', 'guest')).toBe(true);
+    expect(canAccess('/oem/china', 'guest')).toBe(true);
+    expect(canAccess('/oem/suppliersfoo', 'guest')).toBe(true);
   });
 });
 

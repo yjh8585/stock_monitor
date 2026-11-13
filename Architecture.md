@@ -92,7 +92,7 @@
 | `/login`            | 세션 로그인                     | Supabase Auth                                           |
 | `/stock-popup/[id]` | 주식 팝업 (3/4 주식 + 1/4 뉴스) | `stock_prices`, `news`, `naver_board_posts`             |
 
-`/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄 · 중국. 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
+`/oem` 하위 탭 네비(`app/oem/layout.tsx`): 전체 · **경쟁 분석** · Stellantis USA · KG모빌리티 · 현대차 · 기아 · 우즈베키스탄 · 중국 · 협력사(사외비 역할만 · `/oem/suppliers`·`/[id]`). 회사별 `/oem/<slug>` 탭의 수집 상세는 [`docs/oem-collection.md`](./docs/oem-collection.md).
 
 - **`/oem/competition`** (신규 2026-08-13, 같은 날 차트 중심으로 재구성 · 2026-08-14 사용자 피드백 반영) — **종합 스코어보드 + 차종별 섹션 10개**(`components/oem/competition/`). 소스 `lib/oem-competition/source.ts`, 적재는 월 1회 `collect_oem_model_outlook.py`(§10).
   - **스코어보드**(`CompetitionScoreboard`) — 10종 × 5항목(판매 증감·점유율·**유통재고(미국)**·**안전성(미국)**·소비자 평가) 신호등 표. **종합 등급은 별도 열이 아니라 행 전체의 음영**(`color-mix`로 카드 배경에 섞은 불투명 색 — sticky 첫 열이 반투명이면 글자가 비친다). 색만으로 정보를 주지 않도록 차종명 앞에 신호등 점을 함께 둔다. 행 클릭 시 해당 섹션으로 앵커 이동. 다중 시장 차종은 **가장 나쁜 시장**의 등급(`worstSignal` — 평균은 한 시장의 위험을 지운다).
