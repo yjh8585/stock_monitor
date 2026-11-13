@@ -5,6 +5,7 @@ import {
   parseLinks,
   parsePages,
   pickRecentImportant,
+  splitHighlight,
   toDocSummary,
   toNewsWeek,
   type DocSummary,
@@ -137,5 +138,23 @@ describe('행 → 화면 형', () => {
       links: [],
     });
     expect(toNewsWeek({ week_start: '2026-11-02', lines: [], links: [] })).toBeNull();
+  });
+});
+
+describe('splitHighlight — 핵심 구절 표시(2026-11-13)', () => {
+  it('한 쌍이면 앞·구절·뒤로 가른다', () => {
+    expect(splitHighlight('가나자동차는 전망을 **5~6%에서 4~5%로 낮췄다**.')).toEqual({
+      before: '가나자동차는 전망을 ',
+      mark: '5~6%에서 4~5%로 낮췄다',
+      after: '.',
+    });
+  });
+  it('표시가 없으면 글 그대로', () => {
+    expect(splitHighlight('3분기 매출은 312억 유로였다.')).toBe('3분기 매출은 312억 유로였다.');
+  });
+  it('짝이 안 맞거나 속이 비면 기호만 지운다', () => {
+    expect(splitHighlight('매출 **312억 유로였다.')).toBe('매출 312억 유로였다.');
+    expect(splitHighlight('**가** 와 **나**')).toBe('가 와 나');
+    expect(splitHighlight('빈 ****표시')).toBe('빈 표시');
   });
 });

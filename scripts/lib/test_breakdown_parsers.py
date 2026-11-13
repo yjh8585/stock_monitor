@@ -223,9 +223,114 @@ class PorscheTest(unittest.TestCase):
     self.assertIsNone(bd.parse('P911.DE', _doc(doc_type='earnings_release', form='eqs'), _txt('Porsche AG Group')))
 
 
+_VW_HEAD = ['Jul. - Sep. 2026', 'Jul. - Sep. 2025', 'Delta (%)', 'Jan. - Sep. 2026', 'Jan. - Sep. 2025', 'Delta (%)']
+# 폭스바겐 9M 2026 인도 보도자료(문서 1508)에서 자른 표 — 전 동력원 표 뒤에 같은 머리의 BEV 표가 한 벌 더 온다.
+VW_TABLES = [
+  [['Deliveries to customers by market', *_VW_HEAD],
+   ['Western Europe', '780,000', '802,900', '-2.8', '2,528,400', '2,501,500', '+1.1'],
+   ['China', '405,800', '660,300', '-38.5', '1,378,800', '1,974,000', '-30.2'],
+   ['Atlantis', '1', '1', '0', '1', '1', '0'],   # 모르는 라벨 → unknown
+   ['World', '1,885,300', '2,198,900', '-14.3', '6,011,000', '6,604,300', '-9.0']],
+  [['Deliveries to customers by brand', *_VW_HEAD],
+   ['Brand Group Progressive', '319,200', '397,100', '-19.6', '1,056,100', '1,191,100', '-11.3'],
+   ['Audi', '314,900', '392,200', '-19.7', '1,042,200', '1,175,800', '-11.4'],
+   ['Volkswagen Group (total)', '1,885,300', '2,198,900', '-14.3', '6,011,000', '6,604,300', '-9.0']],
+  [['Deliveries to customers by market', *_VW_HEAD],
+   ['China', '18,000', '25,800', '-30.1', '48,900', '85,100', '-42.5'],
+   ['World', '240,200', '252,100', '-4.7', '678,700', '717,700', '-5.4']],
+  [['Deliveries to customers by brand', *_VW_HEAD],
+   ['Brand Group Progressive', '48,700', '62,000', '-21.5', '143,700', '163,400', '-12.0'],
+   ['Bentley', '-', '-', '-', '-', '-', '-'],
+   ['Volkswagen Group (total)', '240,200', '252,100', '-4.7', '678,700', '717,700', '-5.4']],
+]
+# 1분기판은 분기 칸 셋뿐(누계 칸 없음)
+VW_Q1 = [[['Deliveries to customers by market', 'Jan. - Mar. 2026', 'Jan. - Mar. 2025', 'Delta (%)'],
+          ['North America', '209,700', '226,900', '-7.6'],
+          ['World', '2,045,200', '2,134,000', '-4.2']]]
+
+
+def _vw(tables):
+  text = '\n'.join(' | '.join(r) for t in tables for r in t)
+  return Content(text=text, tables=tables, raw=b'')
+
+
+class VolkswagenTest(unittest.TestCase):
+  def test_deliveries_release(self):
+    content = _vw(VW_TABLES)
+    rows, unknown = bd.parse('VOW3.DE', _doc(doc_type='sales_release', form='html'), content)
+    self.assertEqual(unknown, ['Atlantis'])
+    reg = {(r.label_raw, r.period_grain, r.period): r.value for r in _find(rows, kind='region')}
+    # 전 동력원 표만(BEV 표 China 18,000 이 아니다) · World 는 합계라 뺀다 · 이번·전년 분기와 누계
+    self.assertEqual(reg[('China', 'quarter', '2026-Q3')], 405_800)
+    self.assertEqual(reg[('China', 'quarter', '2025-Q3')], 660_300)
+    self.assertEqual(reg[('Western Europe', 'ytd', '2026-9M')], 2_528_400)
+    self.assertEqual(reg[('Western Europe', 'ytd', '2025-9M')], 2_501_500)
+    self.assertNotIn('World', {k[0] for k in reg})
+    self.assertEqual(len(reg), 8)
+    mod = {(r.metric, r.label_raw, r.period): r.value for r in _find(rows, kind='model')}
+    self.assertEqual(mod[('deliveries_by_brand', 'Brand Group Progressive', '2026-Q3')], 319_200)
+    self.assertEqual(mod[('deliveries_by_brand_detail', 'Audi', '2026-9M')], 1_042_200)   # 그룹 산하 = 세분
+    self.assertNotIn('Bentley', {k[1] for k in mod})   # BEV 표의 '-' 행은 읽지 않는다
+    self.assertEqual(_find(rows, label_raw='China')[0].label_ko, '중국')
+    _all_verified(self, rows, content)
+
+  def test_q1_quarter_only(self):
+    content = _vw(VW_Q1)
+    rows, _ = bd.parse('VOW3.DE', _doc(doc_type='sales_release'), content)
+    self.assertEqual({(r.period_grain, r.period, r.value) for r in rows},
+                     {('quarter', '2026-Q1', 209_700), ('quarter', '2025-Q1', 226_900)})
+    _all_verified(self, rows, content)
+
+  def test_no_table_not_applicable(self):
+    self.assertIsNone(bd.parse('VOW3.DE', _doc(doc_type='sales_release'), _txt('Volkswagen delivers 4 million BEVs')))
+
+  def test_short_row_not_shifted(self):
+    # 빈 칸이 빠진 행 — 전년 분기 값이 누계 칸으로 밀려 실리면 안 된다
+    t = [[VW_Q1[0][0] + ['Jan. - Mar. 2026'], ['North America', '209,700', '226,900', '-7.6'],
+          ['China', '400,000', '410,000', '-2.4', '400,000'], ['World', '2,045,200', '2,134,000', '-4.2', '2,045,200']]]
+    rows, unknown = bd.parse('VOW3.DE', _doc(doc_type='sales_release'), _vw(t))
+    self.assertEqual({r.label_raw for r in rows}, {'China'})
+    self.assertEqual(unknown, ['North America(칸 4/5)'])
+
+  def test_title_without_table_warns(self):
+    # 표 제목은 글에 있는데 표를 못 알아봄 → None(조용한 건너뜀)이 아니라 빈 결과(수집기가 경고)
+    content = Content(text='Deliveries to customers by market\nWestern Europe 780,000', tables=[], raw=b'')
+    self.assertEqual(bd.parse('VOW3.DE', _doc(doc_type='sales_release'), content), ([], []))
+
+  def test_dash_cells_not_shifted(self):
+    # 전 동력원 표 안의 '-' 칸은 건너뛰고 옆 칸을 당겨 쓰지 않는다
+    # (값 옆 '-' 는 검증기가 증감률로 보고 떨어뜨리므로 — 보수적 — 여기선 파서가 만든 행만 본다)
+    t = [[VW_TABLES[1][0], ['Lamborghini', '-', '2,000', '-', '-', '5,000', '-'], VW_TABLES[1][-1]]]
+    rows, _ = bd.parse('VOW3.DE', _doc(doc_type='sales_release'), _vw(t))
+    self.assertEqual({r.period: r.value for r in rows}, {'2025-Q3': 2_000, '2025-9M': 5_000})
+
+  def test_unreadable_total_skips_table(self):
+    # 전 동력원 표의 합계 칸이 '-' 면 BEV 표(합계 양수)가 골라져 중국 405,800 이 18,000 으로 바뀐다 → 싣지 않고 보고
+    t = [[r if r[0] != 'World' else ['World', '-', *r[2:]] for r in VW_TABLES[0]], VW_TABLES[2]]
+    rows, unknown = bd.parse('VOW3.DE', _doc(doc_type='sales_release'), _vw(t))
+    self.assertEqual(rows, [])
+    self.assertEqual(unknown, ['by market 합계(World) 칸 못 읽음'])
+
+  def test_unknown_period_head_reported(self):
+    t = [[['Deliveries to customers by market', 'Jan. - Mar. 2026', 'Previous year', 'Delta (%)'],
+          *VW_Q1[0][1:]]]
+    rows, unknown = bd.parse('VOW3.DE', _doc(doc_type='sales_release'), _vw(t))
+    self.assertEqual({r.period for r in rows}, {'2026-Q1'})
+    self.assertEqual(unknown, ['기간 머리 「Previous year」'])
+
+  def test_head_case_insensitive(self):
+    t = [[['Deliveries To Customers By Market', *VW_Q1[0][0][1:]], *VW_Q1[0][1:]]]
+    rows, _ = bd.parse('VOW3.DE', _doc(doc_type='sales_release'), _vw(t))
+    self.assertEqual(len(rows), 2)
+
+  def test_other_doc_type_left_to_api(self):
+    # 실적 발표 속 같은 표는 코드가 가로채지 않는다(API 가 점유율 등 다른 재료까지 함께 읽는다)
+    self.assertIsNone(bd.parse('VOW3.DE', _doc(doc_type='earnings_release'), _vw(VW_TABLES)))
+
+
 class DispatchTest(unittest.TestCase):
   def test_unknown_ticker(self):
-    self.assertIsNone(bd.parse('VOW3.DE', _doc(), _edgar(STLA_Q3)))
+    self.assertIsNone(bd.parse('GM', _doc(), _edgar(STLA_Q3)))
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
-"""지역·차종·점유율 «수준» 값 코드 파서(C-3) — 스텔란티스 EDGAR 6-K · 폴라리스 EDGAR 8-K · 포르쉐 팩트시트 XLSX.
+"""지역·차종·점유율 «수준» 값 코드 파서(C-3) — 스텔란티스 EDGAR 6-K · 폴라리스 EDGAR 8-K · 포르쉐 팩트시트 XLSX ·
+폭스바겐 분기 인도 보도자료(2026-11-13 — 사용자 「폭스바겐 지역·차종·점유율이 제대로 집계 안 됐다」).
 
 계획 = docs/plans/2026-11-11-customers-page-revisions.md 「Task C-3」. 행 꼴·검사 = lib/customer_breakdown.py(Row · verify).
 숫자 수집기 등록부(customer_parsers.MODULE_NAMES)에 넣지 않는다 — collect_customer_breakdown.py 만 부른다.
@@ -30,6 +31,7 @@ import re
 
 from customer_parsers.base import to_number
 from customer_parsers.porsche import _fs_block, _FS_DLV_SHEET, _FS_INT
+from customer_parsers.vw import _DELIV_Q, _END_MONTH, _START_MONTH
 from lib.customer_breakdown import Row
 from lib.doc_text import norm_text, row_text
 
@@ -300,7 +302,112 @@ def parse_porsche(doc: dict, content) -> tuple[list[Row], list[str]] | None:
   return (rows, unknown) if found else None
 
 
-PARSERS = {'STLA': parse_stellantis, 'PII': parse_polaris, 'P911.DE': parse_porsche}
+# ── 폭스바겐 ────────────────────────────────────────────────────────────────
+# 분기 인도 보도자료(doc_type sales_release · 요약 대상 밖이라 c_materials 가 없다 → 수집기가 CODE_ONLY_TYPES 로 따로 집는다).
+# 표 머리 'Deliveries to customers by market | Jul. - Sep. 2026 | Jul. - Sep. 2025 | Delta (%) | Jan. - Sep. 2026 | …'
+# (1분기판은 앞 세 칸뿐) 다음 시장 7행 + World · 이어서 'by brand' 표(브랜드그룹 4행 + 산하 브랜드 + Volkswagen Group (total)).
+# 같은 머리의 BEV 표가 뒤에 한 벌 더 있다 → 합계 행 값이 가장 큰 표(전 동력원)만 읽는다(vw.parse_deliveries 와 같은 판정).
+# 2025-01~2026-10 실물 8편(문서 2042·2040·2039·1512·1511·2034·1509·1508)이 같은 꼴(2026-11-13 확인).
+VW_REGIONS = {
+  'Western Europe': '서유럽',
+  'Central and Eastern Europe': '중·동유럽',
+  'North America': '북미',
+  'South America': '남미',
+  'China': '중국',
+  'Rest of Asia-Pacific': '기타 아시아태평양',
+  'Asia-Pacific Rest': '기타 아시아태평양',   # 2026-04 판 한 편의 표기
+  'Middle East/Africa': '중동·아프리카',
+}
+VW_BRAND_GROUPS = {
+  'Brand Group Core': '브랜드그룹 코어',
+  'Brand Group Progressive': '브랜드그룹 프로그레시브(아우디)',
+  'Brand Group Sport Luxury': '브랜드그룹 스포츠 럭셔리(포르쉐 자동차)',
+  'Brand Group Trucks / TRATON': '브랜드그룹 트럭(트라톤)',
+}
+VW_BRANDS = {   # 브랜드그룹 아래 — 같은 표에 상위 합계가 있어 `_detail` 로 가른다(이중 집계 방지)
+  'Volkswagen Passenger Cars': '폭스바겐 승용차', 'Škoda': '스코다', 'SEAT/CUPRA': '쿠프라/세아트',
+  'Volkswagen Commercial Vehicles': '폭스바겐 상용차', 'Audi': '아우디', 'Bentley': '벤틀리', 'Lamborghini': '람보르기니',
+  'Porsche': '포르쉐', 'Scania': '스카니아', 'MAN': 'MAN', 'International': '인터내셔널',
+  'Volkswagen Truck & Bus': '폭스바겐 트럭·버스',
+}
+VW_SKIP = {'World', 'Volkswagen Group (total)'}
+VW_DEF = '폭스바겐 그룹 고객 인도(중국 지분법 합작사 포함 · 분기 인도 보도자료 · 대 단위)'
+# 브랜드별 인도는 차종 탭의 BEV 상위 차종 인도(metric deliveries)와 섞이지 않게 metric 을 따로 둔다.
+_VW_TABLES = (('by market', 'region', 'deliveries', 'World'),
+              ('by brand', 'model', 'deliveries_by_brand', 'Volkswagen Group (total)'))
+
+
+def _vw_period(cell: str) -> tuple[str, str] | None:
+  """'Jul. - Sep. 2026' → ('quarter','2026-Q3') · 'Jan. - Sep. 2026' → ('ytd','2026-9M') · 'Jan. - Dec.' → ('year', …)."""
+  m = _DELIV_Q.fullmatch(norm_text(cell))
+  if not m or m[2] not in _END_MONTH:
+    return None
+  end, year = _END_MONTH[m[2]], m[3]
+  if _START_MONTH[end] == m[1]:
+    return 'quarter', f'{year}-Q{end // 3}'
+  if m[1] == 'Jan':
+    return ('year', year) if end == 12 else ('ytd', f'{year}-{end}M')
+  return None
+
+
+def parse_vw(doc: dict, content) -> tuple[list[Row], list[str]] | None:
+  if doc.get('doc_type') != 'sales_release':
+    return None   # 실적·정기 보고서 속 같은 표는 API 읽기 몫(점유율 등 다른 재료까지 함께 읽는다)
+  tables = getattr(content, 'tables', None) or []
+  rows: list[Row] = []
+  unknown: list[str] = []
+  found = False
+  for tail, kind, metric, total in _VW_TABLES:
+    cands = []
+    for t in tables:
+      head = [norm_text(c) for c in t[0]] if t else []
+      if not head or head[0].lower() != f'deliveries to customers {tail}':
+        continue
+      tot = next((r for r in t[1:] if norm_text(r[0]) == total), None)
+      cands.append((to_number(norm_text(tot[1])) or 0 if tot and len(tot) > 1 else 0, head, t))
+    if not cands:
+      continue
+    found = True
+    if any(c[0] <= 0 for c in cands):   # 합계 칸을 못 읽으면 전 동력원 표와 BEV 표를 못 가른다 → 이 표는 싣지 않는다
+      unknown.append(f'{tail} 합계({total}) 칸 못 읽음')
+      continue
+    _, head, t = max(cands, key=lambda c: c[0])
+    cols = [(i, p) for i, c in enumerate(head) if i > 0 and (p := _vw_period(c))]
+    unknown += [f'기간 머리 「{c}」' for i, c in enumerate(head)
+                if i > 0 and not _vw_period(c) and not c.startswith('Delta')]
+    for raw in t[1:]:
+      cells = [norm_text(c) for c in raw]
+      lab = cells[0] if cells else ''
+      if not lab or lab in VW_SKIP:
+        continue
+      if kind == 'region':
+        names, m = VW_REGIONS, metric
+      else:
+        names, m = (VW_BRAND_GROUPS, metric) if lab in VW_BRAND_GROUPS else (VW_BRANDS, f'{metric}_detail')
+      if lab not in names:
+        if lab not in unknown:
+          unknown.append(lab)
+        continue
+      if len(cells) != len(head):   # 빈 칸이 빠진 행 — 값이 옆 기간으로 밀려 실린다(vw.py 숫자 파서와 같은 방어)
+        unknown.append(f'{lab}(칸 {len(cells)}/{len(head)})')
+        continue
+      for i, (grain, period) in cols:
+        cell = cells[i]
+        if not _FS_INT.fullmatch(cell) or to_number(cell) <= 0:
+          continue   # '-' = 그 브랜드 그 기간 없음
+        rows.append(Row(kind, m, lab, names[lab], grain, period, round(to_number(cell)), 'units',
+                        _long_enough(cells, i + 1), None, VW_DEF, 'code'))
+  if found:
+    return rows, unknown
+  # 표 제목 문구는 글에 있는데 표를 못 찾음 = 머리 꼴이 바뀌었다 → 빈 결과로 돌려 수집기의 「0행」 경고 갈래로 보낸다
+  # (None 이면 「표 없는 보도자료」로 조용히 건너뛴다).
+  return ([], []) if 'deliveries to customers by' in (getattr(content, 'text', '') or '').lower() else None
+
+
+PARSERS = {'STLA': parse_stellantis, 'PII': parse_polaris, 'P911.DE': parse_porsche, 'VOW3.DE': parse_vw}
+# 요약 대상 밖(c_materials 없음)이지만 코드 파서가 읽는 문서 종류 — 수집기 load_targets 가 따로 집는다.
+# 이 종류에서 parse 가 None(서식 없음)이면 API 로 넘기지 않는다(요약 재료가 없어 읽을 쪽을 모른다).
+CODE_ONLY_TYPES = {'VOW3.DE': ('sales_release',)}
 
 
 def parse(ticker: str, doc: dict, content) -> tuple[list[Row], list[str]] | None:

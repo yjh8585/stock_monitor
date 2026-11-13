@@ -10,7 +10,7 @@ interface Props {
 /**
  * 공식 문서 요약의 근거 쪽 캡처 — 썸네일을 누르면 전체화면으로 확대(research-figure-gallery 와 같은 ZoomableImage).
  * 이미지는 비공개 버킷이라 인증 프록시 /api/customers/doc-page/<docId>/<page> 로만 받는다(Storage 키는 화면에 없다).
- * 카드마다 최대 3장이라 접지 않고 lazy 로만 늦춘다.
+ * 카드마다 최대 5장(2026-11-13 3→5)이라 접지 않고 lazy 로만 늦춘다.
  */
 export default function CustomerDocPageGallery({ docId, pages }: Props) {
   if (pages.length === 0) return null;

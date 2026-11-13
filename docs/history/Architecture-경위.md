@@ -67,3 +67,15 @@
 ## `/humanoid/research` 상세 — 리포트 수집·요약을 GHA 로 옮기지 말 것 (2026-08-24·25)
 
 🔴 이 결정은 **2026-08-24·25 이틀 연속 어겼다가 되돌렸다.**
+
+## Vercel 함수 지역 `sin1` — 옮긴 경위 (2026-11-13)
+
+Supabase 가 `ap-southeast-1`(싱가포르)인데 함수는 기본값 iad1(미국 동부)에서 돌았다(응답 헤더 `x-vercel-id` 가
+`icn1::iad1::…`). 조회 한 번마다 태평양을 왕복해, 로그인 화면(요청 시점 렌더 · `'use cache'` 가 인스턴스 메모리라
+서버리스에선 자주 비어 있음)이 몇 초씩 걸렸다. 사용자 선택으로 `vercel.json` `regions: ["sin1"]` 로 옮겼다.
+
+## `oem_competitor_set` 모델명 — 표기 불일치 정정 (2026-08-13)
+
+브리프 초안 대비 실측 표기 불일치 4건을 `20260813000004`로 정정했다: `avante_ex_china/USA`는 `'Avante (Elantra)'`만
+존재(`'Avante'`는 Korea 전용 표기), `avante_ex_china/Korea`는 반대로 `'Avante'`만 존재, `niro/Europe` 경쟁모델은
+`'Puma'`→`'Ford Puma'`·`'2008'`→`'Peugeot 2008'`.

@@ -1,5 +1,6 @@
 // 서버 컴포넌트 — 주간 요약 줄과 근거 링크뿐이라 클라이언트 코드가 필요 없다.
 import type { NewsWeek } from '@/lib/customers/summaries';
+import SummaryLine from './SummaryLine';
 
 /** 「2026-11-02」 → 「11월 2일 주」(달력 날짜 문자열을 그대로 자른다 — 시간대 변환 없음). */
 function weekLabel(weekStart: string): string {
@@ -21,7 +22,9 @@ export default function CustomerNewsWeekly({ weeks }: { weeks: NewsWeek[] }) {
             <p className="text-xs font-medium text-muted-foreground">{weekLabel(w.weekStart)}</p>
             <ul className="list-disc space-y-0.5 pl-5 text-sm">
               {w.lines.map((line, i) => (
-                <li key={i}>{line}</li>
+                <li key={i}>
+                  <SummaryLine line={line} />
+                </li>
               ))}
             </ul>
             {w.links.length > 0 && (

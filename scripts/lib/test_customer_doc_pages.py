@@ -261,6 +261,18 @@ class Recheck(unittest.TestCase):
     for kept in ('prompt_version', 'model', 'lines', 'input_tokens'):   # 요약 본문·판은 그대로
       self.assertNotIn(kept, row)
 
+  def test_fixed_highlight_saves_lines(self):
+    # 검사기가 깨진 강조 표시를 지웠으면 그 본문을 저장한다(메모만 「지움」이고 화면엔 옛 꼴이 남지 않게)
+    lines = [GOOD['lines'][0] + '**', *GOOD['lines'][1:]]
+    ws = _WS()
+    res = scd.recheck_doc({**self.summary, 'lines': lines, 'importance_reason': '**하향**'}, self.content,
+                          dry_run=False, ws=ws, uploader=self._up)
+    _, row, _, _ = ws.writes[0]
+    self.assertEqual(res['outcome'], 'ok')
+    self.assertEqual(row['lines'], GOOD['lines'])
+    self.assertEqual(row['importance_reason'], '하향')
+    self.assertIn('강조 표시 지움', row['check_note'])
+
   def test_still_failing_updates_note_only(self):
     ws = _WS()
     res = scd.recheck_doc({**self.summary, 'lines': BAD['lines']}, self.content, dry_run=False, ws=ws,

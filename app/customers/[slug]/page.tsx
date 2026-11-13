@@ -1,3 +1,4 @@
+import { Suspense, type ComponentProps } from 'react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import HyundaiQuarterlyEarningsChart from '@/components/oem-companies/hyundai/HyundaiQuarterlyEarningsChart';
@@ -49,16 +50,26 @@ function adjustedColumns(earnings: CustomerEarnings): { metric: string; name: st
   return [...seen].map(([metric, name]) => ({ metric, name }));
 }
 
+/** 지역·차종·점유율 절 — 국내 3사면 OEM 탭 부품(같은 인자 · 결정 C1)을 기다려 붙인다. 해외·모비스는 domestic 이 undefined. */
+async function BreakdownSection({
+  ticker,
+  ...props
+}: { ticker: string | null } & Omit<ComponentProps<typeof CustomerBreakdown>, 'domestic'>) {
+  return <CustomerBreakdown {...props} domestic={await domesticOemNodes(ticker)} />;
+}
+
 /** 고객사 개별 페이지 — 실적(차트·표) · 가이던스 · 물량 비교 · 자료실 · 최근 뉴스. */
 export default async function CustomerPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser();
   if (!user || !canAccess('/customers', user.role)) redirect('/');
   const { slug } = await params;
-  const [d, ir] = await Promise.all([getCustomerDetail(slug), getCustomerIr(slug)]);
+  // detail·ir 조회를 겹쳐 돌린다(2026-11-13 속도).
+  const irP = getCustomerIr(slug);
+  irP.catch(() => undefined); // notFound() 로 먼저 빠져도 처리 안 된 거부가 남지 않게(아래 await 는 그대로 거부를 받는다)
+  const d = await getCustomerDetail(slug);
   if (!d) notFound();
   const { row, volume } = d;
-  // 국내 3사 = OEM 탭 부품(같은 인자 · 결정 C1). 해외·모비스는 undefined.
-  const domestic = await domesticOemNodes(row.ticker);
+  const ir = await irP;
   // 해외는 칸마다 회사 공시 → 시장 데이터 순으로 고른 결과만 그린다(공시 원본 행은 화면에 뿌리지 않는다). 국내는 1단계 그대로.
   const companyFirst = ir?.earningsRule === 'company_first';
   const earnings =
@@ -181,12 +192,17 @@ export default async function CustomerPage({ params }: { params: Promise<{ slug:
             </Link>
           )}
         </section>
-        {/* 「물량」 아래 — 지역·차종·점유율(결정 C4). breakdown 은 'use cache' 새 필드라 옛 캐시 항목엔 없을 수 있다(chart-guide §7-A). */}
-        <CustomerBreakdown
-          tabs={ir?.breakdown ?? []}
-          anchoredDocIds={(ir?.docSummaries ?? []).map((s) => s.docId)}
-          domestic={domestic}
-        />
+        {/* 「물량」 아래 — 지역·차종·점유율(결정 C4). breakdown 은 'use cache' 새 필드라 옛 캐시 항목엔 없을 수 있다(chart-guide §7-A).
+            국내 3사는 OEM 탭 자료를 통째로 읽어 가장 느리다 → 이 절만 따로 흘려보내 나머지가 먼저 뜬다(2026-11-13 「나눠 그리기」). */}
+        <Suspense
+          fallback={<div className="text-muted-foreground text-sm">지역·차종·점유율 로딩 중…</div>}
+        >
+          <BreakdownSection
+            ticker={row.ticker}
+            tabs={ir?.breakdown ?? []}
+            anchoredDocIds={(ir?.docSummaries ?? []).map((s) => s.docId)}
+          />
+        </Suspense>
         {ir && <CustomerDocSummaries summaries={ir.docSummaries} />}
         {ir && (
           <section className="space-y-3">

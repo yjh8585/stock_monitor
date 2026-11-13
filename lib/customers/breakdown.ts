@@ -106,6 +106,8 @@ const METRIC_LABEL: Record<string, string> = {
   vehicle_sales: '판매',
   vehicle_sales_mix: '판매 구성비',
   deliveries_brand_group_core: '인도(코어 브랜드그룹)',
+  deliveries_by_brand: '브랜드그룹별 인도', // 폭스바겐 인도 보도자료 — 차종 인도(deliveries)와 섞이지 않게 따로
+
   fleet_sales: '플릿(법인) 판매',
   shipments: '출하(연결)',
   combined_shipments: '출하(합작사 포함)',

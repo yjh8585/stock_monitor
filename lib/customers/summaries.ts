@@ -45,6 +45,20 @@ export function parseLines(v: unknown): string[] {
   return v.flatMap((x) => (typeof x === 'string' && x.trim() ? [x.trim()] : []));
 }
 
+/**
+ * 요약 한 줄을 「앞 · 핵심 구절 · 뒤」로 가른다 — 요약기가 줄마다 핵심 구절 하나를 `**…**` 로 감싼다(2026-11-13).
+ * 표시가 없거나 짝이 안 맞으면(옛 요약 · 깨진 꼴) 기호만 지운 글을 그대로 돌려준다(별표가 화면에 새지 않게).
+ * 🔴 표식 `**` 의 정본 = scripts/lib/customer_summary_prompt.py HIGHLIGHT_MARK(바꾸면 둘 다).
+ */
+export function splitHighlight(
+  line: string
+): { before: string; mark: string; after: string } | string {
+  const parts = line.split('**');
+  if (parts.length === 3 && parts[1].trim())
+    return { before: parts[0], mark: parts[1], after: parts[2] };
+  return parts.join('');
+}
+
 export function parsePages(v: unknown): { page: number; caption: string }[] {
   if (!Array.isArray(v)) return [];
   return v

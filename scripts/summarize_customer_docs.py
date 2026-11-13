@@ -18,6 +18,9 @@ exit 0 정상(검사 실패 check_failed · 글이 짧아 건너뜀 포함 — �
 사용: summarize_customer_docs.py [--company TICKER] [--doc-id ID ...] [--since-days 14] [--backfill] [--limit N] [--dry-run]
       summarize_customer_docs.py --retry-pages [--company TICKER] [--doc-id ID ...] [--limit N] [--dry-run]
       summarize_customer_docs.py --recheck [--company TICKER] [--doc-id ID ...] [--limit N] [--dry-run]
+      summarize_customer_docs.py --fill-pages [--company TICKER] [--doc-id ID ...] [--limit N] [--dry-run]
+        (쪽 상한을 3→5 로 올린 뒤 기존 요약에 쪽을 더한다 — C 재료(c_materials)가 가리킨 쪽 중 아직 없는 것을
+         MAX_PAGES 까지 캡처해 붙인다 · API 호출 0 · PDF 만 · 2026-11-13)
       summarize_customer_docs.py --from-json FILE --doc-id ID [--dry-run]
         (직접 쓴 요약 JSON 하나를 같은 검사기로 대조해 저장 · API 호출 0 · exit 1 = 지적·받기 실패.
          50MB 를 넘는 PDF 는 정기 실행·수동 모두 임시 폴더로 받아 파일에서 글자층을 읽는다 — 상한 600MB)
@@ -213,6 +216,37 @@ def retry_pages(summary: dict, content, *, dry_run: bool, ws=None, uploader=None
   return {'fixed': len(fixed), 'still': len(still)}
 
 
+def fill_pages(summary: dict, content, *, dry_run: bool, ws=None, uploader=None) -> dict:
+  """--fill-pages — 쪽 캡처가 MAX_PAGES 보다 적은 ok 행에 요약기가 남긴 C 재료 쪽(c_materials · 지역·차종·점유율 표·차트)을
+  더한다(2026-11-13 사용자 선택 「기존은 재료 쪽으로 채움」 · 상한 3→5 이전 요약용 · API 호출 0). 캡션 = 재료 메모.
+  렌더·업로드에 실패한 쪽은 넣지 않는다(키 없는 쪽을 남기면 --retry-pages 가 매번 다시 집는다). 반환 {added, failed}."""
+  from lib import customer_summary_prompt as sp
+  _text, is_pdf, n_pages = source_text(content)
+  pages = [dict(p) for p in summary.get('pages') or [] if isinstance(p, dict)]
+  have = {int(p['page']) for p in pages if p.get('page')}
+  cands = []
+  for m in summary.get('c_materials') or []:
+    pg = m.get('page') if isinstance(m, dict) else None
+    if isinstance(pg, int) and 0 < pg <= n_pages and pg not in have and pg not in {c[0] for c in cands}:
+      cands.append((pg, str(m.get('note') or '').strip()))
+  if not is_pdf:
+    return {'added': 0, 'failed': 0}
+  added = failed = 0
+  for pg, note in cands[:max(0, sp.MAX_PAGES - len(pages))]:
+    key, why = _capture(pdf_source(content), summary['company_id'], summary['doc_id'], pg, dry_run, uploader)
+    if why:
+      failed += 1
+      print(f'    문서 {summary["doc_id"]} {_page_fail_note(pg, why)}')
+      continue
+    pages.append({'page': pg, 'caption': note, 'key': key})
+    added += 1
+  if added and not dry_run and ws is not None:
+    pages.sort(key=lambda p: int(p['page']))
+    ws.table('customer_doc_summaries').update({'pages': pages, 'updated_at': now_iso()}).eq(
+      'doc_id', summary['doc_id']).execute()
+  return {'added': added, 'failed': failed}
+
+
 def recheck_doc(summary: dict, content, *, dry_run: bool, ws=None, uploader=None) -> dict:
   """--recheck — 검사 실패 행(summary)의 «저장된» 요약을 지금 검사기로 다시 검사(API 호출 0).
   통과 → status=ok · check_note(고침 메모만) · PDF 면 쪽 캡처(_capture) · updated_at 갱신(요약 본문·prompt_version 그대로).
@@ -238,6 +272,8 @@ def recheck_doc(summary: dict, content, *, dry_run: bool, ws=None, uploader=None
     update = {'status': 'ok', 'importance': r.get('importance'), 'evidence': r['evidence'], 'pages': pages,
               'c_materials': r['c_materials'], 'check_note': ' · '.join(notes)[:_NOTE_MAX] or None,
               'updated_at': now_iso()}
+    # 본문은 그대로가 원칙 — 검사기가 강조 표시를 고친 칸만 싣는다(고침 메모만 남고 본문은 옛것인 채로 두지 않게)
+    update.update({k: r[k] for k in ('lines', 'importance_reason') if r.get(k) != summary.get(k)})
   if not dry_run and ws is not None:
     ws.table('customer_doc_summaries').update(update).eq('doc_id', summary['doc_id']).execute()
   return {'outcome': 'check_failed' if problems else 'ok', 'problems': problems}
@@ -422,6 +458,41 @@ def run_retry_pages(client, company_id: str | None, doc_ids: list[int], limit: i
   return 1 if counts['error'] else 0
 
 
+def run_fill_pages(client, company_id: str | None, doc_ids: list[int], limit: int | None, dry_run: bool) -> int:
+  """쪽이 MAX_PAGES 보다 적고 아직 안 담긴 C 재료 쪽이 있는 ok 행만 원문을 다시 받아 채운다(API 호출 0)."""
+  from collect_customer_numbers import fetch_all
+  from lib import customer_summary_prompt as sp
+
+  def q():
+    b = (client.table('customer_doc_summaries').select('doc_id,company_id,pages,c_materials,source_sha')
+         .eq('status', 'ok'))
+    b = b.in_('doc_id', doc_ids) if doc_ids else b
+    return b.eq('company_id', company_id) if company_id else b
+
+  def wants(r) -> bool:
+    have = {p.get('page') for p in r.get('pages') or [] if isinstance(p, dict)}
+    mats = {m.get('page') for m in r.get('c_materials') or [] if isinstance(m, dict) and m.get('page')}
+    return len(have) < sp.MAX_PAGES and bool(mats - have)
+  targets = [r for r in fetch_all(q, ('doc_id',)) if wants(r)][:limit or None]
+  print(f'쪽 채우기 대상 {len(targets)}건' + (' · dry-run' if dry_run else ''))
+  counts = {'added': 0, 'failed': 0, 'changed': 0, 'fetch_warn': 0, 'error': 0}
+  label_of = lambda t, ticker: f'  문서 {t["doc_id"]} {ticker}'  # noqa: E731
+  for t, content, ws, label in _with_sources(client, targets, dry_run, counts, label_of):
+    try:
+      res = fill_pages(t, content, dry_run=dry_run, ws=ws)
+    except Exception as e:
+      counts['error'] += 1
+      print(f'{label} · 실패({type(e).__name__})')
+      continue
+    counts['added'] += res['added']
+    counts['failed'] += res['failed']
+    print(f'{label} · 더함 {res["added"]} · 실패 {res["failed"]}')
+  print(f'쪽 더함 {counts["added"]} · 실패 {counts["failed"]} · 원문 바뀜 {counts["changed"]} · 받기 경고 '
+        f'{counts["fetch_warn"]} · 오류 {counts["error"]} · API 호출 0')
+  # 캡처 실패 쪽은 DB 에 안 남아 --retry-pages 가 못 찾는다 → exit 1 로 알리고 --fill-pages 를 다시 돌린다
+  return 1 if counts['error'] or counts['failed'] else 0
+
+
 def load_recheck_targets(client, company_id: str | None, doc_ids: list[int]) -> list[dict]:
   """--recheck 대상 — status=check_failed 인 요약 행(저장된 결과 전부)."""
   from collect_customer_numbers import fetch_all
@@ -515,15 +586,17 @@ def _args(argv):
   p.add_argument('--limit', type=int)
   p.add_argument('--retry-pages', action='store_true',
                  help='key 없는 쪽이 있는 ok 행만 원문을 다시 받아 렌더·업로드(API 호출 0 · --company·--doc-id·--limit 적용)')
+  p.add_argument('--fill-pages', action='store_true',
+                 help='쪽 캡처가 MAX_PAGES 미만인 ok 행에 C 재료 쪽을 더한다(API 호출 0 · 상한 3→5 이전 요약용 · 2026-11-13)')
   p.add_argument('--recheck', action='store_true',
                  help='check_failed 행의 저장된 요약을 원문과 다시 검사(API 호출 0 · --company·--doc-id·--limit 적용)')
   p.add_argument('--from-json', metavar='FILE',
                  help='직접 쓴 요약(DOC_SCHEMA 꼴 JSON)을 검사기로 원문과 대조해 통과하면 저장(API 호출 0 · --doc-id 하나와 함께)')
   p.add_argument('--dry-run', action='store_true')
   a = p.parse_args(argv)
-  if a.retry_pages and a.recheck:
-    p.error('--retry-pages 와 --recheck 는 함께 쓸 수 없다')
-  if a.from_json and (len(a.doc_id) != 1 or a.retry_pages or a.recheck):
+  if sum(map(bool, (a.retry_pages, a.recheck, a.fill_pages))) > 1:
+    p.error('--retry-pages · --recheck · --fill-pages 는 함께 쓸 수 없다')
+  if a.from_json and (len(a.doc_id) != 1 or a.retry_pages or a.recheck or a.fill_pages):
     p.error('--from-json 은 --doc-id 하나와만 쓴다')
   return a
 
@@ -561,6 +634,8 @@ def main(argv: list[str] | None = None) -> int:
     company_id = got[0]['id']
   if args.retry_pages:
     return run_retry_pages(client, company_id, args.doc_id, args.limit, args.dry_run)
+  if args.fill_pages:
+    return run_fill_pages(client, company_id, args.doc_id, args.limit, args.dry_run)
   if args.recheck:
     return run_recheck(client, company_id, args.doc_id, args.limit, args.dry_run)
   if args.from_json:

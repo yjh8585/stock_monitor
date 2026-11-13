@@ -355,7 +355,8 @@ export async function getCustomerTabs(): Promise<CustomerTab[]> {
   'use cache';
   cacheLife('days');
   cacheTag('customer_accounts');
-  cacheTag('companies');
+  // companies 태그는 일부러 안 단다 — 실시간 주가 수집(collect_prices_live · 평일 매시간)이 companies 의 현재가 칸을 고칠 때마다
+  // 이 캐시가 통째로 버려진다. 여기서 읽는 칸(이름·티커·통화·나라·상태)은 거의 안 바뀌어 cacheLife('days') 로 충분하다(2026-11-13).
   const accounts = await fetchAccounts();
   const companies = await fetchCompanies(accounts.map((a) => a.company_id));
   return accounts.flatMap((a) => {
@@ -372,7 +373,8 @@ export async function getCustomersOverview(): Promise<CustomersOverview> {
   cacheTag('pnl_entries');
   cacheTag('financials');
   cacheTag('stock_prices');
-  cacheTag('companies');
+  // companies 태그는 일부러 안 단다 — 실시간 주가 수집(collect_prices_live · 평일 매시간)이 companies 의 현재가 칸을 고칠 때마다
+  // 이 캐시가 통째로 버려진다. 여기서 읽는 칸(이름·티커·통화·나라·상태)은 거의 안 바뀌어 cacheLife('days') 로 충분하다(2026-11-13).
   cacheTag('customer_documents');
   cacheTag('customer_guidance');
   cacheTag('customer_volume_ir');
@@ -765,7 +767,8 @@ export async function getCustomerIr(slug: string): Promise<CustomerIr | null> {
   'use cache';
   cacheLife('days');
   cacheTag('customer_accounts');
-  cacheTag('companies');
+  // companies 태그는 일부러 안 단다 — 실시간 주가 수집(collect_prices_live · 평일 매시간)이 companies 의 현재가 칸을 고칠 때마다
+  // 이 캐시가 통째로 버려진다. 여기서 읽는 칸(이름·티커·통화·나라·상태)은 거의 안 바뀌어 cacheLife('days') 로 충분하다(2026-11-13).
   cacheTag('customer_documents');
   cacheTag('customer_guidance');
   cacheTag('customer_volume_ir');
@@ -885,7 +888,8 @@ export async function getCustomerDetail(slug: string): Promise<CustomerDetail | 
   cacheTag('pnl_entries');
   cacheTag('financials');
   cacheTag('stock_prices');
-  cacheTag('companies');
+  // companies 태그는 일부러 안 단다 — 실시간 주가 수집(collect_prices_live · 평일 매시간)이 companies 의 현재가 칸을 고칠 때마다
+  // 이 캐시가 통째로 버려진다. 여기서 읽는 칸(이름·티커·통화·나라·상태)은 거의 안 바뀌어 cacheLife('days') 로 충분하다(2026-11-13).
   cacheTag('oem_sales_group_month');
   cacheTag('oem_sales_model_country_month');
   cacheTag('oem_production_model_country_month');

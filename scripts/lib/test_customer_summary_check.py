@@ -257,8 +257,14 @@ class CheckDoc(unittest.TestCase):
     _, p = check_doc(_ok(pages=[{'page': 40, 'caption': '표'}]), SRC, True, 12)
     self.assertTrue(any('쪽 번호' in x for x in p))
 
+  def test_five_pages_allowed(self):
+    # 2026-11-13 사용자 지시 「3페이지 → 5페이지」 — 상수만 보지 않고 5쪽을 직접 넣어 본다
+    pages = [{'page': n, 'caption': '표'} for n in range(1, 6)]
+    _, p = check_doc(_ok(pages=pages), SRC, True, 12)
+    self.assertFalse(any('쪽 캡처' in x for x in p))
+
   def test_too_many_pages(self):
-    pages = [{'page': n, 'caption': '표'} for n in (6, 7, 8, 9)]
+    pages = [{'page': n, 'caption': '표'} for n in range(1, sp.MAX_PAGES + 2)]  # 상한 + 1쪽
     _, p = check_doc(_ok(pages=pages), SRC, True, 12)
     self.assertTrue(any('쪽 캡처' in x and '최대' in x for x in p))
 
@@ -266,6 +272,24 @@ class CheckDoc(unittest.TestCase):
     _, p = check_doc(_ok(evidence=[{'quote': 'Regional deliveries table', 'page': None}]), SRC, False, 0)
     self.assertEqual(len(p), 1)
     self.assertIn('PDF', p[0])
+
+  def test_highlight_kept_and_measured_plain(self):
+    # 올바른 표시는 그대로 두고, 글자 수·숫자 대조는 기호를 뺀 글로 한다(기호 4자가 상한을 넘기지 않게)
+    edge = '3분기 매출은 **42.1억 달러**였다' + '고' * (sp.LINE_CHARS - len('3분기 매출은 42.1억 달러였다.')) + '.'
+    lines = _ok()['lines'][:2] + [edge]
+    r, p = check_doc(_ok(lines=lines), SRC, True, 12)
+    self.assertEqual(p, [])
+    self.assertEqual(r['lines'][2], edge)
+    self.assertIsNone(r['check_note'])
+
+  def test_broken_highlight_is_fixed_not_flagged(self):
+    # 꼴이 깨진 표시는 지적(재요청·check_failed)이 아니라 기호만 지우는 고침
+    lines = _ok()['lines'][:2] + ['3분기 매출은 **42.1억 달러였다.']
+    r, p = check_doc(_ok(lines=lines, importance_reason='**전망 하향**'), SRC, True, 12)
+    self.assertEqual(p, [])
+    self.assertEqual(r['lines'][2], '3분기 매출은 42.1억 달러였다.')
+    self.assertIn('강조 표시 지움: 3줄째', r['check_note'])
+    self.assertEqual(r['importance_reason'], '전망 하향')
 
   def test_line_count(self):
     _, p = check_doc(_ok(lines=['3분기 매출은 42.1억 달러였다.']), SRC, True, 12)

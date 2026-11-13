@@ -401,6 +401,42 @@ def translationese_problems(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------- 공통 줄 검사
+def plain_line(line: str) -> str:
+  """핵심 구절 표시(`**…**` · 2026-11-13)를 뺀 글 — 글자 수·숫자·통화·번역투는 이것으로 본다."""
+  return line.replace(sp.HIGHLIGHT_MARK, '')
+
+
+def highlight_problem(line: str) -> str | None:
+  """핵심 구절 표시 꼴 — 없거나(허용) 한 쌍 · 속이 HIGHLIGHT_CHARS 이내 · 줄 전체가 아님. 어긋나면 사유."""
+  m = sp.HIGHLIGHT_MARK
+  n = line.count(m)
+  if n == 0:
+    return None
+  if n != 2:
+    return f'표시 기호 {n}개(** 한 쌍만)'
+  inner = line.split(m)[1].strip()
+  if len(inner) < 2:
+    return '표시 구절이 2자 미만'
+  if len(inner) > sp.HIGHLIGHT_CHARS:
+    return f'표시 구절 {len(inner)}자({sp.HIGHLIGHT_CHARS}자 이내)'
+  if inner == plain_line(line).strip():
+    return '줄 전체를 표시했다(핵심 구절만)'
+  return None
+
+
+def fix_highlights(lines: list[str], notes: list[str]) -> list[str]:
+  """꼴이 어긋난 핵심 구절 표시는 «고침» — 기호만 지우고 메모를 남긴다(지적이 아니다: 강조는 화면 장식이라
+  그것 하나로 재요청·check_failed 를 부르면 요약 전체가 사라진다 · 2026-11-13 검토 지적)."""
+  out = []
+  for i, line in enumerate(lines, 1):
+    why = highlight_problem(line)
+    if why:
+      notes.append(f'강조 표시 지움: {i}줄째 {why}')
+      line = plain_line(line)
+    out.append(line)
+  return out
+
+
 def _line_problems(lines: list, source_text: str, src: _Source) -> list[str]:
   out = []
   blank = sum(1 for line in lines if not line.strip())
@@ -409,12 +445,13 @@ def _line_problems(lines: list, source_text: str, src: _Source) -> list[str]:
   valid = len(lines) - blank
   if not sp.LINE_MIN <= valid <= sp.LINE_MAX:
     out.append(f'줄 수 {valid}개({sp.LINE_MIN}~{sp.LINE_MAX}줄이어야 한다)')
-  for i, line in enumerate(lines, 1):
+  for i, raw in enumerate(lines, 1):
+    line = plain_line(raw)   # 표시 기호는 빼고 잰다(꼴은 fix_highlights 가 먼저 고친다)
     if len(line) > sp.LINE_CHARS:
       out.append(f'글자 상한: {i}줄째 {len(line)}자({sp.LINE_CHARS}자 이내)')
     out += [f'숫자 원문 없음: {i}줄째 「{f}」' for f in _unmatched(line, src)]
     out += currency_problems(line, source_text)
-  out += translationese_problems('\n'.join(lines))
+  out += translationese_problems('\n'.join(plain_line(x) for x in lines))
   return out
 
 
@@ -428,6 +465,9 @@ def check_doc(result: dict, source_text: str, is_pdf: bool, page_count: int) -> 
        'c_materials': [dict(c) for c in result.get('c_materials') or []]}
   src = _Source(source_text)
   notes = []
+  r['lines'] = fix_highlights(r['lines'], notes)
+  if isinstance(r.get('importance_reason'), str):
+    r['importance_reason'] = plain_line(r['importance_reason'])   # 표시는 lines 만 — 개요 표로 그대로 나가는 칸
   problems = _line_problems(r['lines'], source_text, src)
 
   if not is_pdf and r['pages']:
@@ -487,6 +527,8 @@ def check_news(result: dict, items: list[dict]) -> tuple[dict, list[str]]:
                  '(관련 기사가 없으면 셋 다 비우고, 있으면 empty=false)']
     return r, []
   source_text = '\n'.join(f"{it.get('title') or ''}\n{it.get('summary') or ''}" for it in items)
+  notes: list[str] = []
+  r['lines'] = fix_highlights(r['lines'], notes)
   problems = _line_problems(r['lines'], source_text, _Source(source_text))
   ids = {int(it['id']) for it in items}
   for x in r['link_ids']:
@@ -539,6 +581,16 @@ def self_test() -> list[str]:
       fails.append(f'틀린 숫자를 통과시켰다: {bad}')
   if not currency_problems('매출은 42.1억 원이었다.', 'Revenue was $4,213 million. 원가를 설명했다.'):
     fails.append('원가의 「원」을 원화 근거로 봤다')
+  # 핵심 구절 표시(2026-11-13) — 표시가 있어도 숫자 대조는 그대로 · 꼴이 어긋나면 잡는다
+  if unmatched_numbers(plain_line('3분기 매출은 **42.1억 달러**였다.'), src):
+    fails.append('표시한 맞는 숫자를 막았다')
+  if not unmatched_numbers(plain_line('3분기 매출은 **45억 달러**였다.'), src):
+    fails.append('표시 안의 틀린 숫자를 통과시켰다')
+  for bad in ('**3분기 매출은 42.1억 달러였다.**', '매출은 **42.1억 달러였다.', '**매출** **42.1억**'):
+    if highlight_problem(bad) is None:
+      fails.append(f'표시 꼴 오류를 통과시켰다: {bad}')
+  if highlight_problem('3분기 매출은 **42.1억 달러**였다.') is not None:
+    fails.append('바른 표시를 막았다')
   for want, sample in EXTRA_MUST_HIT:
     if not any(p.startswith(f'번역투: {want}') for p in translationese_problems(sample)):
       fails.append(f'번역투 안 걸림 [{want}] {sample}')

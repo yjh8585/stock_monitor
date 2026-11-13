@@ -163,22 +163,42 @@ def load(client, session, path: pathlib.Path, dry_run: bool) -> int:
   return 1 if errors else 0
 
 
-def load_targets(client, company_id: str, doc_ids: list[int], since: str) -> list[int]:
-  """정기 대상 문서 id(게시일 순). doc_ids 를 주면 그 문서만(처리 표식·게시일 무시 · 재료 없는 문서는 뺀다)."""
+def load_code_only(client, company_id: str, types: tuple[str, ...], doc_ids: list[int], since: str) -> list[int]:
+  """요약 대상 밖이지만 코드 파서가 읽는 문서(breakdown.CODE_ONLY_TYPES — 폭스바겐 인도 보도자료 · 결정 C2 확장 2026-11-13).
+  요약 행이 없어 breakdown_at 표식을 못 찍는다 → 이 문서의 행이 이미 있으면 처리된 것으로 본다
+  (SHORTCUT: 표가 없는 같은 종류 문서는 1년 동안 매일 다시 받는다 — 하루 1~2건이라 둔다 → 늘면 표식 칸을 따로 둔다).
+  doc_ids 를 주면 그 문서 중 해당 종류만(행 유무·게시일 무시)."""
+  if not types:
+    return []
+  b = client.table('customer_documents').select('id,published_at').eq('company_id', company_id).in_('doc_type', list(types))
+  docs = (b.in_('id', doc_ids) if doc_ids else b.gte('published_at', since)).execute().data
+  if doc_ids or not docs:
+    return [d['id'] for d in docs]
+  done = {r['document_id'] for r in client.table('customer_breakdown_ir').select('document_id')
+          .in_('document_id', [d['id'] for d in docs]).execute().data}
+  return [d['id'] for d in docs if d['id'] not in done]
+
+
+def load_targets(client, company_id: str, doc_ids: list[int], since: str,
+                 code_only: tuple[str, ...] = ()) -> tuple[list[int], set[int]]:
+  """(정기 대상 문서 id(게시일 순), 그중 코드 전용 문서 id). doc_ids 를 주면 그 문서만(처리 표식·게시일 무시 ·
+  재료 없는 문서는 뺀다 — 코드 전용 종류는 예외). code_only = 요약 재료 없이 코드 파서가 읽는 문서 종류."""
   from collect_customer_numbers import fetch_all
 
   def q():
     b = client.table('customer_doc_summaries').select('doc_id,c_materials').eq('company_id', company_id).eq('status', 'ok')
     return b.in_('doc_id', doc_ids) if doc_ids else b.is_('breakdown_at', 'null')
   ids = [s['doc_id'] for s in fetch_all(q, ('doc_id',)) if s.get('c_materials')]
+  extra = {i for i in load_code_only(client, company_id, code_only, doc_ids, since) if i not in ids}
+  ids += sorted(extra)
   if doc_ids:
-    return ids
+    return ids, extra
   keep = []
   for i in range(0, len(ids), _IN_CHUNK):
     got = (client.table('customer_documents').select('id,published_at').in_('id', ids[i:i + _IN_CHUNK])
            .gte('published_at', since).execute().data)
     keep += got
-  return [d['id'] for d in sorted(keep, key=lambda d: (d['published_at'], d['id']))]
+  return [d['id'] for d in sorted(keep, key=lambda d: (d['published_at'], d['id']))], extra
 
 
 def run_company(client, session, ticker: str, doc_ids: list[int], since_days: int, dry_run: bool,
@@ -193,7 +213,7 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
     print(f'회사 없음: {ticker}')
     return 2
   since = (datetime.now(timezone(timedelta(hours=9))).date() - timedelta(days=since_days)).isoformat()
-  ids = load_targets(client, got[0]['id'], doc_ids, since)
+  ids, code_only = load_targets(client, got[0]['id'], doc_ids, since, breakdown.CODE_ONLY_TYPES.get(ticker, ()))
   print(f'대상 문서 {len(ids)}건 · {ticker}' + (f' · 게시일 {since} 이후' if not doc_ids else '')
         + (' · dry-run' if dry_run else ''))
   errors = 0
@@ -216,6 +236,9 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
         print(f'문서 {doc_id} · 받기 실패({type(e).__name__})')
         continue
       parsed = breakdown.parse(ticker, doc, content)
+      if parsed is None and doc_id in code_only:
+        skipped['code_only_no_table'] += 1   # 요약 재료가 없어 API 로 넘길 쪽을 모른다 — 표 없는 보도자료
+        continue
       if parsed is None:
         if llm is None:
           skipped['api_wait'] += 1   # 표식 없이 남는다 — --api 정기 실행이 집는다
@@ -231,7 +254,9 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
         continue
       rows, unknown = parsed
       if unknown:
-        print(f'문서 {doc_id} · 처음 보는 라벨 {len(unknown)}개(행 안 만듦 — 라벨 사전에 더할 것): {", ".join(unknown)}')
+        # 경고로 띄운다 — 나머지 행이 실리면 그 문서는 「처리됨」이 돼 다음 실행이 다시 안 집는다(고친 뒤 --doc-id 로 다시)
+        msg = f'문서 {doc_id} · 처음 보는 라벨 {len(unknown)}개(행 안 만듦 — 라벨 사전에 더할 것): {", ".join(unknown)}'
+        print(f'::warning::{msg}' if gha else msg)
       if not rows:
         skipped['code_empty'] += 1
         msg = f'문서 {doc_id} · 코드 파서가 서식은 알아봤는데 0행 — 꼴이 바뀌었을 수 있다(표식 안 찍음)'

@@ -3,6 +3,7 @@ import type { DocSummary, Importance } from '@/lib/customers/summaries';
 import { docTypeLabel } from '@/lib/customers/format';
 import CustomerDocPageGallery from './CustomerDocPageGallery';
 import ScrollToDocHash from './ScrollToDocHash';
+import SummaryLine from './SummaryLine';
 
 const SHOWN = 6;
 
@@ -43,7 +44,9 @@ function SummaryCard({ d }: { d: DocSummary }) {
       </div>
       <ul className="list-disc space-y-0.5 pl-5 text-sm">
         {d.lines.map((line, i) => (
-          <li key={i}>{line}</li>
+          <li key={i}>
+            <SummaryLine line={line} />
+          </li>
         ))}
       </ul>
       <CustomerDocPageGallery docId={d.docId} pages={d.pages} />

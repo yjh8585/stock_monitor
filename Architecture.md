@@ -412,7 +412,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **수동** 정본(자동 분류 아님) — MarkLines `Segment`를 그대로 쓰면 Grand Cherokee(SUV-E)와 Explorer·Traverse·Atlas(SUV-D)가 갈리지만 실제로는 같은 시장에서 경쟁하기 때문. RLS enable + anon SELECT 정책(공개 데이터).
 
 - **⚠️ `countries`가 실제 집계 필터다.** `oem_sales_model_country_month.country`엔 `'Europe'` 같은 대륙 값이 없고 개별 국가만 있다 — 유럽 시장(`niro`)은 서유럽 14개국 배열로 정의. `GLOBAL`만 `countries IS NULL`(전 국가).
-- 모델명은 브리프 초안 대비 실측 표기 불일치 4건을 `20260813000004`로 정정: `avante_ex_china/USA`는 `'Avante (Elantra)'`만 존재(`'Avante'`는 Korea 전용 표기), `avante_ex_china/Korea`는 반대로 `'Avante'`만 존재, `niro/Europe` 경쟁모델은 `'Puma'`→`'Ford Puma'`·`'2008'`→`'Peugeot 2008'`.
+- 모델명은 국가마다 MarkLines 표기가 다르다 — 행마다 실제 표기를 조회해 넣는다([경위](./docs/history/Architecture-경위.md)).
 - 🔴 **배열째 교체하는 UPDATE는 손대지 않을 항목까지 삭제할 수 있다** — 같은 `20260813000004`가 각 행의 `target_models`/`competitor_models`를 통째로 재작성하며 실제로는 유효한 항목 2건이 함께 빠졌다(코드 리뷰 2건, 모두 재검토자가 DB 직접 조회로 확정):
   - `niro/Europe`의 `'Captur'`(르노 캡처, 유럽 14개국 중 10개국에서 202501~ 데이터 존재) — `20260813000005`로 `ARRAY['Kona','Captur','Ford Puma','Peugeot 2008']`로 복원.
   - `avante_china/China`의 `'Elantra Yuedong'`(오타가 아니라 MarkLines 상 별개 항목 — `'Elantra/Yuedong/Langdong/Elantra 2016'`과 202001~202312 41개월간 서로 다른 판매수치로 공존, `lib/oem/aggregate.ts`의 `OTHER_MODEL_TARGETS`도 이미 두 표기를 합산) — `20260813000006`로 `ARRAY['Elantra/Yuedong/Langdong/Elantra 2016','Elantra Yuedong']`로 복원.
@@ -740,7 +740,7 @@ UNIQUE: (source, note_date)
 - 비-12월 결산 글로벌사 fiscal_year 한국식 -1 보정 (20260521000002 일본 / 20260521000003 일본 외)
 - `parts_top100_stocks_view` 미래 period_end_date 가드 (20260521000001)
 - `companies.status` — `active` / `hidden` / `merged_into` (구 `delisted` 명칭 변경, 20260520)
-- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`). 수집 스크립트가 매 실행마다 전체 행을 upsert해 WAL·dead tuple이 폭증하던 것을 차단한다 (20260803000002). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개(`customer_collect_status` 제외 · 20261109000004).
+- **`trg_skip_identical_update`** — 값이 하나도 바뀌지 않은 UPDATE를 `BEFORE UPDATE`에서 취소(`NEW IS NOT DISTINCT FROM OLD` → `RETURN NULL`) — 전체 행 upsert 의 WAL 폭증 차단(20260803000002 · 배경 = 경위 문서). 적용 9개 테이블: `market_series_daily`·`exchange_rates`·`stock_prices`·`stock_quotes_5min`·`stock_supply_demand`·`stock_supply_demand_intraday`·`oem_sales_model_country_month`·`oem_sales_group_country_month`·`oem_production_model_country_month`. 이후 추가: 고객사 2단계 5개(`customer_collect_status` 제외 · 20261109000004).
   - 실측 배경(2026-08-03 · 누적 UPDATE·WAL 폭증) = [경위](./docs/history/Architecture-경위.md).
   - **부작용 주의**: 동일 값 upsert는 이제 **0행을 반환**한다. 반환 행 수로 성공을 판정하는 코드를 쓰지 말 것(현재 `upsert_rows`는 입력 길이를 반환해 무관).
   - `updated_at`처럼 매번 바뀌는 컬럼이 있는 테이블에는 붙이지 말 것(항상 값이 달라 무의미). 기존 BEFORE 트리거가 있는 `companies`·`financials`·`posts`는 상호작용 회피를 위해 제외했다.
@@ -906,6 +906,7 @@ runner Python venv → postgrest-py → Supabase
 - **Vercel**: Hobby 플랜 (cron 일 1회 제약 → GHA로 우회)
 - **GitHub Actions**: 매 워크플로에 `NEXT_REVALIDATE_URL`/`SECRET` env (18개 워크플로 적용 완료)
 - **vercel.json**: 배포 설정 (vercel.ts로 옮기지 말 것 — 사용자가 요청한 적 없음)
+- **함수 지역 = `sin1`**(`vercel.json` `regions` · Supabase 와 같은 곳 · 확인 = `x-vercel-id` 둘째 칸) → [경위](./docs/history/Architecture-경위.md)
 
 ## 13. 자동 갱신 트리거
 
