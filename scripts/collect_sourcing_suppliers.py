@@ -144,6 +144,11 @@ def main() -> int:
       print('🔴 로그인 풀림 — 쿠키를 다시 채취한 뒤 --resume <경로> 로 이어 받는다')
       print(f'저장: {path} · 받음 {len(rows)} · 남음 {len(pending_codes(hits, rows))}')
       return 4
+    except KeyboardInterrupt:
+      # 손으로 끊어도 받은 것은 남긴다(KeyboardInterrupt 는 Exception 이 아니라 아래에서 안 잡힌다).
+      path = save_state('partial', rows, hits)
+      print(f'🟡 중단 — 저장: {path} · 받음 {len(rows)} · --resume <경로> 로 이어 받는다')
+      return 130
     except Exception as e:  # 한 업체 실패는 건너뛴다(외부 입력 경계).
       failed += 1
       print(f'상세 실패 #{i}: {type(e).__name__}')
@@ -151,13 +156,14 @@ def main() -> int:
       eta_min = (time.monotonic() - started) / i * (len(todo) - i) / 60
       print(f'  {i}/{len(todo)} · 실패 {failed} · 남은 시간 약 {eta_min:.0f}분')
 
+  # 실패율 판정·적재 «전»에 저장한다 — 멈추거나 적재가 실패해도 받은 상세를 --resume 으로 되살린다.
+  # (실패한 업체는 rows 에 없으니 이어 받을 때 다시 요청된다.)
+  print(f'상세 저장: {save_state("rows", rows, hits)}')
+
   # 분모는 이번 실행에서 요청한 건수다(이어받기로 건너뛴 업체는 세지 않는다).
   if todo and failed / len(todo) > MAX_FAIL_RATIO:
     print(f'🔴 상세 실패 {failed}/{len(todo)} > {MAX_FAIL_RATIO:.0%} — 적재하지 않고 멈춘다(화면 구조 변경 의심)')
     return 3
-
-  # 적재가 실패해도 상세를 다시 받지 않고 --resume 으로 되살릴 수 있게 먼저 저장한다.
-  print(f'상세 저장: {save_state("rows", rows, hits)}')
 
   # 같은 업체(ml_supplier_id)가 두 rand_code 로 오면 한 배치 upsert 가 「같은 행을 두 번」으로 실패한다.
   # 뒤에 받은 행을 남기고, 지운 쪽 rand_code 는 남은 행의 rand_code 로 이어 links 가 빠지지 않게 한다.
