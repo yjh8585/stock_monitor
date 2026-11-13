@@ -107,6 +107,22 @@ export function rankSuppliers(
   return { rows, regionCounts };
 }
 
+/**
+ * 이 제품의 목록에 오르는 업체인가 — 경쟁사 본인이 아니고, 이 제품 품목군에 걸린 links 가 하나라도 있다.
+ * 목록(rankSuppliers 는 links 로 모은 업체에서 본인을 뺀다)과 같은 기준으로 상세를 막는다 —
+ * 목록에서 빠진 업체가 주소를 고쳐 쳐서 상세에 뜨지 않게(source.ts getSupplierDetail).
+ */
+export function isListedSupplier(
+  s: Pick<SupplierRow, 'id' | 'name'>,
+  comps: CompetitorRow[],
+  links: Pick<LinkRow, 'supplier_id' | 'part_group_id'>[],
+  groups: Pick<PartGroupRow, 'id'>[]
+): boolean {
+  if (isCompetitorSelf(s, comps)) return false;
+  const groupIds = new Set(groups.map((g) => g.id));
+  return links.some((l) => l.supplier_id === s.id && groupIds.has(l.part_group_id));
+}
+
 /** 가장 최근 fetched_at(원문 문자열 그대로) — 행이 없으면 null. 시간대 표기가 섞여도 되게 시각으로 비교한다. */
 export function latestFetchedAt(suppliers: Pick<SupplierRow, 'fetched_at'>[]): string | null {
   let best: string | null = null;

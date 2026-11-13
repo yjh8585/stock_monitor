@@ -62,7 +62,7 @@ export function sizePoints(employees: number | null): number {
   return SCORE_WEIGHTS.size.find((b) => employees >= b.min)?.points ?? 0;
 }
 
-export function isCompetitorSelf(s: SupplierRow, comps: CompetitorRow[]): boolean {
+export function isCompetitorSelf(s: Pick<SupplierRow, 'name'>, comps: CompetitorRow[]): boolean {
   return comps.some((c) => c.aliases.some((a) => matchesAlias(s.name, a)));
 }
 

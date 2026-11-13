@@ -10,6 +10,7 @@ import { affiliateHint, scoreSupplier } from './score';
 import {
   escapeLike,
   firstWord,
+  isListedSupplier,
   latestFetchedAt,
   narrowSupplier,
   rankSuppliers,
@@ -48,9 +49,11 @@ export interface SupplierDetail {
   product: ProductTab;
   groups: PartGroupRow[];
   score: ScoreBreakdown;
+  /** 점수에 잡힌 경쟁사만(납품처에 별칭이 걸린 곳 = score.competitorIds) — 이 제품의 경쟁사 전체가 아니다. */
   competitors: CompetitorRow[];
   affiliateNames: string[];
-  siblings: Pick<SupplierRow, 'id' | 'name' | 'country'>[];
+  /** listed = 이 제품 목록에도 오르는 거점인가(아니면 상세가 404 라 화면은 링크를 걸지 않는다). */
+  siblings: (Pick<SupplierRow, 'id' | 'name' | 'country'> & { listed: boolean })[];
 }
 
 function fail(label: string, error: { message: string }): never {
@@ -130,14 +133,17 @@ async function fetchCompetitors(productId: number): Promise<CompetitorRow[]> {
   return data ?? [];
 }
 
-async function fetchLinks(groupIds: number[]): Promise<LinkRow[]> {
+/**
+ * links 를 품목군 id(목록) 또는 공급사 id(상세 — 제품을 가리지 않고 받아 isListedSupplier 가 거른다)로 읽는다.
+ */
+async function fetchLinks(by: 'part_group_id' | 'supplier_id', keys: number[]): Promise<LinkRow[]> {
   const parts = await Promise.all(
-    chunks(groupIds, IN_CHUNK).map((ids) =>
+    chunks(keys, IN_CHUNK).map((ids) =>
       fetchAllPages('sourcing_supplier_links', (from, to) =>
         confidentialDb
           .from('sourcing_supplier_links')
           .select('supplier_id,part_group_id,competitor_id')
-          .in('part_group_id', ids)
+          .in(by, ids)
           .order('supplier_id', { ascending: true })
           .order('part_group_id', { ascending: true })
           .order('competitor_id', { ascending: true })
@@ -189,7 +195,12 @@ export async function getSupplierRanking(productSlug: string): Promise<SupplierR
     fetchGroups(product.id),
     fetchCompetitors(product.id),
   ]);
-  const links = groups.length ? await fetchLinks(groups.map((g) => g.id)) : [];
+  const links = groups.length
+    ? await fetchLinks(
+        'part_group_id',
+        groups.map((g) => g.id)
+      )
+    : [];
   const supplierIds = [...new Set(links.map((l) => l.supplier_id))];
   const suppliers = supplierIds.length ? await fetchSuppliers(supplierIds) : [];
   const { rows, regionCounts } = rankSuppliers(suppliers, links, groups, comps);
@@ -222,7 +233,10 @@ async function fetchSiblings(
   return (data ?? []).filter((x) => firstWord(x.name)?.toLowerCase() === key);
 }
 
-/** 공급사 상세 — 제품 slug·공급사 id 중 하나라도 없거나 source·region 을 모르면 null. */
+/**
+ * 공급사 상세 — 제품 slug·공급사 id 중 하나라도 없거나 source·region 을 모르면 null.
+ * 이 제품 목록에 오르지 않는 업체(경쟁사 본인 · 이 제품 품목군 links 없음)도 null — 주소 조작으로 뜨지 않게.
+ */
 export async function getSupplierDetail(
   id: number,
   productSlug: string
@@ -232,9 +246,10 @@ export async function getSupplierDetail(
   cacheTag('sourcing');
   const product = await fetchProduct(productSlug);
   if (!product) return null;
-  const [groups, comps, raw] = await Promise.all([
+  const [groups, comps, links, raw] = await Promise.all([
     fetchGroups(product.id),
     fetchCompetitors(product.id),
+    fetchLinks('supplier_id', [id]),
     confidentialDb
       .from('sourcing_suppliers')
       .select(SUPPLIER_COLS)
@@ -244,7 +259,15 @@ export async function getSupplierDetail(
   ]);
   if (!raw) return null;
   const [supplier] = narrowAll([raw]);
-  if (!supplier) return null;
+  if (!supplier || !isListedSupplier(supplier, comps, links, groups)) return null;
+
+  const siblings = await fetchSiblings(supplier);
+  const siblingLinks = siblings.length
+    ? await fetchLinks(
+        'supplier_id',
+        siblings.map((x) => x.id)
+      )
+    : [];
 
   const score = scoreSupplier(supplier, groups, comps);
   const hit = new Set(score.competitorIds);
@@ -256,6 +279,9 @@ export async function getSupplierDetail(
     score,
     competitors: comps.filter((c) => hit.has(c.id)),
     affiliateNames: affiliateHint(supplier, comps).flatMap((cid) => compName.get(cid) ?? []),
-    siblings: await fetchSiblings(supplier),
+    siblings: siblings.map((x) => ({
+      ...x,
+      listed: isListedSupplier(x, comps, siblingLinks, groups),
+    })),
   };
 }

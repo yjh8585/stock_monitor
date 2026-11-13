@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   escapeLike,
   firstWord,
+  isListedSupplier,
   latestFetchedAt,
   narrowSupplier,
   rankSuppliers,
@@ -141,6 +142,28 @@ describe('rankSuppliers', () => {
     const empty = rankSuppliers([], [], groups, comps);
     expect(empty.rows).toEqual([]);
     expect(Object.values(empty.regionCounts).every((n) => n === 0)).toBe(true);
+  });
+});
+
+describe('isListedSupplier', () => {
+  const links: LinkRow[] = [
+    { supplier_id: 1, part_group_id: 10, competitor_id: 1 },
+    { supplier_id: 2, part_group_id: 10, competitor_id: null },
+    { supplier_id: 3, part_group_id: 99, competitor_id: null }, // 다른 제품의 품목군
+  ];
+
+  it('이 제품 품목군에 links 가 있고 본인이 아니면 true', () => {
+    expect(isListedSupplier({ id: 1, name: 'Acme Japan' }, comps, links, groups)).toBe(true);
+  });
+  it('경쟁사 본인이면 links 가 있어도 false', () => {
+    expect(isListedSupplier({ id: 2, name: 'Globex Widgets' }, comps, links, groups)).toBe(false);
+  });
+  it('links 가 다른 제품의 품목군에만 있거나 아예 없으면 false', () => {
+    expect(isListedSupplier({ id: 3, name: 'Umbrella Plating' }, comps, links, groups)).toBe(false);
+    expect(isListedSupplier({ id: 4, name: 'Hooli Metals' }, comps, links, groups)).toBe(false);
+  });
+  it('다른 업체의 links 는 세지 않는다', () => {
+    expect(isListedSupplier({ id: 5, name: 'Acme Korea' }, [], links, groups)).toBe(false);
   });
 });
 
