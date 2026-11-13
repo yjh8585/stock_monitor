@@ -44,13 +44,13 @@ const BADGE_AFFILIATE = cn(
   'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
 );
 const BADGE_PLAIN = cn(BADGE, 'bg-muted text-foreground');
-const EXTERNAL = 'text-blue-600 hover:underline dark:text-blue-400';
+const LINK = 'text-blue-600 hover:underline dark:text-blue-400';
 const DASH = <span className="text-muted-foreground">—</span>;
 
 const WEIGHTS_NOTE = [
   `경쟁사 납품 1곳당 ${SCORE_WEIGHTS.perCompetitor}점(최대 ${SCORE_WEIGHTS.competitorCap})`,
   `품목 일치 ${LEVEL_LABEL.named} ${SCORE_WEIGHTS.match.named} / ${LEVEL_LABEL.category} ${SCORE_WEIGHTS.match.category} / ${LEVEL_LABEL.process} ${SCORE_WEIGHTS.match.process}(품목군 중 가장 높은 단계 하나)`,
-  `인증 IATF 16949 ${SCORE_WEIGHTS.cert.iatf} / ISO 9001 만 ${SCORE_WEIGHTS.cert.iso9001}`,
+  `인증 IATF 16949(또는 ISO/TS 16949) ${SCORE_WEIGHTS.cert.iatf} / ISO 9001 만 ${SCORE_WEIGHTS.cert.iso9001}`,
   `규모 종업원 ${SCORE_WEIGHTS.size.map((b) => `${b.min.toLocaleString('ko-KR')}명+ ${b.points}`).join(' / ')}`,
   '지역은 점수 없음',
 ].join(' · ');
@@ -73,7 +73,7 @@ function httpUrl(v: string | null): string | null {
 
 function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={EXTERNAL}>
+    <a href={href} target="_blank" rel="noopener noreferrer" className={LINK}>
       {children}
     </a>
   );
@@ -85,9 +85,9 @@ function competitorOf(name: string, comps: CompetitorRow[]): CompetitorRow | und
 }
 
 function certLabel(points: number): string {
-  if (points === SCORE_WEIGHTS.cert.iatf) return 'IATF 16949 보유';
+  if (points === SCORE_WEIGHTS.cert.iatf) return 'IATF 16949(또는 ISO/TS 16949) 보유';
   if (points === SCORE_WEIGHTS.cert.iso9001) return 'ISO 9001 만 보유';
-  return 'IATF 16949·ISO 9001 없음';
+  return 'IATF 16949·ISO/TS 16949·ISO 9001 없음';
 }
 
 function sizeReason(employees: number | null): string {
@@ -338,7 +338,7 @@ export default async function SupplierDetailPage({ params, searchParams }: PageP
                   {x.listed ? (
                     <Link
                       href={`/oem/suppliers/${x.id}?product=${encodeURIComponent(d.product.slug)}`}
-                      className={EXTERNAL}
+                      className={LINK}
                     >
                       {x.name}
                     </Link>
