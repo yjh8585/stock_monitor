@@ -72,16 +72,6 @@ export function canAccessCustomers(role: Role): boolean {
 }
 
 /**
- * 협력사 페이지(`/oem/suppliers`) 열람 권한.
- *
- * 사용자 결정(2026-11-13 결정 3): admin·holdings·mobility 만 — 우리 제품 구성·우선 컨택 후보(구매 전략).
- * `canAccessCustomers` 와 지금은 명단이 같지만 **의미가 다르므로** 재사용하지 않는다.
- */
-export function canAccessSuppliers(role: Role): boolean {
-  return role === 'admin' || role === 'holdings' || role === 'mobility';
-}
-
-/**
  * 보고서 게시 권한 — `/reports/new` 화면과 게시 API 2종(`POST /api/posts`,
  * `POST /api/uploads/report`)의 공통 게이트.
  *
@@ -111,8 +101,8 @@ export function canUseChat(role: Role): boolean {
  * - admin: 전체 허용
  * - holdings: 회사관리 제외 전체(한세그룹·경영관리 포함)
  * - mobility: 한세그룹·회사관리·비교·경영표준 제외 + 경영관리는 스텔란티스만(사외비 보고서·고객사는 허용)
- * - hmobility: 한세그룹·회사관리 제외 + 경영관리는 재고·생산·인원만 · 고객사·협력사 차단
- * - guest: 한세그룹·경영관리·비교 차단, 그 외 허용 · 고객사·협력사 차단
+ * - hmobility: 한세그룹·회사관리 제외 + 경영관리는 재고·생산·인원만 · 고객사 차단
+ * - guest: 한세그룹·경영관리·비교 차단, 그 외 허용 · 고객사 차단
  */
 export function canAccess(pathname: string, role: Role): boolean {
   if (role === 'admin') return true;
@@ -130,11 +120,6 @@ export function canAccess(pathname: string, role: Role): boolean {
   // 고객사 — 우리 매출 비중이 실려 사외비 역할만(2026-11-09 결정 2).
   if (matchesPath(pathname, '/customers')) {
     return canAccessCustomers(role);
-  }
-
-  // 협력사 — 구매 전략이라 사외비 역할만(2026-11-13 결정 3). /oem 의 다른 탭은 그대로.
-  if (matchesPath(pathname, '/oem/suppliers')) {
-    return canAccessSuppliers(role);
   }
 
   // 기타 > 경영표준 — 글이 전부 사외비라(계획 2026-10-30 결정 3) 사외비 열람 역할만이었고,

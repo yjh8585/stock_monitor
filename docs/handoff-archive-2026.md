@@ -5,6 +5,36 @@
 
 ---
 
+## 보관 · 이전 상태 · 재개 지점 (2026-11-10, **고객사 IR 확장 계획 실행 중 — Task 1~3 완료 · Task 4 수정 1회차 도중 중단 · 미푸시**)
+
+> 이 세션의 관통 주제: 고객사 2단계 위에 얹는 IR 확장(계획서 `docs/plans/2026-11-10-customers-ir-expansion.md` · Task 1~13 · 결정 기록 `_결정이행.md` D1~D9·E1~E6)을 작업별 서브에이전트(SDD)로 실행. 사용자가 PC 를 꺼서 Task 4 수정 도중 멈췄다.
+
+**결과**: 커밋 `888db50`(계획) · `dd6bd3a`(Codex 대조 반영) · `a13374c`(E6) · Task 1 `c7f386a` · Task 2 `559fd05`·`84ab2b7` · Task 3 `ea02611` · Task 4 `da1260f`(첫 구현 · 검토 「수정 필요」). **푸시 안 함**(원격보다 60여 커밋 앞섬).
+
+**🔴 재개 지점**: SDD 원장 `.superpowers/sdd/2026-11-10-customers-ir-expansion/progress.md`(gitignore) 맨 끝부터. 지금은 `Task 4: fix round 1 dispatched`.
+
+1. Task 4 수정 1회차는 **커밋됨 `98302a7`**(pytest 784 통과 · 마무리 직후 도착). 남은 것 = 그 수정의 범위 좁힌 재검토(`review-package <plan> da1260f 98302a7` → 재검토 프롬프트 = SDD 스킬 `re-review-prompt.md`) → 통과면 원장에 `Task 4: complete`. 수정 지시(재검토 대조용) = Important 1(`fetch_vinfast` PDF 받기 실패가 VFS 목록 전체를 죽임 → `TooLarge`·`requests.RequestException`·PDF 파싱 오류를 잡아 날짜만 비움 + 시험 2건) + Minor 5(`_RESULTS_LAG_DAYS` 100→120 · `edgar_quarter_dates` docstring 한 줄 · `parse_vinfast_event` 날짜 ValueError → None · 픽스처 `sig=` 값 가림 · PDF 만든 날 SHORTCUT 주석). 이어받는 법: 변경을 읽어 지시와 맞는지 보고, 모자라면 새 구현자에게 브리프(`task-4-brief.md`)·보고서(`task-4-report.md`)·이 지시를 주고 끝내게 한 뒤 → 커밋 → 범위 좁힌 재검토(`review-package <plan> da1260f HEAD`).
+2. 그다음 Task 5 → 6 → 7 → 8 → 9 → 10 → 13 → 11 → 최종 검토(Opus 검토 + Codex diff 검토 따로) → Task 12(메인 직접 · Step 0 = `collect_customer_docs.py --backfill` 본 적재 + 숫자 수집 본 실행 · LLM 아끼지 않음).
+
+**사용자 지시·선택 (2026-11-10 · 원문 = `참고/고객사/2026-11-09-customers-page_최초지시.md` 끝 세 절)**: 폭스바겐 중국 동향 = 숫자+문서 목록(Task 13) · 노사 갈등·파업 = 별도 계획서의 새 기능(E5) · 「코덱스 한도 다 차면 재설정해서 사용량 복구할 거니까 코덱스 사용해」(게이트에 걸려도 Codex 를 쓴다 — 메모리 `feedback_use_codex_despite_gate`) · 「프로모션 API 크레딧 … 과거~최신 자료 등 찾거나 정리할 때 지금 최대한 써」 → 과거 2년치 백필+LLM 을 푸시 전 이 PC 에서(E6 · 푸시 뒤 GHA 백필은 불필요해짐).
+
+**비자명한 사실 (재조사 금지)**:
+
+- 목록 드라이런은 새 문서를 DB 에 저장하지 않고 숫자 수집기는 DB 문서만 읽는다 → «새 문서의 숫자 수집 드라이런» 확인은 성립하지 않는다. 시험(`mod.wants`·`parse`)으로 대신하고 실물은 Task 12 Step 0(Codex 대조 · 계획서 Global Constraints 마지막 줄).
+- 공개 레포라 계획서에 «고객사 노조 + 우리 생산량 + 특정 OEM 공장» 원문을 그대로 두면 그 OEM 이 우리 고객임이 드러난다 → 공개 판에서 가림(원문은 `참고/`).
+- 화면(`lib/customers/ir.ts`)은 실적 행 단위를 `bn()` 으로 환산하고 `quarterize` 가 실측 분기 행을 누계 차이보다 우선한다 — 포르쉐 팩트시트(million)와 EQS(billion) 공존은 결함 아님(Task 3 검토).
+- 빈패스트 2분기 실적 6-K 가 3분기 끝 뒤(2026-10-19)에 나온다 → EDGAR 회사 IR 날짜는 «숫자 수집기가 그 문서에서 읽은 실적 기간 → 그 문서 접수일»(Task 4 · 계획 규칙은 실물에서 틀림).
+- 화면 회사 목록 `customer_accounts` 에 수집 대상 11곳 밖 회사 0건(대상 밖 `customer_collect_status` 행 5건은 남지만 안 보임).
+- 노사 조사 = `참고/고객사/research/labor_2026-11.md`(⑧절 = Codex 원문 대조: 조합원 9,000명 초과가 기준 · C$529m 은 연방 약정만 · no board 뒤 16일 지나 17일째 · 기아 08-21 파업 실행 여부 확정 불가 · 현대차 5.5만 대는 누적).
+
+**남은 사소 지적(최종 검토에서 가림)**: 원장의 `minor (deferred)` 줄 — Task 1 4건 · Task 2 7건 · Task 3 4건(그중 `porsche.py:48` 인도 정의 문구는 Task 11/12 에서 고칠 것).
+
+**검증**: Task 별 — Task 3 시점 `pytest scripts/lib` 763 통과 · Task 4 첫 구현 779 통과 · `npm run check-all` 각 Task 통과(구현자 보고 · 검토자 확인). 마무리 시점 전체 재검증은 PC 종료 때문에 못 돌림(Task 4 수정분이 미커밋이라 지금 트리는 검증 대상 아님).
+
+**푸시 뒤 사용자가 할 일(변경)**: GHA `probe_gm_ir` 수동 실행만(GM IR 접근 시험) — 2년 백필은 E6 으로 이 PC 에서 한다.
+
+---
+
 ## 보관 · 이전 상태 · 재개 지점 (2026-09-16 오후) — 휴머노이드에 9곳을 넣고, 끊긴 리포트 연결을 검사기로 막았다
 
 ### 무엇을 했나

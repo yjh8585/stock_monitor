@@ -1,5 +1,7 @@
 # 협력사 페이지 1단계 Implementation Plan
 
+> 🗑️ **폐기됨 (2026-11-16 사용자 지시)** — MarkLines 계정 정지로 협력사 작업 전체를 폐기했다(코드·표 삭제). 이 문서는 기록으로만 남긴다 · 경위 = `docs/oem-collection.md` 맨 끝 절.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** MarkLines 서플라이어 DB 에서 「경쟁사에 납품하는 · 우리 품목을 만드는」 공급사를 모아 사외비 표에 싣고, `/oem/suppliers`(순위표)·`/oem/suppliers/[id]`(업체 상세)로 보여 준다.

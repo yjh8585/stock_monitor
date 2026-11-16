@@ -4,7 +4,7 @@
 
 공통 패턴: `lib/oem-companies/<slug>/`(`source.ts` `'use cache'`+`cacheTag` / `aggregate.ts` pure 함수 + `aggregate.test.ts`), 컴포넌트는 `components/oem-companies/common/` + `<slug>/`. 판매 데이터는 모두 `vehicle_powertrain_map` LEFT JOIN으로 PT(파워트레인) mix 도출.
 
-`/oem` "전체" 탭은 글로벌 MarkLines 대시보드(5개 `oem_sales_group_*` 테이블) + OEM 모델 outlook. 탭 네비는 `components/oem/OemTabs.tsx`에서 통합 관리(8탭: 전체/경쟁 분석/Stellantis USA/KG모빌리티/현대차/기아/우즈베키스탄/중국 + 협력사 — 사외비 역할(`canAccessSuppliers`)에게만 노출. 역할 판정은 server `app/oem/layout.tsx` 가 해서 넘긴다).
+`/oem` "전체" 탭은 글로벌 MarkLines 대시보드(5개 `oem_sales_group_*` 테이블) + OEM 모델 outlook. 탭 네비는 `app/oem/layout.tsx`에서 통합 관리(8탭: 전체/경쟁 분석/Stellantis USA/KG모빌리티/현대차/기아/우즈베키스탄/중국).
 
 > **MarkLines Excel 파이프라인은 판매·생산 2개다**(+ 중국 전용 1개 — 아래 `/oem/china`, 다른 테이블). 이 문서의 MarkLines 언급은 모두 **판매**(`vehicle_sales` → `oem_sales_*`, `sync_oem_excel.py`)다. **생산**(`vehicle_production` → `oem_production_model_country_month`, `sync_oem_production_excel.py`)은 `/oem/*`이 아니라 `/management/stellantis`가 쓰며, 같은 쿠키를 쓰지만 **페이지·레이아웃·country의 의미가 모두 다르다**(생산의 `country`는 **공장 국가**, 판매는 **판매 시장**). 상세 → [`Architecture.md §7`](../Architecture.md).
 > 🔴 **단 판매의 「판매 시장」은 중국 브랜드에 대해선 사실이 아니다** — `country = 'China'` 는 내수 + 수출을 합한 글로벌 출하다(2026-09-11 실측) → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
@@ -281,42 +281,9 @@ MarkLines 분석 보고서는 표가 본체다(실측: 일본편 24개 · 유럽
 
 ---
 
-## 협력사(`/oem/suppliers`) — 사외비 표 5종·수집
+## 🔴 MarkLines 에 스크립트로 대량 요청하지 말 것 — 계정 정지 (2026-11-13 · 협력사 폐기 2026-11-16)
 
-`Architecture.md` §7-G 에서 옮겨 왔다(2026-11-13 · 크기 상한 회복).
-
-### 협력사 5종 `sourcing_*` (사외비 · 20261113000001) — `/oem/suppliers` 소싱 후보
-
-| 표                        | 내용                                                                   |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `sourcing_products`       | 우리 제품(`slug` 유일 · `display_order`)                               |
-| `sourcing_part_groups`    | 제품별 품목군 — BOM 부품명·MarkLines 분류명·공정명·검색 단어 배열      |
-| `sourcing_competitors`    | 제품별 경쟁사 — 납품처 부분일치용 `aliases`                            |
-| `sourcing_suppliers`      | 협력사 후보 원자료(`source` = `marklines`·`web` · `region` 8값 CHECK)  |
-| `sourcing_supplier_links` | 후보 × 품목군 × 경쟁사(null = 경쟁사 무관 검색) — 어떤 검색에서 걸렸나 |
-
-#### 상세
-
-- 전부 RLS on·정책 없음 → `confidentialDb` 전용. 캐시 태그는 `sourcing` 하나(5개 표 모두 이 태그로 무효화).
-- 🔴 **행은 마이그레이션에 넣지 않는다** — 제품 구성·경쟁사·검색어가 구매 전략이라 공개 레포에 남기지 않고 로컬 `service_role` 로만 적재한다.
-- 일치 단계·점수는 저장하지 않는다(화면에서 계산). `sourcing_supplier_links` 의 유일 키는 `unique nulls not distinct (supplier_id, part_group_id, competitor_id)`.
-- `sourcing_supplier_links` 에 `trg_skip_identical_update` 부착(`Architecture.md` §7-J) — 수집기는 upsert 에 `found_at` 을 보내지 않는다. `sourcing_suppliers` 는 `fetched_at` 이 매번 바뀌어 붙이지 않는다.
-
-### 수집 스크립트
-
-- `collect_sourcing_suppliers.py` — 협력사 후보 수집(MarkLines 서플라이어 DB → `sourcing_suppliers`·`sourcing_supplier_links`). **로컬 수동 실행 전용**(GHA 금지) · `--dry-run` 으로 상세 받을 업체 수부터 확인 · 단독 검색 상한은 품목군별 합집합 기준(`--solo-max-hits`) · 상세 실패 10% 초과면 적재 없이 exit 3. 🔴 stdout 에 id·건수만.
-  - 🔴 **수집 도중 세션이 끊긴다**(2026-11-13 본 수집 — 상세 #480 부터 401 `Unauthenticated.`). 401·403 은 `NotLoggedIn` 으로 즉시 멈추고 받은 것을 `참고/협력사/_collect_partial_<시각>.json` 에 저장한 뒤 **exit 4** → 쿠키를 다시 채취하고 `--resume <그 파일>` 로 이어 받는다(이미 받은 업체는 건너뛴다). 적재 직전 백업 `_collect_rows_<시각>.json` 도 같은 형식이라 적재 실패 때 `--resume` 으로 되살린다.
-- `scripts/lib/sourcing_parse.py` — MarkLines 서플라이어 상세 JSON → `sourcing_suppliers` 행 순수 함수 · `test_sourcing_parse.py`. 모르는 국가는 「기타」로 떨구고 `UNKNOWN_COUNTRIES` 에 모은다 — 수집기가 끝에 출력해 지역 표를 보강한다.
-- `scripts/lib/marklines_supplier_db.py` — MarkLines 서플라이어 DB 검색 id·상세 JSON. 🔴 쿠키는 `scripts/.env` 만 · 요청 간격 1초 · 검색 결과는 3,000 곳에서 잘린다(`SEARCH_CAP`).
-- 순서: `seed_sourcing.py`(시드 = `참고/협력사/sourcing_seed.json` · gitignore) → `probe_sourcing_queries.py`(검색 건수만) → `collect_sourcing_suppliers.py --dry-run` → 본 실행(사용자 선택 2026-11-13: `--solo-max-hits 450` · dry-run 상세 대상 1,895곳 · 검색 198회).
-
-### 🔴 MarkLines 계정 정지 의심 — 다음 수집 전 반드시 읽을 것 (2026-11-13)
-
-- 본 수집 1회차가 **1초 간격으로 약 30분 · 요청 약 700회**(검색 198 + 상세 479)를 보낸 뒤 401 로 끊겼고, 이어 쿠키를 다시 받으려 한 로그인이 되지 않았다(사용자 판단: 계정 정지 의심). 원인은 미확인 — 요청 속도·양이 가장 유력하다.
-- 그래서 **적재된 협력사는 0곳**이다. 화면(`/oem/suppliers`)은 빈 상태로 완성돼 있다.
-- 다시 돌리기 전에: ① 계정 상태를 사용자가 MarkLines 에 확인 ② 이용 약관·요청 한도 확인 ③ 간격을 늘리고(예: 3초 이상) 하루 상한을 두는 안을 **사용자 승인 뒤** 넣는다. 중간에 끊겨도 `_collect_partial_*.json` + `--resume` 으로 받은 것은 잃지 않는다.
-
-### 화면 `/oem/suppliers`
-
-- 목록 `app/oem/suppliers/page.tsx`(제품·지역·품목군 탭 · 상위 200행만 client 로) · 상세 `[id]/page.tsx`(본인·제품 미연결 업체는 404) · 조회 `lib/sourcing/source.ts`(캐시 태그 `sourcing` · `cacheLife('days')`).
-- 권한 = `canAccessSuppliers`(admin·holdings·mobility) — `proxy.ts`·`app/oem/suppliers/layout.tsx`·각 page 가 한 번씩 막는다. 탭은 `components/oem/OemTabs.tsx` 가 역할에 따라 붙인다.
+- 협력사 탭(`/oem/suppliers`, 미배포)을 만들며 서플라이어 DB 를 스크립트로 **1초 간격 약 2,300회**(검색 198×2 · 상세 1,895) 요청했다. 상세 #480 부터 401 이 왔는데도 **나머지 1,416회를 계속 보냈다.** 그 뒤 계정이 정지됐고 MarkLines 가 목적·경위·도구 해명을 요구했다.
+- 사용자 결정(2026-11-16): 협력사 작업 **전부 폐기** — 코드 삭제 · 사외비 표 `sourcing_*` 5개 삭제(`20261116000001`). 설계·계획·지시는 `docs/plans/2026-11-13-suppliers-page*.md` 와 git 기록에만 남는다.
+- 🔴 **MarkLines 에 수백 회 이상 요청하는 실행은 사용자 확인 없이 만들지도 돌리지도 말 것.** 「1초 간격」은 서버 예절일 뿐 계정 보호 기준이 아니다. MarkLines 가 2차로 약관 7조 9항(자동 다운로드 금지)을 들어 확약서를 요구해, 위 엑셀 sync 워크플로 4개도 **2026-11-16 껐다**(다시 켜지 말 것 · 쿠키 삭제).
+- 401·403 을 받으면 **그 자리에서 멈춘다** — 거절 뒤에도 계속 보내는 것이 가장 나쁜 신호다.
