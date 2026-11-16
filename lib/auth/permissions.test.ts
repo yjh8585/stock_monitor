@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { canAccess, canAccessCustomers, canPublishReports, canUseChat } from './permissions';
+import {
+  canAccess,
+  canAccessConfidentialReports,
+  canAccessCustomers,
+  canPublishReports,
+  canUseChat,
+  firstManagementPath,
+} from './permissions';
 
 describe('canAccess — 조직도(/management/org-chart)', () => {
   const page = '/management/org-chart';
   const api = '/api/management/org-chart/image/2026-07-01';
 
-  it('admin·holdings·mobility는 페이지 허용', () => {
+  it('admin·holdings는 페이지 허용', () => {
     expect(canAccess(page, 'admin')).toBe(true);
     expect(canAccess(page, 'holdings')).toBe(true);
-    expect(canAccess(page, 'mobility')).toBe(true);
   });
 
-  it('hmobility·guest는 페이지 차단', () => {
+  it('mobility·hmobility·guest는 페이지 차단', () => {
+    expect(canAccess(page, 'mobility')).toBe(false);
     expect(canAccess(page, 'hmobility')).toBe(false);
     expect(canAccess(page, 'guest')).toBe(false);
   });
@@ -20,18 +27,61 @@ describe('canAccess — 조직도(/management/org-chart)', () => {
   it('이미지 API도 페이지와 동일 게이트', () => {
     expect(canAccess(api, 'admin')).toBe(true);
     expect(canAccess(api, 'holdings')).toBe(true);
-    expect(canAccess(api, 'mobility')).toBe(true);
+    expect(canAccess(api, 'mobility')).toBe(false);
     expect(canAccess(api, 'hmobility')).toBe(false);
     expect(canAccess(api, 'guest')).toBe(false);
   });
 });
 
+describe('canAccess — mobility 경영관리는 스텔란티스만(2026-11-16)', () => {
+  it('스텔란티스 탭과 랜딩(/management)만 허용', () => {
+    expect(canAccess('/management', 'mobility')).toBe(true);
+    expect(canAccess('/management/stellantis', 'mobility')).toBe(true);
+    expect(firstManagementPath('mobility')).toBe('/management/stellantis');
+  });
+
+  it('나머지 경영관리 탭은 차단', () => {
+    for (const tab of [
+      'pnl',
+      'plan',
+      'inventory',
+      'production',
+      'personnel',
+      'finance',
+      'org-chart',
+      'upload',
+      'companies',
+    ]) {
+      expect(canAccess(`/management/${tab}`, 'mobility')).toBe(false);
+    }
+  });
+
+  it('경영관리 밖의 사외비 권한은 그대로', () => {
+    expect(canAccessConfidentialReports('mobility')).toBe(true);
+    expect(canPublishReports('mobility')).toBe(true);
+    expect(canAccess('/customers', 'mobility')).toBe(true);
+    expect(canAccess('/oem/suppliers', 'mobility')).toBe(true);
+  });
+
+  it('비교 페이지·경영표준도 차단(2026-11-16 추가 지시)', () => {
+    expect(canAccess('/compare', 'mobility')).toBe(false);
+    expect(canAccess('/etc/mgmt-standard', 'mobility')).toBe(false);
+    expect(canAccess('/compare', 'holdings')).toBe(true);
+    expect(canAccess('/compare', 'hmobility')).toBe(true);
+  });
+
+  it('holdings 는 경영관리 전체 그대로', () => {
+    expect(canAccess('/management/pnl', 'holdings')).toBe(true);
+    expect(canAccess('/management/stellantis', 'holdings')).toBe(true);
+  });
+});
+
 describe('canAccess — 기타 > 경영표준(/etc/mgmt-standard)', () => {
-  it('사외비 열람 역할(admin·holdings·mobility)만 목차·상세 허용', () => {
+  it('admin·holdings 만 목차·상세 허용(mobility 는 2026-11-16 부터 차단)', () => {
     for (const path of ['/etc/mgmt-standard', '/etc/mgmt-standard/123']) {
       expect(canAccess(path, 'admin')).toBe(true);
       expect(canAccess(path, 'holdings')).toBe(true);
-      expect(canAccess(path, 'mobility')).toBe(true);
+      expect(canAccess(path, 'mobility')).toBe(false);
       expect(canAccess(path, 'hmobility')).toBe(false);
       expect(canAccess(path, 'guest')).toBe(false);
     }

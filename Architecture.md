@@ -152,7 +152,7 @@
 **API 라우트 분류**:
 
 - **공개**: `/api/cron/*` (workflow가 호출), `/api/revalidate*` (토큰 검증 후 `updateTag()`)
-- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[id]` (조직도 이미지 프록시 — admin·holdings·mobility만), `/api/customers/doc-page/[docId]/[page]` (고객사 문서 요약 근거 쪽 캡처 프록시 — `canAccessCustomers` · 비공개 버킷 `customer-doc-pages` · 키는 DB `pages[].key` 만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
+- **보호** (세션 필수): `/api/news/search`, `/api/stock-prices`, `/api/posts/*`, `/api/uploads/report`, **`/api/chat`** (AI 어시스턴트), `/api/companies` (신규 회사 INSERT), `/api/companies/[id]/summary` (회사 설명 지연 로딩 — 표 payload 에서 뺀 값, `docs/isr-write-optimization.md`), `/api/management/upload`·`/api/management/upload/[jobId]`·`/api/management/upload/[jobId]/apply` (엑셀 업로드 → dry-run → 적재 확정, admin 전용), `/api/management/org-chart/image/[id]` (조직도 이미지 프록시 — admin·holdings만), `/api/customers/doc-page/[docId]/[page]` (고객사 문서 요약 근거 쪽 캡처 프록시 — `canAccessCustomers` · 비공개 버킷 `customer-doc-pages` · 키는 DB `pages[].key` 만), `/api/reports/[id]/html`·`/api/reports/[id]/video` (원본 HTML·첨부 동영상 프록시 — 사외비 행이면 `canAccessConfidentialReports` 로 게이트)
 
 `proxy.ts`의 `PUBLIC_PATH_PREFIXES`(`/login`, `/api/cron`, `/api/revalidate`)와 반드시 일치.
 **이 목록이 라우트 분류의 정본이다** — 새 `app/api/**/route.ts`를 만들면 여기와 `proxy.ts`를 함께 갱신한다(AGENTS.md 는 이 규칙만 싣고 목록은 중복하지 않는다). `/api/revalidate*`은 SSRF·쿠키 가드 패치 이력이 있어 회귀에 주의한다(commit `ea090be`).
@@ -648,7 +648,7 @@ UNIQUE: (source, note_date)
 같은 시점에 여러 판(예: 2026-07-01 의 인원 포함/미포함)을 둘 수 있다(20260907000001).
 객체 키 규칙은 `<날짜>.png` / `<날짜>-<variant>.png`.  
 **RLS**: 정책 없음 (20260624000002) → anon 차단. `confidentialDb.from('org_charts')` 전용.  
-적재는 로컬 `scripts/sync_org_chart.py`(Excel COM, Windows+Excel 필요 — Vercel/GHA 자동 렌더 불가). 페이지 `/management/org-chart`(admin·holdings·mobility 전용)는 메타를 `'use cache'`로 캐싱(`lib/org-chart/source.ts`), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍.
+적재는 로컬 `scripts/sync_org_chart.py`(Excel COM, Windows+Excel 필요 — Vercel/GHA 자동 렌더 불가). 페이지 `/management/org-chart`(admin·holdings 전용)는 메타를 `'use cache'`로 캐싱(`lib/org-chart/source.ts`), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍.
 
 **버킷 `org-charts`** (비공개, public=false, 정책 없음 → service_role 전용):  
 조직도 PNG 저장. anon 직접 접근 불가 — 인증 프록시 API를 통해서만 스트리밍.
@@ -668,7 +668,7 @@ UNIQUE: (source, note_date)
 
 **인덱스**: status, category, source_type, source_name, created_at DESC, source_published_at DESC
 
-**RLS**: `posts_select_public`(20260806000001) — anon·authenticated 는 **`is_confidential = false` 행만** SELECT. 그 전 정책 `posts_select_all`(USING(true))은 anon 키만으로 전 보고서를 덤프할 수 있어 사외비 문서를 담을 수 없었다. 사외비 행은 **service_role 로만** 조회되며, 열람 역할 게이트는 `lib/auth/permissions.ts`의 `canAccessConfidentialReports`(admin·holdings·mobility — 조직도와 동일 기준)가 담당한다. 목록·상세의 `'use cache'` 함수는 `includeConfidential` 를 **인자로 받아 캐시 키를 분리**하므로 역할 간에 목록이 새지 않는다.
+**RLS**: `posts_select_public`(20260806000001) — anon·authenticated 는 **`is_confidential = false` 행만** SELECT. 그 전 정책 `posts_select_all`(USING(true))은 anon 키만으로 전 보고서를 덤프할 수 있어 사외비 문서를 담을 수 없었다. 사외비 행은 **service_role 로만** 조회되며, 열람 역할 게이트는 `lib/auth/permissions.ts`의 `canAccessConfidentialReports`(admin·holdings·mobility — 2026-11-16 부터 조직도보다 넓다)가 담당한다. 목록·상세의 `'use cache'` 함수는 `includeConfidential` 를 **인자로 받아 캐시 키를 분리**하므로 역할 간에 목록이 새지 않는다.
 
 **버킷 `reports-html`** (비공개, public=false, 정책 없음 → service_role 전용, 20260821000001):  
 자체 디자인을 가진 원본 HTML 보고서를 저장한다. 객체 키는 `posts.html_path`(NULL = 첨부 없음), 열람은 인증 프록시 `/api/reports/[id]/html` 로만 — 그 라우트가 로그인(proxy) + `post.is_confidential` 행 단위 역할 게이트(`canAccessConfidentialReports`)를 다시 확인한 뒤 스트리밍한다(`blob.stream()` — Vercel 응답 4.5MB 상한 회피). 상세 페이지는 이것을 same-origin iframe(`components/reports/report-embed.tsx`)으로 마크다운 본문 **위에** 띄운다.
@@ -976,8 +976,8 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - 접근 불가 역할을 추가할 때 랜딩(`/`·`/management`)은 **role-aware redirect** 로 만든다
   (고정 redirect 는 무한 루프).
 - `/management` 탭 노출은 `ALL_TABS` + `canAccess` **자동 필터**라 신규 탭에 `permissions.ts` 수정이
-  필요 없다(guest·hmobility 자동 차단). 더 좁은 권한만 명시한다 —
-  `/management/upload` 는 admin 전용(`ADMIN_ONLY_PATHS`), 조직도는 admin·holdings·mobility.
+  필요 없다(guest·hmobility·mobility 자동 차단 — mobility 는 스텔란티스만, 2026-11-16). 더 좁은 권한만 명시한다 —
+  `/management/upload` 는 admin 전용(`ADMIN_ONLY_PATHS`), 조직도는 admin·holdings.
 
 ### B-3. `_archive/` 로 보내지 않고 유지하는 정기 재실행 스크립트 16종
 
@@ -1075,7 +1075,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 
 - 🔴 **카테고리 SSOT 는 `lib/reports/mgmtStandard.ts`** — 게시판(`/reports`)은 이 카테고리를 감춘다(로봇과 같은 방식).
 - 목차는 `PostList` 가 아니라 장 번호 순 목록이다 — 게시판 정렬(게시일·원문 발행일)로는 장 순서를 못 세운다(`compareChapterTitle`). 제목은 `00.`~`11.`·`부록 A.` 로 시작해야 순서가 선다.
-- 🔴 **글은 전부 사외비**(`is_confidential = true`) — 라우트·사이드바 하위 메뉴가 `canAccessConfidentialReports` 역할에만 열린다(`canAccess`). 목차 조회도 `includeConfidential` 을 인자로 넘겨 역할별 캐시를 가른다.
+- 🔴 **글은 전부 사외비**(`is_confidential = true`) — 라우트·사이드바 하위 메뉴가 `canAccessConfidentialReports` 역할 중 **mobility 를 뺀** admin·holdings 에만 열린다(`canAccess` · mobility 제외는 사용자 지시 2026-11-16 — 사외비 보고서 열람 권한과는 따로 간다). 목차 조회도 `includeConfidential` 을 인자로 넘겨 역할별 캐시를 가른다.
 - 글은 게시 스크립트가 카테고리를 직접 넣는다(자동 분류기 미경유). 원문은 그룹웨어 2026-10-30 스냅샷(갱신은 수동).
 
 #### `/humanoid/research` 상세

@@ -23,7 +23,7 @@ const ALL_TABS = [
 /**
  * 경영관리 탭 네비게이션.
  * usePathname을 쓰므로 client component로 격리 — server인 ManagementLayout에서 role 전달.
- * 탭 노출은 canAccess(role)로 결정: 회사 탭은 admin만, hmobility는 재고·생산·인원만.
+ * 탭 노출은 canAccess(role)로 결정: 회사 탭은 admin만, hmobility는 재고·생산·인원만, mobility는 스텔란티스만.
  */
 export function ManagementTabs({ role }: { role: Role }) {
   const pathname = usePathname();

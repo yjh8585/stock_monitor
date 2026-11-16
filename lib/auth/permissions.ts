@@ -10,6 +10,9 @@ const HMOBILITY_MANAGEMENT_PATHS = [
   '/management/personnel',
 ];
 
+/** mobility가 접근 가능한 경영관리 하부 페이지 — 스텔란티스만(사용자 지시 2026-11-16). */
+const MOBILITY_MANAGEMENT_PATHS = ['/management/stellantis'];
+
 function matchesPath(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
@@ -21,7 +24,7 @@ export function isAdmin(role: Role): boolean {
 /**
  * 사외비 보고서(`posts.is_confidential = true`) 열람 권한.
  *
- * 조직도(`/management/org-chart`)와 같은 기준 — 현장(hmobility)·게스트는 차단한다.
+ * 현장(hmobility)·게스트는 차단한다. (mobility 는 조직도는 막혔지만 사외비 보고서는 계속 본다 — 2026-11-16)
  * 화이트리스트로 적어 새 역할이 추가돼도 기본은 차단되게 한다.
  *
  * 주의: 이 게이트는 `/reports` 라우트 자체를 막지 않는다(비사외비 글은 전 역할 공개).
@@ -72,7 +75,7 @@ export function canUseChat(role: Role): boolean {
  *
  * - admin: 전체 허용
  * - holdings: 회사관리 제외 전체(한세그룹·경영관리 포함)
- * - mobility: 한세그룹·회사관리 제외 전체(경영관리 전체 허용)
+ * - mobility: 한세그룹·회사관리·비교·경영표준 제외 + 경영관리는 스텔란티스만(사외비 보고서·고객사는 허용)
  * - hmobility: 한세그룹·회사관리 제외 + 경영관리는 재고·생산·인원만 · 고객사 차단
  * - guest: 한세그룹·경영관리·비교 차단, 그 외 허용 · 고객사 차단
  */
@@ -84,8 +87,8 @@ export function canAccess(pathname: string, role: Role): boolean {
     return false;
   }
 
-  // guest 전용 차단: 비교 페이지(경영관리·한세그룹은 아래 공통 분기에서 차단)
-  if (role === 'guest' && matchesPath(pathname, '/compare')) {
+  // 비교 페이지 — guest·mobility 차단(mobility 는 사용자 지시 2026-11-16)
+  if ((role === 'guest' || role === 'mobility') && matchesPath(pathname, '/compare')) {
     return false;
   }
 
@@ -94,10 +97,11 @@ export function canAccess(pathname: string, role: Role): boolean {
     return canAccessCustomers(role);
   }
 
-  // 기타 > 경영표준 — 글이 전부 사외비라(계획 2026-10-30 결정 3) 사외비 열람 역할만.
-  // 막지 않으면 다른 역할은 빈 목차만 보게 된다.
+  // 기타 > 경영표준 — 글이 전부 사외비라(계획 2026-10-30 결정 3) 사외비 열람 역할만이었고,
+  // 2026-11-16 사용자 지시로 mobility 도 막는다(사외비 보고서 열람은 그대로 — 두 판정을 묶지 말 것).
+  // 막지 않은 역할이 사외비 권한이 없으면 빈 목차만 보게 된다.
   if (matchesPath(pathname, '/etc/mgmt-standard')) {
-    return canAccessConfidentialReports(role);
+    return canAccessConfidentialReports(role) && role !== 'mobility';
   }
 
   // 한세그룹 — holdings만 허용
@@ -113,13 +117,18 @@ export function canAccess(pathname: string, role: Role): boolean {
       if (pathname === '/management') return true;
       return HMOBILITY_MANAGEMENT_PATHS.some((p) => matchesPath(pathname, p));
     }
-    return true; // mobility, holdings
+    if (role === 'mobility') {
+      // 랜딩(/management)은 허용 → page.tsx가 스텔란티스 탭으로 redirect
+      if (pathname === '/management') return true;
+      return MOBILITY_MANAGEMENT_PATHS.some((p) => matchesPath(pathname, p));
+    }
+    return true; // holdings
   }
 
   // 조직도 이미지 API — 페이지(/management/org-chart)와 동일 게이트.
   // canAccess의 /management 분기는 '/api/...' 접두사를 매칭하지 못하므로 명시적으로 처리.
   if (matchesPath(pathname, '/api/management/org-chart')) {
-    return role !== 'guest' && role !== 'hmobility';
+    return role === 'holdings';
   }
 
   return true;
@@ -135,5 +144,6 @@ export function landingPathForRole(role: Role): string {
 export function firstManagementPath(role: Role): string {
   if (role === 'guest') return '/related-stocks'; // proxy가 막지만 방어적 처리
   if (role === 'hmobility') return '/management/inventory';
+  if (role === 'mobility') return '/management/stellantis';
   return '/management/pnl';
 }
