@@ -380,7 +380,10 @@ def main() -> int:
     ctx = browser.new_context(accept_downloads=True)
     page = ctx.new_page()
     try:
-      page.goto(SOURCE_URL, wait_until='networkidle', timeout=PLAYWRIGHT_TIMEOUT_MS)
+      # networkidle 금지 — 페이지의 구글 광고 전환 추적 요청(googleadservices ccm/conversion)이
+      # 응답 없이 열린 채로 남는 일이 잦아 도달하지 못한다(2026-11 실측, GHA 2회·로컬 3/4회 60초 타임아웃).
+      # 준비 판정은 fetch_excel_for_year 의 버튼 visible 대기가 맡는다.
+      page.goto(SOURCE_URL, wait_until='load', timeout=PLAYWRIGHT_TIMEOUT_MS)
     except Exception as e:
       logger.error(f'KG IR 페이지 로드 실패: {e}')
       ctx.close()

@@ -32,6 +32,8 @@
 
 - **GHA 로그 맨 끝의 `KRX 로그인 실패`는 실패 원인이 아니다** — pykrx 가 import 시 stdout 으로 찍는 문구다(우리 것은 `krx_auth.py`의 `KRX 로그인 실패 — KRX 수집을 건너뜁니다.`). 직후 `ensure_krx_login()`이 직접 로그인한다. pykrx는 stdout·loguru는 stderr라 순서가 뒤섞여 맨 끝에 몰린다 → **진짜 원인은 그 위 `market_series 수집 실패: <이유>` 줄**. 실패 로그는 tail이 아니라 `ERROR|실패` 라인을 뽑아 읽을 것.
 
+- **Playwright 수집기의 `goto(wait_until='networkidle')` 은 남의 사이트 추적 태그 하나에 영원히 막힌다** — 응답 없이 열린 채 남는 광고 요청(KG 모빌리티 IR 의 `googleadservices ccm/conversion`, 2026-11)이 하나라도 있으면 60초 타임아웃으로 죽는다. 페이지는 이미 다 떠 있다. 간헐적이라 «한 번 성공»은 증거가 아니다(로컬 4회 중 3회 실패). 처방은 `wait_until='load'` + **실제로 쓸 요소의 `wait_for(state='visible')`**(`collect_kg_mobility_sales.py`). 진단은 첫 진입 그대로 재현할 것 — 같은 페이지를 한 번 열어 둔 뒤 다시 열면 캐시 덕에 통과해 「로컬은 정상」으로 오진한다.
+
 - **LLM 수집기 모델을 바꿀 땐 thinking 기본값부터 확인** — Sonnet 5는 `thinking` 생략 시 adaptive thinking이 기본 on이다(사고 토큰 과금 + `max_tokens`가 사고+응답 **합산** 상한이라 tool_use 출력이 잘린다) → `thinking={'type': 'disabled'}`를 명시한다. 모델은 env var(`COX_INVENTORY_MODEL`·`HYUNDAI_QUARTERLY_MODEL`·`UZAUTO_FINANCIALS_MODEL`)로 즉시 환원 가능.
   - **⚠️ 검증 경로는 수집기마다 다르다**: Cox는 `--dry-run --year-month YYYYMM --reprocess-all`(빼면 sha256 캐시 히트로 **LLM 호출 0**) · `collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py`는 `--dry-run`이 LLM 호출을 건너뛰므로 실환경 첫 실행 로그로 확인.
 
