@@ -22,7 +22,9 @@
 
 **MarkLines 2차 메일(11-16)**: 약관 7조 9항(자동 다운로드 금지 · 양·목적 예외 없음) 위반 가능성 → 손 서명 재발 방지 확약서 요구. 그래서 같은 날 **엑셀 자동 수집 GHA 4개를 껐고**(`sync-oem-excel`·`sync-oem-production-excel`·`sync-oem-china-excel`·`marklines-adhoc-fetch` — `gh workflow disable`, 파일은 그대로) **쿠키를 지웠다**(`scripts/.env`·`.env.local`·GitHub 비밀값).
 
-**🔴 재개 지점**: ① 워크플로 4개를 **다시 켜지 말 것**(확약 위반) — 엑셀은 사용자가 브라우저로 받아 수동 적재(매주 월 텔레그램 알림 · 다음 커밋) ② `.env.local` 의 `MARKLINES_EMAIL`·`MARKLINES_PASSWORD` 삭제는 사용자 답 대기 ③ `참고/협력사/`(시드·대응표 · gitignore)는 남겨 뒀다.
+**같은 날 이어서 끝낸 것**: 수동 적재 `scripts/import_marklines_manual.py`(받은 파일을 내용으로 판별 · MarkLines 요청 0 · 절차 = `docs/oem-collection.md` 「수동 적재」) · 알림 = agents `da5c931a` `remind:marklines-excel`(월 09:00 · 봇 재기동 뒤부터) · `.env.local` 의 `MARKLINES_EMAIL`·`MARKLINES_PASSWORD` 삭제 · 로그인 브라우저 기록·시험 스크립트 삭제 · DB 표 5개 drop(`apply_migration`) · 확약서 PDF = `참고/협력사/MarkLines_Written_Statement_2026-11-16.pdf`(서명·발송은 사용자) · `Architecture.md` 상한 회복.
+
+**🔴 재개 지점**: ① 워크플로 4개를 **다시 켜지 말 것**(확약 위반) · MarkLines 에 어떤 자동 요청도 보내지 말 것 ② 쿠키·로그인 정보가 없어 `collect_marklines*.py`·`enrich_with_marklines.py` 등 옛 수집기는 이제 돌지 않는다(일부러 둔 상태) ③ `참고/협력사/`(시드·대응표 · gitignore)는 남겨 뒀다.
 
 ---
 
