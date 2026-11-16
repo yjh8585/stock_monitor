@@ -32,7 +32,7 @@
 
 - **GHA 로그 맨 끝의 `KRX 로그인 실패`는 실패 원인이 아니다** — pykrx 가 import 시 stdout 으로 찍는 문구다(우리 것은 `krx_auth.py`의 `KRX 로그인 실패 — KRX 수집을 건너뜁니다.`). 직후 `ensure_krx_login()`이 직접 로그인한다. pykrx는 stdout·loguru는 stderr라 순서가 뒤섞여 맨 끝에 몰린다 → **진짜 원인은 그 위 `market_series 수집 실패: <이유>` 줄**. 실패 로그는 tail이 아니라 `ERROR|실패` 라인을 뽑아 읽을 것.
 
-- **Playwright 수집기의 `goto(wait_until='networkidle')` 은 남의 사이트 추적 태그 하나에 영원히 막힌다** — 응답 없이 열린 채 남는 광고 요청(KG 모빌리티 IR 의 `googleadservices ccm/conversion`, 2026-11)이 하나라도 있으면 60초 타임아웃으로 죽는다. 페이지는 이미 다 떠 있다. 간헐적이라 «한 번 성공»은 증거가 아니다(로컬 4회 중 3회 실패). 처방은 `wait_until='load'` + **실제로 쓸 요소의 `wait_for(state='visible')`**(`collect_kg_mobility_sales.py`). 진단은 첫 진입 그대로 재현할 것 — 같은 페이지를 한 번 열어 둔 뒤 다시 열면 캐시 덕에 통과해 「로컬은 정상」으로 오진한다.
+- **Playwright 수집기에 `wait_until='networkidle'` 금지** — 안 닫히는 광고 요청 하나에 간헐 타임아웃. `'load'` + 쓸 요소의 `wait_for(state='visible')`. 재현은 첫 진입으로(재진입은 캐시로 통과) → [경위](./history/gotchas-data-collection-경위.md)
 
 - **LLM 수집기 모델을 바꿀 땐 thinking 기본값부터 확인** — Sonnet 5는 `thinking` 생략 시 adaptive thinking이 기본 on이다(사고 토큰 과금 + `max_tokens`가 사고+응답 **합산** 상한이라 tool_use 출력이 잘린다) → `thinking={'type': 'disabled'}`를 명시한다. 모델은 env var(`COX_INVENTORY_MODEL`·`HYUNDAI_QUARTERLY_MODEL`·`UZAUTO_FINANCIALS_MODEL`)로 즉시 환원 가능.
   - **⚠️ 검증 경로는 수집기마다 다르다**: Cox는 `--dry-run --year-month YYYYMM --reprocess-all`(빼면 sha256 캐시 히트로 **LLM 호출 0**) · `collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py`는 `--dry-run`이 LLM 호출을 건너뛰므로 실환경 첫 실행 로그로 확인.
@@ -1288,13 +1288,7 @@ scripts/venv/Scripts/python.exe scripts/verify_research_company_link.py --fix  #
 
 ## KOMIS 가격기준 코드는 예고 없이 바뀐다 — 옛 코드는 HTTP 200 빈 배열 (2026-11-09 실측)
 
-**증상** — `collect-steel-kr.yml`(STEEL_KR 철광석)이 2026-11-03부터 매일 실패. 로그는
-`KOMIS: 빈 응답 (xaxis=0, series=1)` 3회 뒤 `적재할 데이터 없음`. 로컬에서도 똑같이 재현돼
-GHA IP 문제가 아니었다.
-
-**원인** — 철(MNRL1011)의 가격기준 내부 ID 가 `793` → `878` 로 바뀌었다. 옛 ID 로 요청하면
-에러 없이 **HTTP 200 + 빈 배열**을 준다. 새 ID 의 기준은 같은 품목(Iron Ore Fines Australian
-62%min CNF China)이나 출처가 AsianMetal 로 바뀌며 과거 값도 0.5 단위로 개정됐다(최근 값은 일치).
+**원인** — 가격기준 내부 ID 가 바뀌면 옛 ID 요청은 에러 없이 **HTTP 200 + 빈 배열**(`KOMIS: 빈 응답`)이다 → [경위](./history/gotchas-data-collection-경위.md)
 
 **처방** — ID 를 박지 않고 페이지와 같은 `getMnrlPriceCrtr`(`HP000=HP003&mnrkndUnqCd=…`)로
 매 실행마다 **이름(`cdVal == 'Iron Ore Fines'`)으로 조회**한다(`collect_steel_kr.py` 의
@@ -1307,7 +1301,7 @@ DB 에는 발표처 원값 그대로 두고 **환산은 `lib/commodityUnits.ts` 
 
 - 조달청 `COPPER_KR`·`ALU_KR` = 비축 판매가 **부가세 포함**(÷1.10) · **그 품목을 안 파는 날은 실패가 아니다** · SHFE `HRC_CN` = **증치세 13% 포함**(÷1.13)
 - SHFE 는 **장중엔 파일이 있어도 결산가가 비고** `小计`(소계) 행의 미결제약정이 더 크다 — 숫자 월물만 본다
-- SHFE 는 GHA 에서 **중간부터 남은 날을 전부 `Connection reset by peer` 로 끊을 때가 있다**(2026-11-10·11-12 · 4초 재시도로는 안 풀리고 다음 날엔 받힌다) — 실패한 날만 60초 쉰 뒤 한 번 더 연다(`SHFE_COOLDOWN_SEC`). 두 번째도 끊기면 exit 1 그대로
+- SHFE 는 GHA 에서 **중간부터 남은 날을 전부 `Connection reset by peer` 로 끊을 때가 있다** — 실패한 날만 60초 쉰 뒤 한 번 더 연다(`SHFE_COOLDOWN_SEC`). 두 번째도 끊기면 exit 1 그대로
 - 미국 HRC 는 **short ton**, COMEX 구리는 **USD/lb** 단위다
 - 미국 알루미늄 = LME + 중서부 프리미엄 `AUP=F` — COMEX `ALI=F` 는 관세가 빠져 LME 와 같다
 - 미국 구리엔 웃돈을 더하지 않는다 — 정제 구리는 232조 관세 면제라 COMEX 가 곧 미국 가격(관세 기대는 COMEX−LME 차이에 이미 있다)

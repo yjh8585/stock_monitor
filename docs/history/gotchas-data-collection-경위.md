@@ -8,6 +8,8 @@
 
 - **GHA 로그 맨 끝의 `KRX 로그인 실패`는 실패 원인이 아니다** (2026-08-10 실측) — `disable_pykrx_autologin()`이 pykrx import 전에 `KRX_ID`/`KRX_PW`를 `os.environ`에서 pop하므로, pykrx가 import 시점에 stdout으로 `KRX 로그인 실패: KRX_ID 또는 KRX_PW 환경 변수가 설정되지 않았습니다.`를 찍는다 — **우리 코드 문자열이 아니다**(`scripts/` 전체에 없다. 우리 것은 `krx_auth.py`의 `KRX 로그인 실패 — KRX 수집을 건너뜁니다.`). 직후 `ensure_krx_login()`이 직접 로그인해 `KRX 로그인 시도.../완료.`가 이어지고 코스피·코스닥은 정상 수집된다(성공 run 31350128047에서 각 1,221행). ⚠️ **pykrx는 stdout, loguru는 stderr라 GHA 로그에서 순서가 뒤섞여 실행 초반의 이 세 줄이 로그 맨 끝에 몰려 보인다** → `--log-failed`를 tail로 읽으면 마지막 줄이라 진짜 원인처럼 읽힌다(자격증명 Secret은 멀쩡한데 "KRX secret 만료"로 오진하기 쉽다). **진짜 원인은 그 위 `market_series 수집 실패: <이유>` 줄**이다(2026-08-09 실패는 `Server disconnected`, 외부 일시 오류라 이후 8회 연속 성공). 같은 이유로 실패 로그는 tail이 아니라 `Select-String`으로 `ERROR|실패` 라인을 뽑아 읽을 것.
 
+- **Playwright 수집기의 `goto(wait_until='networkidle')` 은 남의 사이트 추적 태그 하나에 영원히 막힌다** — 응답 없이 열린 채 남는 광고 요청(KG 모빌리티 IR 의 `googleadservices ccm/conversion`, 2026-11)이 하나라도 있으면 60초 타임아웃으로 죽는다. 페이지는 이미 다 떠 있다. 간헐적이라 «한 번 성공»은 증거가 아니다(로컬 4회 중 3회 실패). 처방은 `wait_until='load'` + **실제로 쓸 요소의 `wait_for(state='visible')`**(`collect_kg_mobility_sales.py`). 진단은 첫 진입 그대로 재현할 것 — 같은 페이지를 한 번 열어 둔 뒤 다시 열면 캐시 덕에 통과해 「로컬은 정상」으로 오진한다. (2026-11-15 정기·11-16 재실행 GHA 2회 실패 · 처음엔 그 오진으로 「GHA IP 차단」을 의심했다)
+
 - **LLM 수집기 모델을 바꿀 땐 thinking 기본값부터 확인** (2026-08-06 Opus 4.7 → Sonnet 5 전환 실측) — **모델마다 `thinking` 생략 시 동작이 다르다.** Opus 4.7은 생략 = 사고 없음이지만 **Sonnet 5는 생략 시 adaptive thinking이 기본 on**이다. 그대로 두면 (a) 사고 토큰이 과금돼 전환 목적인 비용 절감이 상쇄되고 (b) `max_tokens`가 사고+응답 **합산** 상한이라 tool_use 출력이 잘린다 → `thinking={'type': 'disabled'}`를 명시한다(`collect_cox_inventory.py`·`collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py` 적용). 세 스크립트 모두 `tool_choice`로 도구를 강제하므로 "thinking off 시 도구를 덜 쓴다"는 Sonnet 5의 알려진 경향에는 영향받지 않는다(이게 전환을 안전하게 만든 조건). 모델은 전부 env var(`COX_INVENTORY_MODEL`·`HYUNDAI_QUARTERLY_MODEL`·`UZAUTO_FINANCIALS_MODEL`)로 즉시 환원 가능. **⚠️ 검증 경로는 수집기마다 다르다**: Cox는 `--dry-run --year-month YYYYMM --reprocess-all`이 A/B 도구다 — `--reprocess-all`을 빼면 로컬 sha256 캐시가 히트해 **LLM 호출 0**이라 모델이 바뀐 것을 검증하지 못하고(실측으로 한 번 헛돌았다), 붙이면 `diff_rows`가 판독값을 기존 DB(옛 모델 적재분)와 대조해 정확도 차이를 자동 보고한다(202605·202606 둘 다 "기존 DB와 값 변경 없음", 이상치 제외 브랜드·불규칙 파일명 케이스 포함). 반면 **`collect_hyundai_quarterly_earnings.py`·`collect_uzauto_financials.py`는 `--dry-run`이 LLM 호출 자체를 건너뛰어**(각각 "PDF 다운로드+sha256까지만", "링크 추출까지만") DB에 쓰지 않고 추출 정확도만 보는 경로가 없다 → 실환경 첫 실행 로그로 확인할 것.
 
 - **국내 재무 수집기 계통 오류 (2026-07-18 감사 → 정정·근본수정 완료)**: /domestic·/parts-top100 전수 감사(32건 CONFIRMED)로 확인된 수집기 계통 버그 — (a) **fnguide 분기 Q4 슬롯에 연간누적값**(153개사, `collect_financials.py` 분기 파싱 L385~510; annual 행은 정상, 분기합·Q4차트만 오염), (b) **`부채총계`가 `부채및자본총계(=자산총계)`를 오파싱**해 `total_liabilities==total_assets`(79개사217행, `collect_financials.py` 계정맵 L75 — `_match_acct`식 정확일치 미이식; 부채비율 지표 오염), (c) **market='KOSPI' 기본값**(실제 KOSDAQ 72+KONEX 3 오표기, `rematch_dart_unmatched.py:121` 하드코딩·`classify_new_marklines.py` LLM; pykrx 재도출로 정정), (d) DART audit-HTML **천원→백만원 단위 미변환** cogs(케이비오토텍·평화기공·피엔디티, `_table_unit_divider` 오인식), (e) **결산월 오설정**(동원모빌리티(구 동원금속) 3월인데 `fiscal_year_end_month=12`→열정렬 어긋나 매출 과소). corp **레거시 오배정 3건**(일진복합소재·베바스토코리아·서한이노빌리티 — 2026-07-18 게이트가 DB corp를 신뢰해 자동 미교정, 수동 DB 정정 필요). **정정 체크리스트·재현쿼리·수정대상 파일 → [`docs/data-audit-2026-07-18.md`](./data-audit-2026-07-18.md)** + 메모리 `project_domestic_parts_audit_2026_07_18`. 회사소개·부품사 해외상장사는 클린. **✅ 전량 해결(세션 2~4, 2026-07-18)**: 근본은 위 `collect_financials.py` fnguide 레이아웃 변경 + DART 파싱 스코프였다(옛 L385~510/L75 번호 무의미). P1 계통(Q4=연간·부채=자산·market)은 산술/pykrx로, cogs는 파싱스코프로, corp 3건은 수동 DB로 정정. KR 상장 ~169 신선 재수집 완료. 상세 → `docs/data-audit-2026-07-18.md` 상단 "정정 실행 결과".
@@ -491,6 +493,16 @@ Business Summary 를 가져오는 것 아니냐」고 지적했다. 전수 조�
 | 피앤에스로보틱스(460940) | **0개**   | 29개      | 2024·2025 |
 | 씨메스로보틱스(475400)   | 29개      | 28개      | 2023~2025 |
 
+## KOMIS 가격기준 코드는 예고 없이 바뀐다 — 옛 코드는 HTTP 200 빈 배열 (2026-11-09 실측)
+
+**증상** — `collect-steel-kr.yml`(STEEL_KR 철광석)이 2026-11-03부터 매일 실패. 로그는
+`KOMIS: 빈 응답 (xaxis=0, series=1)` 3회 뒤 `적재할 데이터 없음`. 로컬에서도 똑같이 재현돼
+GHA IP 문제가 아니었다.
+
+**원인** — 철(MNRL1011)의 가격기준 내부 ID 가 `793` → `878` 로 바뀌었다. 옛 ID 로 요청하면
+에러 없이 **HTTP 200 + 빈 배열**을 준다. 새 ID 의 기준은 같은 품목(Iron Ore Fines Australian
+62%min CNF China)이나 출처가 AsianMetal 로 바뀌며 과거 값도 0.5 단위로 개정됐다(최근 값은 일치).
+
 ## 철·구리 지역 비교 원천의 특이점 — 세금 포함 여부가 제각각이다 (2026-11-09 실측)
 
 원자재 화면 상단 비교 차트(USD/t)의 원천 다섯 개는 **세금·단위·성격이 서로 다르다.**
@@ -503,6 +515,8 @@ Business Summary 를 가져오는 것 아니냐」고 지적했다. 전수 조�
 - **SHFE(`HRC_CN`)** — 중국 국내 선물가는 **증치세 13% 포함** → 화면은 ÷1.13. 휴장일은 404 HTML,
   **장중에는 파일이 있어도 결산가가 비어 있다**(당일은 건너뛰고 다음 실행이 받는다). 주력월물은
   미결제약정 최대 월물로 고른다 — `小计`(소계) 행이 미결제약정이 더 커서 숫자 월물만 남겨야 한다.
+  GHA 에서 중간부터 남은 날을 전부 `Connection reset by peer` 로 끊은 날이 있다(2026-11-10·11-12 ·
+  4초 재시도로는 안 풀리고 다음 날엔 받혔다) → 60초 쉬고 한 번 더(`SHFE_COOLDOWN_SEC`).
 - **미국 HRC(`HRC` · yfinance `HRC=F`)** — 단위가 **short ton**(×1.10231 → 미터톤)이고, 야후 연속물이
   근월물보다 먼 월물 값을 줄 때가 있다(2026-11-06 야후 1,425 · 근월물 약 1,350).
 - **COMEX 구리(`COPPER`)** — USD/lb(×2204.62262). LME·조달청과 2% 안팎에서 같이 움직이면 정상이다.
