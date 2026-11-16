@@ -5,10 +5,18 @@ import { isIP } from 'node:net';
  * 외부 보고서 URL에 대한 SSRF·쿠키 유출 가드.
  * - http(s) 스킴만 허용
  * - 사설망/loopback/메타데이터 IP 차단 (DNS 해석 결과까지 검사)
- * - MarkLines 쿠키는 hostname 정확 매칭일 때만 첨부
+ * - MarkLines 주소는 받지 않는다 (아래 isMarklinesHost)
  */
 
-const MARKLINES_HOST = 'www.marklines.com';
+/** 🔴 MarkLines 는 서버가 받지 않는다 — 약관 7조 9항(자동 다운로드 금지) 확약(2026-11-16 · 계정 정지 사고).
+ *  리다이렉트 대상도 assertSafeReportUrl 을 다시 타므로 여기 한 곳에서 막힌다. */
+const MARKLINES_DOMAIN = 'marklines.com';
+
+/** 서브도메인 포함 · 끝 점(`marklines.com.`) 포함. path/query 에 문자열만 든 주소는 걸지 않는다. */
+export function isMarklinesHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  return host === MARKLINES_DOMAIN || host.endsWith(`.${MARKLINES_DOMAIN}`);
+}
 
 export class UnsafeReportUrlError extends Error {
   constructor(message: string) {
@@ -33,6 +41,12 @@ export async function assertSafeReportUrl(rawUrl: string): Promise<URL> {
   const hostname = parsed.hostname.toLowerCase();
   if (!hostname) {
     throw new UnsafeReportUrlError('호스트명이 비어 있습니다.');
+  }
+
+  if (isMarklinesHost(hostname)) {
+    throw new UnsafeReportUrlError(
+      'MarkLines 주소는 서버가 받지 않습니다(이용약관상 자동 다운로드 금지). 브라우저로 열어 내용을 붙여 넣어 주세요.'
+    );
   }
 
   // 1) 호스트명이 곧 IP literal이면 즉시 검사
@@ -65,12 +79,6 @@ export async function assertSafeReportUrl(rawUrl: string): Promise<URL> {
   }
 
   return parsed;
-}
-
-/** MarkLines 도메인일 때만 쿠키를 첨부해야 한다. (path/query에 문자열만 들어가도 통과하는 includes 회피) */
-export function shouldAttachMarklinesCookie(url: URL): boolean {
-  const host = url.hostname.toLowerCase();
-  return host === MARKLINES_HOST || host.endsWith(`.${MARKLINES_HOST.replace(/^www\./, '')}`);
 }
 
 const BLOCKED_HOSTNAMES = new Set([

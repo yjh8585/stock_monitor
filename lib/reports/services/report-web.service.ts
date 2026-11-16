@@ -6,7 +6,7 @@ import { gfm } from 'turndown-plugin-gfm';
 import logger from '@/lib/logger';
 import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
 import { formatRelatedSection, searchRelated } from '@/lib/reports/search.service';
-import { assertSafeReportUrl, shouldAttachMarklinesCookie } from './url-guard';
+import { assertSafeReportUrl } from './url-guard';
 
 const FETCH_TIMEOUT_MS = 20000;
 
@@ -81,12 +81,7 @@ async function doFetch(safe: URL): Promise<Response> {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
     'Accept-Language': 'en-US,en;q=0.9',
-    Referer: 'https://www.marklines.com/en/',
   };
-
-  if (shouldAttachMarklinesCookie(safe) && process.env.MARKLINES_COOKIE) {
-    headers['Cookie'] = process.env.MARKLINES_COOKIE;
-  }
 
   return fetch(safe, {
     headers,
