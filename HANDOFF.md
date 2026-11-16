@@ -8,23 +8,24 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-16, **모빌리티 계정 경영관리를 스텔란티스 탭만으로 축소 — 커밋만 · 미푸시(협력사 푸시 금지에 묶임)**)
+## 최신 상태 · 재개 지점 (2026-11-16, **모빌리티 계정 축소 — 경영관리는 스텔란티스만 · 비교·경영표준 차단 — 운영 반영(협력사와 떼어 푸시)**)
 
-> 사용자 지시 원문(2026-11-16): 「모빌리티 경영관리 페이지 볼수 없게 막아. 사외비 보고서는 볼 수 있게 그대로 유지하고.」 → 곧이어 「아 경영관리 페이지에서 스텔란티스만 볼 수 있게 해줘」(두 번째가 최종).
+> 사용자 지시 원문(2026-11-16, 순서대로): 「모빌리티 경영관리 페이지 볼수 없게 막아. 사외비 보고서는 볼 수 있게 그대로 유지하고.」 → 「아 경영관리 페이지에서 스텔란티스만 볼 수 있게 해줘」 → 「모빌리티 계정으로 로그인해도 다 보이는데?」(미푸시가 원인) → 푸시 방식 선택 「권한 변경만 먼저」 → 「아 모빌리티 계정은 비교 페이지도 못 보게 해.」 · 「기타 경영표준도 못 보게 하고.」
 
 **결과**:
 
-- `lib/auth/permissions.ts` — `MOBILITY_MANAGEMENT_PATHS = ['/management/stellantis']` 신설. mobility 는 `/management`(랜딩)·`/management/stellantis` 만 통과, `firstManagementPath('mobility')` = 스텔란티스. 조직도 이미지 API(`/api/management/org-chart`)는 admin·holdings 만.
-- 그대로 둔 것: mobility 의 사외비 보고서 열람·게시 · 고객사 · 협력사 · 경영표준 · 챗봇. holdings·hmobility·guest 권한 변화 없음.
-- 탭 줄(`ManagementTabs`)·왼쪽 메뉴·`proxy.ts` 가 전부 `canAccess` 를 쓰므로 판정 함수 한 곳으로 셋이 같이 바뀐다.
-- 시험 `lib/auth/permissions.test.ts` 에 mobility 블록 추가(나머지 9개 탭 차단 · 사외비 권한 유지). Architecture.md 의 「조직도 = admin·holdings·mobility」 4곳 정정.
+- `lib/auth/permissions.ts` — mobility 는 `/management`(랜딩)·`/management/stellantis` 만 통과(`MOBILITY_MANAGEMENT_PATHS`), 첫 탭 = 스텔란티스. `/compare` 는 guest·mobility 차단. `/etc/mgmt-standard` 는 `canAccessConfidentialReports && role !== 'mobility'`. 조직도 이미지 API 는 admin·holdings 만.
+- 그대로 둔 것: mobility 의 사외비 보고서 열람·게시 · 고객사 · 협력사 · 챗봇. holdings·hmobility·guest 변화 없음.
+- 탭 줄(`ManagementTabs`)·왼쪽 메뉴(하위 메뉴 포함)·`proxy.ts` 가 전부 `canAccess` 라 판정 함수 한 곳으로 같이 바뀐다.
+- **운영 반영 경로**: 원격 master(`c73fcec` 백업 봇) 위에 `.claude/worktrees/` 임시 작업 폴더로 `cb74982`(권한)·`215daf2`(조직도 문구) 두 커밋만 만들어 푸시. 협력사 커밋은 원격에 안 올라갔다. 로컬 master 에는 같은 내용을 cherry-pick(`6b57453`·`c51a21d`)으로 얹었다 — 핸드오프·메모리가 해시로 가리키는 협력사 fixup·KG 커밋 번호를 바꾸지 않으려고 rebase 는 하지 않았다.
 
 **🔴 재개 지점**:
 
-1. **운영 미반영** — 커밋은 로컬 master 에만 있다. 그 아래 협력사 커밋 23개 + KG 수정 `2f9fe7c` 가 「푸시 금지」(위 블록·2026-11-13 4차 지시)에 묶여 master 를 그대로 올릴 수 없다. 이 권한 변경만 먼저 올리려면 origin/master 위에 cherry-pick 해 따로 푸시하는 방법이 있다 — **사용자 확인 뒤**(로컬 master 이력 정리가 따라온다).
-2. 화면 눈 확인 안 함 — mobility 로 로그인해 경영관리 탭 줄에 「스텔란티스」 하나만 보이는지.
+1. **협력사 푸시 때** origin/master 위로 rebase 하면 로컬의 `7fed786`·`6b57453`·`c51a21d` 가 원격 `cb74982`·`215daf2` 와 겹친다 → 충돌 나면 원격 쪽 권한 코드에 협력사 줄(`canAccessSuppliers`·「고객사·협력사」 문구)만 더한 것이 정답. 내용이 같아 빈 커밋이 되면 건너뛴다.
+2. **남은 빈틈(사용자 판단 대기)**: `/reports/<번호>` 상세는 카테고리를 보지 않아, mobility 가 경영표준 글 번호(149~162)를 직접 치면 사외비 보고서 권한으로 열린다. 메뉴·게시판 목록·목차에는 안 보인다.
+3. 화면 눈 확인 안 함 — mobility 로 로그인해 경영관리 탭 줄 = 스텔란티스 하나, 왼쪽 메뉴에 비교·경영표준 없음.
 
-**검증**: `npm run check-all` 통과(lint·format·typecheck · vitest 773) · `verify_docs` 는 기존 `docs/gotchas-data-collection.md` 상한 초과 1건(101,698B / 100,808B · 이번 변경 무관 · 미수정).
+**검증**: `npm run check-all` 통과(로컬 master vitest 774 · 원격 기준 작업 폴더 vitest 744) · `verify_docs` 는 기존 `docs/gotchas-data-collection.md` 상한 초과 1건(이번 변경 무관 · 미수정).
 
 ## 이전 상태 · 재개 지점 (2026-11-13 밤, **협력사 페이지 1단계 — 코드·화면 완성 · 적재 0곳(MarkLines 계정 정지 의심) · 미푸시(사용자 지시)**)
 
