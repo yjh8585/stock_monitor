@@ -145,7 +145,7 @@
   2. 투하자본·자금조달 표 — 모든 연속 구간 증감(▲파랑/▼빨강). 투하자본 = 순운전자본(채권+재고−채무) + CAPEX(유형+무형), 자금조달 = 현금+증자+차입금. 전체/연결 고정.
   3. 이인텔리전스 대여금 — KPI 3장(누적/당월/2026 YTD 계획대비 지급율) + 계획 대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적). 소스 `loan_entries`(억원 원본 `loan_eok`).
   - 소스 `finance_entries`. 억원=`value_mwon / 100`. 시점은 과거=연말(annual), 당해연도=최신월(YTD).
-- **org-chart** — 조직도: 시점별 조직도 이미지(비공개 버킷 `org-charts` PNG) + 드롭다운(날짜 — 제목 병기. 같은 날짜에 여러 판이 있다). admin·holdings·mobility 전용(hmobility·guest 차단, `permissions.ts`). 메타는 `org_charts`(사외비, §7-G), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍. 적재는 로컬 `scripts/sync_org_chart.py`(Excel COM).
+- **org-chart** — 조직도: 시점별 조직도 이미지(비공개 버킷 `org-charts` PNG) + 드롭다운(날짜 — 제목 병기. 같은 날짜에 여러 판이 있다). admin·holdings 전용(mobility·hmobility·guest 차단, `permissions.ts` · mobility 는 2026-11-16 부터). 메타는 `org_charts`(사외비, §7-G), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍. 적재는 로컬 `scripts/sync_org_chart.py`(Excel COM).
 - **companies** — 신규 회사 INSERT 폼 → 성공 시 `onboard-company.yml` 자동 트리거(fire-and-forget, INSERT graceful).
 - **upload** (admin 전용) — 월별손익 엑셀(`.xlsx`) 업로드 → `management-excel` 버킷 저장 + `management_uploads` 작업행 INSERT + `sync-management.yml` dry-run dispatch. UI가 `/api/management/upload/[jobId]`를 폴링, 완료 후 admin이 "적재 확정" → apply dispatch → 8 sync 실행 + 8종 태그 일괄 revalidate. 소스 `management_uploads`(사외비, §7-G). admin 역할만 접근(`permissions.ts`).
 
