@@ -910,6 +910,32 @@ GWM 19.8만도 같다). 즉 **국가별 값의 단순 합계는 시장 규모가
 별건으로 `NEXT_REVALIDATE_PROD_URL` 이 워크플로에서 참조되는데 GitHub Secrets 에 없다
 (없는 시크릿은 빈 값으로 넘어가 조용히 아무 일도 안 한다) — 미확인, 다음 회차 후보.
 
+## 이전 상태 · 재개 지점 (2026-11-10, **고객사 페이지 2단계 끝 — 공식 문서 수집·가이던스·물량·실적 일정 + 최종 검토 수정 전량 · 미푸시**)
+
+> 이 세션의 관통 주제: 「고객사」 페이지(`/customers`) 2단계 — 11개 상장 자동차 고객사의 공식 문서(EDGAR·DART·IR 사이트)를 모아 회사별 코드 파서(+코드로 못 뽑는 칸만 LLM)로 가이던스·물량·실적·실적 일정을 뽑고, 인용·숫자 대조를 통과한 행만 화면에 띄운다. 태스크 15개 → 최종 검토 3명 → 수정 22건 + 잔여 Minor 5건까지 끝냈다.
+
+**결과**: 커밋 `bba925e..e4a9e05`(master · **푸시 안 함** — 1단계 화면 커밋부터 원격보다 54개 앞섬). 계획서 `docs/plans/2026-11-09-customers-page-phase2.md` · 결정 기록 `docs/plans/2026-11-09-customers-page_결정이행.md`(2단계-a~ah) · 수집 규칙 `docs/customers-collection.md` · 종료 코드 `docs/commands.md` 「고객사 수집 종료 코드」 · GHA `.github/workflows/collect-customer-docs.yml`(평일 KST 08:00 · 회사별 matrix). SDD 원장 `.superpowers/sdd/2026-11-09-customers-page-phase2/progress.md`(gitignore · 맨 끝 「최종 검토 complete」).
+
+**사용자 지시·선택 (2026-11-10)**: 워크플로 커밋 승인 · GM IR 은 GHA 에서 먼저 시험하고 막히면 사용자 PC · PDF 상한 50MB · 현대·기아 CEO Investor Day 는 AI 가 읽는다 · D7 「넣어도 돼」(NDA 문구 있는 기아 PDF 캡처 허용) · D8 「가로 해」(스텔란티스 IR 자료실 = 3단계, 설계서 「2단계에서 넘어온 것」 절에 기록) · `SEC_USER_AGENT` Secret 은 따로 등록 안 함(기존 스텔란티스 EDGAR 수집기가 `lib/edgar.py` 기본 UA 로 GHA 에서 성공 중 — 2026-08-27 정기 실행).
+
+**비자명한 사실 (재조사 금지)**:
+
+- 공개 레포라 손익 고객명·매출 비중·공급 품목·「○○는 우리 고객」 문장은 코드·시험·주석·커밋 메시지에 금지(OEM 이름은 허용 · 약칭 KGM · 포르쉐 원문 라벨 `Porsche` 는 승인된 예외 · 시험 데이터는 `가나자동차`·`Acme Motors`). 원본 명단·IR 조사는 `참고/고객사/`(gitignore · 이 PC 에만).
+- GM IR 사이트(Akamai)는 실제 Chrome `--headless=new` + 일반 UA + CDP + 페이지 안 fetch 로만 열렸다(이 PC). GHA IP 에서는 미확인 — 스크립트 원형은 세션 scratchpad 였으니 IR 확장 때 `참고/고객사/research/ir_us.md` 를 보고 다시 짠다.
+- 같은 날 DART 공시(code)와 IR 자료(llm)가 같은 전망을 내면 화면(`lib/customers/ir.ts` foldHistory)과 방향 판정(`scripts/lib/guidance_direction.assign`) 둘 다 code 행을 그날의 전망으로 본다 — 한쪽만 바꾸면 화면 배지와 DB direction 이 갈린다.
+- LLM `stated`(상향·유지·하향·철회)는 인용에 근거 낱말이 없으면 지운다(`llm_guidance._STATED_WORDS`). 이미 DB 에 있는 행은 `--reparse` 전까지 옛 값 — PII 문서 303·304 · STLA 317·318 의 4행은 다시 처리하면 stated 가 지워지는 것이 옳다(원문 확인 끝 · 아직 안 돌림).
+- DART 원문 받기: status 013·014(자료·파일 없음)만 영구 실패로 닫고, 키 없음·한도·점검·비-zip 응답은 pending 으로 두어 다음 실행이 다시 집는다.
+- `Architecture.md` 여유 36B(150,939/150,975) · `docs/gotchas-data-collection.md` 여유 30B · AGENTS.md 36,529/36,600 — 고객사 내용을 더 적을 땐 `docs/customers-collection.md` 로.
+- Codex 는 이번 주 한도 게이트(90%)에 걸려 2단계 후반 점검은 서브에이전트가 대신했다.
+
+**재개 지점**: IR 확장 계획서 작성부터. 재료 = `참고/고객사/research/ir_expansion.md`(태스크 T1~T6 · 결정 D1~D9) + 원장 `progress.md` 의 `minor (deferred)` 줄 + `final-fix-list.md` 「받지 않음 / 나중」. 새 계획서는 공개 판 규칙으로 `docs/plans/2026-11-10-customers-ir-expansion.md`. 넣을 것: D1 GM 은 GHA 에서 Chrome CDP 경로 먼저 → 막히면 PC · D2 50MB · D6 기아 CID 는 AI 가 읽고 첫 문서에서 비용 실측 · D4 새 문서 종류 없음 · D9 증권사 리포트 없음 · Codex 표본에서 빠진 연간 가이던스(GM 순이익·조정 전 EPS·자동차 영업현금흐름·capex · VW 조정 마진 약 4%·특별 항목 약 €10bn) · 영구 받기 실패 문서를 사람이 not_target 으로 닫는 절차 · P4 「서식 미인식」 오탐 정리(폴라리스·리비안 expects_numbers) · raised 어간 `increas` 로 느슨해진 stated 거르기(guidance·outlook 낱말과 함께) · 스텔란티스 `TOTAL_LABEL` 대조 · 포드·비상장 OEM 이 matrix 밖 · VW approximately/about.
+
+**푸시 뒤 사용자가 할 일**: GHA `collect-customer-docs.yml` 수동 실행 두 번 — ① `probe_gm_ir` 체크(GM 행만) ② `backfill` 체크(2년 백필 · 첫 실행 회사별 소요로 `timeout-minutes: 40` 확정). 필요하면 `--reparse` 로 위 4행 교정.
+
+**따로 할 일(이번 범위 밖)**: GM 뉴스에 MP Materials 기사 섞임 · 폴라리스 뉴스 · 화면 `-0` 표시 · 스텔란티스 MarkLines 2020 YTD=1.
+
+**검증**: `npm run check-all` EXIT 0(vitest 633) · pytest 750 통과 · `verify_call_contracts`·`verify_revalidate_tags`·`verify_docs` exit 0 · 최종 검토 재검토 P1~P14·T1~T8 전부 해결 · 헤드리스 화면 확인(T 수정분).
+
 ## 이전 상태 · 재개 지점 (2026-11-09, **알루미늄 미국·국제·한국·중국 비교 차트 + 수집기 3종 일반 이름으로**)
 
 > 이 세션의 관통 주제: 구리·열연 비교 차트를 끝낸 뒤 「알류미늄도 동일하게 조사해서 그래프 그려봐」 지시로 알루미늄 원천 4개를 붙이고, 금속마다 따로 있던 수집기 3개를 일반 이름으로 합쳤다.

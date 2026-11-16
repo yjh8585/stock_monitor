@@ -8,7 +8,25 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-13 밤, **협력사 페이지 1단계 — 코드·화면 완성 · 적재 0곳(MarkLines 계정 정지 의심) · 미푸시(사용자 지시)**)
+## 최신 상태 · 재개 지점 (2026-11-16, **모빌리티 계정 경영관리를 스텔란티스 탭만으로 축소 — 커밋만 · 미푸시(협력사 푸시 금지에 묶임)**)
+
+> 사용자 지시 원문(2026-11-16): 「모빌리티 경영관리 페이지 볼수 없게 막아. 사외비 보고서는 볼 수 있게 그대로 유지하고.」 → 곧이어 「아 경영관리 페이지에서 스텔란티스만 볼 수 있게 해줘」(두 번째가 최종).
+
+**결과**:
+
+- `lib/auth/permissions.ts` — `MOBILITY_MANAGEMENT_PATHS = ['/management/stellantis']` 신설. mobility 는 `/management`(랜딩)·`/management/stellantis` 만 통과, `firstManagementPath('mobility')` = 스텔란티스. 조직도 이미지 API(`/api/management/org-chart`)는 admin·holdings 만.
+- 그대로 둔 것: mobility 의 사외비 보고서 열람·게시 · 고객사 · 협력사 · 경영표준 · 챗봇. holdings·hmobility·guest 권한 변화 없음.
+- 탭 줄(`ManagementTabs`)·왼쪽 메뉴·`proxy.ts` 가 전부 `canAccess` 를 쓰므로 판정 함수 한 곳으로 셋이 같이 바뀐다.
+- 시험 `lib/auth/permissions.test.ts` 에 mobility 블록 추가(나머지 9개 탭 차단 · 사외비 권한 유지). Architecture.md 의 「조직도 = admin·holdings·mobility」 4곳 정정.
+
+**🔴 재개 지점**:
+
+1. **운영 미반영** — 커밋은 로컬 master 에만 있다. 그 아래 협력사 커밋 23개 + KG 수정 `2f9fe7c` 가 「푸시 금지」(위 블록·2026-11-13 4차 지시)에 묶여 master 를 그대로 올릴 수 없다. 이 권한 변경만 먼저 올리려면 origin/master 위에 cherry-pick 해 따로 푸시하는 방법이 있다 — **사용자 확인 뒤**(로컬 master 이력 정리가 따라온다).
+2. 화면 눈 확인 안 함 — mobility 로 로그인해 경영관리 탭 줄에 「스텔란티스」 하나만 보이는지.
+
+**검증**: `npm run check-all` 통과(lint·format·typecheck · vitest 773) · `verify_docs` 는 기존 `docs/gotchas-data-collection.md` 상한 초과 1건(101,698B / 100,808B · 이번 변경 무관 · 미수정).
+
+## 이전 상태 · 재개 지점 (2026-11-13 밤, **협력사 페이지 1단계 — 코드·화면 완성 · 적재 0곳(MarkLines 계정 정지 의심) · 미푸시(사용자 지시)**)
 
 > 사용자 지시(원문 = `docs/plans/2026-11-13-suppliers-page_최초지시.md` · 실명판 `참고/협력사/`): `/oem` 아래 「협력사」 — 우리 제품(하프샤프트·얼터네이터)을 공급할 수 있는 업체를 지역별로 모으고 경쟁사 납품 업체부터 컨택 순위. 4차 지시(밤): 「너 때문에 아이디가 정지된것 같은데? … 일단 만들 수 있는것만 만들고 그만해. 정리는 하되 푸시는 하지말고」.
 
@@ -253,29 +271,3 @@
 **검증**: Task 별 — Task 3 시점 `pytest scripts/lib` 763 통과 · Task 4 첫 구현 779 통과 · `npm run check-all` 각 Task 통과(구현자 보고 · 검토자 확인). 마무리 시점 전체 재검증은 PC 종료 때문에 못 돌림(Task 4 수정분이 미커밋이라 지금 트리는 검증 대상 아님).
 
 **푸시 뒤 사용자가 할 일(변경)**: GHA `probe_gm_ir` 수동 실행만(GM IR 접근 시험) — 2년 백필은 E6 으로 이 PC 에서 한다.
-
-## 이전 상태 · 재개 지점 (2026-11-10, **고객사 페이지 2단계 끝 — 공식 문서 수집·가이던스·물량·실적 일정 + 최종 검토 수정 전량 · 미푸시**)
-
-> 이 세션의 관통 주제: 「고객사」 페이지(`/customers`) 2단계 — 11개 상장 자동차 고객사의 공식 문서(EDGAR·DART·IR 사이트)를 모아 회사별 코드 파서(+코드로 못 뽑는 칸만 LLM)로 가이던스·물량·실적·실적 일정을 뽑고, 인용·숫자 대조를 통과한 행만 화면에 띄운다. 태스크 15개 → 최종 검토 3명 → 수정 22건 + 잔여 Minor 5건까지 끝냈다.
-
-**결과**: 커밋 `bba925e..e4a9e05`(master · **푸시 안 함** — 1단계 화면 커밋부터 원격보다 54개 앞섬). 계획서 `docs/plans/2026-11-09-customers-page-phase2.md` · 결정 기록 `docs/plans/2026-11-09-customers-page_결정이행.md`(2단계-a~ah) · 수집 규칙 `docs/customers-collection.md` · 종료 코드 `docs/commands.md` 「고객사 수집 종료 코드」 · GHA `.github/workflows/collect-customer-docs.yml`(평일 KST 08:00 · 회사별 matrix). SDD 원장 `.superpowers/sdd/2026-11-09-customers-page-phase2/progress.md`(gitignore · 맨 끝 「최종 검토 complete」).
-
-**사용자 지시·선택 (2026-11-10)**: 워크플로 커밋 승인 · GM IR 은 GHA 에서 먼저 시험하고 막히면 사용자 PC · PDF 상한 50MB · 현대·기아 CEO Investor Day 는 AI 가 읽는다 · D7 「넣어도 돼」(NDA 문구 있는 기아 PDF 캡처 허용) · D8 「가로 해」(스텔란티스 IR 자료실 = 3단계, 설계서 「2단계에서 넘어온 것」 절에 기록) · `SEC_USER_AGENT` Secret 은 따로 등록 안 함(기존 스텔란티스 EDGAR 수집기가 `lib/edgar.py` 기본 UA 로 GHA 에서 성공 중 — 2026-08-27 정기 실행).
-
-**비자명한 사실 (재조사 금지)**:
-
-- 공개 레포라 손익 고객명·매출 비중·공급 품목·「○○는 우리 고객」 문장은 코드·시험·주석·커밋 메시지에 금지(OEM 이름은 허용 · 약칭 KGM · 포르쉐 원문 라벨 `Porsche` 는 승인된 예외 · 시험 데이터는 `가나자동차`·`Acme Motors`). 원본 명단·IR 조사는 `참고/고객사/`(gitignore · 이 PC 에만).
-- GM IR 사이트(Akamai)는 실제 Chrome `--headless=new` + 일반 UA + CDP + 페이지 안 fetch 로만 열렸다(이 PC). GHA IP 에서는 미확인 — 스크립트 원형은 세션 scratchpad 였으니 IR 확장 때 `참고/고객사/research/ir_us.md` 를 보고 다시 짠다.
-- 같은 날 DART 공시(code)와 IR 자료(llm)가 같은 전망을 내면 화면(`lib/customers/ir.ts` foldHistory)과 방향 판정(`scripts/lib/guidance_direction.assign`) 둘 다 code 행을 그날의 전망으로 본다 — 한쪽만 바꾸면 화면 배지와 DB direction 이 갈린다.
-- LLM `stated`(상향·유지·하향·철회)는 인용에 근거 낱말이 없으면 지운다(`llm_guidance._STATED_WORDS`). 이미 DB 에 있는 행은 `--reparse` 전까지 옛 값 — PII 문서 303·304 · STLA 317·318 의 4행은 다시 처리하면 stated 가 지워지는 것이 옳다(원문 확인 끝 · 아직 안 돌림).
-- DART 원문 받기: status 013·014(자료·파일 없음)만 영구 실패로 닫고, 키 없음·한도·점검·비-zip 응답은 pending 으로 두어 다음 실행이 다시 집는다.
-- `Architecture.md` 여유 36B(150,939/150,975) · `docs/gotchas-data-collection.md` 여유 30B · AGENTS.md 36,529/36,600 — 고객사 내용을 더 적을 땐 `docs/customers-collection.md` 로.
-- Codex 는 이번 주 한도 게이트(90%)에 걸려 2단계 후반 점검은 서브에이전트가 대신했다.
-
-**재개 지점**: IR 확장 계획서 작성부터. 재료 = `참고/고객사/research/ir_expansion.md`(태스크 T1~T6 · 결정 D1~D9) + 원장 `progress.md` 의 `minor (deferred)` 줄 + `final-fix-list.md` 「받지 않음 / 나중」. 새 계획서는 공개 판 규칙으로 `docs/plans/2026-11-10-customers-ir-expansion.md`. 넣을 것: D1 GM 은 GHA 에서 Chrome CDP 경로 먼저 → 막히면 PC · D2 50MB · D6 기아 CID 는 AI 가 읽고 첫 문서에서 비용 실측 · D4 새 문서 종류 없음 · D9 증권사 리포트 없음 · Codex 표본에서 빠진 연간 가이던스(GM 순이익·조정 전 EPS·자동차 영업현금흐름·capex · VW 조정 마진 약 4%·특별 항목 약 €10bn) · 영구 받기 실패 문서를 사람이 not_target 으로 닫는 절차 · P4 「서식 미인식」 오탐 정리(폴라리스·리비안 expects_numbers) · raised 어간 `increas` 로 느슨해진 stated 거르기(guidance·outlook 낱말과 함께) · 스텔란티스 `TOTAL_LABEL` 대조 · 포드·비상장 OEM 이 matrix 밖 · VW approximately/about.
-
-**푸시 뒤 사용자가 할 일**: GHA `collect-customer-docs.yml` 수동 실행 두 번 — ① `probe_gm_ir` 체크(GM 행만) ② `backfill` 체크(2년 백필 · 첫 실행 회사별 소요로 `timeout-minutes: 40` 확정). 필요하면 `--reparse` 로 위 4행 교정.
-
-**따로 할 일(이번 범위 밖)**: GM 뉴스에 MP Materials 기사 섞임 · 폴라리스 뉴스 · 화면 `-0` 표시 · 스텔란티스 MarkLines 2020 YTD=1.
-
-**검증**: `npm run check-all` EXIT 0(vitest 633) · pytest 750 통과 · `verify_call_contracts`·`verify_revalidate_tags`·`verify_docs` exit 0 · 최종 검토 재검토 P1~P14·T1~T8 전부 해결 · 헤드리스 화면 확인(T 수정분).
