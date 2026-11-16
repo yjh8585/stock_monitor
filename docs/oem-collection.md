@@ -153,15 +153,15 @@ MarkLines `vehicle_production/member` 페이지의 **China 카드 엑셀 3종**(
 - 내용으로 종류를 가려 `참고/oem 판매량`·`oem 생산량`·`oem 중국` 의 정해진 이름으로 두고 적재한다. 같은 내용이면 「변경 없음」으로 건너뛴다. 끝에 결과 표가 나온다.
 - 일부만 받아도 된다(못 찾은 파일은 경고만). 미리 보기 = `--dry-run` · 다른 폴더 = `--dir <폴더>`.
 - 판매·생산은 최신 롤링 파일만 올린다(옛 연도 파일은 바뀌지 않는다). 판매 적재가 `refresh_oem_agg_views()` 까지 부른다.
-- 알림 = agents 오케스트레이터 잡 `remind:marklines-excel`(매주 월 09:00 · PC 가 꺼져 있으면 다음 날 아침 브리핑에 「안 돈 작업」으로 뜬다).
+- 알림 = agents 오케스트레이터 잡 `remind:marklines-excel`(매주 월 09:00 · 그 시각에 PC 가 꺼져 있었으면 봇이 켜질 때 한 번 따라 보낸다 — 새 코드는 봇 재기동 뒤부터).
 
-`/oem` 대시보드의 원천 2종은 회사별 탭과 달리 **MarkLines 사이트에서 Excel 을 받아 적재**한다. 둘은 같은 세션 쿠키(`MARKLINES_COOKIE`)를 쓰지만 **페이지도 레이아웃도 다르므로 한쪽 코드를 그대로 복제하지 말 것.**
+`/oem` 대시보드의 원천 2종은 회사별 탭과 달리 **MarkLines 사이트에서 Excel 을 받아 적재**한다(2026-11-16 부터 받기는 위 수동 절차 · 쿠키 삭제). 두 파일은 **페이지도 레이아웃도 다르므로 한쪽 코드를 그대로 복제하지 말 것.**
 
 - **판매량** — `sync_oem_excel.py`(다운로드) + `import_oem_sales.py`(적재).
 - **생산량** — `sync_oem_production_excel.py` + `import_oem_production.py`. 판매량과 **같은 쿠키·다른 페이지(`vehicle_production`)·다른 레이아웃**(메타 6열, PowerTrain 없음). ⚠️ **파일명이 `product_data`(≠`production_data`)** 라서 링크 탐지가 `EXPECTED_FILE_TOKEN` 으로 판매 링크를 배제한다 — 이름이 헷갈려 판매 파일을 생산으로 집는 사고를 막는 장치이니 지우지 말 것. 이력 파일은 `참고/oem 생산량/*_20NN_en.xlsx`, 최신은 롤링 `MarkLines_product_data_en.xlsx`(2024.01~)로 판매와 동일 구조다.
 - **세그먼트 매핑** — `import_oem_model_segment.py` 가 같은 판매 엑셀들(`참고/oem 판매량/MarkLines_sales_data*.xlsx` 전부)의 메타 7열(Country·Group·Maker/Brand·Type·Segment·Model·PowerTrain)을 `oem_model_segment`(PK `model`+`country`, 파서는 순수 함수 `scripts/lib/model_segment.py`)에 적재한다. 92만 행짜리 `oem_sales_model_country_month` 를 UPDATE 하지 않으려고 **별도 테이블로 분리**했다(전 행 UPDATE 는 WAL 을 폭증시킨다 — 2026-08-03 Supabase 용량 사고 이력). 멱등이라 재실행 안전. ⚠️ 이 엑셀은 `read_only=True` 로 열면 **조용히 0행**이 나온다 → [`gotchas-data-collection.md`](./gotchas-data-collection.md).
 
-적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 과 `/oem/competition` 판매 추이가 옛 값을 조용히 보여준다. 이 RPC 가 갱신하는 구체화 뷰는 3종). 쿠키 만료·단일 디바이스 정책은 AGENTS.md 「Python 스크립트 규칙」이 정본.
+적재 후 **구체화 뷰 갱신(`refresh_oem_agg_views()` RPC)이 필수**다(자동 갱신되지 않는다 — 빼먹으면 `/oem` 과 `/oem/competition` 판매 추이가 옛 값을 조용히 보여준다. 이 RPC 가 갱신하는 구체화 뷰는 3종). 수동 적재는 판매 적재(`import_oem_sales.main`)가 이 RPC 를 부르므로 따로 할 일이 없다.
 
 ---
 
