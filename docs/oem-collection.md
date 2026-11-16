@@ -148,12 +148,12 @@ MarkLines `vehicle_production/member` 페이지의 **China 카드 엑셀 3종**(
 | 5   | 중국 승용차 올해 | 주소창에 `https://www.marklines.com/en/vehicle_production/preset/excel/month?nationCode=CHN&fromYear=<올해>&toYear=<올해>&excelDownloadMethod=1` | 열면 바로 받아진다                                                                                       |
 | 6   | 중국 승용차 작년 | 5번 주소에서 연도 두 곳만 작년으로                                                                                                               | 작년 수치가 연초까지 고쳐져서 같이 받는다                                                                |
 
-받은 뒤 레포 폴더에서: `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/import_marklines_manual.py`
+받은 뒤 레포 폴더에서: `scripts/venv/Scripts/python.exe -X utf8 scripts/import_marklines_manual.py`
 
 - 내용으로 종류를 가려 `참고/oem 판매량`·`oem 생산량`·`oem 중국` 의 정해진 이름으로 두고 적재한다. 같은 내용이면 「변경 없음」으로 건너뛴다. 끝에 결과 표가 나온다.
 - 일부만 받아도 된다(못 찾은 파일은 경고만). 미리 보기 = `--dry-run` · 다른 폴더 = `--dir <폴더>`.
 - 판매·생산은 최신 롤링 파일만 올린다(옛 연도 파일은 바뀌지 않는다). 판매 적재가 `refresh_oem_agg_views()` 까지 부른다.
-- 알림 = agents 오케스트레이터 잡 `remind:marklines-excel`(매주 월 09:00 · 그 시각에 PC 가 꺼져 있었으면 봇이 켜질 때 한 번 따라 보낸다 — 새 코드는 봇 재기동 뒤부터).
+- 알림 = agents 오케스트레이터 잡 `remind:marklines-excel`(매주 월 09:00 · 그 시각에 PC 가 꺼져 있었으면 7일 안에 봇이 켜질 때 한 번 따라 보낸다).
 
 `/oem` 대시보드의 원천 2종은 회사별 탭과 달리 **MarkLines 사이트에서 Excel 을 받아 적재**한다(2026-11-16 부터 받기는 위 수동 절차 · 쿠키 삭제). 두 파일은 **페이지도 레이아웃도 다르므로 한쪽 코드를 그대로 복제하지 말 것.**
 
@@ -255,7 +255,7 @@ gh run download <id> -n marklines-raw
 
 ## 🔴 MarkLines 쿠키가 «두 곳»에 있고, 껍데기 쪽이 이기면 조용히 유료 벽을 받는다 (2026-09-15 실측)
 
-> ⛔ **2026-11-16 두 곳 모두에서 쿠키를 지웠다** — 아래는 기록으로만 남긴다.
+> ⛔ **2026-11-16 두 곳 모두에서 쿠키를 지웠다**(+ GitHub 비밀값 · Vercel 운영 환경변수 `MARKLINES_COOKIE`·`MARKLINES_EMAIL`·`MARKLINES_PASSWORD`) — 아래는 기록으로만 남긴다.
 
 같은 이름 `MARKLINES_COOKIE` 가 **두 파일에 다른 값으로** 들어 있다.
 

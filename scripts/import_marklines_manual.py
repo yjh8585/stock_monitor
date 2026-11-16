@@ -9,7 +9,7 @@ GHA 4개)을 껐다. 🔴 이 스크립트는 MarkLines 에 **아무 요청도 �
 
 | 종류       | 알아보는 법                                         | 놓는 곳                                    |
 | ---------- | --------------------------------------------------- | ------------------------------------------ |
-| sales      | Sheet1 2행 7번째 칸 = PowerTrain                    | 참고/oem 판매량/MarkLines_sales_data_en.xlsx  |
+| sales      | 7번째 칸 = PowerTrain + 월 칸이 여러 해(2024.01~)   | 참고/oem 판매량/MarkLines_sales_data_en.xlsx  |
 | production | 메타 6칸 + 월 칸이 여러 해(2024.01~)                | 참고/oem 생산량/MarkLines_product_data_en.xlsx |
 | passenger  | 메타 6칸 + 월 칸이 한 해 + 나라가 China 뿐          | 참고/oem 중국/china_passenger_YYYY.xlsx       |
 | export     | 시트 이름이 「YYYY by …」                           | 참고/oem 중국/china_exp_en.xlsx               |
@@ -50,7 +50,7 @@ import sync_oem_china_excel as scx  # noqa: E402
 import sync_oem_excel  # noqa: E402
 import sync_oem_production_excel  # noqa: E402
 
-META6 = ('Country', 'Group', 'Maker/Brand', 'Type', 'Segment', 'Model')
+META6 = sync_oem_production_excel.EXPECTED_HEADER_PREFIX  # 메타 6칸 정본 — 다시 적지 않는다
 EXPORT_SHEET_RE = re.compile(r'^\d{4} by ')
 SALES_TARGET = sync_oem_excel.TARGET_FILE
 PRODUCTION_TARGET = sync_oem_production_excel.TARGET_FILE
@@ -77,14 +77,15 @@ def classify_header(sheetnames: list[str], header: list, countries: set) -> tupl
     return 'export', None
   if tuple(header[:6]) != META6:
     return None, None
-  if len(header) > 6 and header[6] == 'PowerTrain':
-    return 'sales', None
-  months = [m for m in (_yyyymm(v) for v in header[6:]) if m]
+  is_sales = len(header) > 6 and header[6] == 'PowerTrain'
+  months = [m for m in (_yyyymm(v) for v in header[7 if is_sales else 6:]) if m]
   if not months:
     return None, None
   years = {m // 100 for m in months}
   if len(years) > 1:
-    return 'production', None
+    return ('sales' if is_sales else 'production'), None
+  if is_sales:
+    return None, None  # 판매 연도별 이력 파일(…_2023_en) — 롤링 파일로 덮으면 그 해가 두 번 더해진다(2026-11-16 검토)
   # 생산 연도별 이력 파일(…_2021_en)도 한 해짜리라, 나라가 중국뿐일 때만 승용차로 본다(첫 행만 보면 China 가 먼저 나와 오인 — 2026-11-16 실측)
   if countries == {'China'}:
     return 'passenger', years.pop()
@@ -106,7 +107,7 @@ def classify(path: Path) -> tuple[str | None, int | None]:
   try:
     sheets = list(wb.sheetnames)
     if any(EXPORT_SHEET_RE.match(s) for s in sheets):
-      return 'export', None
+      return classify_header(sheets, [], set())  # 수출 판정은 classify_header 한 곳 — 무거운 시트는 안 읽는다
     ws = wb[sheets[0]]
     header = [v for v in next(ws.iter_rows(min_row=2, max_row=2, values_only=True)) if v is not None]
     countries = {r[0] for r in ws.iter_rows(min_row=3, max_col=1, values_only=True) if r[0]}
@@ -132,10 +133,18 @@ def _rolling(kind: str, src: Path, dry_run: bool) -> str:
     return '변경 없음'
   if dry_run:
     return '적재 예정(dry-run)'
+  # 🔴 적재가 끝난 뒤에 제자리로 복사한다 — 먼저 바꾸면 실패한 회차 다음 실행이 「변경 없음」으로 건너뛰어
+  #    그 주 자료가 영영 안 올라간다(sync_oem_china_excel.sync_one 과 같은 순서 · 2026-11-16 검토)
+  try:
+    rc = importer.main([src])
+  except Exception as e:
+    logger.exception(f'{src.name} 적재 실패')
+    return f'실패(적재: {e})'
+  if rc != 0:
+    return f'실패(적재 rc={rc})'
   target.parent.mkdir(parents=True, exist_ok=True)
   shutil.copy2(src, target)
-  rc = importer.main([target])
-  return '적재 완료' if rc == 0 else f'실패(적재 rc={rc})'
+  return '적재 완료'
 
 
 def _china(kind: str, year: int | None, src: Path, dry_run: bool):
@@ -149,14 +158,19 @@ def _china(kind: str, year: int | None, src: Path, dry_run: bool):
   scx.imp.CHINA_DIR.mkdir(parents=True, exist_ok=True)
   with tempfile.NamedTemporaryFile(prefix='marklines_manual_', suffix=src.suffix, delete=False) as f:
     tmp = Path(f.name)
-  shutil.copy2(src, tmp)  # sync_one 은 넘긴 파일을 옮기거나 지운다 — 사용자 원본을 지키려고 사본을 준다
   try:
+    shutil.copy2(src, tmp)  # sync_one 은 넘긴 파일을 옮기거나 지운다 — 사용자 원본을 지키려고 사본을 준다
     res = scx.sync_one(kind, tmp, target, parse, dry_run)
   except scx.SyncError as e:
     return f'실패({e})', None
+  except Exception as e:
+    logger.exception(f'{src.name} 처리 실패')
+    return f'실패({e})', None
+  finally:
+    tmp.unlink(missing_ok=True)  # sync_one 이 이미 옮겼으면 없다
   if res is None:
     return '변경 없음', None
-  return ('검증 통과(dry-run)' if dry_run else '적재 완료'), res
+  return ('검증 통과(dry-run · 변경 비교 생략)' if dry_run else '적재 완료'), res
 
 
 def pick_files(folder: Path, days: int) -> dict[tuple[str, int | None], Path]:
@@ -213,8 +227,11 @@ def main(argv: list[str] | None = None) -> int:
     elif kind == 'passenger' and res is not None:
       passengers.append(res)
   if passengers:  # 자동 수집기와 같은 교차 검증(승용차 합계 ↔ 배기량 표)
-    nev = nev or scx.imp.parse_nev_file(scx.imp.NEV_FILE)[0]
-    for res in passengers:
+    if nev is None and scx.imp.NEV_FILE.exists():
+      nev = scx.imp.parse_nev_file(scx.imp.NEV_FILE)[0]
+    if nev is None:
+      logger.warning('배기량·NEV 표가 없어 승용차 교차 검증을 건너뛴다 — 3번 파일도 받아 다시 돌리면 확인된다')
+    for res in passengers if nev is not None else []:
       scx.imp.cross_check(nev, res)
 
   missing = [LABEL[k] for k in ('sales', 'production', 'nev', 'export') if (k, None) not in found]

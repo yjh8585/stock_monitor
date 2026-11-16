@@ -9,7 +9,18 @@ META = ['Country', 'Group', 'Maker/Brand', 'Type', 'Segment', 'Model']
 
 
 def test_sales_has_powertrain_column():
-  assert classify_header(['Sheet1'], META + ['PowerTrain', 202401.0, 202402.0], {'China'}) == ('sales', None)
+  assert classify_header(['Sheet1'], META + ['PowerTrain', 202401.0, 202512.0, 202601.0], {'China', 'Japan'}) == ('sales', None)
+
+
+def test_sales_yearly_history_is_unknown():
+  # 판매 연도별 이력 파일(…_2023_en)을 롤링 파일로 덮으면 그 해가 두 번 더해진다 — 2026-11-16 검토
+  assert classify_header(['Sheet1'], META + ['PowerTrain', 202301.0, 202312.0], {'China', 'Japan'}) == (None, None)
+
+
+def test_meta_mismatch_with_months_is_unknown():
+  # 월 칸이 있어도 메타 6칸이 다르면 MarkLines 파일이 아니다(메타 검사를 지우면 이 시험이 깨진다)
+  other = ['Nation', 'Group', 'Maker/Brand', 'Type', 'Segment', 'Model']
+  assert classify_header(['Sheet1'], other + [202401.0, 202512.0], {'China', 'Japan'}) == (None, None)
 
 
 def test_production_rolling_spans_years():

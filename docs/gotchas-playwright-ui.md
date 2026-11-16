@@ -160,6 +160,7 @@
 - **증상** — dev 서버를 껐다 켜며 촬영한 뒤 `npm run typecheck` 가 내 코드가 아니라 `.next/dev/types/routes.d.ts`(·`validator.ts`) 의 `Unterminated template literal` 로 실패했다. 파일을 열면 정상 끝(`}`) 뒤에 **앞부분 조각이 한 번 더 붙어 있다.** 같은 코드로 한 시간 전 타입 검사는 통과했다.
 - **원인 미확인** — 그때 C: 여유가 1.1~1.6GB(100%)였고 첫 기동은 모든 경로가 404 라 한 번 재기동했다. 디스크 부족 또는 쓰기 도중 종료로 보이나 확인하지 못했다.
 - **처방(실측)** — 이 파일들은 `next-env.d.ts` 가 직접 불러와 tsconfig `exclude` 로 뺄 수 없다. dev 서버를 끄고 `.next` 를 통째 지운 뒤 `npx next typegen` → `.next/types/` 에 새로 만들고 `next-env.d.ts`(git 미추적)도 그쪽을 가리키게 다시 써서 `check-all` 이 통과했다(dev 서버 기동 불필요 · 약 4GB 가 비었다 · 다음 dev 기동은 캐시가 없어 느리다). **내 코드 회귀로 오진해 소스를 고치지 말 것.**
+- 라우트를 지운 뒤 `validator.ts` 가 `Cannot find module` 이면 `npx next typegen` 한 번(2026-11-16).
 
 ## 컴포넌트 함정 (AGENTS.md에서 이관, 2026-08-12)
 
