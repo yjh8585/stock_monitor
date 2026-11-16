@@ -368,7 +368,7 @@ deprecated — `stock_prices`로 통합 중. 새 코드는 stock_prices 사용.
 
 - `lib/oem/source.ts`가 뷰1은 `TARGET_YEAR`만, 뷰2는 전체 기간 fetch. 앱 코드는 전환 전후가 동일하다(이름·컬럼·타입 불변, PostgREST는 구체화 뷰도 그대로 조회).
 - 유니크 인덱스 `(year, oem_group, country)`·`(oem_group, year_month)` — `.eq('year')` 조회와 `.order()` 결정적 페이지네이션이 이 인덱스를 탄다. 앞으로 `REFRESH ... CONCURRENTLY`를 쓸 여지도 남긴다.
-- 🔴 **자동 갱신되지 않는다.** 원본 적재 후 `refresh_oem_agg_views()`(service_role 전용 RPC)를 불러야 한다. `import_oem_sales.py`가 upsert 직후 호출하며, 적재 경로는 그 `main()` 하나로 수렴한다(`sync_oem_excel.py`도 이를 호출). **빼먹으면 `/oem`이 옛 값을 조용히 보여준다** — 옛 서술 "뷰는 실시간 반영이라 원본 무효화로 자동 갱신"은 이제 **사실이 아니다**. `cacheTag`는 원본 테이블 태그를 계속 쓴다(캐시 무효화와 뷰 갱신은 별개 축).
+- 🔴 **자동 갱신되지 않는다.** 원본 적재 후 `refresh_oem_agg_views()`(service_role 전용 RPC)를 불러야 한다. `import_oem_sales.py`가 upsert 직후 호출하며, 적재 경로는 그 `main()` 하나로 수렴한다(수동 적재도 이를 호출). **빼먹으면 `/oem`이 옛 값을 조용히 보여준다** — 옛 서술 "뷰는 실시간 반영이라 원본 무효화로 자동 갱신"은 이제 **사실이 아니다**. `cacheTag`는 원본 테이블 태그를 계속 쓴다(캐시 무효화와 뷰 갱신은 별개 축).
 
 > ⚠️ **지표 정의**: 위 5개 테이블 + 2개 뷰는 전부 MarkLines `vehicle_sales` export **하나**에서 파생되며 **판매(소매/신차등록)** 다. 출하·생산이 아니다(`import_oem_sales.py`의 단일 `aggregate()`가 소스). 프로젝트 전체에서 **출하(도매)는 `stellantis_shipments`·`hyundai_sales`·`kia_sales`·`kg_mobility_sales`뿐**이고, **생산은 `oem_production_model_country_month`(아래)·`uzbekistan_auto_stats`(`kind='production'`)뿐**이다.
 
@@ -423,7 +423,7 @@ Python 수집기와 SQL 검증이 같은 값을 보도록 DB를 SSOT로 둔 **�
 - **⚠️ `country`가 판매 테이블과 의미가 정반대다** — 여기선 **생산국**, `oem_sales_*`에선 **판매 시장**. 이름이 같아 차감하기 쉽지만 그러면 국가 간 수출입이 결과에 섞인다. `/management/stellantis` 차트 1이 이 차감을 하고 있고, 그래서 "항등식이 아니라 근사"라고 화면에 밝힌다.
 - 소스는 MarkLines **`vehicle_production`** export(판매와 **다른 페이지·다른 레이아웃** — 메타 6열, PowerTrain 컬럼 없음, 월은 인덱스 6부터). 파일명이 `product_data`(≠`production_data`).
 - 판매(92만 행)의 1/7 크기라 앱 전량 fetch가 가능 — 집계 뷰 불필요.
-- 이력 적재 `import_oem_production.py`(`참고/oem 생산량/*.xlsx` glob), 주간 갱신 `sync_oem_production_excel.py`(§10).
+- 이력 적재 `import_oem_production.py`(`참고/oem 생산량/*.xlsx` glob), 갱신은 수동 `import_marklines_manual.py`(§10).
 - **월 컬럼이 데이터보다 앞서 나간다**(헤더는 202612까지, 값은 202606까지) → 파서가 비수치·0 셀을 건너뛴다. 안 그러면 미래 월이 0으로 적재돼 갭이 허구가 된다.
 
 #### `stellantis_shipments` (21행, 신규 `20260716000001`) — Stellantis IR 북미 도매 출하
@@ -508,7 +508,7 @@ MarkLines 중국 전용 엑셀 3종을 그대로 담는다(전 세계 생산 `oe
 - 🔴 **`cn_group` 은 중국 모회사**(FAW-VW·FAW-Toyota → FAW)다 — 글로벌 그룹인 `oem_group` 과 뜻이 다르니 섞지 말 것. 해마다 바뀐 표기는 `scripts/lib/china_excel.py` 의 `GROUP_ALIASES` 가 맞추고, 모회사가 `n.a.` 이면 브랜드명을 넣는다. 브랜드 칸(`maker_brand`·`brand`)은 「MG (2006-)」 같은 설립 연도 꼬리를 뗀 값이다(`canonical_brand`).
 - 승용(Sedan/Hatchback·SUV·MPV·Mini Van)만 싣는다. `ev_tag` 는 **모델 단위 표기**(`EV/PHV/ICE` 등)라 물량이 파워트레인별로 쪼개진 값이 아니다 — 2021 이전은 열이 없어 `null`.
 - RLS = anon 읽기 공개 · service_role 쓰기. 세 테이블 모두 `trg_skip_identical_update` 부착(§7-J — 같은 값 upsert 는 0행).
-- 적재 = `sync_oem_china_excel.py`(주간, §10) → `import_oem_china.py`(파일에 든 연도 범위 안에서 파일에 없는 키는 지운다 — upsert 앞에서 판정하고, 기존의 5% 를 넘으면 아무것도 쓰지 않고 멈춘다). 화면 조립·짝짓기 표 → [`docs/plans/2026-10-29-oem-china-tab.md`](./docs/plans/2026-10-29-oem-china-tab.md).
+- 적재 = `import_marklines_manual.py`(수동, §10) → `import_oem_china.py`(파일에 든 연도 범위 안에서 파일에 없는 키는 지운다 — upsert 앞에서 판정하고, 기존의 5% 를 넘으면 아무것도 쓰지 않고 멈춘다). 화면 조립·짝짓기 표 → [`docs/plans/2026-10-29-oem-china-tab.md`](./docs/plans/2026-10-29-oem-china-tab.md).
 
 ---
 
@@ -845,11 +845,11 @@ GHA runner: sync_management_excel.py (apply)
 | 한세 종목토론 | collect-naver-board (GHA Node tsx 직접) | 30분 |
 | 한세 분봉 | collect-hansae-intraday (KIS) | 5분 |
 | OEM 차종 경쟁 분석 | collect-oem-model-outlook (**핵심 차종 경쟁 분석 수집** — 핵심 차종 10종에 대해 MarkLines 판매 + `oem_competitor_set` 경쟁군 비교 + Perplexity 웹검색 + NHTSA 리콜 + Cox 재고일수를 Claude Sonnet 5 에 넣어 `oem_model_outlook` 적재. `PERPLEXITY_API_KEY` 미설정 시 **웹검색만 조용히 스킵하고 exit 0** — 실패가 아니라 분석 품질 저하로만 나타나 놓치기 쉽다. 회당 약 $0.73 → 연 $8.8) | 매월 21일 06:30 KST (`30 21 20 * *`) — 판매(MarkLines)·재고(Cox)가 월 1회 갱신이라 주 1회는 같은 숫자에 문장만 바뀌는 노이즈였다. 21일인 이유는 전월 판매와 Cox 수집(20일)이 끝난 뒤라서 |
-| OEM MarkLines Excel | sync-oem-excel (판매량 `vehicle_sales`), sync-oem-production-excel (생산량 `vehicle_production`, 10분 뒤 — 같은 쿠키로 동시 세션을 열면 로그인이 무효화될 수 있어 순차), sync-oem-china-excel (중국 전용 엑셀 3종 → `oem_china_*`, 다시 10분 뒤. 지난 회차 파일을 `actions/cache` 로 이어받아 바뀐 파일만 적재 — md5, 승용차는 읽은 행 비교) | 주 1회 (월 10:00 / 10:10 / 10:20 KST) |
+| OEM MarkLines Excel | sync-oem-excel · sync-oem-production-excel · sync-oem-china-excel — **2026-11-16 꺼짐**(약관 7조 9항 자동 다운로드 금지 · 다시 켜지 말 것). 대신 사용자가 브라우저로 받아 `import_marklines_manual.py`([oem-collection](./docs/oem-collection.md)) | 꺼짐 (매주 월 09:00 텔레그램 알림 · agents) |
 | OEM 우즈벡 | collect-uzbekistan-sales (uzavtosanoat 판매), collect-uzbekistan-production (stat.uz 차종별 생산, 텍스트+이미지 비전) | 매월 20·28일 |
 | OEM 스텔란티스 | collect-stellantis-na-sales (prnewswire 미국 소매 판매), collect-stellantis-shipments-ir (**primary** — stellantis.com IR 홈페이지 분기 출하, Playwright), collect-stellantis-shipments (**보완** — SEC EDGAR 북미 도매 출하, IR 직접값 보존 가드) | IR: 1/4/7/10월 16·22·28일 · EDGAR: 2/5/8/11월 27일 |
 | 신차 재고 (Cox) | collect-cox-inventory (coxautoinc 브랜드별 재고일수, 차트 이미지 비전 판독) | 매월 20일 |
-| MarkLines 임시 조사 | marklines-adhoc-fetch (`scripts/fetch_marklines_adhoc.py` — Secrets 쿠키로 페이지를 받아 **artifact `marklines-raw`** 로 내려보낸다. DB 미접근·읽기만. 쿠키를 꺼낼 수 없을 때의 우회 통로 — 경위 = [history](./docs/history/Architecture-경위.md)) | 수동 (`workflow_dispatch` 전용) |
+| MarkLines 임시 조사 | marklines-adhoc-fetch — **2026-11-16 꺼짐**(위와 같은 이유) | 꺼짐 |
 | 보강 | enrich-company (재무 + 메타: 설명·제품·고객사·홈페이지 + **비상장 기업가치**. `business_summary` 는 한국어 판정을 통과해야 보강 완료로 본다 — 값이 차 있어도 영어면 다시 조사한다) | 매월 1일 |
 | 휴머노이드 | collect-humanoid (`enrich_company.py --page humanoid` + `collect_news.py`. 전역 워크플로가 분기(재무)·월(메타) 주기라 신규 등재·비상장 비중이 큰 이 페이지만 따로 당겨 돈다) | 주 1회 (월 05:00 KST) |
 | 증권사 리포트 | collect-naver-research (네이버 리서치 목록·메타. 🔴 **요약은 없다** — agents 레포 헤드리스 CLI(구독 인증)라 러너에서 못 돈다. 선별은 `is_relevant()` 로 수집 단계에서 끝나며 비관련은 저장 자체를 안 한다) | 평일 18:00 KST |
@@ -989,6 +989,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 | `sync_oem_excel.py` · `import_oem_sales.py`                                                                                                              | MarkLines 판매량                                                             |
 | `sync_oem_production_excel.py` · `import_oem_production.py`                                                                                              | MarkLines 생산량 — 판매량과 **페이지·레이아웃·파일명이 달라** 코드 복제 금지 |
 | `sync_oem_china_excel.py` · `import_oem_china.py`                                                                                                        | MarkLines 중국 엑셀 3종(`/oem/china`) — 쿠키 세션만 생산량 sync 에서 빌린다  |
+| `import_marklines_manual.py` (수동 적재)                                                                                                                 | 받은 엑셀을 내용으로 가려 위 3쌍의 검증·적재를 재사용 · MarkLines 요청 0     |
 | `sync_pnl_excel.py` · `sync_pnl_plan.py` · `sync_inventory.py` · `sync_personnel.py` · `sync_pnl_fixed_variable.py` · `sync_finance.py` · `sync_loan.py` | 월별손익 사외비 sync                                                         |
 | `sync_management_excel.py`                                                                                                                               | 위 8종 오케스트레이터 (GHA `workflow_dispatch` 전용)                         |
 | `sync_org_chart.py`                                                                                                                                      | 조직도 — **로컬 전용**(Excel COM 의존, Vercel/GHA 렌더 불가)                 |
@@ -1179,7 +1180,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 
 - 대부분 GHA가 Python을 직접 호출한다(로컬 venv 불필요). 짧은 간격 cron은 curl 트리거(Hobby 제약 회피, `cron-sentiment`), 한세 종목토론은 Vercel 60s timeout 우회로 GHA runner에서 Node tsx 직접 실행(`collect-naver-board.yml`).
 - 신규 onboarding `onboard-company.yml`은 `workflow_dispatch` 전용 — `/api/companies` POST가 INSERT 성공 후 GitHub API로 자동 트리거. Vercel env `GITHUB_PAT` 필요.
-- **`marklines-adhoc-fetch.yml`**(`workflow_dispatch` 전용 · DB 미접근) — MarkLines 쿠키를 꺼낼 수 없을 때의 우회 통로(Actions 안에서 페이지를 받아 artifact로 회수). 스케줄이 없어 남겨 둬도 부작용 없음. 절차·로그인 판정 주의 → [`docs/oem-collection.md`](./docs/oem-collection.md).
+- **`marklines-adhoc-fetch.yml`** — **2026-11-16 꺼짐**(약관 7조 9항 자동 다운로드 금지 · 다시 켜지 말 것).
 - **`collect-yt-report.yml`**(`workflow_dispatch` 전용 · **기본 활성**, 끄려면 Vercel env `YT_AUTO_REPORT=0`) — `/reports/new` 유튜브 제출 시 자동 트리거. 배선·필요 Secrets·봇차단 한계 → [`report.md §2-A`](./report.md).
 
 ### 루트 설정

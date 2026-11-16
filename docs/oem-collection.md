@@ -133,6 +133,28 @@ MarkLines `vehicle_production/member` 페이지의 **China 카드 엑셀 3종**(
 
 ## MarkLines Excel sync — 판매량과 생산량은 다른 페이지·다른 레이아웃
 
+> ⛔ **2026-11-16 부터 자동 수집(`sync_oem_*_excel.py` · GHA)을 쓰지 않는다** — MarkLines 약관 7조 9항(자동 다운로드 금지) 확약. 받는 법은 바로 아래 「수동 적재」. 아래 설명은 적재 쪽(`import_oem_*`)이 그대로라 남긴다.
+
+### MarkLines 엑셀 수동 적재 (매주 월요일 · 텔레그램 알림)
+
+🔴 **브라우저에서 손으로만 받는다**(스크립트·AI·확장 프로그램 금지). 로그인 → 아래 링크를 차례로 열어 파일을 받는다 → 받은 파일은 「다운로드」 폴더에 그대로 둔다(이름을 바꾸지 않아도 된다).
+
+| #   | 파일             | 여는 곳                                                                                                                                          | 누를 것                                                                                                  |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 1   | 판매량           | `https://www.marklines.com/en/vehicle_sales/search?rf=left_menu`                                                                                 | 「Jan 2024 - Latest Month of 20YY」 링크 (`MarkLines_sales_data_en.xlsx`)                                |
+| 2   | 생산량           | `https://www.marklines.com/en/vehicle_production/search?rf=left_menu`                                                                            | 「Jan 2024 - Latest Month of 20YY」 링크 (`MarkLines_product_data_en.xlsx` — 판매 링크와 헷갈리지 말 것) |
+| 3   | 중국 배기량·NEV  | `https://www.marklines.com/en/statistics/product/china_monthly_prod`                                                                             | 엑셀 링크 (`china_monthly_prod_en_<날짜>.xls`)                                                           |
+| 4   | 중국 수출        | `https://www.marklines.com/en/statistics/product/china_export`                                                                                   | 엑셀 링크 (`china_exp_en_<날짜>.xlsx`)                                                                   |
+| 5   | 중국 승용차 올해 | 주소창에 `https://www.marklines.com/en/vehicle_production/preset/excel/month?nationCode=CHN&fromYear=<올해>&toYear=<올해>&excelDownloadMethod=1` | 열면 바로 받아진다                                                                                       |
+| 6   | 중국 승용차 작년 | 5번 주소에서 연도 두 곳만 작년으로                                                                                                               | 작년 수치가 연초까지 고쳐져서 같이 받는다                                                                |
+
+받은 뒤 레포 폴더에서: `PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe scripts/import_marklines_manual.py`
+
+- 내용으로 종류를 가려 `참고/oem 판매량`·`oem 생산량`·`oem 중국` 의 정해진 이름으로 두고 적재한다. 같은 내용이면 「변경 없음」으로 건너뛴다. 끝에 결과 표가 나온다.
+- 일부만 받아도 된다(못 찾은 파일은 경고만). 미리 보기 = `--dry-run` · 다른 폴더 = `--dir <폴더>`.
+- 판매·생산은 최신 롤링 파일만 올린다(옛 연도 파일은 바뀌지 않는다). 판매 적재가 `refresh_oem_agg_views()` 까지 부른다.
+- 알림 = agents 오케스트레이터 잡 `remind:marklines-excel`(매주 월 09:00 · PC 가 꺼져 있으면 다음 날 아침 브리핑에 「안 돈 작업」으로 뜬다).
+
 `/oem` 대시보드의 원천 2종은 회사별 탭과 달리 **MarkLines 사이트에서 Excel 을 받아 적재**한다. 둘은 같은 세션 쿠키(`MARKLINES_COOKIE`)를 쓰지만 **페이지도 레이아웃도 다르므로 한쪽 코드를 그대로 복제하지 말 것.**
 
 - **판매량** — `sync_oem_excel.py`(다운로드) + `import_oem_sales.py`(적재).
@@ -203,6 +225,8 @@ MarkLines `vehicle_production/member` 페이지의 **China 카드 엑셀 3종**(
 
 ## `marklines-adhoc-fetch.yml` — 쿠키를 꺼낼 수 없을 때의 우회 통로
 
+> ⛔ **2026-11-16 꺼짐 · 쿠키 삭제** — 아래는 기록으로만 남긴다(다시 켜면 확약 위반).
+
 (AGENTS.md에서 이관, 2026-08-12 · `workflow_dispatch` 전용 · DB 미접근)
 
 🔴 **2026-09-15 정정 — 「로컬엔 유효한 쿠키가 없다」는 더 이상 사실이 아니다.** `scripts/.env` 의
@@ -230,6 +254,8 @@ gh run download <id> -n marklines-raw
 ---
 
 ## 🔴 MarkLines 쿠키가 «두 곳»에 있고, 껍데기 쪽이 이기면 조용히 유료 벽을 받는다 (2026-09-15 실측)
+
+> ⛔ **2026-11-16 두 곳 모두에서 쿠키를 지웠다** — 아래는 기록으로만 남긴다.
 
 같은 이름 `MARKLINES_COOKIE` 가 **두 파일에 다른 값으로** 들어 있다.
 

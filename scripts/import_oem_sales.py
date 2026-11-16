@@ -140,8 +140,9 @@ def aggregate(rows_iter):
   return group_month, group_pt_month, group_country_month, type_seg_month, model_country_month
 
 
-def main() -> int:
-  excel_paths = sorted(EXCEL_DIR.glob('MarkLines_sales_data*.xlsx'))
+def main(paths: list[Path] | None = None) -> int:
+  """paths 를 주면 그 파일만 적재한다(수동 적재는 최신 롤링 파일만 — 옛 연도 파일까지 매주 다시 올리지 않게)."""
+  excel_paths = sorted(paths) if paths else sorted(EXCEL_DIR.glob('MarkLines_sales_data*.xlsx'))
   if not excel_paths:
     logger.error(f'엑셀 파일 없음: {EXCEL_DIR}')
     return 1

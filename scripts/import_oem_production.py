@@ -120,8 +120,9 @@ def aggregate(rows_iter) -> dict:
     return model_country_month
 
 
-def main() -> int:
-    excel_paths = sorted(EXCEL_DIR.glob(EXCEL_GLOB))
+def main(paths: list[Path] | None = None) -> int:
+    """paths 를 주면 그 파일만 적재한다(수동 적재는 최신 롤링 파일만)."""
+    excel_paths = sorted(paths) if paths else sorted(EXCEL_DIR.glob(EXCEL_GLOB))
     if not excel_paths:
         logger.error(f'엑셀 파일 없음: {EXCEL_DIR}/{EXCEL_GLOB}')
         return 1
