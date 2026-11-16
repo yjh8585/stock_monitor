@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { canAccessConfidentialReports } from '@/lib/auth/permissions';
+import { canReadPost } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
@@ -47,7 +47,7 @@ export async function GET(_req: Request, { params }: RouteContext) {
 
   // 권한 판정을 첨부 유무 판정보다 **먼저** 하고, 실패는 403 이 아니라 404 로 돌려준다.
   // 403/404 가 갈리면 무권한 계정이 id 를 훑어 「사외비 글에 영상 첨부가 있다」를 목록화할 수 있다.
-  if (post?.is_confidential && !canAccessConfidentialReports(user.role)) {
+  if (post && !canReadPost(user.role, post)) {
     return new NextResponse('Not Found', { status: 404 });
   }
   if (!post?.video_path) {

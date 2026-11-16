@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { canAccessConfidentialReports } from '@/lib/auth/permissions';
+import { canReadPost } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
@@ -18,7 +18,7 @@ const BUCKET = 'reports-html';
  *
  * 🔴 사외비 판정은 경로가 아니라 **행 단위**다. `canAccess()` 는 매칭 분기가 없으면
  * true 를 반환하고 `/reports` 는 전 역할 공개라, permissions.ts 에 `/api/reports` 분기를
- * 추가하면 guest 의 정상 열람까지 막힌다. 대신 여기서 post.is_confidential 을 직접 본다.
+ * 추가하면 guest 의 정상 열람까지 막힌다. 대신 여기서 post.is_confidential(과 경영표준 카테고리)을 `canReadPost` 로 직접 본다.
  *
  * 🔴 오류 응답 본문에는 파일 경로·제목·사유를 넣지 않는다(사외비).
  *
@@ -46,7 +46,7 @@ export async function GET(_req: Request, { params }: RouteContext) {
   // 403/404 가 갈리면 무권한 계정이 id 를 훑어 「사외비 글이 있고 원본 HTML 첨부까지 있다」를
   // 목록화할 수 있다. 같은 글의 페이지(`/reports/[id]`)도 notFound() 로 존재 자체를 숨기므로
   // 두 입구의 태도를 맞춘다.
-  if (post?.is_confidential && !canAccessConfidentialReports(user.role)) {
+  if (post && !canReadPost(user.role, post)) {
     return new NextResponse('Not Found', { status: 404 });
   }
   if (!post?.html_path) {

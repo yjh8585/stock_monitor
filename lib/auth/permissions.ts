@@ -1,3 +1,5 @@
+import { MGMT_STANDARD_CATEGORY } from '@/lib/reports/mgmtStandard';
+
 import type { Role } from './roles';
 
 /** admin 전용 페이지 prefix — 비관리자는 proxy.ts에서 `/`로 redirect. */
@@ -33,6 +35,29 @@ export function isAdmin(role: Role): boolean {
  */
 export function canAccessConfidentialReports(role: Role): boolean {
   return role === 'admin' || role === 'holdings' || role === 'mobility';
+}
+
+/**
+ * 기타 > 경영표준 열람 권한 — 사외비 열람 역할 중 mobility 를 뺀다(사용자 지시 2026-11-16).
+ * 사외비 보고서 권한과 따로 간다 — 두 판정을 다시 묶지 말 것.
+ */
+export function canAccessMgmtStandard(role: Role): boolean {
+  return canAccessConfidentialReports(role) && role !== 'mobility';
+}
+
+/**
+ * 글 한 편 열람 판정 — 상세 화면(`PostDetail`)과 첨부 프록시(`/api/reports/[id]/html`·`video`) 공용.
+ *
+ * 경영표준 글은 메뉴·목록·목차에서만 감추면 `/reports/<번호>` 직타로 열린다(2026-11-16 확인) →
+ * 글 단위로도 막는다. 입구마다 조건을 따로 적으면 한 곳만 고쳐져 갈리므로 여기 한 곳에 둔다.
+ */
+export function canReadPost(
+  role: Role,
+  post: { is_confidential: boolean; category: string | null }
+): boolean {
+  if (post.is_confidential && !canAccessConfidentialReports(role)) return false;
+  if (post.category === MGMT_STANDARD_CATEGORY && !canAccessMgmtStandard(role)) return false;
+  return true;
 }
 
 /**
@@ -101,7 +126,7 @@ export function canAccess(pathname: string, role: Role): boolean {
   // 2026-11-16 사용자 지시로 mobility 도 막는다(사외비 보고서 열람은 그대로 — 두 판정을 묶지 말 것).
   // 막지 않은 역할이 사외비 권한이 없으면 빈 목차만 보게 된다.
   if (matchesPath(pathname, '/etc/mgmt-standard')) {
-    return canAccessConfidentialReports(role) && role !== 'mobility';
+    return canAccessMgmtStandard(role);
   }
 
   // 한세그룹 — holdings만 허용

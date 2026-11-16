@@ -5,9 +5,35 @@ import {
   canAccessConfidentialReports,
   canAccessCustomers,
   canPublishReports,
+  canReadPost,
   canUseChat,
   firstManagementPath,
 } from './permissions';
+
+describe('canReadPost — 글 한 편 열람(상세 화면·첨부 프록시 공용)', () => {
+  const mgmtStandard = { is_confidential: true, category: '경영표준' };
+  const confidential = { is_confidential: true, category: '산업' };
+  const open = { is_confidential: false, category: null };
+
+  it('경영표준 글은 admin·holdings 만 — mobility 는 주소를 직접 쳐도 못 연다(2026-11-16)', () => {
+    expect(canReadPost('admin', mgmtStandard)).toBe(true);
+    expect(canReadPost('holdings', mgmtStandard)).toBe(true);
+    expect(canReadPost('mobility', mgmtStandard)).toBe(false);
+    expect(canReadPost('hmobility', mgmtStandard)).toBe(false);
+    expect(canReadPost('guest', mgmtStandard)).toBe(false);
+  });
+
+  it('경영표준이 아닌 사외비 글은 mobility 도 그대로 연다', () => {
+    expect(canReadPost('mobility', confidential)).toBe(true);
+    expect(canReadPost('hmobility', confidential)).toBe(false);
+    expect(canReadPost('guest', confidential)).toBe(false);
+  });
+
+  it('공개 글은 전 역할', () => {
+    expect(canReadPost('guest', open)).toBe(true);
+    expect(canReadPost('mobility', open)).toBe(true);
+  });
+});
 
 describe('canAccess — 조직도(/management/org-chart)', () => {
   const page = '/management/org-chart';

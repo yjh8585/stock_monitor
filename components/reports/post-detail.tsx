@@ -15,7 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { canAccessConfidentialReports, isAdmin } from '@/lib/auth/permissions';
+import { canAccessConfidentialReports, canReadPost, isAdmin } from '@/lib/auth/permissions';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 
 /**
@@ -70,6 +70,8 @@ export async function PostDetail({ id, backHref }: Props) {
 
   const post = await getPostDetail(postId, includeConfidential);
   if (!post) notFound();
+  // 경영표준 글처럼 사외비 권한만으로는 부족한 글 — 주소 직타도 404(2026-11-16).
+  if (!currentUser || !canReadPost(currentUser.role, post)) notFound();
 
   // 삭제 권한은 관리자만 — UI 가드와 DELETE API 가드 이중 보호.
   const canDelete = currentUser ? isAdmin(currentUser.role) : false;

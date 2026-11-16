@@ -1075,7 +1075,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 
 - 🔴 **카테고리 SSOT 는 `lib/reports/mgmtStandard.ts`** — 게시판(`/reports`)은 이 카테고리를 감춘다(로봇과 같은 방식).
 - 목차는 `PostList` 가 아니라 장 번호 순 목록이다 — 게시판 정렬(게시일·원문 발행일)로는 장 순서를 못 세운다(`compareChapterTitle`). 제목은 `00.`~`11.`·`부록 A.` 로 시작해야 순서가 선다.
-- 🔴 **글은 전부 사외비**(`is_confidential = true`) — 라우트·사이드바 하위 메뉴가 `canAccessConfidentialReports` 역할 중 **mobility 를 뺀** admin·holdings 에만 열린다(`canAccess` · mobility 제외는 사용자 지시 2026-11-16 — 사외비 보고서 열람 권한과는 따로 간다). 목차 조회도 `includeConfidential` 을 인자로 넘겨 역할별 캐시를 가른다.
+- 🔴 **글은 전부 사외비**(`is_confidential = true`) — 라우트·사이드바 하위 메뉴가 `canAccessConfidentialReports` 역할 중 **mobility 를 뺀** admin·holdings 에만 열린다(`canAccessMgmtStandard` · mobility 제외는 사용자 지시 2026-11-16 — 사외비 보고서 열람 권한과는 따로 간다). 🔴 **글 단위로도 막는다** — `/reports/<번호>` 직타·HTML·동영상 첨부 프록시가 모두 `canReadPost` 를 거친다(메뉴·목록에서 감추기만 하면 번호로 열린다). 목차 조회도 `includeConfidential` 을 인자로 넘겨 역할별 캐시를 가른다.
 - 글은 게시 스크립트가 카테고리를 직접 넣는다(자동 분류기 미경유). 원문은 그룹웨어 2026-10-30 스냅샷(갱신은 수동).
 
 #### `/humanoid/research` 상세
