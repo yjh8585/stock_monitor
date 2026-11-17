@@ -211,6 +211,8 @@ python scripts/verify_report_krw.py --run $R
 YT_RUN_DIR=$R python scripts/yt_report/settle.py --check
 # 3) 캡션·그림 정합 — png/*.png 를 Read 로 직접 읽어 §2-B 3단 판정(①있나 ②자릿수 ③표기)
 #    장수가 많으면 vision 에이전트에 나눠 위임하되 판정 기준은 그대로 넘긴다
+#    지시문 틀(2026-11-17 회차에서 올림 · <RUN_DIR> 만 채운다): prompts/answer.md(접촉 시트 → 정답지 · §2-F)
+#    → prompts/final.md(정답지로 그림 자리·캡션 확정 · 미리보기 = grab.py) → prompts/audit.md(캡션·그림 독립 감사)
 # 4) 조립 → 크롭 → 업로드 → 게시 → 캐시 무효화
 #    🔴 크롭은 finalize «뒤에» 다시 돌린다 — finalize 가 원본 PNG 를 다시 복사해 앞서 자른 것이 원래대로 돌아온다(§2-E)
 # 5) 프로덕션 확인(dev 서버 안 띄움 · 로봇 글은 --route humanoid/reports 로 한 번 더)

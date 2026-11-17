@@ -39,11 +39,12 @@
 4. ✍️ **shots.json / batch.json** 작성: 각 프레임의 slug·id·timecode + alt·caption(출처 포함)·public_url. 썸네일 slug 지정.
 5. 🔧 **캡처**: `python scripts/yt_report/capture.py` (좁은 창). 실패 slug은 `--force --only <slug>`로 재시도.
    - **권장(2026-10-27~) — 정답지 방식**: 먼저 `python scripts/yt_report/scan.py v1,v2,…`로 10초 간격 접촉 시트를 만들고, 차트·도해가 실제로 뜬 시각(정답지 · 칸→시각은 `sheets/<key>/index.tsv`)에 `shots.json` 타임코드를 맞춘 뒤 `capture.py --exact`(정각 1장 · `frame_times.json` 자동 기록). 자막 추정 시각의 적중률은 29~40%였다. 이때 `selected.json` 은 `{slug: 0}`이고 6·7단계(몽타주·선별)는 2×2 격자로 직접 읽는 것으로 대신한다.
+   - 서브에이전트 지시문 틀(2026-11-17 올림 · `<RUN_DIR>` 만 채운다): [`prompts/answer.md`](./prompts/answer.md)(접촉 시트 → 정답지) → [`prompts/final.md`](./prompts/final.md)(그림 자리·캡션 확정 · 몇 초 뒤까지 한 장으로 보는 미리보기 = `grab.py <key> <slug> <시각> --after 0,3,6`) → [`prompts/audit.md`](./prompts/audit.md)(캡션·그림 독립 감사).
    - `settle.py --check` 의 «권장 시각»을 되풀이 채택하지 말 것 — 전환 효과(줌·페이드)로 끌려가 흐린 프레임·클로즈업이 된다(2026-10-27 두 건). 경고가 남아도 눈으로 확정한다.
 6. 🔧 **몽타주**: `python scripts/yt_report/montage.py` → slug당 후보 프레임 1장(좌→우 오프셋).
 7. ✍️ **프레임 선별**(vision): 몽타주를 보고 캡션이 말하는 장면/차트가 **선명한 프레임만** 골라 `selected.json`에 `slug:offset`. 토킹헤드·전환컷·손가림 드롭. → 채택된 것만 남는다.
 8. 🔧 **조립**: `python scripts/yt_report/finalize.py` → `png/<slug>.png` + `reports_final/<key>.md`(토큰→이미지, 드롭 토큰 제거).
-9. 🔧 **오버레이 크롭**(선택): 언더스탠딩 등 진행자 패널 레이아웃이면 `python scripts/yt_report/crop.py --prefix v4_,v6_` (좌측 72% 보존, `png/` 덮어씀).
+9. 🔧 **오버레이 크롭**(선택): 언더스탠딩 등 진행자 패널 레이아웃이면 `python scripts/yt_report/crop.py --prefix v4_,v6_ --keep 77` (`png/` 덮어씀 · 72% 는 슬라이드 오른쪽 끝이 잘린 회차가 있어 2026-11-17 은 75~77 · 🔴 8단계 finalize 를 다시 돌리면 원본으로 돌아오니 크롭도 다시).
 10. 🔧 **업로드**: `npx tsx scripts/yt_report/upload.ts` → `reports/<storage_folder>/`.
 11. 🔧 **게시**: `npx tsx scripts/yt_report/publish.ts` (source_url 기준 — 신규 INSERT). 🔴 **이미 게시된 영상이 하나라도 있으면 아무것도 쓰지 않고 멈춘다**(2026-10-27 리포트 132 를 경고 없이 덮어쓴 사고). 덮어쓰는 게 맞으면 `YT_ALLOW_UPDATE=v5,…`(또는 `all`)로 명시한다.
 12. 🔧 **캐시 무효화**: `POST $NEXT_REVALIDATE_PROD_URL` 헤더 `x-revalidate-secret`, body `{"tags":["posts","post:<id>",…]}`.

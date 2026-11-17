@@ -27,7 +27,7 @@
 
 **재개 지점**:
 
-- 남은 일 = 영상 원본 폴더(`scripts/_yt_report/2026-11-17/` 아래 영상 · 약 390MB · gitignore) 삭제 여부 — **사용자 결정 대기**(C: 여유 약 9GB).
+- 11-18 회차 폴더 `scripts/_yt_report/2026-11-17/`(575MB) 통째 삭제(사용자 선택) — 재사용할 것은 먼저 레포로 올렸다: `scripts/yt_report/grab.py`(미리보기) · `prompts/answer.md`·`final.md`·`audit.md`(`<RUN_DIR>` 틀). 게시 명령·지식노트 커밋엔 안내 훅 `warn-work-method-retro`(전역). 남은 일 없음.
 - 다음 유튜브·PDF 회차는 `docs/report-from-youtube.md` · `docs/report-from-pdf.md` 순서 그대로. 렌더 확인은 dev 서버가 아니라 게시 뒤 프로덕션 `verify.py`.
 - (11-18 추가) 사용자 지시 「보고서·지식노트는 끝날 때마다 작업방식(지시서·코드 포함) 업데이트」 → 두 문서의 마지막 단계 = **작업방식 회고**(정본 = `wrap-up` 3단계). PDF 게시는 회차마다 새로 짜지 말고 `scripts/pdf_report/publish.py` + 대조 틀 `scripts/pdf_report/prompts/codex_check.md`(§1-A).
 
