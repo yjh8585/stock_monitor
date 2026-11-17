@@ -1160,10 +1160,10 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **`scripts/customer_parsers/`**(회사별 숫자 파서) · `collect_customer_docs.py`(목록) · `collect_customer_numbers.py`(내용)·`collect_customer_breakdown.py` · `summarize_customer_docs.py`·`summarize_customer_news.py`(문서·뉴스 주간 요약) — 고객사 수집. 약속 → [`docs/customers-collection.md`](./docs/customers-collection.md).
 - `enrich_*.py` — 기존 행 보강(외부 LLM·검색). **append-only**. `onboard_company.py`는 신규 회사 추가 직후 1회 실행하며 **멱등**이라 부분 실패 시 같은 명령을 재실행하면 된다(비-12월 결산은 `--fiscal-year-end-month`).
 - `e2e_smoke.py` — 9개 보호 라우트 자동 로그인 + 콘솔/네트워크 에러 + 스크린샷. 결과 `data/_e2e_screenshots/` + `scripts/_e2e_smoke_report.json`.
-- **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md).
+- **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md) · PDF 는 **`scripts/pdf_report/`**(`report-from-pdf.md` §1-A).
 - `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
 - `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동. **단 정기 재실행 16종은 유지**(목록 → [`Architecture.md 부록 B-3`](./Architecture.md)). ⚠️ MarkLines 판매량·생산량 sync는 **페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하지 말 것**(→ [`docs/oem-collection.md`](./docs/oem-collection.md)) · `sync_org_chart.py`는 **로컬 전용**(Excel COM).
-- **사외비 적재 정책**(월별손익 sync 8종): 입력은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. 🔴 **stdout에 금액·인원수 비노출** — dry-run 출력은 행수·연도·월·null 카운트만(합계 금지). dry-run 확인 후 본 적재. 🔴 **`sync_longterm_revenue.py`는 별개라 오케스트레이터에 등록하지 않는다**(등록하면 dry-run이 엉뚱한 파일을 읽어 통째 실패). 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)**.
+- **사외비 적재 정책**(월별손익 sync 8종): 입력은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. 🔴 **stdout에 금액·인원수 비노출** — dry-run 출력은 행수·연도·월·null 카운트만(합계 금지). dry-run 확인 후 본 적재. 🔴 **`sync_longterm_revenue.py`는 별개라 오케스트레이터에 등록하지 않는다**. 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)**.
 - `_*.json` / `_*.log` / `_*.py` / `_*.md` / `_*.ts(x)` — 임시 산출물. 비활성이면 `_archive/` 이동. `scripts/` **최상위의 이 확장자들**은 `.gitignore`가 패턴으로 무시한다(사외비 본문이 담긴 산출물의 커밋 방지). 새 산출물 *폴더*는 여전히 `.gitignore`에 명시 추가해야 한다.
 
 `scripts/lib/` (공용 모듈, 모든 스크립트 재사용) — **모듈 목록은 [`Architecture.md §6`](./Architecture.md), 각 모듈의 배경·함정은 파일 docstring이 정본이다.** 여기엔 **지켜야 할 약속만** 싣는다.
