@@ -4,11 +4,33 @@
 직전 블록은 `## 이전 상태 …` 로 강등한다.
 
 **여기엔 최근 10블록만 둔다.** 그보다 오래된 블록은 지우지 않고
-[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **45블록** · 2026-11-16 실측)로 옮긴다.
+[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **46블록** · 2026-11-17 실측)로 옮긴다.
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-16, **협력사 페이지 폐기 — 코드·사외비 표 삭제 · 가림 fixup 합친 기록으로 재작성**)
+## 최신 상태 · 재개 지점 (2026-11-17, **유튜브 12편(163~174) + KIET 로봇 PDF(175) 게시 — 프로덕션 확인 끝 · Codex 비교 기록**)
+
+> 사용자 지시(원문 = `docs/plans/2026-11-17-yt-reports_최초지시.md`): 영상 13개 → 12편(v10·v11 합침 · v12·v13 휴머노이드) · Codex 도 활용해 잘하고 못하는 것 기록 · 지시서·코드 계속 갱신 · 중복 영상 거르기 · 자세하고 쉽게. 추가: 「개발서버에서 확인하지 말고 바로 배포 → 프로덕션에서 확인」(디스크 부족) · 「남은일 끝나고 이 PDF 도 정리해 휴머노이드 보고서에 게시」.
+
+**결과**:
+
+- 게시 = 리포트 163~174(유튜브) · 175(KIET 『산업경제』 2026-10 「글로벌 로봇산업의 경쟁 구도 재편과 한국의 대응 전략」 · category 로봇 · 원문 링크 = 산업연구원 상세페이지). 연작 쌍 166↔165 · 167↔168 · 169↔170, 172 = 두 영상 합본, 173·174·175 = 로봇.
+- 프로덕션 `verify.py` 전부 OK(별표 0 · 그림 깨짐 0) — 로봇 글은 `--route humanoid/reports` 로도 확인.
+- 결정 이행 = `docs/plans/2026-11-17-yt-reports_결정이행.md`.
+
+**이번에 뒤집힌 것 · 「이건 안 되더라」**:
+
+- 합본 글은 본문에 두 번째 영상 주소가 없으면 중복 거르기(`already_published`)가 못 잡는다 → 본문에 `> 원본 영상:` 줄 필수(`docs/report-from-youtube.md` §2-K).
+- `verify_yt_report.py` 강조 검사가 손으로 적은 부호 목록이라 `»` 와 「여는 `**` 뒤 공백」을 놓쳐 175 에 별표 2곳이 나갔다 → 유니코드 부호 전체·공백 형태로 고침(표본 추가). 원인은 정규식 일괄 치환이 짝을 잘못 잡은 것(`docs/report-from-pdf.md` §3-G).
+- `verify_report_krw.py` 가 「2억1,000만 달러」 같은 복합 단위를 잘못 읽었다 → 정규식 수정·표본 추가.
+- Codex 비교(경위 = `~/.claude/docs/history/codex-vs-opus-경위.md` §2 11-17 두 줄): 유튜브 지적 49 중 48 채택, PDF 10 중 9 채택 — 오퍼스는 **요약부(첫 인용·소제목·핵심 정리)에서만** 기준연도·조건을 뺀다. 그림 자리 고르기는 Codex 가 낫지 않다(31% 대 36%).
+
+**재개 지점**:
+
+- 남은 일 = 영상 원본 폴더(`scripts/_yt_report/2026-11-17/` 아래 영상 · 약 390MB · gitignore) 삭제 여부 — **사용자 결정 대기**(C: 여유 약 9GB).
+- 다음 유튜브·PDF 회차는 `docs/report-from-youtube.md` · `docs/report-from-pdf.md` 순서 그대로. 렌더 확인은 dev 서버가 아니라 게시 뒤 프로덕션 `verify.py`.
+
+## 이전 상태 · 재개 지점 (2026-11-16, **협력사 페이지 폐기 — 코드·사외비 표 삭제 · 가림 fixup 합친 기록으로 재작성**)
 
 > 사용자 지시(원문 = `docs/plans/2026-11-13-suppliers-page_최초지시.md` 5차): 「이건 쓸수 없겠다. 관련 내용 폐기하자 히스토리는 남겨놓고」 — 선택: 협력사 전체 폐기 · 가림 fixup 을 계획서 커밋에 합친 뒤 폐기 커밋.
 
@@ -227,43 +249,3 @@
 - GHA GM 러너 확인 = 실행 42963234533(`probe_gm_ir`): Chrome 156 · IR 문서 14 · 11 job success → D1 「사용자 PC」 불필요.
 
 **검증**: 마무리 시점 `pytest scripts/lib` 901 통과·3 건너뜀 · 포르쉐 자가 시험 0건 실패 · `npm run check-all` 통과(vitest 640 · exit 0).
-
-## 이전 상태 · 재개 지점 (2026-11-11, **고객사 IR 확장 계획 실행 중 — Task 1~8 완료 · 다음 Task 9 · 미푸시**)
-
-> 이 세션의 관통 주제: IR 확장 계획서(`docs/plans/2026-11-10-customers-ir-expansion.md` · Task 1~13 · 결정 기록 `_결정이행.md` D1~D9·E1~E8)를 SDD 로 이어 실행. 구독 한도가 12% 로 떨어져 사용자 지시로 **구현자 = API 키 과금 헤드리스 · 검토자 = Codex** 로 바꿨다. 컴팩트 전 정리.
-
-**결과**: Task 4 `da1260f`·`98302a7` · Task 5 `f9d2ae9`·`288d6fa` · Task 6 `d978770`·`2683f21` · Task 7 `51e5f70`·`b452cfc`·`83f238b` · Task 8 `5116661`·`5cd9717`·`a2c48ec`·`9f54546` · 결정 E7 `64b92db`. **푸시 안 함.**
-
-**🔴 재개 지점**: SDD 원장 `.superpowers/sdd/2026-11-10-customers-ir-expansion/progress.md`(gitignore) 맨 끝. 다음 = **Task 9**(지시문 준비됨 · `scratchpad` 는 세션과 함께 사라지므로 아래 «실행 방식»대로 다시 만든다) → 10 → 13 → 11 → 최종 검토 → Task 12.
-
-- Task 10 에 **더할 항목**(원장 「Task 5 걱정 ④」): LLM 이 어휘에 없는 지표(총주주환원율 35%+)를 `free_cash_flow` 로 실어 `verified=true` 가 됐다(`customer_guidance` id 345 · 문서 1740 · 현대 CID). 지시문(`llm_guidance.py` 「맞는 지표가 없으면 만들지 않는다」)은 이미 있어 코드 가드(라벨↔지표 정합)가 필요 → 고친 뒤 `--reparse 1740` 으로 행 345 가 사라지는지.
-- Task 11 에 **더할 항목**: `docs/customers-collection.md` 의 「GM IR 차단·어댑터 없음」 서술(38·74행)을 Task 8 결과로 고친다 · `porsche.py:48` 인도 정의 문구(Task 3 이월).
-
-**실행 방식(사용자 지시 2026-11-11 「한도가 12% … codex나 앤트로픽 api 쓸 수 있는 것은 써봐. api도 같은 모델과 같은 effort 사용하고」)**:
-
-- 구현자 = `ANTHROPIC_API_KEY=<루트 .env.local 의 값> claude -p --model claude-opus-5-5 --effort high --permission-mode bypassPermissions --output-format stream-json --verbose < 지시문.md > 로그.jsonl`(레포 루트에서 · 키를 출력하지 않는다). 로그의 init 줄 `apiKeySource=ANTHROPIC_API_KEY` 로 API 과금을 확인. 수정 회차는 `--resume <session_id>`(로그 result 줄). 비용 실측: Task 7 첫 구현 $5.99 · Task 8 $7.53 · 수정 회차는 이어받기라 누적이 크다($9~13).
-- 지시문 = SDD `implementer-prompt.md` 틀 + 브리프 경로(`scripts/task-brief <plan> N`) + 이 계획의 제약(공개 레포 · 커밋 규칙 · DB 쓰기 금지 · 남의 미커밋 파일 · `참고/` 금지) + 보고서 경로. HANDOFF.md 는 구현자가 고치지 않는다(「HANDOFF 에 넣을 것」 절로 보고).
-- 검토·재검토 = Codex(`python -X utf8 ~/.claude/scripts/codex_run.py run <지시문> <결과> --cwd <레포> --tag diff-review`) · 지시문은 SDD `task-reviewer-prompt.md`·`re-review-prompt.md` 를 한국어로 옮긴 것 · 읽기 전용 · `참고/` 금지.
-- 같은 파일을 고치는 두 구현자를 동시에 돌리지 않는다(`--only` 커밋에 남의 hunk 가 섞인다) — 검토(읽기 전용)와 다음 구현은 겹쳐도 된다.
-
-**사용자 결정 (2026-11-11)**: E7 모비스 Script 목표 문장 없음 = «서식 미인식» 경고(상태는 not_target + note · 2단계 P4 와 같은 방식) · E8 KGM CEO IR설명회·Pressday = 날짜 없음 유지(행사일은 공시 본문에만 · 3단계로).
-
-**비자명한 사실 (재조사 금지)**:
-
-- 현대 CID 목록에 행사일 칸이 없다 → 같은 사이트 `pastIrEvent.list.do` 로 붙임(2019 는 CID 두 번이라 날짜 없음). 모비스 영문 Script 링크엔 `fileNm` 이 없어 키 = 분기 이름.
-- D6 실측: 현대 CID 25,957자 · 기아 CID 56,237자 — 둘 다 12만 자 상한 안(잘림 없음). 현대 CID LLM 1회 = 입력 25,690 · 출력 113 토큰, 행 1개(위 오분류 행).
-- KGM 은 분기 실적 공시와 월 판매 공시의 제목·종류가 같다 → 정정공시의 원공시는 «IR 실적 발표일과 같은 날 낸 같은 제목 공시»로만 확인, 아니면 날짜 없음(Task 7).
-- 포르쉐 EQS 피드는 XML 이 아니라 JSON. 일정만 403 이면 수집 상태를 blocked 로 올린다(Task 6).
-- GM: 이 PC 에서 실제 Chrome(CDP)로 페이지·PDF 전부 200 · 드라이런 새 문서 14(덱 5·서한 5·Deliveries 4) · 일정 2. Chrome 받기 URL 당 120초 상한(`CHROME_URL_TIMEOUT_S`).
-- 고친 결정 기록: `_결정이행.md` E8 줄은 이 마무리 커밋에 들어갔다.
-
-**푸시 전 사용자 확인 항목(누적)**:
-
-- 빈패스트 픽스처에 들어갔던 실제 서명(`sig=`) 값이 `da1260f` 히스토리에 남아 있다(만료 1794283200 · 푸시하면 공개) — 커밋 합치기 여부.
-- GHA 매일 실행의 GM 문서 목록이 러너의 Chrome 에 기댄다 — 러너에 Chrome 이 없으면 GM 행이 매일 `error`(사유 「Chrome 없음」). 푸시 뒤 `probe_gm_ir` 수동 실행으로 확인 · 막히면 D1 「사용자 PC」 갈래.
-- GM 올해 판매 목록의 빈 표식은 서울 기준 1월 1·2일만 허용(`GM_FIRST_SALES_BY`) — 첫 보도가 늦은 해엔 1월 3일~첫 보도일 GM 행이 error 로 뜬다(조용한 0건보다 시끄러운 실패 · 컨트롤러 판정 · E7 방향).
-- 사용자 질문(2026-11-11 「분기별 실적이 나오는데 왜 매일 수집해?」)에 답함: 매일은 «새 문서 확인»만, AI 는 새 문서가 있는 날만 돈다(평일 08:00 KST · 공개 레포라 GHA 무료) — 주기를 줄일지 사용자 답 대기(줄이면 Task 11 에서 cron 한 줄).
-
-**남은 사소 지적**: 원장의 `minor (deferred)` 줄(Task 1~8) — 최종 검토에서 가린다.
-
-**검증**: 마무리 시점 `pytest scripts/lib` 873 통과·3 건너뜀(exit 0) · `npm run check-all` 통과(vitest 633 · exit 0).

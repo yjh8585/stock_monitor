@@ -15,7 +15,7 @@ import json
 import subprocess
 import sys
 
-from _common import RUN_DIR, already_published, clean_vtt, ensure_dir, run_path
+from _common import RUN_DIR, already_published, clean_vtt, ensure_dir, run_path, ytdlp_cmd
 
 
 def main() -> int:
@@ -40,10 +40,11 @@ def main() -> int:
     ensure_dir(run_path("text"))
 
     total = 0
+    missing: list[str] = []
     for v in videos:
         key, vid = v["key"], v["id"]
         subprocess.run(
-            [sys.executable, "-m", "yt_dlp", "--skip-download",
+            [*ytdlp_cmd(), "--skip-download",
              "--write-subs", "--write-auto-subs", "--sub-langs", args.langs,
              "--sub-format", "vtt",
              "-o", str(subs_dir / f"{key}_{vid}.%(ext)s"),
@@ -57,12 +58,17 @@ def main() -> int:
             vtt = alt if alt.exists() else None
         if not vtt:
             print(f"{key}\t{vid}\tNO_KO_SUB")
+            missing.append(key)
             continue
         body, chars, dur = clean_vtt(vtt)
         (run_path("text", f"{key}.txt")).write_text(body, encoding="utf-8")
         total += chars
         print(f"{key}\t{vid}\t{chars}chars\t~{dur // 60}min")
     print(f"TOTAL\t{total}chars\t(RUN_DIR={RUN_DIR})")
+    # 🔴 2026-11-17: 13편 전부 NO_KO_SUB 인데 exit 0 이라 「받았다」로 넘어갈 뻔했다 → 한 편이라도 빠지면 실패
+    if missing:
+        print(f"자막 없음 {len(missing)}편: {','.join(missing)} — 위 ERROR 줄을 보라(진짜 자막 없음이면 목록에서 빼고 다시)")
+        return 2
     return 0
 
 

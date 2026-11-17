@@ -110,7 +110,11 @@ def find_violations(text: str) -> list[tuple[int, str, str]]:
 _UNIT = {"조": 10**12, "억": 10**8, "만": 10**4, "천": 10**3}
 _KO_PART = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(조|억|만|천)?")
 _RATE = re.compile(r"(\d[\d,]*)?\s*(달러|유로|엔|위안|파운드)\s*(\d[\d,]*(?:\.\d+)?)원")
-_FOREIGN = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(조|억|만|천)?\s*(달러|유로|엔|위안|파운드)")
+# 🔴 「2억1,000만 달러」처럼 단위가 여러 마디인 수는 «전체»를 읽는다(2026-11-17 — 마지막 마디
+#    「1,000만」만 읽어 맞는 환산 「약 2,806억원」을 어긋남으로 3건 오판했다)
+_FOREIGN = re.compile(
+    r"((?:\d[\d,]*(?:\.\d+)?\s*(?:조|억|만|천)\s*)*\d[\d,]*(?:\.\d+)?\s*(?:조|억|만|천)?)\s*(달러|유로|엔|위안|파운드)"
+)
 # 외화 표기 바로 뒤 괄호의 원화 — 「**2억 달러**(약 2,647억원)」. 범위면 마지막 값과 맞댄다
 _PAREN_KRW = re.compile(r"^\**\s*\((?:약\s*)?([^()]*?)원")
 RATE_TOLERANCE = 0.15  # 반올림(억원 정수·「약」)을 허용하는 폭
@@ -141,14 +145,15 @@ def find_rate_mismatches(text: str) -> list[tuple[int, str, str]]:
         if lineno in rate_lines:
             continue
         for m in _FOREIGN.finditer(line):
-            cur = m.group(3)
+            cur = m.group(2)
             pm = _PAREN_KRW.match(line[m.end():])
             if cur not in rates or not pm:
                 continue
             got = _ko_number(pm.group(1).split("~")[-1])
-            if not got:
+            amount = _ko_number(m.group(1))
+            if not got or not amount:
                 continue
-            want = float(m.group(1).replace(",", "")) * _UNIT.get(m.group(2) or "", 1) * rates[cur]
+            want = amount * rates[cur]
             if abs(got - want) / want > RATE_TOLERANCE:
                 out.append((lineno, f"{m.group(0)} → 적힌 {pm.group(1)}원 · 계산 {want:,.0f}원", line.strip()[:160]))
     return out
@@ -160,6 +165,7 @@ RATE_MUST_HIT = [
     "**2억 달러**(약 26억원) 규모" + _FOOT,
     # 「환율」 낱말이 든 본문 줄 — 각주로 오인해 건너뛰면 안 된다
     "**47만 엔(약 39만원)**에 나왔다. 원화는 작성 시점 환율로 환산했다." + _FOOT,
+    "**2억1,000만 달러**(약 13억원)였다." + _FOOT,
 ]
 RATE_MUST_MISS = [
     "알토를 **47만 엔**(약 393만원)에 내놓았다." + _FOOT,
@@ -167,6 +173,9 @@ RATE_MUST_MISS = [
     "kWh당 **132달러**(약 17만 5,000원)" + _FOOT,
     "**3만~4만 달러**(약 3,972만~5,296만원)" + _FOOT,
     "**45.84억 달러**(약 6.07조원)다." + _FOOT,
+    # 단위가 여러 마디인 수(2026-11-17 오판 표본) — 2.1억 × 1,324 = 약 2,780억
+    "**2억1,000만 달러**(약 2,780억원)였다." + _FOOT,
+    "**2억 1,000만 달러**(약 2,780억원)였다." + _FOOT,
 ]
 
 

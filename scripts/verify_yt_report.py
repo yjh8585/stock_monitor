@@ -31,6 +31,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -52,11 +53,19 @@ COMPARE_SPLIT = re.compile(r"[·,]|\bvs\.?\b|대비")
 #       비교 표본 Codex 초안의 깨짐 7곳이 게시 뒤 verify.py 에서야 잡힐 뻔했다.
 PUNCT = "%)]}'\"」』’”`.,!?…"
 HANGUL = re.compile(r"[가-힣]")
+
+
+def _is_punct(ch: str) -> bool:
+    # 🔴 손으로 적은 목록만 보면 「»」가 빠져 리포트 175 에 별표 2곳이 그대로 나갔다(2026-11-17)
+    #    → 유니코드 문장부호(P*)·기호(S*) 전체를 부호로 본다
+    return ch in PUNCT or unicodedata.category(ch)[0] in "PS"
 CJK_BOLD_MUST_HIT = [
     "증가율 **65.4%**다",
     "**47만 엔(약 39만원)**에 나왔다",
     "**「A」**이 먼저다",
     "한국은**'피지컬 AI'** 시대",
+    "묶은 **«패키지형 진출»**로 한국이",
+    "**새만금에 로봇 파운드리**(위탁 생산 거점)와** 부품 클러스터**를 조성",
 ]
 CJK_BOLD_MUST_MISS = [
     "증가율 **65.4**%다",
@@ -64,6 +73,7 @@ CJK_BOLD_MUST_MISS = [
     "**47만 엔**(약 393만원)에",
     "**2억 달러**(약 2,647억원)",
     "**굵게**와 **또 굵게**가 있다",
+    "묶은 **«패키지형 진출»로** 한국이",
 ]
 
 
@@ -78,7 +88,11 @@ def find_bad_bold(text: str) -> list[str]:
             after_o = line[o + 2] if o + 2 < len(line) else " "
             before_c = line[c - 1]
             after_c = line[c + 2] if c + 2 < len(line) else " "
-            if (before_c in PUNCT and HANGUL.match(after_c)) or (HANGUL.match(before_o) and after_o in PUNCT):
+            # 여는 기호 바로 뒤·닫는 기호 바로 앞이 공백이어도 강조가 안 된다
+            #   (2026-11-17 리포트 175 — 「…거점)와** 부품 클러스터**를」)
+            if after_o.isspace() or before_c.isspace():
+                out.append(line[max(0, o - 8): c + 6])
+            elif (_is_punct(before_c) and HANGUL.match(after_c)) or (HANGUL.match(before_o) and _is_punct(after_o)):
                 out.append(line[max(0, o - 8): c + 6])
     return out
 

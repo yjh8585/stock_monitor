@@ -22,6 +22,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ids", required=True, help="쉼표구분 posts id")
     ap.add_argument("--base", default="https://stock-monitor-orcin.vercel.app")
+    # 로봇 글은 /humanoid/reports/<id> 에서도 떠야 한다(휴머노이드 전용 · 2026-11-17)
+    ap.add_argument("--route", default="reports", help="상세 경로 (예: humanoid/reports)")
     args = ap.parse_args()
     ids = [int(x) for x in args.ids.split(",")]
 
@@ -45,7 +47,7 @@ def main() -> int:
         all_ok = True
         for pid in ids:
             errs.clear()
-            resp = page.goto(f"{args.base}/reports/{pid}", wait_until="networkidle", timeout=30000)
+            resp = page.goto(f"{args.base}/{args.route}/{pid}", wait_until="networkidle", timeout=30000)
             http = resp.status if resp else None
             # 바닥까지 내린다 — 고정 4회(16,000px)는 긴 글(39장)의 아래쪽 지연 로딩 이미지를
             # 아예 안 불러 「깨짐」으로 셌다(2026-10-27 id=132 16장 · URL 은 전부 200 이었다).
@@ -64,6 +66,11 @@ def main() -> int:
                 pass
             art = page.inner_text("article") if page.locator("article").count() else page.inner_text("main")
             raw = art.count("**")
+            # 어디가 깨졌는지 바로 보이게 앞뒤 글자를 찍는다(2026-11-17 — 개수만으로는 원인을 못 가렸다)
+            start = 0
+            while (k := art.find("**", start)) != -1:
+                print(f"    raw** …{art[max(0, k - 30):k + 30]!r}…")
+                start = k + 2
             stat = page.evaluate(
                 """(mark) => { const g=[...document.querySelectorAll('img')].filter(i=>(i.currentSrc||i.src).includes(mark));
                     return {t:g.length,p:g.filter(i=>!i.complete).length,

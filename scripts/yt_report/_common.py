@@ -29,6 +29,25 @@ def ensure_dir(p: Path) -> Path:
     return p
 
 
+# yt-dlp 를 부르는 명령 머리. 🔴 2026-11-17: yt-dlp 가 curl_cffi 로 요청하면서 venv 의 certifi 경로
+# (`…\1.테스트\…\cacert.pem`)를 넘기는데, curl 이 한글 경로를 못 열어 자막 13편이 전부
+# `curl: (77) error setting certificate verify locations` 로 실패했다. 인증서를 한글 없는 임시 경로로
+# 복사하고 certifi.where 를 그쪽으로 돌린 뒤 yt-dlp 를 띄운다(curl_cffi 를 import 하기 전에 바꿔야 먹는다).
+_YTDLP_SHIM = (
+    "import os,shutil,sys,tempfile,certifi;"
+    "d=os.path.join(tempfile.gettempdir(),'yt_report_cacert.pem');"
+    "shutil.copyfile(certifi.where(),d);certifi.where=lambda:d;"
+    "import yt_dlp;sys.exit(yt_dlp.main())"
+)
+
+
+def ytdlp_cmd() -> list[str]:
+    """`[python, -c, shim]` — 뒤에 yt-dlp 인자를 그대로 붙여 쓴다(`python -m yt_dlp` 대신)."""
+    import sys
+
+    return [sys.executable, "-c", _YTDLP_SHIM]
+
+
 # ---- ffmpeg 탐지 (PATH → FFMPEG_PATH env → winget 설치 경로) ----
 def find_ffmpeg() -> tuple[str, str]:
     """(ffmpeg 실행파일 경로, 그 bin 디렉터리)를 반환. 못 찾으면 RuntimeError."""
@@ -133,7 +152,12 @@ def already_published(videos: list[dict]) -> dict[str, tuple[int, str]]:
     for v in videos:
         if "all" in allow or v["key"] in allow:
             continue
-        q = urllib.parse.urlencode({"select": "id,title", "source_url": f"ilike.*{v['id']}*"})
+        # 🔴 2026-11-17: 두 영상을 한 편으로 합친 글은 source_url 에 첫 영상만 남는다 → 본문(```youtube 블록)도 본다.
+        #    본문 대조는 영상 ID(11자 · 대소문자 구분이라 우연 일치가 사실상 없다)라 오탐 걱정이 적다.
+        vid = v["id"]
+        q = urllib.parse.urlencode(
+            {"select": "id,title", "or": f"(source_url.ilike.*{vid}*,content.like.*{vid}*)", "limit": "1"}
+        )
         req = urllib.request.Request(
             f"{base}/rest/v1/posts?{q}", headers={"apikey": key, "Authorization": f"Bearer {key}"}
         )

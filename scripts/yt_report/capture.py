@@ -29,7 +29,7 @@ import subprocess
 import sys
 import time
 
-from _common import ensure_dir, find_ffmpeg, mmss_to_sec, run_path
+from _common import ensure_dir, find_ffmpeg, mmss_to_sec, run_path, ytdlp_cmd
 
 NARROW = dict(before=6, offsets=(4, 12, 20, 28, 36))
 WIDE = dict(before=12, offsets=(5, 14, 23, 32, 41, 50))
@@ -43,7 +43,7 @@ def ensure_video(vid: str, vdir) -> str | None:
     if dst.exists():
         return str(dst)
     subprocess.run(
-        [sys.executable, "-m", "yt_dlp", "--quiet", "--no-warnings", "--no-part",
+        [*ytdlp_cmd(), "--quiet", "--no-warnings", "--no-part",
          "-f", FORMAT, "-o", str(dst), f"https://www.youtube.com/watch?v={vid}"],
         check=False,
     )
