@@ -8,12 +8,20 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-18, **보고서 회차 끝 작업방식 회고 · agents 지식노트 갈래와 교차 반영 — 강조 판정 정본화 · 창 숨김**)
+## 최신 상태 · 재개 지점 (2026-11-19, **경영표준 12장(CSR)·13장(BIQS)·부록 C 게시 — admin·holdings 만 · Codex `.env` 유출 수습**)
+
+- 게시(2026-11-19): posts 176(12장)·177(13장)·178(부록 C) 새로, 162(부록 B 용어 71개 추가)·149(00장 표) 갱신. 계획·결정 = `docs/plans/2026-11-18-mgmt-standard-customer.md` + `_결정이행.md`. 원고·처리표·도구는 gitignore `참고/경영표준/`(처리표 확정본 `검토/처리표_12_13.md`)
+- 확인(프로덕션): 경영표준 17편 전부 사외비 · anon 0행 · admin·holdings 목차 17줄(12→13→부록 A·B·C) · mobility·hmobility·guest 는 상세까지 첫 화면으로 돌려보내짐 · `/reports` 누출 0 · 별표 0 · Mermaid 12장 5·13장 4 렌더. 다시 재려면 `참고/경영표준/도구/verify_roles.py <레포 루트> <결과.json>`(venv python) · `verify_anon.py .env.local`
+- 검토: 패널 5명 → 냉독이 치명 6건(「협력사」 1차·2차 두 뜻 · 품질지수 두 척도 · GM 거래 종료가 요약에 없음 · 「지킨다」 단정 · 공백 목록 일부만 · NBH 단정)을 잡아 반영. 13장 제목을 「GM이 부품 협력사에 요구한 29가지 품질 요소」로 바꿨다(다시 바꾸면 새 글이 생긴다)
+- 🔴 보안(2026-11-18): Codex 를 `--cwd <레포>` 로 불러 `.env.local`·`.env.example` 전체가 OpenAI 로 나갔다(비밀 24개). Codex 기록 정리·`codex_run.py --stage` 격리·비밀 파일 거부를 넣었고(`~/.claude`), 경위 = `~/.claude/docs/history/codex-delegate-경위.md`
+- 재개 지점: (1) 사용자가 키를 재발급(목록 `참고/보안_키교체_2026-11-19.md`)하면 값은 보지 않고 동작 확인 — 수집 dry-run 1 · GHA 수동 1 · 프로덕션 로그인 · `/api/revalidate` (2) 부록 B 의 RR·EF·OTS·Pilot·PSQ 행 근거 칸에 PDQR·SPPS 를 둘지 사용자 판단
+
+## 이전 상태 · 재개 지점 (2026-11-18, **보고서 회차 끝 작업방식 회고 · agents 지식노트 갈래와 교차 반영 — 강조 판정 정본화 · 창 숨김**)
 
 - 사용자 지시(2026-11-18): 「보고서 작업이나 지식노트 작업 같은 경우 매번 작업이 모두 끝나면 작업방식을 업데이트 하게 해」 → `wrap-up` 3단계 「작업방식 회고」 + 안내형 훅 `~/.claude/rules/warn-work-method-retro.md`(게시·조립 명령·보고서 커밋에 뜸 · 막지 않음)
 - 회차 폴더 도구를 레포로 올림 — `scripts/yt_report/`(미리보기·지시문 3개 · 480cebb5) · `scripts/pdf_report/`(게시·대조 틀 · b7c5d43c) · 회차 폴더는 삭제
 - agents 와 교차 반영(28ed9dda): `verify_yt_report.py` 강조 판정을 사본 대신 정본(`~/.claude/scripts/hook_cjk_emphasis.py` `violations()`) import — 정본이 없으면 exit 2 · yt_report subprocess 11곳 `CREATE_NO_WINDOW` · 캡션 별표 이스케이프 · `prompts/write.md` 10~13번
-- 정본 판정이 넓어졌다(78b59bb): `**` 안쪽 공백 · 「한글**구두점」 꼴도 위반 — 기존 게시 보고서는 소급하지 않았다
+- 정본 판정이 넓어졌다(78b59bb): `**` 안쪽 공백 · 「한글\*\*구두점」 꼴도 위반 — 기존 게시 보고서는 소급하지 않았다
 - 재개 지점: 이 레포 쪽 남은 일 없음. agents 쪽 남은 결정 = agents `HANDOFF.md` 맨 위 블록
 
 ## 이전 상태 · 재개 지점 (2026-11-17, **유튜브 12편(163~174) + KIET 로봇 PDF(175) 게시 — 프로덕션 확인 끝 · Codex 비교 기록**)
@@ -211,26 +219,3 @@
 - GHA 상태 API(`gh api repos/<repo>/commits/<sha>/statuses`)로 Vercel 빌드 결과를 볼 수 있다 — Vercel MCP 가 없는 세션의 대안.
 
 **검증**: `npm run check-all` exit 0(시험 717) · Python 시험 38 통과 · `verify_docs.py` 오류 0 · Vercel 빌드 success(`4bcf668` Production 배포) · 프로덕션 `/login` 200 · `/customers/gm` 307 → `/login?next=…`(보호 경로 정상).
-
-## 이전 상태 · 재개 지점 (2026-11-12 새벽, **고객사 페이지 수정 회차 B(문서·뉴스 요약) 끝 — 소급 완료 · GHA 적용(사용자 승인) · 푸시**)
-
-> 이 세션의 관통 주제: 계획서 `docs/plans/2026-11-11-customers-page-revisions.md` 의 B 절(B1~B9 확정 → B-1~B-9 작업). 구현은 API 헤드리스(오퍼스 5.5 · effort high · API 키 과금 — 사용자 지시 「사용량 없으니깐 api 활용하고 나 잘거니까 쭉 진행해」), 검토는 Codex 2회, 메인은 중계·검산·직접 수정 1건.
-
-**결과**: `fd53521`(표 2·비공개 버킷) · `ad9bfeb`(지시서·검사기) · `e84d694`(문서 요약기·쪽 캡처) · `b83261a`(뉴스 주간 요약기) · `e547809`(받기 경고 갈래) · `1a33236`(캡처 인증 프록시) · `42c98e3`(조회·캐시 태그) · `cc71c83`(화면 3곳) · 수정 회차 `ec77e65`·`d0519fe`·`b8125d4`·`9029d25`·`45424dc`·`d784d36`·`afd59ec` · 문서 `e6d9b98`.
-
-**🔴 재개 지점**:
-
-1. **B 는 남은 일 없음** — B-5 GHA(`collect-customer-docs.yml` 「요약」 step · 새 `summarize-customer-news.yml`)는 사용자 승인(2026-11-12 「둘 다 적용」) 뒤 적용 · 푸시(사용자 선택 「지금 푸시」). 첫 정기 실행(평일 08:00 · 뉴스는 월 06:00 KST)에서 「요약」 step 과 뉴스 워크플로가 초록인지 본다 — 미확인.
-2. **C 묶음**(지역별·차종별·점유율 수집)은 grill-me 로 시작 — 출발점 = 계획서 C 절의 「C 재료」 표.
-
-**사용자 결정 (2026-11-11 밤 · 결정이행 반영)**: 뉴스 소급 = 남은 완결 주(약 9~10주)만 · 보존 연장 안 함 / 추정 50달러 이하면 묻지 않고 소급 / effort high.
-
-**소급 실측 (재조사 금지)** — 문서 ok 176 · 검사 실패 1 · 쪽 key 누락 0 / 뉴스 ok 82 · 검사 실패 1(VW 2026-10-19 주) · empty 5(포르쉐 — 뉴스 60일 17건뿐) · 비용 약 25 USD(+실측 약 1). 검사기 오탐 17건은 고친 뒤 `--recheck`(API 0)로 16건 살렸다. 리비안 주주서한 5건은 50MB 받기 상한으로 요약 없음. 함정 4건 = `docs/customers-collection.md` 「요약(B) 함정」.
-
-**🔴 이번에 배운 것**:
-
-- `doc_text.Content.tables` 는 세 겹 — 표 없는 PDF 로만 시험하면 안 걸린다. 비용 실측(진짜 원문 여러 종류)에서 처음 드러났다.
-- Architecture.md 가 상한을 넘었다(153KB / 151KB) — 새 표 설명은 도메인 문서로 보내고 Architecture 엔 한 줄 + 링크(고객사 표 7종이 이미 그 꼴이었다).
-- 파일 이름에 `*` 를 넣은 명령(`…revisions*.md`)은 계획서 훅이 «새 계획서»로 오인해 막는다 — 파일을 하나씩 적는다.
-
-**검증**: Python 시험 284 통과 · `npm run check-all` exit 0 · `verify_revalidate_tags.py` exit 0 · `verify_docs.py` 오류 0.
