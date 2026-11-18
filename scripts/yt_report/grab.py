@@ -16,6 +16,7 @@ import sys
 import tempfile
 
 from _common import find_ffmpeg, mmss_to_sec, run_path
+from _common import NO_WINDOW
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -41,7 +42,7 @@ def main() -> int:
     for o in offs:
         p = os.path.join(tmp, f"{o:02d}.jpg")
         subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-ss", str(base + o), "-i", str(src),
-                        "-vframes", "1", "-vf", "scale=960:-1", "-q:v", "3", "-y", p], check=False)
+                        "-vframes", "1", "-vf", "scale=960:-1", "-q:v", "3", "-y", p], check=False, creationflags=NO_WINDOW)
         if os.path.exists(p):
             parts.append(p)
     outdir = run_path("preview", a.key)
@@ -54,7 +55,7 @@ def main() -> int:
         for p in parts:
             args += ["-i", p]
         args += ["-filter_complex", f"hstack=inputs={len(parts)}", "-q:v", "3", "-y", out]
-        subprocess.run(args, check=False)
+        subprocess.run(args, check=False, creationflags=NO_WINDOW)
     print(out if os.path.exists(out) else "FAIL")
     return 0 if os.path.exists(out) else 1
 

@@ -30,6 +30,7 @@ import sys
 import time
 
 from _common import ensure_dir, find_ffmpeg, mmss_to_sec, run_path, ytdlp_cmd
+from _common import NO_WINDOW
 
 NARROW = dict(before=6, offsets=(4, 12, 20, 28, 36))
 WIDE = dict(before=12, offsets=(5, 14, 23, 32, 41, 50))
@@ -45,7 +46,7 @@ def ensure_video(vid: str, vdir) -> str | None:
     subprocess.run(
         [*ytdlp_cmd(), "--quiet", "--no-warnings", "--no-part",
          "-f", FORMAT, "-o", str(dst), f"https://www.youtube.com/watch?v={vid}"],
-        check=False,
+        check=False, creationflags=NO_WINDOW,
     )
     time.sleep(1.0)  # 429 회피
     return str(dst) if dst.exists() else None
@@ -88,7 +89,7 @@ def main() -> int:
                 subprocess.run(
                     [ff, "-hide_banner", "-loglevel", "error", "-ss", str(start + t),
                      "-i", src, "-vframes", "1", "-q:v", "2", "-y", str(dst)],
-                    check=False,
+                    check=False, creationflags=NO_WINDOW,
                 )
                 if dst.exists():
                     n += 1

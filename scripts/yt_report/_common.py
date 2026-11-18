@@ -11,6 +11,12 @@ import re
 import shutil
 from pathlib import Path
 
+import subprocess
+
+# 🔴 자식 프로세스(ffmpeg·yt-dlp) 콘솔 창 숨김 — 부모에 콘솔이 없으면(예약 실행·IDE) 호출마다 검은 창이
+#    떠 사용자 입력을 빼앗는다. agents 사본이 먼저 넣었다(2026-11-18 교차 점검에서 옮김). Windows 밖에선 0.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 # 프로젝트 루트 = scripts/yt_report 의 두 단계 위
 ROOT = Path(__file__).resolve().parents[2]
 

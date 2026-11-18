@@ -18,6 +18,7 @@ import re
 import subprocess
 
 from _common import ensure_dir, find_ffmpeg, run_path
+from _common import NO_WINDOW
 
 SENTINEL = "\x01DROPFRAME\x01"
 TOKEN = re.compile(r"^[ \t]*\[\[FRAME:([a-z0-9_]+)\]\][ \t]*$", re.M)
@@ -30,7 +31,7 @@ def jpg_to_png(slug: str, offset: int, ff: str) -> bool:
         return False
     r = subprocess.run(
         [ff, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src), str(dst)],
-        check=False, capture_output=True,
+        check=False, creationflags=NO_WINDOW, capture_output=True,
     )
     return r.returncode == 0 and dst.exists()
 
@@ -62,7 +63,9 @@ def main() -> int:
             if slug in selected and slug in png_ok and slug in meta:
                 fr = meta[slug]
                 used.append(slug)
-                return f"![{fr['alt']}]({fr['public_url']})\n*{fr['caption']}*"
+                # 🔴 캡션 속 별표는 이스케이프 — 안 하면 감싼 이탤릭이 깨진다(2026-11-18 agents 볼트 실측에서 옮김)
+                cap = fr["caption"].replace("*", r"\*")
+                return f"![{fr['alt']}]({fr['public_url']})\n*{cap}*"
             dropped.append(slug)
             return SENTINEL
 

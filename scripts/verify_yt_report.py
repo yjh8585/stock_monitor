@@ -30,8 +30,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import importlib.util
 import sys
-import unicodedata
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -51,14 +51,24 @@ COMPARE_SPLIT = re.compile(r"[·,]|\bvs\.?\b|대비")
 #    여는 `**` 도 같다 — 앞이 한글이고 뒤가 부호면 «여는 기호»가 아니다.
 #    🔴 docs/report-from-youtube.md §3 은 이 검사가 있다고 적었는데 코드엔 없었다 — 유튜브
 #       비교 표본 Codex 초안의 깨짐 7곳이 게시 뒤 verify.py 에서야 잡힐 뻔했다.
-PUNCT = "%)]}'\"」』’”`.,!?…"
-HANGUL = re.compile(r"[가-힣]")
+#    🔴 2026-11-18 사본을 걷어내고 전역 정본(`~/.claude/scripts/hook_cjk_emphasis.py` 의 `violations()`)을
+#       불러 쓴다 — agents `verify_pani_report.py` 와 같은 방식. 이 사본에만 있던 「안쪽 공백」·「여는 쪽 거울」을
+#       정본에 옮겼더니 agents 볼트에서 정본이 놓치던 결함이 나왔다(두 벌이면 한쪽만 앞서 나간다).
+#       아래 표본(리포트 175 실사고 포함)은 그대로 두어 정본이 퇴행하면 여기서 멈춘다.
+_JUDGE_PATH = Path.home() / ".claude" / "scripts" / "hook_cjk_emphasis.py"
 
 
-def _is_punct(ch: str) -> bool:
-    # 🔴 손으로 적은 목록만 보면 「»」가 빠져 리포트 175 에 별표 2곳이 그대로 나갔다(2026-11-17)
-    #    → 유니코드 문장부호(P*)·기호(S*) 전체를 부호로 본다
-    return ch in PUNCT or unicodedata.category(ch)[0] in "PS"
+def _judge():
+    if not _JUDGE_PATH.exists():
+        print(f"[X] CJK 강조 판정 정본이 없다: {_JUDGE_PATH} — 사본을 두지 않는다. 정본을 두고 다시 돌릴 것.")
+        raise SystemExit(2)
+    spec = importlib.util.spec_from_file_location("hook_cjk_emphasis", _JUDGE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_JUDGE = _judge()
 CJK_BOLD_MUST_HIT = [
     "증가율 **65.4%**다",
     "**47만 엔(약 39만원)**에 나왔다",
@@ -78,23 +88,8 @@ CJK_BOLD_MUST_MISS = [
 
 
 def find_bad_bold(text: str) -> list[str]:
-    """줄마다 `**` 를 짝지어 여닫는 자리의 앞뒤 글자를 본다."""
-    out = []
-    for line in text.split("\n"):
-        pos = [m.start() for m in re.finditer(r"\*\*", line)]
-        for i in range(0, len(pos) - 1, 2):
-            o, c = pos[i], pos[i + 1]
-            before_o = line[o - 1] if o > 0 else " "
-            after_o = line[o + 2] if o + 2 < len(line) else " "
-            before_c = line[c - 1]
-            after_c = line[c + 2] if c + 2 < len(line) else " "
-            # 여는 기호 바로 뒤·닫는 기호 바로 앞이 공백이어도 강조가 안 된다
-            #   (2026-11-17 리포트 175 — 「…거점)와** 부품 클러스터**를」)
-            if after_o.isspace() or before_c.isspace():
-                out.append(line[max(0, o - 8): c + 6])
-            elif (_is_punct(before_c) and HANGUL.match(after_c)) or (HANGUL.match(before_o) and _is_punct(after_o)):
-                out.append(line[max(0, o - 8): c + 6])
-    return out
+    """깨지는 강조 조각 목록 — 판정은 전역 정본이 한다(코드 구간은 정본이 가린다)."""
+    return _JUDGE.violations(text)
 
 
 def bold_self_test() -> bool:

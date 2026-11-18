@@ -14,6 +14,7 @@ import json
 import subprocess
 
 from _common import ensure_dir, find_ffmpeg, run_path
+from _common import NO_WINDOW
 
 
 def main() -> int:
@@ -44,7 +45,7 @@ def main() -> int:
         r = subprocess.run(
             [ff, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
              "-vf", crop, str(png / f"{slug}.png")],
-            check=False, capture_output=True,
+            check=False, creationflags=NO_WINDOW, capture_output=True,
         )
         ok = r.returncode == 0
         n += ok

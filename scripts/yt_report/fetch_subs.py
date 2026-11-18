@@ -16,6 +16,7 @@ import subprocess
 import sys
 
 from _common import RUN_DIR, already_published, clean_vtt, ensure_dir, run_path, ytdlp_cmd
+from _common import NO_WINDOW
 
 
 def main() -> int:
@@ -49,7 +50,7 @@ def main() -> int:
              "--sub-format", "vtt",
              "-o", str(subs_dir / f"{key}_{vid}.%(ext)s"),
              f"https://www.youtube.com/watch?v={vid}"],
-            check=False,
+            check=False, creationflags=NO_WINDOW,
         )
         vtt = subs_dir / f"{key}_{vid}.ko-orig.vtt"
         if not vtt.exists():

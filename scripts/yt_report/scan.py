@@ -23,6 +23,7 @@ import os
 import subprocess
 
 from _common import ensure_dir, find_ffmpeg, run_path
+from _common import NO_WINDOW
 
 COLS, ROWS = 6, 4
 
@@ -47,14 +48,14 @@ def main() -> int:
             os.remove(p)  # 간격을 바꿔 다시 돌릴 때 옛 칸이 섞이지 않게
         subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-i", str(src),
                         "-vf", f"fps=1/{args.every},scale=480:-1", "-q:v", "4",
-                        str(sdir / "%04d.jpg")], check=False)
+                        str(sdir / "%04d.jpg")], check=False, creationflags=NO_WINDOW)
         n = len(glob.glob(str(sdir / "*.jpg")))
         rows = ["sheet\tcell\ttime"]
         for s in range((n + per - 1) // per):
             subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y",
                             "-start_number", str(s * per + 1), "-i", str(sdir / "%04d.jpg"),
                             "-frames:v", "1", "-vf", f"scale=400:-1,tile={COLS}x{ROWS}",
-                            str(hdir / f"sheet_{s + 1:02d}.jpg")], check=False)
+                            str(hdir / f"sheet_{s + 1:02d}.jpg")], check=False, creationflags=NO_WINDOW)
             for c in range(min(per, n - s * per)):
                 t = (s * per + c) * args.every + args.every // 2
                 rows.append(f"{s + 1}\t{c + 1}\t{t // 60}:{t % 60:02d}")

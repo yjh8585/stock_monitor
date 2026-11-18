@@ -39,6 +39,7 @@ import numpy as np
 from PIL import Image
 
 from _common import find_ffmpeg, mmss_to_sec, run_path
+from _common import NO_WINDOW
 
 # ── 임계값 (실측으로 정한 값 — 고칠 때는 근거를 함께 남길 것) ──────────────
 #
@@ -59,7 +60,7 @@ def grab(ff: str, video: Path, t: float, out: Path) -> bool:
     r = subprocess.run(
         [ff, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.2f}",
          "-i", str(video), "-vframes", "1", "-vf", "scale=480:-1", str(out)],
-        check=False, capture_output=True,
+        check=False, creationflags=NO_WINDOW, capture_output=True,
     )
     return r.returncode == 0 and out.exists()
 

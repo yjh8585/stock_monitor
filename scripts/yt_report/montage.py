@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 from _common import ensure_dir, find_ffmpeg, run_path
+from _common import NO_WINDOW
 
 _OFF = re.compile(r"_(\d+)\.jpg$")
 
@@ -39,7 +40,7 @@ def make(slug: str, ff: str) -> None:
     filters.append("".join(f"[v{i}]" for i in range(len(inputs))) + f"hstack=inputs={len(inputs)}[out]")
     cmd += ["-filter_complex", ";".join(filters), "-map", "[out]",
             str(run_path("montages", f"{slug}.jpg"))]
-    r = subprocess.run(cmd, check=False, capture_output=True)
+    r = subprocess.run(cmd, check=False, creationflags=NO_WINDOW, capture_output=True)
     print(f"{slug}\t{'OK' if r.returncode == 0 else 'ERR'}\t{len(inputs)}frames")
 
 
