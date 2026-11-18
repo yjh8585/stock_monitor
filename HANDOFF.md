@@ -14,7 +14,7 @@
 - 확인(프로덕션): 경영표준 17편 전부 사외비 · anon 0행 · admin·holdings 목차 17줄(12→13→부록 A·B·C) · mobility·hmobility·guest 는 상세까지 첫 화면으로 돌려보내짐 · `/reports` 누출 0 · 별표 0 · Mermaid 12장 5·13장 4 렌더. 다시 재려면 `참고/경영표준/도구/verify_roles.py <레포 루트> <결과.json>`(venv python) · `verify_anon.py .env.local`
 - 검토: 패널 5명 → 냉독이 치명 6건(「협력사」 1차·2차 두 뜻 · 품질지수 두 척도 · GM 거래 종료가 요약에 없음 · 「지킨다」 단정 · 공백 목록 일부만 · NBH 단정)을 잡아 반영. 13장 제목을 「GM이 부품 협력사에 요구한 29가지 품질 요소」로 바꿨다(다시 바꾸면 새 글이 생긴다)
 - 🔴 보안(2026-11-18): Codex 를 `--cwd <레포>` 로 불러 `.env.local`·`.env.example` 전체가 OpenAI 로 나갔다(비밀 24개). Codex 기록 정리·`codex_run.py --stage` 격리·비밀 파일 거부를 넣었고(`~/.claude`), 경위 = `~/.claude/docs/history/codex-delegate-경위.md`
-- 재개 지점: (1) 사용자가 키를 재발급(목록 `참고/보안_키교체_2026-11-19.md`)하면 값은 보지 않고 동작 확인 — 수집 dry-run 1 · GHA 수동 1 · 프로덕션 로그인 · `/api/revalidate` (2) 부록 B 의 RR·EF·OTS·Pilot·PSQ 행 근거 칸에 PDQR·SPPS 를 둘지 사용자 판단
+- 재개 지점: (1) 사용자가 키를 재발급(목록 `참고/보안_키교체_2026-11-19.md`)하면 값은 보지 않고 동작 확인 — 수집 dry-run 1 · GHA 수동 1 · 프로덕션 로그인 · `/api/revalidate`. 부록 B 의 RR·EF·OTS·Pilot·PSQ 행 근거 칸 PDQR·SPPS 는 그대로 둔다(사용자 결정 2026-11-19)
 
 ## 이전 상태 · 재개 지점 (2026-11-18, **보고서 회차 끝 작업방식 회고 · agents 지식노트 갈래와 교차 반영 — 강조 판정 정본화 · 창 숨김**)
 
