@@ -119,11 +119,14 @@ export default function MultiSeriesChart({
       chartRef.current = null;
       seriesRefs.current = [];
     };
-    // 시리즈 라벨/색 자체는 props 변경 안 됨(서버에서 고정). isDark/height/축구성만 의존.
+    // 색은 자리마다 고정이라 isDark/height/축구성만 의존(라벨은 바뀔 수 있다 — 아래 숨김 effect 가 받는다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDark, height, series.length, useDualAxis, secondaryFor?.join(',')]);
 
   // 범례로 끈 선 숨김 — 위에서 차트를 다시 만들면(테마·축 변경) 새 선은 보이는 상태로 생기므로 같은 의존성으로 다시 건다.
+  // 🔴 라벨도 의존성이다 — 비교 카드는 자리(색)는 그대로 두고 종목만 바꾼다. 빠지면 숨긴 선의 종목을
+  // 바꿨을 때 범례는 「보임」인데 선은 숨겨진 채 남는다(2026-11-20 코드 리뷰).
+  const labelsKey = series.map((s) => s.label).join('\u0000');
   useEffect(() => {
     series.forEach((s, i) =>
       seriesRefs.current[i]?.applyOptions({ visible: !hidden.has(s.label) })
@@ -134,7 +137,7 @@ export default function MultiSeriesChart({
       chartRef.current?.applyOptions({ leftPriceScale: { visible: leftVisible } });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hidden, isDark, height, series.length, useDualAxis, secondaryFor?.join(',')]);
+  }, [hidden, labelsKey, isDark, height, series.length, useDualAxis, secondaryFor?.join(',')]);
 
   useEffect(() => {
     slicedAll.forEach((s, i) => {

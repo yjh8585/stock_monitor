@@ -93,7 +93,25 @@ function selectPeriods(rows: readonly FinanceRow[], opts: PeriodOpts = {}): Peri
     const annual = yearRows.filter((r) => r.period_kind === 'annual');
     // 연간(=12월 연말) 행이 있으면 그것이 그 해의 마지막 시점이다. 적재는 upsert 만 해 지난 연도의
     // 월별 1~11월 행이 DB 에 남으므로, 월별을 먼저 보면 해가 바뀐 뒤 「직전 연말」 대신 11월을 고른다.
-    if (monthly.length > 0 && annual.length === 0) {
+    // 🔴 단 연간 행이 「온전」할 때만이다(2026-11-20 코드 리뷰) — 12월 마감 중 일부 계정만 먼저 들어오면
+    // 연간 열이 비고, 손익이 아직 11월이면 12월 재무와 11월 손익이 섞인다. 그땐 월별(11월까지)로 내려간다.
+    // 원래 입력하지 않는 계정(예: 법인별 이자비용)이면 월별도 온전할 수 없다 — 그땐 연말을 그대로 쓴다.
+    const filled = (rs: readonly FinanceRow[], acc: string) =>
+      rs.some((r) => r.account === acc && r.value_mwon !== null);
+    const annualComplete =
+      !requiredAccounts?.length ||
+      requiredAccounts.every((acc) => filled(annual, acc)) ||
+      !monthly.some((r) =>
+        requiredAccounts.every((acc) =>
+          filled(
+            monthly.filter((x) => x.period_month === r.period_month),
+            acc
+          )
+        )
+      );
+    const annualBeyondCap =
+      !!cap && y === cap.year && cap.month >= 1 && annual.some((r) => r.period_month > cap.month);
+    if (monthly.length > 0 && (annual.length === 0 || !annualComplete || annualBeyondCap)) {
       let maxM = latestMonthlyMonth(monthly, requiredAccounts);
       if (cap && y === cap.year && cap.month >= 1) maxM = Math.min(maxM, cap.month);
       out.push({ year: y, kind: 'monthly', month: maxM, label: `${y}.${pad2(maxM)}`, isYtd: true });
@@ -378,11 +396,16 @@ export function buildCashBridge(
     const ap = balanceDeltaCell(sub, cur, prev, '채무', 1);
     const interest = flowCell(sub, cur, '이자비용', -1); // DB 양수(비용) → 유출 −
     const tax = flowCell(sub, cur, CF('법인세 납부'), 1);
-    const ocf = sumCells([ebitda, ar, inv, ap, interest, tax]);
+    const ocfSum = sumCells([ebitda, ar, inv, ap, interest, tax]);
 
     const capexM = flowCell(sub, cur, CF('CAPEX 유지보수'), 1);
     const capexG = flowCell(sub, cur, CF('CAPEX 증설'), 1);
-    const fcf = sumCells([ocf, capexM, capexG]);
+    const fcfSum = sumCells([ocfSum, capexM, capexG]);
+    // 🔴 EBITDA 가 비면 ②·③ 은 운전자본·이자·세금·CAPEX 만의 합(대개 큰 음수)이 되어 정상처럼 보인다
+    // (2026-11-20 코드 리뷰) → 표시는 비운다. 단 ④·미설명 차이엔 나머지 항목 합(fcfSum)을 그대로 쓴다 —
+    // 폭포 차트가 운전자본·CAPEX 를 따로 그리므로, 여기서 빼면 미설명 차이에 이중으로 들어간다.
+    const ocf = ebitda.value === null ? EMPTY : ocfSum;
+    const fcf = ebitda.value === null ? EMPTY : fcfSum;
 
     const oneoff = flowCell(sub, cur, CF('일회성 영업현금'), 1);
     const assetSale = flowCell(sub, cur, CF('설비 매각'), 1);
@@ -397,7 +420,7 @@ export function buildCashBridge(
     const netCash = balanceDeltaCell(sub, cur, prev, '현금성자산', 1);
 
     const explained = [
-      fcf,
+      fcfSum,
       oneoff,
       assetSale,
       affiliate,
@@ -420,7 +443,7 @@ export function buildCashBridge(
             dummy: explainedSum.dummy || netCash.dummy,
           };
     const preFin = sumCells([
-      fcf,
+      fcfSum,
       oneoff,
       assetSale,
       affiliate,

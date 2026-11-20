@@ -304,6 +304,9 @@ describe('buildCashBridge', () => {
     const c = buildCashBridge(bridgeDataset(), { ...BRIDGE_PNL, opIncome: [] }, '전체');
     const val = (k: string) => c.rows.find((r) => r.key === k)!.cells[0].value as number;
     expect(val('ebitda')).toBeNull();
+    // ②·③ 소계도 비운다 — 나머지 항목만의 합(51−56 = −5 등)을 정상 값처럼 내지 않는다
+    expect(val('ocf')).toBeNull();
+    expect(val('fcf')).toBeNull();
     expect(val('preFin') + val('netDebt')).toBeCloseTo(val('netCash'));
     const w = buildCashWaterfall(c);
     const reached = w.slice(1, -1).reduce((acc, s) => acc + s.value, w[0].value);
@@ -341,6 +344,47 @@ describe('buildCashBridge', () => {
     const c = buildCashBridge([...bridgeDataset(), ...leftover], BRIDGE_PNL, '전체');
     expect(c.rows.find((r) => r.key === 'beginCash')!.cells[0].value).toBe(80);
     expect(c.rows.find((r) => r.key === 'ar')!.cells[0].value).toBe(-30);
+  });
+  describe('진행연도에 12월(연간) 행이 생겼을 때', () => {
+    const dec = (accounts: string[]) =>
+      accounts.map((account) =>
+        row({ period_year: 2026, period_kind: 'annual', period_month: 12, account, value_mwon: 1 })
+      );
+    const ALL = ['채권', '재고', '채무', '현금성자산', '차입'];
+    const pnl12 = { ...BRIDGE_PNL, currentYearLatestMonth: 12 };
+
+    it('계정이 온전하고 손익도 12월이면 연말 열', () => {
+      expect(buildCashBridge([...bridgeDataset(), ...dec(ALL)], pnl12, '전체').periods).toEqual([
+        '2026.12',
+      ]);
+    });
+    it('12월 계정이 일부만 들어왔으면 온전한 월별 최신월로 내려간다', () => {
+      const c = buildCashBridge([...bridgeDataset(), ...dec(['현금성자산'])], pnl12, '전체');
+      expect(c.periods).toEqual(['2026.02']);
+    });
+    it('원래 입력하지 않는 계정이라 월별도 온전하지 않으면 연말을 그대로 쓴다', () => {
+      const noInterest = (rs: FinanceRow[]) => rs.filter((r) => r.account !== '이자비용');
+      const rows = noInterest([
+        ...dataset(),
+        ...['자산', '부채', '자본', '차입'].map((account) =>
+          row({
+            period_year: 2026,
+            period_kind: 'annual',
+            period_month: 12,
+            account,
+            value_mwon: 1,
+          })
+        ),
+      ]);
+      expect(buildInterestRateSeries(rows, '전체').map((p) => p.periodLabel)).toEqual([
+        '2024.12',
+        '2026.12',
+      ]);
+    });
+    it('손익이 아직 12월 전이면 12월 재무와 섞지 않고 손익월로 내려간다', () => {
+      const c = buildCashBridge([...bridgeDataset(), ...dec(ALL)], BRIDGE_PNL, '전체');
+      expect(c.periods).toEqual(['2026.02']);
+    });
   });
   it('연결 행만 쓴다 — 같은 자회사의 별도 행은 더하지 않는다', () => {
     const extra = row({

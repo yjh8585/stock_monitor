@@ -283,17 +283,25 @@ def main() -> int:
 
     seen: set[tuple[str, int]] = set()
     new_rows: list[dict] = []
-    parsed_any = 0
+    broken: list[str] = []
 
     for kind in KINDS:
         rows, parsed = collect_kind(kind, since, known, seen)
-        parsed_any += parsed
+        if parsed == 0:
+            broken.append(kind)
         logger.info(f"  {kind}: 파싱 {parsed}건 → 신규 {len(rows)}건")
         new_rows.extend(rows)
 
     # 🔴 목록을 한 건도 못 읽었다면 네이버 구조가 바뀐 것이다. "새 글이 없다"와 구분한다.
-    if parsed_any == 0:
-        logger.error("목록 파싱이 전부 0건 — 네이버 페이지 구조가 바뀌었을 수 있다")
+    #    판정은 «종류마다» 한다(2026-11-20 코드 리뷰) — 1쪽은 옛 글까지 세므로 정상 목록은 0일 수 없는데,
+    #    합계로 보면 한 목록이 고장 나도 다른 목록 건수에 가려 exit 0 으로 끝났다.
+    #    성한 목록도 저장하지 않는다 — 저장하면 증분 하한(`resolve_since` = DB 최신 글)이 앞으로 가서,
+    #    고장 난 목록을 고친 뒤 그동안 빠진 글을 다시 거슬러 받지 못한다.
+    if broken:
+        logger.error(
+            f"목록 파싱 0건 — {', '.join(broken)} "
+            "(네이버 페이지 구조가 바뀌었을 수 있다 · 이번 회차 저장 안 함)"
+        )
         return EXIT_STRUCTURE_CHANGED
 
     if not new_rows:
