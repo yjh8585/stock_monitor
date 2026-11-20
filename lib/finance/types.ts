@@ -11,6 +11,8 @@ export interface FinanceRow {
   period_month: number;
   account: string;
   value_mwon: number | null;
+  /** 엑셀 '재무' 시트 8열 비고(내역). `[더미]`로 시작하면 입력 예시용 가짜 값. */
+  note: string | null;
 }
 
 /** 차트 1 (재무 레버리지) 시점별 포인트. 단위 = 억원. */
@@ -55,29 +57,48 @@ export interface InterestRatePoint {
   interestRate: number | null;
 }
 
-/** 표 (투하자본·자금조달)의 한 행. */
-export interface CapitalRow {
-  key: string;
-  label: string;
-  /** 들여쓰기 레벨 (0 섹션/합계, 1 소계, 2 상세) */
-  level: 0 | 1 | 2;
-  /** 행 종류 — 스타일 분기용 */
-  kind: 'section' | 'subtotal' | 'total' | 'detail';
-  /** 차감 항목(채무) — 라벨에 (차감) 표시, 순운전자본에서 차감 */
-  subtract?: boolean;
-  /** 흐름(flow) 항목 — 증감열에 기간 간 차이 대신 당기 신규 발생액(+)을 표시 (신규증자). */
-  flow?: boolean;
-  /** 증감열 값 직접 지정 (자금조달 합계: 흐름 항목을 합산). 미지정 시 curr−prev 자동 계산. */
-  deltaValues?: (number | null)[];
-  /** 기간별 값 (periods와 동일 순서, 억원). 섹션 헤더는 전부 null. */
-  values: (number | null)[];
+/** 자금수지 표 한 칸 — 값 + 비고 + 더미 여부. */
+export interface CashBridgeCell {
+  /** 억원(현금 기준 부호: 유입 +, 유출 −). 데이터 없으면 null. */
+  value: number | null;
+  /** 엑셀 비고(내역). 소계·합계 칸은 null. */
+  note: string | null;
+  /** 이 값이 더미(입력 예시)이거나 더미를 포함한 합계인가. */
+  dummy: boolean;
 }
 
-/** 차트 2 표 전체. */
-export interface CapitalTable {
-  /** 기간 라벨 (['2023','2024','2025','2026.05']) */
+/** 자금수지 표의 한 행. */
+export interface CashBridgeRow {
+  key: string;
+  label: string;
+  /** 'item' 일반 항목 · 'subtotal' ①~④ 소계 · 'total' ⑤⑥ · 'balance' 기초 현금(잔액) */
+  kind: 'item' | 'subtotal' | 'total' | 'balance';
+  /** 이 행이 어디서 오는가 — 엑셀 '재무' 시트 계정명과 계산식 (입력 담당자용 안내, 호버 표시). */
+  source: string;
+  /** 기간별 칸 (CashBridge.periods 와 같은 순서). */
+  cells: CashBridgeCell[];
+}
+
+/** 3. 자금수지 표 전체. */
+export interface CashBridge {
+  /** 기간 라벨 (['2024.12','2025.12','2026.09']) — 흐름은 과거=연간, 진행연도=YTD 누계. */
   periods: string[];
-  rows: CapitalRow[];
+  /** 진행연도(YTD) 기간 여부 (periods 와 같은 순서). */
+  isYtd: boolean[];
+  rows: CashBridgeRow[];
+}
+
+/** 3. 자금수지 폭포 차트 한 막대. */
+export interface CashWaterfallStep {
+  key: string;
+  label: string;
+  /** 'total' 기초·기말 현금 막대 · 'step' 증감 막대 · 'residual' 미설명 차이 */
+  kind: 'total' | 'step' | 'residual';
+  /** total=잔액, step/residual=증감(억원, 부호 있음). */
+  value: number;
+  /** 막대 아래·위 끝 [lo, hi] (억원) — recharts 범위 막대용. */
+  range: [number, number];
+  dummy: boolean;
 }
 
 /** 연도별 값(억원). 과거=연간, 진행연도=YTD 누적. */
@@ -105,12 +126,6 @@ export interface PnlDerivedSeries {
   currentYear: number;
   /** 진행 연도 영업이익 최신월(예 4). 0이면 진행연도 데이터 없음 → 시점 캡 안 함. */
   currentYearLatestMonth: number;
-}
-
-/** 구간 증감(절대값·증감률). */
-export interface FinanceDelta {
-  abs: number | null;
-  pct: number | null;
 }
 
 /* ── 대여금(이인텔리전스) — loan_entries. 단위 = 억원(loan_eok, 환산 없음). ── */

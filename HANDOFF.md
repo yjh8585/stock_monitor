@@ -4,11 +4,21 @@
 직전 블록은 `## 이전 상태 …` 로 강등한다.
 
 **여기엔 최근 10블록만 둔다.** 그보다 오래된 블록은 지우지 않고
-[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **49블록** · 2026-11-20 실측)로 옮긴다.
+[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **50블록** · 2026-11-20 실측)로 옮긴다.
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-20, **GHA 하이쿠 → 최신 하이쿠 자동 선택 · GHA 실패 점검 · MarkLines 10월 적재 상태**)
+## 최신 상태 · 재개 지점 (2026-11-20, **재무 3번 → 자금수지(Cash Bridge) · 더미 예시 적재 · 입력용 엑셀**)
+
+- 사용자 지시(2026-11-20) 원문·결정 = `docs/plans/2026-11-20-finance-cash-bridge_최초지시.md` · `_결정이행.md`(결정 14 + 최종 검토 반영 표). 옛 「투하자본·자금조달」 표는 삭제.
+- 화면: `/management/finance` 3번 = 최신 기간 폭포 차트 + 표(2024 연간 · 2025 연간 · 2026.09 누계 · 비고 칸). 칸 호버 = 비고, 항목 이름 호버 = 엑셀 입력 위치. 비고가 `[더미]`로 시작하면 주황 기울임(입력 예시).
+- 입력: '재무' 시트 하나(별도 시트 없음 · 사용자 지시). 새 흐름 계정 10종(정본 `lib/finance/aggregate.ts` `CASH_FLOW_ACCOUNTS`) · 현금 기준 부호(유출 음수) · **그 달까지 누계**(사용자 확정) · 8열 비고 → `finance_entries.note`(마이그레이션 `20261120000001`). 이자는 기존 「이자비용」 그대로.
+- 🔴 DB 에 더미가 이미 들어가 있다(운영 DB · 흐름 계정 10종 × 2024·2025 연간 + 2026.01~09 · 비고 `[더미] …`). 적재는 upsert 만이라 원본 엑셀(새 계정 없음)을 다시 올려도 더미는 남는다 → 실제 값을 넣은 엑셀이 올라오면 그 칸만 바뀐다. 더미를 통째로 지우려면 `delete from finance_entries where note like '[더미]%'`(사용자 확인 뒤).
+- 입력 담당자용 예시 엑셀(사용자 PC · gitignore 밖): `C:\Users\junghwan.yoon\Downloads\자료정리_월별손익_2026 10 31_자금수지예시.xlsx` — 주황 행 110 = 더미 · 노란 칸 5 = 「[예시] 이런 걸 적는 칸」 · 회색 252 = 화면에서 안 쓰는 행(지워도 무방 — 사용자 판단 대기).
+- 최종 검토(Codex·오퍼스 따로)에서 맞은 지적을 반영: 지난 연도 월별 행이 남으면 전기를 11월로 고르던 것(`selectPeriods` 가 연간 우선) · 재무가 손익보다 늦을 때 다른 달 영업이익 혼입 · 조회 1,000행 상한(`fetchFinanceRows` 페이지 나눔 — 2027 초 초과 예상이었다) 등. 안 고친 것 = 공용 `useRowHighlight` 의 행=버튼 접근성(다른 표 전부에 걸려 별도 과제).
+- 재개 지점: (1) 배포 뒤 운영 화면 확인(커밋 메시지·HANDOFF 다음 블록) (2) 입력 담당자가 실제 값을 넣으면 「미설명 차이」 크기로 빠진 항목 점검 (3) 회색 행 삭제·더미 일괄 삭제는 사용자 결정 대기.
+
+## 이전 상태 · 재개 지점 (2026-11-20, **GHA 하이쿠 → 최신 하이쿠 자동 선택 · GHA 실패 점검 · MarkLines 10월 적재 상태**)
 
 - 사용자 지시(2026-11-20): 「gha 사용되는 앤트로픽 api 모델이 하이쿠인데 이것도 하이쿠 최신버전을 알아서 사용하는 것으로 바꿔줘」 · 「계획서 필요 없어」.
 - 바꾼 것: 모델 ID 를 박지 않고 실행 때 Models API 에서 `claude-haiku-*` 중 `created_at` 최신을 고른다 — 파이썬 `scripts/lib/anthropic_models.py` `latest_haiku()` · TS `lib/reports/anthropic.ts` `latestHaikuModel()`(조회 10초·재시도 1회 · 실패 시 `claude-haiku-5-5` 폴백). GHA 경로 6곳 적용: `analyze_board_sentiment.py` · `enrich_company.py`(onboard·humanoid 포함) · `collect_macro_outlook.py` · `collect_yt_report.py` · `enrich_products_customers_sonnet.py` · 감성 크론 `app/api/cron/sentiment/route.ts`(DB `board_sentiment.model` 에 실제 쓴 ID 기록). 환경변수 지정(`MODEL` 등)은 그대로 우선.
@@ -175,34 +185,3 @@
 **검증**: `check-all` 0(시험 739) · Python 시험 123 · `verify_*` 3종 0 · dev 화면 3사(별표 노출 0 · 쪽 캡처 200).
 
 ---
-
-## 이전 상태 · 재개 지점 (2026-11-12 낮, **고객사 — 누계(YTD)·호버 YoY·VW 1분기 수정 + 남은 일 ①~④(큰 PDF 요약·차종 모드 물량) — 푸시**)
-
-> 이 세션의 관통 주제: 사용자 「남은 일 이어서 해 · 지역·차종·점유율 차트에서 올해 YTD 가 작성 가능하면 모두 · 폭스바겐은 왜 최근 2개년도의 Q1 만 있지 · 호버 시 YoY」. API 0(요약은 이 세션이 직접 읽고 `--from-json` 으로 저장).
-
-**결과**: `0bab4f6`(YTD·호버 YoY·VW 기간 고르기) + 이번 커밋(Codex 지적 반영 · 차종 모드 · 큰 PDF).
-
-- VW 원인: 25Q1·26Q1 두 점을 「분기 계열」로 셌다 → 분기 계열은 서로 다른 분기 번호가 2개 이상일 때만.
-- 현대 문서 1274 요약 없음 원인: 글자 243자(가이던스 표) < `MIN_CHARS` 300 — 의도된 건너뜀.
-- 모비스 2026 문서엔 「한국」 행이 없어 전체 YoY 를 숨긴다(정상).
-- 리비안 큰 문서 4편(1845·1846·1847·1851) 요약 저장 · 1854(AI Day)는 글자층 없는 이미지 PDF라 검사기 아래에선 요약 불가(내용은 1851 6~7쪽에 있다).
-- 50MB 넘는 `.pdf` → 임시 파일(600MB 상한)로 받아 글자층을 읽는다(`ir_get_to_file`·`summary_source`).
-- 차종 모드: `customer_accounts.marklines_models text[]`(20261112000002 · DB 적용 끝). 차면 물량 = 그 차종 합 + 차종별 분기 생산·판매 표.
-
-**🔴 재개 지점**:
-
-1. ✅ **리비안 행 UPDATE 끝**(2026-11-12 `5d15086` Vercel success 뒤 · 1행 · 프로덕션 `customer_accounts` 무효화 200). 다른 묶음 그룹 회사를 차종 모드로 돌릴 때도 같은 순서다: 새 코드가 배포되기 «전»에 `marklines_group` 을 넣으면 옛 코드가 묶음 그룹(`Small and Medium OEM`) 전체를 그린다.
-   `update customer_accounts set marklines_group='Small and Medium OEM', marklines_models=array['R1S','R1T','Rivian EDV','Rivian EDV 500','Rivian EDV 500/700','Rivian R2'] where company_id=(select id from companies where ticker='RIVN');`
-   → 프로덕션 `/api/revalidate` 로 `customer_accounts` 태그 무효화. 차종명 6개는 2026-11-12 DB 에서 철자 확인(EDV 500 계열은 판매 표에만 · 생산 표는 「Rivian EDV」 하나).
-2. 프로덕션 눈 확인(사용자 몫 · 로그인 필요): 리비안 물량 절 「MarkLines 차종 합 판매」 차트 + 차종별 분기 표(행 클릭 노란 강조) · 지역·차종·점유율 연간 보기 맨 오른쪽 YTD 막대 · 호버에 YoY · VW 분기 보기.
-3. 앞 블록의 「첫 정기 실행 확인」은 그대로 남아 있다.
-
-**🔴 이번에 배운 것**:
-
-- MarkLines 차종 나눔은 추정이다 — 리비안은 차종 합이 회사 발표 인도와 가깝지만 R2 는 판매 < 생산, EDV 는 판매가 튄다. 그래서 표 설명에 「신차는 생산 쪽을 먼저 본다」를 박았다.
-- 생산 표는 판매 표보다 한 달 늦게 들어온다 → 분기 칸은 갈래별로 석 달이 다 찼을 때만.
-- scratchpad 에 `q3_26.pdf` 171MB 를 남겼다(지울지 사용자에게 물었다).
-
-**Codex diff 검토(2회차 · 차종 모드·큰 PDF) 5건 전부 반영**: ① 판매 0행이어도 생산 표는 그린다 ② 차종 합의 빈 달을 0 으로 채움(적재기가 0대 행을 안 남겨 연간 YoY 와 KPI 가 갈렸다) ③ `--from-json` 은 DOC_SCHEMA 필수 칸·중요도 값·모르는 칸을 먼저 막는다 ④ 판매·생산 어느 표에도 없는 차종명은 화면에 경고 ⑤ 수동 모델명 시험이 상수를 베끼지 않게.
-
-**검증**: `npm run check-all` exit 0(시험 736) · Python 시험 36 · `verify_call_contracts` 0 · `verify_docs` 오류 0.

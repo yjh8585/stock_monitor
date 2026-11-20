@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildCapitalTable,
+  buildCashBridge,
+  buildCashWaterfall,
   buildInterestRateSeries,
   buildLeverageSeries,
-  computeDelta,
+  CASH_FLOW_ACCOUNTS,
   listSubsidiaries,
 } from '../aggregate';
-import type { CapitalRow, FinanceRow, PnlDerivedSeries } from '../types';
+import type { FinanceRow, PnlDerivedSeries } from '../types';
 
 function row(partial: Partial<FinanceRow>): FinanceRow {
   return {
@@ -17,6 +18,7 @@ function row(partial: Partial<FinanceRow>): FinanceRow {
     period_month: 12,
     account: '자산',
     value_mwon: 0,
+    note: null,
     ...partial,
   };
 }
@@ -156,110 +158,262 @@ describe('buildInterestRateSeries', () => {
   });
 });
 
-/**
- * 손익 파생(억원) fixture — 영업이익(2024 연간 50, 2026 YTD 70), 상각비(손익 2026 YTD 45),
- * 최신월 2. 상각비 2024(35)는 미사용 검증용(자금조달 표는 과거 연도에 재무 연간 30을 써야 함).
- */
-const PNL_DERIVED: PnlDerivedSeries = {
-  opIncome: [
-    { year: 2024, eok: 50 },
-    { year: 2026, eok: 70 },
-  ],
-  depreciation: [
-    { year: 2024, eok: 35 },
-    { year: 2026, eok: 45 },
-  ],
+/** 자금수지용 — 2025 연말(annual) + 2026 월별(m1, m2). 단위 백만원. */
+function bridgeDataset(): FinanceRow[] {
+  const y2025: Record<string, number> = {
+    채권: 20000,
+    재고: 15000,
+    채무: 10000,
+    현금성자산: 8000,
+    차입: 25000,
+    '감가상각비(유형+무형)': 3000,
+    이자비용: 1000,
+    증자: 0,
+  };
+  const m2026: Record<string, number> = {
+    채권: 23000, // +30억 → 유출 −30
+    재고: 14000, // −10억 → 유입 +10
+    채무: 12000, // +20억 → 유입 +20
+    현금성자산: 9000, // +10억
+    차입: 26000, // +10억
+    '감가상각비(유형+무형)': 400,
+    이자비용: 200, // → −2
+    증자: 500, // +5
+    '법인세 납부': -300, // −3
+    'CAPEX 유지보수': -1000, // −10
+    'CAPEX 증설': -2000, // −20
+    '일회성 영업현금': -700, // −7 (더미)
+  };
+  const out: FinanceRow[] = [];
+  for (const [account, v] of Object.entries(y2025)) {
+    out.push(
+      row({ period_year: 2025, period_kind: 'annual', period_month: 12, account, value_mwon: v })
+    );
+  }
+  for (const m of [1, 2]) {
+    for (const [account, v] of Object.entries(m2026)) {
+      out.push(
+        row({
+          period_year: 2026,
+          period_kind: 'monthly',
+          period_month: m,
+          account,
+          value_mwon: v,
+          note:
+            account === '일회성 영업현금'
+              ? '[더미] 고객사 합의금'
+              : account === '채권'
+                ? '관계사 미회수'
+                : null,
+        })
+      );
+    }
+  }
+  return out;
+}
+
+const BRIDGE_PNL: PnlDerivedSeries = {
+  opIncome: [{ year: 2026, eok: 50 }],
+  depreciation: [{ year: 2026, eok: 6 }],
   currentYear: 2026,
   currentYearLatestMonth: 2,
 };
 
-describe('buildCapitalTable', () => {
-  const table = buildCapitalTable(dataset(), PNL_DERIVED, '전체');
-  const byKey = (k: string): CapitalRow => table.rows.find((r) => r.key === k)!;
+describe('buildCashBridge', () => {
+  const b = buildCashBridge(bridgeDataset(), BRIDGE_PNL, '전체');
+  const v = (k: string) => b.rows.find((r) => r.key === k)!.cells.map((c) => c.value);
+  const cell = (k: string) => b.rows.find((r) => r.key === k)!.cells[0];
 
-  it('기간 라벨', () => {
-    expect(table.periods).toEqual(['2024.12', '2026.02']);
+  it('첫 시점(2025)은 기초 잔액 역할만 — 열은 2026 누계 하나', () => {
+    expect(b.periods).toEqual(['2026.02']);
+    expect(b.isYtd).toEqual([true]);
   });
-  it('순운전자본 = 채권 + 재고 − 채무 (억원)', () => {
-    expect(byKey('nwc').values).toEqual([250, 310]); // 200+150-100, 250+180-120
+  it('① EBITDA = 영업이익(손익) + 감가상각비(진행연도=손익 상각비)', () => {
+    expect(v('op')).toEqual([50]);
+    expect(v('dep')).toEqual([6]);
+    expect(v('ebitda')).toEqual([56]);
   });
-  it('CAPEX = 유형자산 + 무형자산', () => {
-    expect(byKey('capex').values).toEqual([350, 380]);
+  it('운전자본은 행이 따로 — 채권·재고 증가는 −, 채무 증가는 +', () => {
+    expect(v('ar')).toEqual([-30]);
+    expect(v('inv')).toEqual([10]);
+    expect(v('ap')).toEqual([20]);
   });
-  it('투하자본 합계 = 순운전자본 + CAPEX', () => {
-    expect(byKey('invested_total').values).toEqual([600, 690]);
+  it('이자비용은 DB 양수 → 유출 −, 법인세는 입력 부호 그대로', () => {
+    expect(v('interest')).toEqual([-2]);
+    expect(v('tax')).toEqual([-3]);
   });
-  it('영업이익은 pnl opIncome(억원) 그대로, 흐름 항목(flow)', () => {
-    expect(byKey('opIncome')).toMatchObject({ flow: true, values: [50, 70] });
+  it('② = ① ± 운전자본 − 이자 + 법인세 · ③ = ② + CAPEX', () => {
+    expect(v('ocf')).toEqual([51]); // 56−30+10+20−2−3
+    expect(v('fcf')).toEqual([21]); // 51−10−20
   });
-  it('감가상각비 하이브리드 — 과거(연말)=재무 연간 30, 진행연도(YTD)=손익 45', () => {
-    // 2024.12: 재무 annual 3000/100=30 (손익 35 아님). 2026.02 YTD: 손익 45.
-    expect(byKey('depreciation')).toMatchObject({ flow: true, values: [30, 45] });
+  it('⑤ 순현금증감 = 현금 잔액 차이(실제값) · 기초/기말 현금', () => {
+    expect(v('netCash')).toEqual([10]);
+    expect(v('beginCash')).toEqual([80]);
+    expect(v('endCash')).toEqual([90]);
   });
-  it('자금조달 합계 = 영업이익 + 감가상각비 + 신규증자 + 차입금', () => {
-    // 2024: 50+30+20+250=350, 2026: 70+45+20+260=395
-    expect(byKey('financing_total').values).toEqual([350, 395]);
+  it('미설명 차이 = ⑤ − 나머지 전부 → 표가 위아래로 맞는다', () => {
+    // 설명된 합 = 21 −7 +5 +10(순차입) = 29 → 미설명 = 10 − 29 = −19
+    expect(v('unexplained')).toEqual([-19]);
+    // ④ = ③ + 일회성 + 증자 + 미설명 = 21 −7 +5 −19 = 0, ④ + 순차입 10 = ⑤ 10
+    expect(v('preFin')).toEqual([0]);
+    expect(v('netDebt')).toEqual([10]);
   });
-  it('자금조달 합계 증감 = 흐름(영업이익+감가상각비+신규증자) + 차입금증감', () => {
-    // 첫 기간 null, 둘째: 영업이익 70 + 감가상각비 45 + 신규증자 20 + (260−250)=10 = 145
-    expect(byKey('financing_total').deltaValues).toEqual([null, 145]);
+  it('비고는 칸에 실리고, [더미] 비고는 dummy 표시 + 그 값을 포함한 소계도 dummy', () => {
+    expect(cell('ar')).toMatchObject({ note: '관계사 미회수', dummy: false });
+    expect(cell('oneoff')).toMatchObject({ value: -7, note: '[더미] 고객사 합의금', dummy: true });
+    expect(cell('preFin').dummy).toBe(true);
+    expect(cell('fcf').dummy).toBe(false);
   });
-  it('③ 이자비용은 흐름 항목(flow), 음수 표시(억원)', () => {
-    // DB 양수(1000/1200) → 부호 반전해 음수
-    expect(byKey('interest')).toMatchObject({ flow: true, values: [-10, -12] });
+  it('입력 안 한 흐름 계정은 null(0 으로 꾸미지 않는다)', () => {
+    expect(v('assetSale')).toEqual([null]);
   });
-  it('④ 현금은 잔액 한 줄 — 증감 자동 계산(flow 아님)', () => {
-    expect(byKey('cash').values).toEqual([80, 90]);
-    expect(byKey('cash').flow).toBeUndefined();
-  });
-  it('채무는 차감 플래그 + 자체 값은 양수', () => {
-    expect(byKey('payable')).toMatchObject({ subtract: true, values: [100, 120] });
-  });
-  it('신규증자는 흐름 항목(flow)', () => {
-    expect(byKey('paidIn').flow).toBe(true);
-  });
-  it('섹션 헤더는 값 없음', () => {
-    expect(byKey('invested').values).toEqual([null, null]);
-  });
-  it('당기순이익 행은 제거됨', () => {
-    expect(table.rows.find((r) => r.key === 'netIncome')).toBeUndefined();
-  });
-  it('pnlDerived 없으면 영업이익 null + 감가상각비는 재무 fallback + 시점 캡 없음', () => {
-    const t = buildCapitalTable(dataset(), undefined, '전체');
-    expect(byKeyOf(t, 'opIncome').values).toEqual([null, null]);
-    // 손익 없으면 YTD도 재무 월간 fallback: 2024 재무 30, 2026 재무 monthly 4000/100=40
-    expect(byKeyOf(t, 'depreciation').values).toEqual([30, 40]);
-    expect(t.periods).toEqual(['2024.12', '2026.02']);
-  });
-  it('진행연도 시점 캡 — currentYearLatestMonth=1이면 2026.01', () => {
-    const capped = buildCapitalTable(
-      dataset(),
-      { ...PNL_DERIVED, currentYearLatestMonth: 1 },
-      '전체'
+  it('직전 연도가 비면 잔액 차이를 만들지 않는다', () => {
+    const gap = bridgeDataset().map((r) =>
+      r.period_year === 2025 ? { ...r, period_year: 2024 } : r
     );
-    expect(capped.periods).toEqual(['2024.12', '2026.01']);
+    const g = buildCashBridge(gap, BRIDGE_PNL, '전체');
+    expect(g.rows.find((r) => r.key === 'ar')!.cells[0].value).toBeNull();
   });
   it('데이터 없으면 빈 표', () => {
-    expect(buildCapitalTable([], PNL_DERIVED, '전체')).toEqual({ periods: [], rows: [] });
+    expect(buildCashBridge([], BRIDGE_PNL, '전체')).toEqual({ periods: [], isYtd: [], rows: [] });
+  });
+
+  it('진행연도 표시월은 손익 최신월로 캡 — 손익 1월이면 2026.01', () => {
+    const c = buildCashBridge(
+      bridgeDataset(),
+      { ...BRIDGE_PNL, currentYearLatestMonth: 1 },
+      '전체'
+    );
+    expect(c.periods).toEqual(['2026.01']);
+    expect(c.rows.find((r) => r.key === 'op')!.cells[0].value).toBe(50);
+  });
+  it('재무가 손익보다 늦으면(재무 2월 · 손익 3월) 영업이익·EBITDA 를 비우고 상각비는 재무 값', () => {
+    const c = buildCashBridge(
+      bridgeDataset(),
+      { ...BRIDGE_PNL, currentYearLatestMonth: 3 },
+      '전체'
+    );
+    const at = (k: string) => c.rows.find((r) => r.key === k)!.cells[0];
+    expect(c.periods).toEqual(['2026.02']);
+    expect(at('op').value).toBeNull();
+    expect(at('op').note).toContain('3월');
+    expect(at('ebitda').value).toBeNull();
+    expect(at('dep').value).toBe(4); // 재무 누계 400 백만원
+  });
+  it('영업이익이 비어도 미설명 차이가 흡수해 ⑤·폭포 차트가 맞는다', () => {
+    const c = buildCashBridge(bridgeDataset(), { ...BRIDGE_PNL, opIncome: [] }, '전체');
+    const val = (k: string) => c.rows.find((r) => r.key === k)!.cells[0].value as number;
+    expect(val('ebitda')).toBeNull();
+    expect(val('preFin') + val('netDebt')).toBeCloseTo(val('netCash'));
+    const w = buildCashWaterfall(c);
+    const reached = w.slice(1, -1).reduce((acc, s) => acc + s.value, w[0].value);
+    expect(reached).toBeCloseTo(90);
+  });
+  it('과거 연도 열은 연간 — 상각비는 재무 연간 값(손익 상각비 아님)', () => {
+    const rows = [
+      ...bridgeDataset(),
+      row({
+        period_year: 2024,
+        period_kind: 'annual',
+        period_month: 12,
+        account: '현금성자산',
+        value_mwon: 5000,
+      }),
+    ];
+    const pnl = {
+      ...BRIDGE_PNL,
+      opIncome: [{ year: 2025, eok: 20 }, ...BRIDGE_PNL.opIncome],
+      depreciation: [{ year: 2025, eok: 99 }, ...BRIDGE_PNL.depreciation],
+    };
+    const c = buildCashBridge(rows, pnl, '전체');
+    const at = (k: string) => c.rows.find((r) => r.key === k)!.cells[0];
+    expect(c.periods).toEqual(['2025.12', '2026.02']);
+    expect(c.isYtd).toEqual([false, true]);
+    expect(at('op').value).toBe(20);
+    expect(at('dep').value).toBe(30);
+    expect(at('netCash').value).toBe(30); // 50 → 80
+  });
+  it('지난해 월별 행이 DB 에 남아 있어도 전기는 그 해 12월 연말', () => {
+    const leftover = Object.entries({ 채권: 1, 재고: 1, 채무: 1, 현금성자산: 1, 차입: 1 }).map(
+      ([account, v]) =>
+        row({ period_year: 2025, period_kind: 'monthly', period_month: 11, account, value_mwon: v })
+    );
+    const c = buildCashBridge([...bridgeDataset(), ...leftover], BRIDGE_PNL, '전체');
+    expect(c.rows.find((r) => r.key === 'beginCash')!.cells[0].value).toBe(80);
+    expect(c.rows.find((r) => r.key === 'ar')!.cells[0].value).toBe(-30);
+  });
+  it('연결 행만 쓴다 — 같은 자회사의 별도 행은 더하지 않는다', () => {
+    const extra = row({
+      consolidation: '별도',
+      period_year: 2026,
+      period_kind: 'monthly',
+      period_month: 2,
+      account: '현금성자산',
+      value_mwon: 2500,
+    });
+    const c = buildCashBridge([...bridgeDataset(), extra], BRIDGE_PNL, '전체');
+    expect(c.rows.find((r) => r.key === 'endCash')!.cells[0].value).toBe(90);
+  });
+  it('손익 상각비로 바꾼 칸은 재무 행의 [더미] 표시를 물려받지 않는다 · 기초 현금 더미는 표시', () => {
+    const rows = bridgeDataset().map((r) =>
+      r.account === '감가상각비(유형+무형)' && r.period_year === 2026
+        ? { ...r, note: '[더미] 예시' }
+        : r.account === '현금성자산' && r.period_year === 2025
+          ? { ...r, note: '[더미] 기초' }
+          : r
+    );
+    const c = buildCashBridge(rows, BRIDGE_PNL, '전체');
+    const at = (k: string) => c.rows.find((r) => r.key === k)!.cells[0];
+    expect(at('dep')).toMatchObject({ value: 6, note: null, dummy: false });
+    expect(at('beginCash').dummy).toBe(true);
+    expect(at('netCash').dummy).toBe(true); // 전기말 잔액이 더미면 그 차이도 더미
+  });
+  it('흐름 계정 10종을 모두 읽는다 — 값을 넣으면 그만큼 미설명 차이가 줄어든다', () => {
+    const withFlow = (account: string, mwon: number) => [
+      ...bridgeDataset().filter((r) => !(r.period_year === 2026 && r.account === account)),
+      row({
+        period_year: 2026,
+        period_kind: 'monthly',
+        period_month: 2,
+        account,
+        value_mwon: mwon,
+      }),
+    ];
+    const unexplained = (rows: FinanceRow[]) =>
+      buildCashBridge(rows, BRIDGE_PNL, '전체').rows.find((r) => r.key === 'unexplained')!.cells[0]
+        .value as number;
+    for (const acc of CASH_FLOW_ACCOUNTS) {
+      const diff = unexplained(withFlow(acc, -500)) - unexplained(withFlow(acc, 0));
+      expect(diff, acc).toBeCloseTo(5);
+    }
   });
 });
 
-function byKeyOf(t: ReturnType<typeof buildCapitalTable>, k: string): CapitalRow {
-  return t.rows.find((r) => r.key === k)!;
-}
-
-describe('computeDelta', () => {
-  it('증감 + 증감률', () => {
-    expect(computeDelta(250, 310)).toEqual({ abs: 60, pct: 24 });
+describe('buildCashWaterfall', () => {
+  const steps = buildCashWaterfall(buildCashBridge(bridgeDataset(), BRIDGE_PNL, '전체'));
+  it('기초 현금에서 출발해 기말 현금에서 끝난다', () => {
+    expect(steps[0]).toMatchObject({ key: 'begin', value: 80, range: [0, 80] });
+    expect(steps.at(-1)).toMatchObject({ key: 'end', value: 90, range: [0, 90] });
   });
-  it('감소', () => {
-    expect(computeDelta(200, 150)).toEqual({ abs: -50, pct: -25 });
+  it('증감 막대를 다 쌓으면 기말 현금에 닿는다', () => {
+    const mids = steps.slice(1, -1);
+    const reached = mids.reduce((acc, s) => acc + s.value, steps[0].value);
+    expect(reached).toBeCloseTo(90);
   });
-  it('이전 0 → 증감률 null', () => {
-    expect(computeDelta(0, 100)).toEqual({ abs: 100, pct: null });
+  it('모든 증감 막대가 앞 막대 끝에서 이어진다(범위 = [min, max] of 누적 전·후)', () => {
+    let running = steps[0].value;
+    for (const s of steps.slice(1, -1)) {
+      const next = running + s.value;
+      expect(s.range, s.key).toEqual([Math.min(running, next), Math.max(running, next)]);
+      running = next;
+    }
   });
-  it('한쪽 null → 둘 다 null', () => {
-    expect(computeDelta(null, 100)).toEqual({ abs: null, pct: null });
-    expect(computeDelta(100, null)).toEqual({ abs: null, pct: null });
+  it('감소 막대 범위는 [다음, 이전] — 매출채권 −30', () => {
+    // 80 + EBITDA 56 = 136 → 매출채권 −30 → 106
+    expect(steps.find((s) => s.key === 'ar')).toMatchObject({ value: -30, range: [106, 136] });
+  });
+  it('더미가 섞인 묶음은 dummy', () => {
+    expect(steps.find((s) => s.key === 'oneoff')!.dummy).toBe(true);
+    expect(steps.find((s) => s.key === 'capex')!.dummy).toBe(false);
   });
 });

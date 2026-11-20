@@ -12,7 +12,7 @@ const FinanceLeverageChart = dynamic(() => import('./FinanceLeverageChart'), { s
 const FinanceInterestRateChart = dynamic(() => import('./FinanceInterestRateChart'), {
   ssr: false,
 });
-const FinanceCapitalTable = dynamic(() => import('./FinanceCapitalTable'), { ssr: false });
+const FinanceCashBridge = dynamic(() => import('./FinanceCashBridge'), { ssr: false });
 // 대여금 계획대비 차트는 재고 탭의 범용 계획/실적 막대 차트를 재사용.
 const InventoryAchievementChart = dynamic(
   () => import('@/components/management/inventory/InventoryAchievementChart'),
@@ -25,7 +25,7 @@ interface Props {
   loanRows: LoanRow[];
 }
 
-/** 재무 탭 대시보드 — 콤보 차트 + 투하자본/자금조달 표 + 대여금(이인텔리전스). 차트는 lazy 코드 스플릿. */
+/** 재무 탭 대시보드 — 콤보 차트 + 자금수지(폭포 차트·표) + 대여금(이인텔리전스). 차트는 lazy 코드 스플릿. */
 export default function FinanceDashboard({ rows, pnlDerived, loanRows }: Props) {
   const loanKpis = useMemo(() => buildLoanKpis(loanRows), [loanRows]);
   const loanPoints = useMemo(() => buildLoanAchievement(loanRows), [loanRows]);
@@ -41,7 +41,7 @@ export default function FinanceDashboard({ rows, pnlDerived, loanRows }: Props) 
       </LazyMount>
 
       <LazyMount className="min-h-[300px]">
-        <FinanceCapitalTable rows={rows} pnlDerived={pnlDerived} />
+        <FinanceCashBridge rows={rows} pnlDerived={pnlDerived} />
       </LazyMount>
 
       {/* 4. 이인텔리전스 대여금 — KPI + 계획 대비 실적 */}

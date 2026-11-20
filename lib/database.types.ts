@@ -1229,6 +1229,7 @@ export type Database = {
         Row: {
           account: string;
           consolidation: string;
+          note: string | null;
           period_kind: string;
           period_month: number;
           period_year: number;
@@ -1238,6 +1239,7 @@ export type Database = {
         Insert: {
           account: string;
           consolidation: string;
+          note?: string | null;
           period_kind: string;
           period_month: number;
           period_year: number;
@@ -1247,6 +1249,7 @@ export type Database = {
         Update: {
           account?: string;
           consolidation?: string;
+          note?: string | null;
           period_kind?: string;
           period_month?: number;
           period_year?: number;

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """재무 시트(자료정리_월별손익*.xlsx '재무') → Supabase finance_entries 적재.
 
-대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자).
+대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자)
++ 자금수지 흐름 계정(법인세 납부·일회성 영업현금·CAPEX 유지보수/증설 등 — 목록 정본은
+lib/finance/aggregate.ts 의 CASH_FLOW_ACCOUNTS). 계정명은 걸러내지 않고 시트에 있는 대로 싣는다. 8열 비고 → note.
 시점 정규화: '연간' 또는 월=12 → annual(period_month=12, 연말), 월=1~11 → monthly.
   (전체 과거=숫자 12, 미국 과거='연간' 텍스트가 섞여 있어 둘 다 annual/12로 통일.)
 
@@ -43,8 +45,9 @@ CONFLICT = 'subsidiary,consolidation,period_year,period_kind,period_month,accoun
 HEADER_ROW = 1
 DATA_START = 2
 
-# 1-indexed 컬럼 매핑. 6열 '연결재무집계 계정'·8열 '비고'는 보조 정보(참고용) — 미적재.
-COL = {'year': 1, 'pm': 2, 'cons': 3, 'sub': 4, 'account': 5, 'value': 7}
+# 1-indexed 컬럼 매핑. 6열 '연결재무집계 계정'은 참고용(미적재).
+# 8열 '비고'는 자금수지 표의 내역(호버·비고 칸) → note. 옛 엑셀은 헤더가 비어 있어 헤더 검사는 안 한다.
+COL = {'year': 1, 'pm': 2, 'cons': 3, 'sub': 4, 'account': 5, 'value': 7, 'note': 8}
 EXPECTED_HEADERS = {
   1: '연도', 2: '월', 3: '연결/별도', 4: '자회사', 5: '계정명', 7: '밸류(백만원)',
 }
@@ -115,6 +118,7 @@ def row_to_entry(ws, r: int) -> dict[str, Any] | None:
     'period_month': month,
     'account': account,
     'value_mwon': _num(ws.cell(r, COL['value']).value),
+    'note': _txt(ws.cell(r, COL['note']).value) or None,
   }
 
 
@@ -132,19 +136,38 @@ def dedupe(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
   return list(seen.values())
 
 
+# 자금수지 흐름 계정 중 유출만 있는 것(이름은 lib/finance/aggregate.ts CASH_FLOW_ACCOUNTS 와 같아야 한다).
+CASH_OUTFLOW_ACCOUNTS = ('법인세 납부', 'CAPEX 유지보수', 'CAPEX 증설', '배당 지급')
+
+
 def summarize(entries: list[dict[str, Any]]) -> None:
   """(자회사·기간종류) 행수·연도 커버리지·null 카운트. 금액 비노출."""
-  agg = defaultdict(lambda: {'rows': 0, 'years': set(), 'nulls': 0})
+  agg = defaultdict(lambda: {'rows': 0, 'years': set(), 'nulls': 0, 'notes': 0, 'dummy': 0})
   for e in entries:
     k = (e['subsidiary'], e['period_kind'])
     agg[k]['rows'] += 1
     agg[k]['years'].add(e['period_year'])
     if e['value_mwon'] is None:
       agg[k]['nulls'] += 1
+    if e['note']:
+      agg[k]['notes'] += 1
+      if e['note'].startswith('[더미]'):
+        agg[k]['dummy'] += 1
   logger.info('--- 재무 요약 (자회사·기간종류) — 금액 비노출 ---')
   for k in sorted(agg.keys()):
     v = agg[k]
-    logger.info(f'  {k} | rows={v["rows"]} | years={sorted(v["years"])} | nulls={v["nulls"]}')
+    logger.info(
+      f'  {k} | rows={v["rows"]} | years={sorted(v["years"])} | nulls={v["nulls"]}'
+      f' | 비고={v["notes"]} (더미 {v["dummy"]})'
+    )
+  # 유출 전용 흐름 계정은 현금 기준 음수로 입력한다(이자비용처럼 양수로 넣으면 유입으로 뒤집힌다).
+  wrong = [e for e in entries
+           if e['account'] in CASH_OUTFLOW_ACCOUNTS and (e['value_mwon'] or 0) > 0]
+  if wrong:
+    by_acc = defaultdict(int)
+    for e in wrong:
+      by_acc[e['account']] += 1
+    logger.warning(f'⚠ 유출 계정에 양수 {len(wrong)}행 — 부호 확인(음수로 입력): {dict(by_acc)}')
 
 
 def validate_identity(entries: list[dict[str, Any]]) -> None:
