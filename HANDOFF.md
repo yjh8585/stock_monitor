@@ -13,11 +13,12 @@
 - 사용자 지시(2026-11-20): 「gha 사용되는 앤트로픽 api 모델이 하이쿠인데 이것도 하이쿠 최신버전을 알아서 사용하는 것으로 바꿔줘」 · 「계획서 필요 없어」.
 - 바꾼 것: 모델 ID 를 박지 않고 실행 때 Models API 에서 `claude-haiku-*` 중 `created_at` 최신을 고른다 — 파이썬 `scripts/lib/anthropic_models.py` `latest_haiku()` · TS `lib/reports/anthropic.ts` `latestHaikuModel()`(조회 10초·재시도 1회 · 실패 시 `claude-haiku-5-5` 폴백). GHA 경로 6곳 적용: `analyze_board_sentiment.py` · `enrich_company.py`(onboard·humanoid 포함) · `collect_macro_outlook.py` · `collect_yt_report.py` · `enrich_products_customers_sonnet.py` · 감성 크론 `app/api/cron/sentiment/route.ts`(DB `board_sentiment.model` 에 실제 쓴 ID 기록). 환경변수 지정(`MODEL` 등)은 그대로 우선.
 - 하이쿠 5.5 호환: 생각(thinking)이 기본 켜짐 → 첫 블록을 답으로 읽던 `collect_macro_outlook.py` 를 type 으로 고침 · 도구 강제 아닌 호출 `max_tokens` 16000 · 토큰이 약 30% 늘어 도구 강제 호출도 올림(감성 크론 4096→16000 · 제품 추출 2048→8000). 실호출로 5.5 선택·정상 응답 확인(2026-11-20).
-- 일부러 안 바꾼 것: 챗봇(`lib/chat/loop.ts`)·보고서 업로드 요약(`CLAUDE_SUMMARY_MODEL`)은 웹 경로라 범위 밖 — 아직 `claude-haiku-4-5`. 로컬 전용 수집 스크립트 10여 개도 그대로.
-- 검토(Codex·오퍼스 따로)에서 남긴 위험 — 기존 구조라 이번엔 안 고침: 감성 크론·`analyze_board_sentiment.py` 는 LLM 호출이 전부 실패해도 성공(200·exit 0)으로 끝난다. 모델이 이제 저절로 바뀌므로, 새 하이쿠가 도구 강제를 400 으로 막으면(오퍼스·소넷 5.5 가 그랬다) 조용히 0건이 된다 → 실패 시 5xx/exit 1 + 400 이면 폴백 재시도가 후속 후보.
+- 후속(같은 날 「남은 일도 이어서 해」): 챗봇 `lib/chat/loop.ts`·보고서 업로드 요약 3곳(웹·PDF·카테고리 분류)도 `latestHaikuModel()` 로 — `CLAUDE_SUMMARY_MODEL` 상수는 지웠다. 하이쿠 5.5 대비로 챗봇 `MAX_TOKENS` 2048→8192 · 카테고리 분류 `max_tokens` 30→2048(생각이 한도를 다 써서 빈 답이 된다). 웹·PDF 요약은 이미 type 으로 읽고 한도가 커서 그대로. 로컬 전용 수집 스크립트 10여 개는 그대로.
+- 실패 신호(같은 날): 감성 크론은 분류 실패·저장 실패 종목이 있으면 502(`ok:false`·`failed` 목록) → GHA `curl --fail-with-body` 가 빨간불. `classifyPosts` 는 실패를 `null` 로(빈 배열 = 0건 성공과 구분). `analyze_board_sentiment.py` 는 전 배치 실패(파싱 실패 포함)면 exit 1. 400 이면 폴백 재시도는 넣지 않았다(실패가 보이면 충분하다고 판단).
+- 확인(2026-11-20 00:15 UTC 배포 직후 감성 크론): `board_sentiment.model` 에 `claude-haiku-5-5` 1건 저장 · 응답 `ok:true`.
 - GHA 실패 점검(2026-11-20): 최근 실패 7종 전부 다음 실행부터 회복 — 감성 크론 401(11-19 수동 1회) · KG 11-15 · 두바이 11-14 · 금속 11-03~12. 조치 없음.
 - MarkLines 10월(2026-11-20 DB 실측): 판매는 57개국 중 11개국만(미국·일본·독일 등 · 한국·중국·영·프 없음) · 생산·중국 3종은 9월까지 → 사용자가 엑셀 6종을 받아 `import_marklines_manual.py` 로 적재해야 한다(절차 = `docs/oem-collection.md`).
-- 재개 지점: (1) 푸시 뒤 첫 GHA 실행 로그에서 「최신 haiku 모델: …」 줄 확인 · 감성 크론 응답 정상 (2) 사용자가 MarkLines 엑셀을 받으면 적재 결과 표 확인 (3) 챗봇·요약도 최신화할지 사용자 결정 대기.
+- 재개 지점: (1) 파이썬 GHA(거시 전망·회사 보강 등) 첫 실행 로그에서 「최신 haiku 모델: …」 줄 확인 — 감성 크론은 확인 끝 (2) 챗봇·보고서 업로드를 한 번 써 보고 답이 잘리지 않는지 (3) 사용자가 MarkLines 엑셀을 받으면 적재 결과 표 확인.
 
 ## 이전 상태 · 재개 지점 (2026-11-19, **경영표준 12장(CSR)·13장(BIQS)·부록 C 게시 — admin·holdings 만 · Codex `.env` 유출 수습**)
 

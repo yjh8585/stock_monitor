@@ -1,5 +1,5 @@
 import logger from '@/lib/logger';
-import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
+import { getAnthropicClient, latestHaikuModel } from '@/lib/reports/anthropic';
 import type { CreatePostInput } from '@/lib/reports/dto/post.dto';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import { ROBOT_CATEGORY, isRobotTitle } from '@/lib/reports/robot';
@@ -70,8 +70,9 @@ async function classifyCategory(title: string): Promise<string | null> {
   try {
     const client = getAnthropicClient();
     const r = await client.messages.create({
-      model: CLAUDE_SUMMARY_MODEL,
-      max_tokens: 30,
+      model: await latestHaikuModel(),
+      // 하이쿠 5.5 는 생각(thinking)이 기본으로 켜져 그 몫도 이 한도를 쓴다 — 30 이면 답 전에 끊긴다
+      max_tokens: 2048,
       messages: [
         {
           role: 'user',

@@ -1,5 +1,5 @@
 import logger from '@/lib/logger';
-import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
+import { getAnthropicClient, latestHaikuModel } from '@/lib/reports/anthropic';
 import { renderPdfPagesToStorage, type PageImage } from '@/lib/reports/pdf-page-renderer';
 import { formatRelatedSection, searchRelated } from '@/lib/reports/search.service';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
@@ -117,7 +117,7 @@ ${manifest}
 }`;
 
   const response = await client.messages.create({
-    model: CLAUDE_SUMMARY_MODEL,
+    model: await latestHaikuModel(),
     max_tokens: 16000,
     // prompt caching: 동일한 시스템 프롬프트가 PDF마다 재사용되므로 5분 캐시 → 후속 호출 input 비용 ~90% 절감
     system: [

@@ -4,7 +4,7 @@ import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
 import logger from '@/lib/logger';
-import { CLAUDE_SUMMARY_MODEL, getAnthropicClient } from '@/lib/reports/anthropic';
+import { getAnthropicClient, latestHaikuModel } from '@/lib/reports/anthropic';
 import { formatRelatedSection, searchRelated } from '@/lib/reports/search.service';
 import { assertSafeReportUrl } from './url-guard';
 
@@ -250,7 +250,7 @@ ${input.bodyMarkdown}
 
   // max_tokens > 약 21000 이면 Anthropic SDK가 스트리밍을 강제하므로 stream() 사용
   const stream = client.messages.stream({
-    model: CLAUDE_SUMMARY_MODEL,
+    model: await latestHaikuModel(),
     max_tokens: 32000,
     // prompt caching: 동일한 시스템 프롬프트가 보고서마다 재사용되므로 5분 캐시 → 후속 호출 input 비용 ~90% 절감
     system: [

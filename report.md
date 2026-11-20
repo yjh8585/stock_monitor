@@ -276,7 +276,7 @@ _원화는 작성 시점(2026-09-15) 환율 적용 — 1유로 1,602원 · 1달�
   🔴 **이 수동 경로(유튜브·PDF 모두)는 최신 Opus 로 쓴다 — 현재 `claude-opus-5`**(사용자 지시 2026-09-11).
   서브에이전트에 위임할 때도 그 모델로 띄운다.
 - 🔴 **자동 경로는 손대지 않는다**(같은 지시): `collect_yt_report.py`(Haiku) · `youtube.service.ts`(Gemini 2.5 Flash) ·
-  `CLAUDE_SUMMARY_MODEL`(Haiku)은 그대로다. "오퍼스를 쓰라"는 것은 **사람이 Claude Code 에서 직접 쓸 때**의 이야기다.
+  `latestHaikuModel()`(최신 Haiku)은 그대로다. "오퍼스를 쓰라"는 것은 **사람이 Claude Code 에서 직접 쓸 때**의 이야기다.
   완전 자동 버전은 §2-A 를 볼 것.
 
 ---

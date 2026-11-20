@@ -197,21 +197,31 @@ def analyzeBoardSentiment(mode: str, limit: int, batch_size: int) -> None:
 
   client = _get_client_anthropic()
   total_upserted = 0
+  n_batches = 0
+  n_failed = 0
   for i in range(0, len(pending), batch_size):
     batch = pending[i:i + batch_size]
+    n_batches += 1
     try:
       rows = _analyze_batch(client, batch)
     except Exception as e:
+      n_failed += 1
       logger.warning(f'batch {i // batch_size + 1} 분석 실패: {e}')
       time.sleep(1.0)
       continue
-    if rows:
+    if not rows:
+      n_failed += 1  # 응답 파싱 실패(_parse_response 가 빈 배열)도 실패로 센다
+    else:
       upsert_rows('board_sentiment', rows, 'company_id,post_id')
       total_upserted += len(rows)
     logger.info(f'batch {i // batch_size + 1}: {len(batch)}건 요청 → {len(rows)}건 적재')
     time.sleep(0.3)  # rate limit 여유
 
-  logger.info(f'감성 분석 완료 — 총 {total_upserted}건 upsert')
+  # 모델이 최신 하이쿠로 저절로 바뀌므로, 새 모델이 요청을 거부하면 전 배치가 실패한다 —
+  # 그때 exit 0 으로 끝나면 GHA 가 초록불이라 아무도 모른다.
+  if n_failed == n_batches:
+    raise RuntimeError(f'전 배치 실패({n_failed}/{n_batches}) — model={MODEL}')
+  logger.info(f'감성 분석 완료 — 총 {total_upserted}건 upsert (실패 배치 {n_failed}/{n_batches})')
 
 
 if __name__ == '__main__':

@@ -35,6 +35,8 @@ export async function GET(req: NextRequest) {
   }
 
   const summary: { ticker: string; analyzed: number }[] = [];
+  // 분류 호출·저장 실패 종목 — 하나라도 있으면 502 로 응답해 GHA(curl --fail-with-body)가 실패로 알린다
+  const failed: { ticker: string; stage: 'classify' | 'upsert' }[] = [];
   for (const c of companies as { id: string; ticker: string }[]) {
     // 클라이언트에서 LEFT JOIN 시뮬레이션: 최근 글 → 이미 분석된 글 제외 → BATCH_SIZE만큼만 분석
     const { data: candidates, error: candErr } = await sb
@@ -81,7 +83,13 @@ export async function GET(req: NextRequest) {
       posts.map((p) => ({ postId: p.post_id, title: p.title })),
       model
     );
+    if (results === null) {
+      failed.push({ ticker: c.ticker, stage: 'classify' });
+      summary.push({ ticker: c.ticker, analyzed: 0 });
+      continue;
+    }
 
+    let saved = 0;
     if (results.length > 0) {
       const rows = results.map((r) => ({
         company_id: c.id,
@@ -97,9 +105,19 @@ export async function GET(req: NextRequest) {
         .upsert(rows, { onConflict: 'company_id,post_id' });
       if (upErr) {
         logger.error({ err: upErr, ticker: c.ticker }, 'board_sentiment upsert 실패');
+        failed.push({ ticker: c.ticker, stage: 'upsert' });
+      } else {
+        saved = rows.length;
       }
     }
-    summary.push({ ticker: c.ticker, analyzed: results.length });
+    summary.push({ ticker: c.ticker, analyzed: saved });
+  }
+  if (failed.length > 0) {
+    logger.error({ summary, failed }, '감성 분석 일부 실패');
+    return NextResponse.json(
+      { ok: false, error: 'partial_failure', summary, failed },
+      { status: 502 }
+    );
   }
   logger.info({ summary }, '감성 분석 완료');
   return NextResponse.json({ ok: true, summary });

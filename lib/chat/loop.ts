@@ -10,15 +10,16 @@
  * (withHistoryCache, 마지막 블록 breakpoint)를 캐시해 도구루프·멀티턴 재호출 시 input 비용 절감.
  */
 import type Anthropic from '@anthropic-ai/sdk';
-import { getAnthropicClient } from '@/lib/reports/anthropic';
+import { getAnthropicClient, latestHaikuModel } from '@/lib/reports/anthropic';
 import { CHAT_TOOLS, runTool } from './tools';
 import { buildSystemPrompt } from './system-prompt';
 import { logToolCall, extractRowCount } from './audit';
 import type { ChatMessage, ChatStreamEvent, ChatToolCallTrace, UserRole } from './types';
 
-// 비용 절감을 위해 Haiku 사용 (~1/3 가격). 답변 품질이 부족하면 'claude-sonnet-4-6'로 환원.
-const MODEL = 'claude-haiku-4-5';
-const MAX_TOKENS = 2048;
+// 비용 절감을 위해 최신 Haiku 를 쓴다(latestHaikuModel · 2026-11-20).
+// 하이쿠 5.5 는 생각(thinking)이 기본으로 켜져 그 몫도 이 한도를 쓴다 — 2048 이면 답이 잘린다.
+// 생각 블록은 finalMessage.content 를 그대로 되돌려 보내므로(아래 msgs.push) 도구 루프와 호환된다.
+const MAX_TOKENS = 8192;
 const MAX_ITERATIONS = 5;
 
 function previewResult(result: unknown): string {
@@ -80,10 +81,11 @@ export async function* streamChatLoop(
     content: m.content,
   }));
   const toolCalls: ChatToolCallTrace[] = [];
+  const model = await latestHaikuModel();
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const stream = client.messages.stream({
-      model: MODEL,
+      model,
       max_tokens: MAX_TOKENS,
       system: [
         {

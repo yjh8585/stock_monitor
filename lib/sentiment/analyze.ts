@@ -67,12 +67,14 @@ function buildUserContent(posts: PostForAnalysis[]): string {
 }
 
 /**
- * 글 배열을 1회 LLM 호출로 분류. 호출 실패 시 빈 배열 반환 (cron이 다음 회차에 재시도).
+ * 글 배열을 1회 LLM 호출로 분류. 분류할 글이 없으면 빈 배열.
+ * 호출 실패·도구 호출 없음·형식 깨짐은 `null` — 「0건 성공」과 갈라 크론이 실패로 알린다
+ * (모델이 최신 하이쿠로 저절로 바뀌므로, 새 모델이 요청을 거부해도 조용히 0건이 되지 않게).
  */
 export async function classifyPosts(
   posts: PostForAnalysis[],
   model: string
-): Promise<SentimentResult[]> {
+): Promise<SentimentResult[] | null> {
   if (posts.length === 0) return [];
   const client = getAnthropicClient();
   try {
@@ -98,11 +100,20 @@ export async function classifyPosts(
     });
     const block = resp.content.find((b) => b.type === 'tool_use');
     if (!block || block.type !== 'tool_use') {
-      logger.warn({ posts: posts.length }, '감성 분석 응답에 tool_use 없음');
-      return [];
+      logger.warn(
+        { posts: posts.length, model, stopReason: resp.stop_reason },
+        '감성 분석 응답에 tool_use 없음'
+      );
+      return null;
+    }
+    if (resp.stop_reason === 'max_tokens') {
+      logger.warn({ posts: posts.length, model }, '감성 분석 응답이 max_tokens 에서 잘림');
     }
     const input = block.input as { results?: unknown };
-    if (!Array.isArray(input?.results)) return [];
+    if (!Array.isArray(input?.results)) {
+      logger.warn({ posts: posts.length, model }, '감성 분석 결과 형식이 배열이 아님');
+      return null;
+    }
     const validated: SentimentResult[] = [];
     for (const r of input.results) {
       if (
@@ -125,7 +136,7 @@ export async function classifyPosts(
     }
     return validated;
   } catch (err) {
-    logger.error({ err, postsCount: posts.length }, '감성 분석 호출 실패');
-    return [];
+    logger.error({ err, postsCount: posts.length, model }, '감성 분석 호출 실패');
+    return null;
   }
 }
