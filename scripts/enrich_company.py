@@ -25,7 +25,7 @@
   TARGET_TICKERS  콤마 구분 ticker (옵션)
   ANTHROPIC_API_KEY  Claude API 키 (메타·웹검색 폴백용)
   DART_API_KEY    DART API 키 (KR 비상장사)
-  MODEL           Anthropic 모델 (default claude-haiku-4-5-20251001)
+  MODEL           Anthropic 모델 (기본 = 최신 하이쿠, lib/anthropic_models.py)
 """
 import argparse
 import copy
@@ -44,12 +44,13 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from collect_financials import _fetch_company_financials, _process_yf_frames  # noqa: E402
 from lib.companies import keeps_existing_summary  # noqa: E402
+from lib.anthropic_models import latest_haiku  # noqa: E402
 from lib.db import WriteSession, upsert_rows  # noqa: E402
 from lib.financial_sources import SOURCE_WEB_SEARCH  # noqa: E402
 from lib.product_categories import category_guide, fetch_product_categories  # noqa: E402
 from lib.text import is_rejection_response, strip_citation_tags  # noqa: E402
 
-DEFAULT_MODEL = os.environ.get('MODEL', 'claude-haiku-4-5-20251001')
+DEFAULT_MODEL = os.environ.get('MODEL') or latest_haiku()
 
 # ── Claude tool schemas ─────────────────────────────────────────────────
 FINANCIAL_TOOL = {
@@ -325,7 +326,7 @@ def _collect_websearch_financial(llm, c: dict) -> list[dict]:
   )
   try:
     resp = llm.messages.create(
-      model=DEFAULT_MODEL, max_tokens=4096,
+      model=DEFAULT_MODEL, max_tokens=16000,
       tools=[
         {'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 4},
         FINANCIAL_TOOL,
@@ -435,7 +436,7 @@ def _enrich_meta(llm, c: dict, tool: dict | None = None) -> dict | None:
   )
   try:
     resp = llm.messages.create(
-      model=DEFAULT_MODEL, max_tokens=4096,
+      model=DEFAULT_MODEL, max_tokens=16000,
       tools=[
         {'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 3},
         tool or META_TOOL,

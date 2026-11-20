@@ -13,8 +13,7 @@ CLI:
 - --limit N           : 한 번에 처리할 최대 건수 (기본 200)
 - --batch N           : 한 API 호출당 글 수 (기본 20)
 
-비용 (claude-haiku-4-5 기준 추정): 20건 배치 1회 약 $0.0002.
-1000건 ≈ $0.01.
+모델: 최신 하이쿠를 실행 때 고른다(lib/anthropic_models.py · 2026-11-20).
 """
 import argparse
 import json
@@ -31,12 +30,14 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
+from lib.anthropic_models import latest_haiku
 from lib.db import get_client, upsert_rows
 
-MODEL = 'claude-haiku-4-5'
+MODEL = latest_haiku()
 DEFAULT_BATCH = 20
 DEFAULT_LIMIT = 200
-MAX_TOKENS = 4096
+# 하이쿠 5.5 부터 생각(thinking)이 기본으로 켜져 그 몫도 이 한도를 쓴다 — 넉넉히.
+MAX_TOKENS = 16000
 ALLOWED_LABELS = {'positive', 'negative', 'neutral'}
 
 

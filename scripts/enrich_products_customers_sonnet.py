@@ -26,11 +26,12 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 import anthropic  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
+from lib.anthropic_models import latest_haiku  # noqa: E402
 from lib.db import WriteSession  # noqa: E402
 from lib.product_categories import category_guide, fetch_product_categories  # noqa: E402
 
-# 사용자 정책 (2026-05-12): Sonnet 비용 우려로 Haiku 4.5 사용.
-DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+# 사용자 정책 (2026-05-12): Sonnet 비용 우려로 Haiku 사용 · 2026-11-20 부터 최신 하이쿠를 실행 때 고른다.
+DEFAULT_MODEL = latest_haiku()
 TEXT_DIR = Path(__file__).parent / '_tmp' / 'company_texts'
 TEXT_DIR.mkdir(exist_ok=True, parents=True)
 
@@ -82,7 +83,7 @@ def _anthropic_web_search(llm, query: str, max_uses: int = 1) -> str | None:
     try:
         resp = llm.messages.create(
             model=DEFAULT_MODEL,
-            max_tokens=2048,
+            max_tokens=16000,
             tools=[{
                 'type': 'web_search_20250305',
                 'name': 'web_search',
@@ -173,7 +174,7 @@ def extract(
     )
     resp = llm.messages.create(
         model=DEFAULT_MODEL,
-        max_tokens=2048,
+        max_tokens=8000,  # 하이쿠 5.5 는 같은 글을 약 30% 더 많은 토큰으로 센다
         tools=[tool or TOOL_EXTRACT],
         tool_choice={'type': 'tool', 'name': 'submit_products_customers'},
         messages=[{'role': 'user', 'content': prompt}],

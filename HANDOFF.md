@@ -4,11 +4,23 @@
 직전 블록은 `## 이전 상태 …` 로 강등한다.
 
 **여기엔 최근 10블록만 둔다.** 그보다 오래된 블록은 지우지 않고
-[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **46블록** · 2026-11-17 실측)로 옮긴다.
+[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **49블록** · 2026-11-20 실측)로 옮긴다.
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-19, **경영표준 12장(CSR)·13장(BIQS)·부록 C 게시 — admin·holdings 만 · Codex `.env` 유출 수습**)
+## 최신 상태 · 재개 지점 (2026-11-20, **GHA 하이쿠 → 최신 하이쿠 자동 선택 · GHA 실패 점검 · MarkLines 10월 적재 상태**)
+
+- 사용자 지시(2026-11-20): 「gha 사용되는 앤트로픽 api 모델이 하이쿠인데 이것도 하이쿠 최신버전을 알아서 사용하는 것으로 바꿔줘」 · 「계획서 필요 없어」.
+- 바꾼 것: 모델 ID 를 박지 않고 실행 때 Models API 에서 `claude-haiku-*` 중 `created_at` 최신을 고른다 — 파이썬 `scripts/lib/anthropic_models.py` `latest_haiku()` · TS `lib/reports/anthropic.ts` `latestHaikuModel()`(조회 10초·재시도 1회 · 실패 시 `claude-haiku-5-5` 폴백). GHA 경로 6곳 적용: `analyze_board_sentiment.py` · `enrich_company.py`(onboard·humanoid 포함) · `collect_macro_outlook.py` · `collect_yt_report.py` · `enrich_products_customers_sonnet.py` · 감성 크론 `app/api/cron/sentiment/route.ts`(DB `board_sentiment.model` 에 실제 쓴 ID 기록). 환경변수 지정(`MODEL` 등)은 그대로 우선.
+- 하이쿠 5.5 호환: 생각(thinking)이 기본 켜짐 → 첫 블록을 답으로 읽던 `collect_macro_outlook.py` 를 type 으로 고침 · 도구 강제 아닌 호출 `max_tokens` 16000 · 토큰이 약 30% 늘어 도구 강제 호출도 올림(감성 크론 4096→16000 · 제품 추출 2048→8000). 실호출로 5.5 선택·정상 응답 확인(2026-11-20).
+- 일부러 안 바꾼 것: 챗봇(`lib/chat/loop.ts`)·보고서 업로드 요약(`CLAUDE_SUMMARY_MODEL`)은 웹 경로라 범위 밖 — 아직 `claude-haiku-4-5`. 로컬 전용 수집 스크립트 10여 개도 그대로.
+- 검토(Codex·오퍼스 따로)에서 남긴 위험 — 기존 구조라 이번엔 안 고침: 감성 크론·`analyze_board_sentiment.py` 는 LLM 호출이 전부 실패해도 성공(200·exit 0)으로 끝난다. 모델이 이제 저절로 바뀌므로, 새 하이쿠가 도구 강제를 400 으로 막으면(오퍼스·소넷 5.5 가 그랬다) 조용히 0건이 된다 → 실패 시 5xx/exit 1 + 400 이면 폴백 재시도가 후속 후보.
+- GHA 실패 점검(2026-11-20): 최근 실패 7종 전부 다음 실행부터 회복 — 감성 크론 401(11-19 수동 1회) · KG 11-15 · 두바이 11-14 · 금속 11-03~12. 조치 없음.
+- MarkLines 10월(2026-11-20 DB 실측): 판매는 57개국 중 11개국만(미국·일본·독일 등 · 한국·중국·영·프 없음) · 생산·중국 3종은 9월까지 → 사용자가 엑셀 6종을 받아 `import_marklines_manual.py` 로 적재해야 한다(절차 = `docs/oem-collection.md`).
+- 재개 지점: (1) 푸시 뒤 첫 GHA 실행 로그에서 「최신 haiku 모델: …」 줄 확인 · 감성 크론 응답 정상 (2) 사용자가 MarkLines 엑셀을 받으면 적재 결과 표 확인 (3) 챗봇·요약도 최신화할지 사용자 결정 대기.
+- CLAUDE.md 제안 대기: `AGENTS.md` 「폴더별 약속」 `scripts/lib/` 줄 · `anthropic_models.py`(하이쿠 모델 ID 를 수집기에 박지 말 것 — `latest_haiku()`) · 새 GHA 스크립트가 4.5 를 다시 박으면 자동 최신화가 조용히 빠진다
+
+## 이전 상태 · 재개 지점 (2026-11-19, **경영표준 12장(CSR)·13장(BIQS)·부록 C 게시 — admin·holdings 만 · Codex `.env` 유출 수습**)
 
 - 게시(2026-11-19): posts 176(12장)·177(13장)·178(부록 C) 새로, 162(부록 B 용어 71개 추가)·149(00장 표) 갱신. 계획·결정 = `docs/plans/2026-11-18-mgmt-standard-customer.md` + `_결정이행.md`. 원고·처리표·도구는 gitignore `참고/경영표준/`(처리표 확정본 `검토/처리표_12_13.md`)
 - 확인(프로덕션): 경영표준 17편 전부 사외비 · anon 0행 · admin·holdings 목차 17줄(12→13→부록 A·B·C) · mobility·hmobility·guest 는 상세까지 첫 화면으로 돌려보내짐 · `/reports` 누출 0 · 별표 0 · Mermaid 12장 5·13장 4 렌더. 다시 재려면 `참고/경영표준/도구/verify_roles.py <레포 루트> <결과.json>`(venv python) · `verify_anon.py .env.local`
@@ -194,28 +206,3 @@
 **Codex diff 검토(2회차 · 차종 모드·큰 PDF) 5건 전부 반영**: ① 판매 0행이어도 생산 표는 그린다 ② 차종 합의 빈 달을 0 으로 채움(적재기가 0대 행을 안 남겨 연간 YoY 와 KPI 가 갈렸다) ③ `--from-json` 은 DOC_SCHEMA 필수 칸·중요도 값·모르는 칸을 먼저 막는다 ④ 판매·생산 어느 표에도 없는 차종명은 화면에 경고 ⑤ 수동 모델명 시험이 상수를 베끼지 않게.
 
 **검증**: `npm run check-all` exit 0(시험 736) · Python 시험 36 · `verify_call_contracts` 0 · `verify_docs` 오류 0.
-
-## 이전 상태 · 재개 지점 (2026-11-12 오전, **고객사 페이지 수정 회차 C(지역·차종·점유율) 끝 + 화면 추가 요청 3건 — 푸시·배포**)
-
-> 이 세션의 관통 주제: 계획서 `docs/plans/2026-11-11-customers-page-revisions.md` 의 C 절(C1~C10 · Task C-1~C-7). 사용자 지시 「Api 사용하지 마 이제. 직접 해」로 소급 값 뽑기·구현은 이 세션이 직접(API 0) · 검토는 Codex + 오퍼스 검토자 따로. 끝에 화면 추가 요청 3건(원문 = `_최초지시.md` 「추가 지시 (2026-11-12 · C 마무리 중)」).
-
-**결과**: C 계획·C-1(표)·C-2(검사·적재·소급 CLI)·C-3(코드 파서)·C-4(정기 API 읽기)·C-6·C-7(화면·GHA 「분해」 step·문서) · 화면 추가 3건(연간 YTD · 막대/선 영역 분리 · 표 행 강조) — 푸시 `4bcf668`(백업 봇 커밋 위로 rebase).
-
-**🔴 재개 지점**:
-
-1. **프로덕션 화면 눈 확인은 사용자 몫으로 남았다** — 로그인이 필요한 화면이라 에이전트가 프로덕션에 비밀번호를 넣지 않는다(안전 규칙 · 사용자 허락으로도 안 됨). 에이전트는 배포 상태·보호 경로·축 계산만 확인했다. 확인 목록: (가) 실적 차트 「연간」에 맨 오른쪽 「2026 YTD(1~n분기)」 막대 (나) 막대는 아래·선은 위로 갈라져 숫자가 안 겹치나(gm) (다) 표 행 클릭 → 노란 음영 · 다시 클릭 → 해제(요약·실적·물량·구성비·국내 3사 차종 표) (라) 「지역·차종·점유율」 절(gm 인도 「(세분)」 차트 · volkswagen · stellantis · mobis · polaris · vinfast · 국내 3사는 OEM 차트 + 점유율).
-2. **첫 정기 실행 확인(미확인)** — `collect-customer-docs.yml` 의 「요약」·「분해」 step(평일 08:00 KST) · `summarize-customer-news.yml`(월 06:00). 「분해」는 `--api` 첫 실호출이다(사용자 「정기 수집부터 api가 하고」). `::warning::` 「상위 합계 의심」이 뜨면 그 문서 하위 행을 `_detail` 로 다시 적재.
-3. 포르쉐 「분기 전체」 제안(사용자 답 없음) — 묻지 않고 두었다.
-
-**사용자 결정 (2026-11-12)**: 지역 탭은 `customer_volume_ir` 지역 행을 되풀이 안 함(물량 절에만) · C: 0MB 사고 뒤 dev 촬영 건너뜀 → 배포 뒤 프로덕션 점검(「개발서버로 하지말고」) · 계획 파일 새로 만들지 않음.
-
-**🔴 이번에 배운 것**:
-
-- GM 8-K 는 「Total North America」 와 그 안의 United States·Other 를 함께 싣는다 — 같은 metric 이면 차트가 2배로 쌓인다. 하위는 `<metric>_detail`. 자동 판별기는 계층 없는 모비스 지역 매출에서 우연한 합 일치 5행을 잡아 «경고만» 둔다(`suspect_parent_sums`).
-- 이름 앞부분만 겹치는 형제(「VF 8」·「VF 8 Plus」)가 있다 — 하위 라벨 제거는 하위 합 ≤ 상위 값일 때만.
-- 서버 컴포넌트 표에 행 강조를 붙일 땐 표 전체를 `'use client'` 로 바꾸지 말고 행만(`components/customers/HighlightRow.tsx`) — 사외비 칸이 RSC payload 로 실린다.
-- 고객사 실적 차트는 `splitBands` 로 §4-F 영역 분리. OEM 현대 탭은 그대로(같은 부품 · 기본 false) — §4-F 위반이 남아 있다.
-- C: 가 0MB 까지 찼다(dev 촬영 중 · `.next` 3.2GB). 촬영·check-all 전 `df -h /c`.
-- GHA 상태 API(`gh api repos/<repo>/commits/<sha>/statuses`)로 Vercel 빌드 결과를 볼 수 있다 — Vercel MCP 가 없는 세션의 대안.
-
-**검증**: `npm run check-all` exit 0(시험 717) · Python 시험 38 통과 · `verify_docs.py` 오류 0 · Vercel 빌드 success(`4bcf668` Production 배포) · 프로덕션 `/login` 200 · `/customers/gm` 307 → `/login?next=…`(보호 경로 정상).

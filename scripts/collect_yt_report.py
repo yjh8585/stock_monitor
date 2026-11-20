@@ -11,7 +11,7 @@ GitHub Actions(collect-yt-report.yml)로 트리거한다. 흐름:
 
 수동 고품질 경로는 scripts/yt_report/ 툴킷(에이전트 주도) — report.md §7.
 
-usage: python collect_yt_report.py --url <watch_url> [--post-id N] [--model claude-haiku-4-5]
+usage: python collect_yt_report.py --url <watch_url> [--post-id N] [--model <모델 ID · 기본=최신 하이쿠>]
 """
 from __future__ import annotations
 
@@ -41,9 +41,10 @@ except Exception:  # noqa: BLE001
 
 import requests  # noqa: E402
 from anthropic import Anthropic  # noqa: E402
+from anthropic_models import latest_haiku  # noqa: E402
 
 CATEGORY_LIST = ["로봇", "기술", "부품사", "전기차", "자율주행", "시장", "OEM"]
-DEFAULT_MODEL = os.environ.get("YT_REPORT_MODEL", "claude-haiku-4-5")
+DEFAULT_MODEL = os.environ.get("YT_REPORT_MODEL") or latest_haiku()
 FRAME_OFFSETS = (4, 12, 20)  # slug당 후보 프레임(초)
 WINDOW_BEFORE = 6
 

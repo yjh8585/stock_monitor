@@ -21,10 +21,11 @@ from loguru import logger
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
+from lib.anthropic_models import latest_haiku
 from lib.db import upsert_rows
 from lib.macro_targets import allTickers
 
-ANTHROPIC_MODEL = os.environ.get('MACRO_OUTLOOK_MODEL', 'claude-haiku-4-5-20251001')
+ANTHROPIC_MODEL = os.environ.get('MACRO_OUTLOOK_MODEL') or latest_haiku()
 NEWS_LIMIT = 8
 EDGAR_LIMIT = 5
 EDGAR_LOOKBACK_MONTHS = 6
@@ -157,10 +158,10 @@ def _summarizeEconomy(client: Anthropic, digest: str) -> dict | None:
   try:
     msg = client.messages.create(
       model=ANTHROPIC_MODEL,
-      max_tokens=2000,
+      max_tokens=16000,  # 하이쿠 5.5+ 는 생각(thinking) 몫도 이 한도를 쓴다
       messages=[{'role': 'user', 'content': prompt}],
     )
-    raw = msg.content[0].text if msg.content else ''
+    raw = ''.join(b.text for b in msg.content if b.type == 'text')
   except Exception as e:
     logger.error(f"Claude 호출 실패 — {e}")
     return None

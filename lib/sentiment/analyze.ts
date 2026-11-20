@@ -1,5 +1,5 @@
 /**
- * 네이버 종목토론 글의 LLM 감성 분류 (Claude Haiku 4.5).
+ * 네이버 종목토론 글의 LLM 감성 분류 (최신 Claude Haiku — 호출자가 `latestHaikuModel()` 로 고른다).
  *
  * - 글 N개를 묶어 1회 호출. tool_use로 JSON 형식 강제.
  * - 시스템 프롬프트에 cache_control 적용해 후속 호출 재사용.
@@ -8,8 +8,6 @@
  */
 import { getAnthropicClient } from '@/lib/reports/anthropic';
 import logger from '@/lib/logger';
-
-export const SENTIMENT_MODEL = 'claude-haiku-4-5';
 
 export interface PostForAnalysis {
   postId: string;
@@ -71,13 +69,17 @@ function buildUserContent(posts: PostForAnalysis[]): string {
 /**
  * 글 배열을 1회 LLM 호출로 분류. 호출 실패 시 빈 배열 반환 (cron이 다음 회차에 재시도).
  */
-export async function classifyPosts(posts: PostForAnalysis[]): Promise<SentimentResult[]> {
+export async function classifyPosts(
+  posts: PostForAnalysis[],
+  model: string
+): Promise<SentimentResult[]> {
   if (posts.length === 0) return [];
   const client = getAnthropicClient();
   try {
     const resp = await client.messages.create({
-      model: SENTIMENT_MODEL,
-      max_tokens: 4096,
+      model,
+      // 50건 × (id·라벨·점수·근거) — 하이쿠 5.5 는 같은 글을 약 30% 더 많은 토큰으로 센다
+      max_tokens: 16000,
       system: [
         {
           type: 'text',

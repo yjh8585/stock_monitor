@@ -5,7 +5,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { classifyPosts, SENTIMENT_MODEL } from '@/lib/sentiment/analyze';
+import { latestHaikuModel } from '@/lib/reports/anthropic';
+import { classifyPosts } from '@/lib/sentiment/analyze';
 
 const HANSAE_TICKERS = ['016450', '105630', '069640', '053280'];
 const BATCH_SIZE = 50;
@@ -75,7 +76,11 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    const results = await classifyPosts(posts.map((p) => ({ postId: p.post_id, title: p.title })));
+    const model = await latestHaikuModel();
+    const results = await classifyPosts(
+      posts.map((p) => ({ postId: p.post_id, title: p.title })),
+      model
+    );
 
     if (results.length > 0) {
       const rows = results.map((r) => ({
@@ -84,7 +89,7 @@ export async function GET(req: NextRequest) {
         label: r.label,
         score: r.score,
         reason: r.reason,
-        model: SENTIMENT_MODEL,
+        model,
         analyzed_at: new Date().toISOString(),
       }));
       const { error: upErr } = await sb
