@@ -412,7 +412,29 @@ describe('buildCashBridge', () => {
     expect(at('beginCash').dummy).toBe(true);
     expect(at('netCash').dummy).toBe(true); // 전기말 잔액이 더미면 그 차이도 더미
   });
-  it('흐름 계정 10종을 모두 읽는다 — 값을 넣으면 그만큼 미설명 차이가 줄어든다', () => {
+  it('리스료 지급(원금 + 이자)은 ② 에서 빠진다 — 미설명 차이엔 남지 않는다', () => {
+    const rows = [
+      ...bridgeDataset(),
+      row({
+        period_year: 2026,
+        period_kind: 'monthly',
+        period_month: 2,
+        account: '리스료 지급',
+        value_mwon: -400,
+      }),
+    ];
+    const c = buildCashBridge(rows, BRIDGE_PNL, '전체');
+    const val = (k: string) => c.rows.find((r) => r.key === k)!.cells[0].value;
+    expect(val('lease')).toBe(-4);
+    expect(val('ocf')).toBe(47); // 51 − 4
+    expect(val('fcf')).toBe(17);
+    expect(val('unexplained')).toBe(-15); // −19 + 4
+    const lr = c.rows.findIndex((r) => r.key === 'lease');
+    expect(c.rows[lr - 1].key).toBe('interest');
+    const w = buildCashWaterfall(c).find((s) => s.key === 'interestTax')!;
+    expect(w.value).toBeCloseTo(-9); // 이자 −2 · 리스 −4 · 법인세 −3
+  });
+  it('흐름 계정 정본 목록을 모두 읽는다 — 값을 넣으면 그만큼 미설명 차이가 줄어든다', () => {
     const withFlow = (account: string, mwon: number) => [
       ...bridgeDataset().filter((r) => !(r.period_year === 2026 && r.account === account)),
       row({

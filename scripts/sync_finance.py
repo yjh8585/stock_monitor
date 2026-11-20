@@ -137,7 +137,7 @@ def dedupe(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 # 자금수지 흐름 계정 중 유출만 있는 것(이름은 lib/finance/aggregate.ts CASH_FLOW_ACCOUNTS 와 같아야 한다).
-CASH_OUTFLOW_ACCOUNTS = ('법인세 납부', 'CAPEX 유지보수', 'CAPEX 증설', '배당 지급')
+CASH_OUTFLOW_ACCOUNTS = ('법인세 납부', '리스료 지급', 'CAPEX 유지보수', 'CAPEX 증설', '배당 지급')
 
 
 def summarize(entries: list[dict[str, Any]]) -> None:

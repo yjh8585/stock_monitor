@@ -142,7 +142,7 @@
   - 사무=임원+사무. 소스 `personnel_entries`. 과거=연말, 현재=최신 시점.
 - **finance** — 재무(대차대조표) 차트 2종:
   1. 재무 레버리지 콤보 — 자산·부채 묶은 막대 + 부채비율(=부채/자본 ×100) 표식 꺾은선, 이중축 오프셋으로 막대(하단)·선(상단) 분리. 자회사 필터(전체/미국/상숙, 데이터 기반 자동) — 차트1 전용.
-  2. 자금수지(Cash Bridge, 2026-11-20 투하자본·자금조달 표를 교체) — 최신 기간 폭포 차트(기초 현금 → 기말 현금) + 기간별 표(과거 연간 · 진행연도 누계). ① EBITDA → ② 경상 영업현금흐름(매출채권·재고·매입채무 증감 행 분리 · 이자 · 법인세) → ③ FCF(CAPEX 유지보수·증설) → 일회성·투자·자본 → 미설명 차이(= 실제 현금 변화 − 나머지) → ④ 차입 전 현금증감 → ⑤ 순현금증감 → ⑥ 기말 현금. 칸 호버 = 비고(`note`), 항목 이름 호버 = 엑셀 입력 위치. 비고가 `[더미]`로 시작하면 입력 예시 값 → 주황 기울임. 흐름 계정 정본 = `lib/finance/aggregate.ts` `CASH_FLOW_ACCOUNTS`. 전체/연결 고정.
+  2. 자금수지(Cash Bridge, 2026-11-20 투하자본·자금조달 표를 교체) — 최신 기간 폭포 차트(기초 현금 → 기말 현금) + 기간별 표(과거 연간 · 진행연도 누계). ① EBITDA → ② 경상 영업현금흐름(매출채권·재고·매입채무 증감 행 분리 · 이자 · 리스료 지급(K-IFRS 16, 원금 + 이자) · 법인세) → ③ FCF(CAPEX 유지보수·증설) → 일회성·투자·자본 → 미설명 차이(= 실제 현금 변화 − 나머지) → ④ 차입 전 현금증감 → ⑤ 순현금증감 → ⑥ 기말 현금. 칸 호버 = 비고(`note`), 항목 이름 호버 = 엑셀 입력 위치. 비고가 `[더미]`로 시작하면 입력 예시 값 → 주황 기울임. 흐름 계정 정본 = `lib/finance/aggregate.ts` `CASH_FLOW_ACCOUNTS`. 전체/연결 고정.
   3. 이인텔리전스 대여금 — KPI 3장(누적/당월/2026 YTD 계획대비 지급율) + 계획 대비 실적 막대(재고 `InventoryAchievementChart` 재사용, 2025=실적만·2026=계획+실적). 소스 `loan_entries`(억원 원본 `loan_eok`).
   - 소스 `finance_entries`. 억원=`value_mwon / 100`. 시점은 과거=연말(annual), 당해연도=최신월(YTD).
 - **org-chart** — 조직도: 시점별 조직도 이미지(비공개 버킷 `org-charts` PNG) + 드롭다운(날짜 — 제목 병기. 같은 날짜에 여러 판이 있다). admin·holdings 전용(mobility·hmobility·guest 차단, `permissions.ts` · mobility 는 2026-11-16 부터). 메타는 `org_charts`(사외비, §7-G), 이미지는 인증 프록시 `/api/management/org-chart/image/[id]`로 스트리밍. 적재는 로컬 `scripts/sync_org_chart.py`(Excel COM).
@@ -583,7 +583,7 @@ UNIQUE: (source, note_date)
 
 | subsidiary | consolidation | period_year | period_kind('annual'|'monthly') | period_month | account | value_mwon | note |
 
-엑셀 '재무' 시트 적재(`sync_finance.py`). 대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자) + 자금수지 흐름 계정 10종(20261120000001 — 법인세 납부·일회성 영업현금·CAPEX 유지보수/증설 등, 정본 `CASH_FLOW_ACCOUNTS`, 현금 기준 부호·그 달까지 누계). `note` = 시트 8열 비고(`[더미]` 접두 = 입력 예시). 시점 정규화: 과거='연간'/월=12 → annual(month=12, 연말), 당해=월별(monthly, 1~11). UI는 억원(`value_mwon/100`), 과거=연말·당해=최신월(YTD). `/management/finance`가 `FinanceLeverageChart`(자산·부채·부채비율 콤보)+`FinanceCashBridge`(자금수지 폭포 차트·표)로 렌더.
+엑셀 '재무' 시트 적재(`sync_finance.py`). 대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자) + 자금수지 흐름 계정 11종(20261120000001 — 법인세 납부·리스료 지급·일회성 영업현금·CAPEX 유지보수/증설 등, 정본 `CASH_FLOW_ACCOUNTS`, 현금 기준 부호·그 달까지 누계). `note` = 시트 8열 비고(`[더미]` 접두 = 입력 예시). 시점 정규화: 과거='연간'/월=12 → annual(month=12, 연말), 당해=월별(monthly, 1~11). UI는 억원(`value_mwon/100`), 과거=연말·당해=최신월(YTD). `/management/finance`가 `FinanceLeverageChart`(자산·부채·부채비율 콤보)+`FinanceCashBridge`(자금수지 폭포 차트·표)로 렌더.
 **PK**: (subsidiary, consolidation, period_year, period_kind, period_month, account)
 **인덱스**: (subsidiary, period_year, period_kind, period_month)
 **RLS**: 정책 없음 (20260610000001) → service_role 전용(`confidentialDb`).

@@ -213,6 +213,7 @@ export function buildInterestRateSeries(
  */
 export const CASH_FLOW_ACCOUNTS = [
   '법인세 납부',
+  '리스료 지급',
   '일회성 영업현금',
   'CAPEX 유지보수',
   'CAPEX 증설',
@@ -309,7 +310,7 @@ function sumCells(cells: readonly Cell[], signs?: readonly (1 | -1)[]): Cell {
  * 3. 자금수지 표 (전체·연결 고정).
  *
  *   영업이익 + 감가상각비                                  = ① EBITDA
- *   ① ± 매출채권·재고·매입채무 증감 − 이자비용 + 법인세 납부  = ② 경상 영업현금흐름
+ *   ① ± 매출채권·재고·매입채무 증감 − 이자비용 + 리스료 지급 + 법인세 납부  = ② 경상 영업현금흐름
  *   ② + CAPEX 유지보수 + CAPEX 증설                         = ③ 경상 잉여현금흐름(FCF)
  *   ③ + 일회성 영업현금 + 설비 매각 + 관계사 출자·대여 + 배당 수취 + 증자 + 배당 지급
  *     + 기타 현금흐름 + 미설명 차이                          = ④ 차입 전 현금증감
@@ -320,6 +321,9 @@ function sumCells(cells: readonly Cell[], signs?: readonly (1 | -1)[]): Cell {
  * - 흐름 = 과거 연간 / 진행연도 YTD 누계. 잔액 항목은 직전 연말 대비 차이 → 첫 연도(기초 잔액 없음)는 열에서 뺀다.
  * - 영업이익은 손익(pnlDerived.opIncome). 감가상각비는 과거=재무 연간, 진행연도=손익 상각비(재무 월 누계 fallback).
  * - 진행연도 표시월은 잔액 계정이 온전한 최신월을 손익 최신월로 캡(손익·재무 혼용 방지).
+ * - 리스(K-IFRS 16, 사용자 확인 2026-11-20): 리스료는 손익에서 사용권자산 상각(감가상각비에 포함) +
+ *   리스 이자로 바뀌어 EBITDA 에서 빠진다. 「차입」엔 리스부채가 없고 「이자비용」엔 리스 이자가 없으므로
+ *   실제 나간 리스료 전액(원금 + 이자)을 「리스료 지급」으로 ②에서 뺀다 — 안 빼면 매달 미설명 차이에 쌓인다.
  */
 export function buildCashBridge(
   rows: readonly FinanceRow[],
@@ -357,6 +361,7 @@ export function buildCashBridge(
     | 'inv'
     | 'ap'
     | 'interest'
+    | 'lease'
     | 'tax'
     | 'ocf'
     | 'capexM'
@@ -395,8 +400,9 @@ export function buildCashBridge(
     const inv = balanceDeltaCell(sub, cur, prev, '재고', -1);
     const ap = balanceDeltaCell(sub, cur, prev, '채무', 1);
     const interest = flowCell(sub, cur, '이자비용', -1); // DB 양수(비용) → 유출 −
+    const lease = flowCell(sub, cur, CF('리스료 지급'), 1);
     const tax = flowCell(sub, cur, CF('법인세 납부'), 1);
-    const ocfSum = sumCells([ebitda, ar, inv, ap, interest, tax]);
+    const ocfSum = sumCells([ebitda, ar, inv, ap, interest, lease, tax]);
 
     const capexM = flowCell(sub, cur, CF('CAPEX 유지보수'), 1);
     const capexG = flowCell(sub, cur, CF('CAPEX 증설'), 1);
@@ -470,6 +476,7 @@ export function buildCashBridge(
       inv,
       ap,
       interest,
+      lease,
       tax,
       ocf,
       capexM,
@@ -498,7 +505,8 @@ export function buildCashBridge(
       key: 'dep',
       label: '(+) 감가상각비',
       kind: 'item',
-      source: "'재무' 시트 「감가상각비(유형+무형)」 · 진행연도는 손익 상각비",
+      source:
+        "'재무' 시트 「감가상각비(유형+무형)」(사용권자산 상각 포함) · 진행연도는 손익 상각비",
     },
     { key: 'ebitda', label: '① EBITDA', kind: 'subtotal', source: '영업이익 + 감가상각비' },
     {
@@ -523,7 +531,14 @@ export function buildCashBridge(
       key: 'interest',
       label: '(−) 이자비용',
       kind: 'item',
-      source: "'재무' 시트 「이자비용」(누계, 양수로 입력)",
+      source: "'재무' 시트 「이자비용」(누계, 양수로 입력 · 리스 이자 제외)",
+    },
+    {
+      key: 'lease',
+      label: '(−) 리스료 지급',
+      kind: 'item',
+      source:
+        "'재무' 시트 「리스료 지급」(누계, 지급 −) · 실제 낸 리스료 전액(원금 + 이자) · 현금흐름표 「리스부채의 상환」 + 리스 이자",
     },
     {
       key: 'tax',
@@ -535,7 +550,7 @@ export function buildCashBridge(
       key: 'ocf',
       label: '② 경상 영업현금흐름',
       kind: 'subtotal',
-      source: '① ± 운전자본 증감 − 이자비용 + 법인세 납부(음수로 입력된 유출)',
+      source: '① ± 운전자본 증감 − 이자비용 + 리스료 지급 + 법인세 납부(둘 다 음수로 입력된 유출)',
     },
     {
       key: 'capexM',
@@ -603,7 +618,7 @@ export function buildCashBridge(
       key: 'netDebt',
       label: '(±) 순차입',
       kind: 'item',
-      source: "'재무' 시트 「차입」 잔액 차이 · 신규·상환 내역은 비고에",
+      source: "'재무' 시트 「차입」 잔액 차이(리스부채 제외) · 신규·상환 내역은 비고에",
     },
     {
       key: 'otherFin',
@@ -677,7 +692,12 @@ export function buildCashWaterfall(bridge: CashBridge): CashWaterfallStep[] {
     { key: 'ar', label: '매출채권', kind: 'step', keys: ['ar'] },
     { key: 'inv', label: '재고', kind: 'step', keys: ['inv'] },
     { key: 'ap', label: '매입채무', kind: 'step', keys: ['ap'] },
-    { key: 'interestTax', label: '이자·법인세', kind: 'step', keys: ['interest', 'tax'] },
+    {
+      key: 'interestTax',
+      label: '이자·리스·법인세',
+      kind: 'step',
+      keys: ['interest', 'lease', 'tax'],
+    },
     { key: 'capex', label: 'CAPEX', kind: 'step', keys: ['capexM', 'capexG'] },
     { key: 'oneoff', label: '일회성', kind: 'step', keys: ['oneoff'] },
     {
