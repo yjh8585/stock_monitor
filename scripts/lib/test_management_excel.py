@@ -30,7 +30,29 @@ def test_glob_fallback_when_no_env(tmp_path, monkeypatch):
   (base / '자료정리_월별손익_2026 5 27.xlsx').write_bytes(b'a')
   (base / '자료정리_월별손익_2026 6 22.xlsx').write_bytes(b'b')
   got = resolve_excel_path(base_dir=base)
-  assert got.name == '자료정리_월별손익_2026 6 22.xlsx'  # 사전순 마지막
+  assert got.name == '자료정리_월별손익_2026 6 22.xlsx'
+
+
+def test_glob_picks_latest_date_not_last_by_name(tmp_path, monkeypatch):
+  """2026-11-23 실측: 글자순이면 「6 22」가 「10 31」보다 뒤라 6월 파일을 골랐다."""
+  monkeypatch.delenv('MANAGEMENT_EXCEL_PATH', raising=False)
+  for name in ('2026 6 22', '2026 10 31', '2026 5 27 - 복사본', '2026 5 27', '2025 12 31'):
+    (tmp_path / f'자료정리_월별손익_{name}.xlsx').write_bytes(b'x')
+  assert resolve_excel_path(base_dir=tmp_path).name == '자료정리_월별손익_2026 10 31.xlsx'
+
+
+def test_same_date_prefers_original_over_copy(tmp_path, monkeypatch):
+  monkeypatch.delenv('MANAGEMENT_EXCEL_PATH', raising=False)
+  for name in ('2026 5 27 - 복사본', '2026 5 27'):
+    (tmp_path / f'자료정리_월별손익_{name}.xlsx').write_bytes(b'x')
+  assert resolve_excel_path(base_dir=tmp_path).name == '자료정리_월별손익_2026 5 27.xlsx'
+
+
+def test_undated_name_loses_to_dated(tmp_path, monkeypatch):
+  monkeypatch.delenv('MANAGEMENT_EXCEL_PATH', raising=False)
+  for name in ('최종', '2026 1 5'):
+    (tmp_path / f'자료정리_월별손익_{name}.xlsx').write_bytes(b'x')
+  assert resolve_excel_path(base_dir=tmp_path).name == '자료정리_월별손익_2026 1 5.xlsx'
 
 
 if __name__ == '__main__':
