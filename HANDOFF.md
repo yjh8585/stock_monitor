@@ -15,7 +15,7 @@
 - 고친 것: (1) mermaid `securityLevel` loose→strict(`click` javascript: 링크 차단 · `<br>`·`classDef`·init 은 그대로 — 헤드리스 확인) (2) 자금수지 ②·③ 은 EBITDA 가 비면 비움(④·미설명 차이 계산은 그대로) (3) 재무 `selectPeriods` — 12월 연간 행이 계정 미완이거나 손익월보다 앞서면 월별로(원래 입력 안 하는 계정이면 연말 유지 · 운영 DB 영향 0건 확인) (4) `MultiSeriesChart` 숨김 effect 에 라벨 의존성 (5) 네이버 리서치 0건 판정을 종류마다 · 하나라도 0이면 저장 없이 exit 3(`scripts/lib/test_collect_naver_research.py`).
 - 🔴 커밋 당시 다른 세션이 `lib/finance/aggregate.ts` 에 「리스료 지급」을 넣는 중이었다 → 이 커밋은 내 hunk 만 담았다(그쪽 변경은 작업트리에 남김). 그쪽 미완 상태에선 `aggregate.test.ts` 「흐름 계정 10종」 시험이 실패한다(리스료가 목록엔 있고 계산엔 없음) — 내 변경 탓 아님.
 - 재개 지점: 다음 회차 후보 6~11(사외비 4곳 1,000행 · 종목토론 반응 0 덮어쓰기 · 고객사 재적재·숫자 대조 검사기 7건 · UTC 날짜 · KOMIS 403) = 계획서 「다음 회차 후보」. 검사기 7건은 재현 입력을 MUST_HIT 시험으로 먼저 박을 것. agents `scan_all.py` 같은 날 정정본 49딜은 agents 세션에서.
-- 기존 실패(이번 변경 무관): `verify_docs.py` 상한 초과 2건 — `Architecture.md` · `docs/gotchas-playwright-ui.md`.
+- 기존 실패(이번 변경 무관): `verify_docs.py` 상한 초과 2건 — `Architecture.md` · `docs/gotchas-playwright-ui.md`. → 2026-11-23 해소(자금수지 세션 · 설명 구절을 `docs/history/` 경위 문서로 글자 그대로 옮김 · 오류 0건).
 
 ## 이전 상태 · 재개 지점 (2026-11-20, **재무 3번 → 자금수지(Cash Bridge) · 더미 예시 적재 · 입력용 엑셀**)
 

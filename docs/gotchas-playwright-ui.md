@@ -148,12 +148,8 @@
 `/reports` 는 `app/reports/layout.tsx` 의 `mx-auto max-w-7xl px-12 sm:px-20 lg:px-24` 가
 여백을 주는데, 휴머노이드 탭은 그 컨테이너가 없어 각 페이지의 `p-6` 만 남았다.
 
-실측(1440px · 사이드바 제외): **게시판 97px vs 휴머노이드 25px** — 표가 가장자리에 붙는다.
-→ `app/humanoid/reports/layout.tsx` 를 게시판과 **같은 클래스**로 신설해 맞췄다(재측정 97px).
-같은 글을 양쪽에서 볼 수 있으므로 폭이 달라 보이면 안 된다.
-
-⚠️ `/humanoid/research`(증권사 리포트)는 여전히 25px 이다 — 표를 `rounded-md border` 카드로
-감싸고 자체 필터 바를 둔 **다른 레이아웃**이라 이번에 건드리지 않았다.
+→ 새 탭은 `app/humanoid/reports/layout.tsx` 처럼 게시판과 **같은 클래스**를 준다(같은 글을 양쪽에서
+보므로 폭이 같아야 한다). 실측·예외(`/humanoid/research`) = [경위](./history/gotchas-playwright-ui-경위.md).
 
 ## dev 생성 타입 파일 꼬리 중복 (2026-10-30 실측)
 
