@@ -117,7 +117,8 @@ def _store(ws, doc, ticker, content, summ, rows, totals: Counter, now: str, tag:
   out, conflicts = payloads(doc, results)
   notes = Counter(n.split(':')[0] for _, ok, n in results if not ok)
   ok_n = sum(1 for p in out if p['verified'])
-  totals.update(docs=1, rows=len(out), verified=ok_n, conflicts=conflicts)
+  totals.update(docs=1, rows=len(out), verified=ok_n, conflicts=conflicts,
+                llm_rows=sum(1 for r in rows if r.extractor == 'llm'), scale=notes['scale_not_in_source'])
   tail = (' · 실패 ' + ' '.join(f'{k} {v}' for k, v in notes.most_common())) if notes else ''
   print(f'문서 {doc["id"]} · {ticker}{tag} · 행 {len(out)} · verified {ok_n}' + (f' · 충돌 {conflicts}' if conflicts else '')
         + tail + (' · 요약 행 없음(표식 못 찍음)' if summ is None else ''))
@@ -265,6 +266,10 @@ def run_company(client, session, ticker: str, doc_ids: list[int], since_days: in
       errors += not _store(ws, doc, ticker, content, summ, rows, totals, now, ' · 코드')
   cost = (f' · API 토큰 {tok_in}+{tok_out} · 약 {llm_breakdown.usd(tok_in, tok_out):.2f} USD' if tok_in or tok_out else '')
   print(_total_line(totals, dry_run) + ''.join(f' · {k} {v}' for k, v in sorted(skipped.items())) + cost)
+  from lib.customer_breakdown import scale_warning
+  warn = scale_warning(totals['scale'], totals['llm_rows'])
+  if warn:
+    print(f'::warning::{ticker} · {warn}' if gha else f'{ticker} · {warn}')
   return 1 if errors else 0
 
 

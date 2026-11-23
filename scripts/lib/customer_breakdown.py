@@ -208,6 +208,22 @@ def scale_unmarked(r: Row, page_text: str) -> bool:
   return not any(m in _SCALE_MARK and _SCALE_MARK[m].search(text) for m in used)
 
 
+# 정기 API 행 중 이 비율 이상이 scale_not_in_source 로 떨어지면 「검사가 과할 수 있음」(2026-11-23 사용자 선택 · 제안값)
+SCALE_WARN_RATIO = 0.2
+
+
+def scale_warning(flagged: int, llm_rows: int) -> str | None:
+  """한 번의 정기 실행에서 배수 표지 검사(scale_unmarked)가 떨어뜨린 행을 알리는 문구 — 없으면 None.
+  검사를 처음 켜 둔 채 실데이터를 못 본 상태라(2026-11-23 정기 API 행 0) 사람이 기억하지 않아도 수집기가 알리게 한다."""
+  if not flagged:
+    return None
+  msg = f'배수 표기 없음(scale_not_in_source) {flagged}/{llm_rows}행'
+  if llm_rows and flagged / llm_rows >= SCALE_WARN_RATIO:
+    msg += (f' — {SCALE_WARN_RATIO:.0%} 이상이라 검사가 과할 수 있다. verify_note 로 행을 골라 원문 쪽의 단위 표기를'
+            ' 확인하고, 맞는 값이면 customer_breakdown._SCALE_MARK 표지를 넓힌다')
+  return msg
+
+
 def verify(r: Row, src: SourcePages) -> tuple[bool, str]:
   """(verified, note) — 결정 C8.
   PDF 는 쪽 번호가 있어야 하고 범위 안이어야 한다(코드 리뷰 2차 9번) — 없으면 문서 전체를 근거로 삼아 다른 쪽의 인용·숫자로

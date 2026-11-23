@@ -164,6 +164,32 @@ class VerifyTest(unittest.TestCase):
     self.assertEqual(cb.verify(_row(page=None, value=357000, quote='North America deliveries were 357 vehicles.'), bare),
                      (True, 'ok'))
 
+  def test_scale_warning(self):
+    """정기 실행이 「배수 표기 없음」으로 떨어뜨린 행을 스스로 알린다 — 20% 이상이면 검사가 과할 수 있다는 경고(2026-11-23 사용자 「1번으로 해」)."""
+    self.assertIsNone(cb.scale_warning(0, 0))
+    self.assertIsNone(cb.scale_warning(0, 50))
+    small = cb.scale_warning(1, 50)
+    self.assertIn('1/50', small)
+    self.assertNotIn('과할 수', small)
+    big = cb.scale_warning(10, 50)
+    self.assertIn('10/50', big)
+    self.assertIn('과할 수', big)
+    self.assertIn('과할 수', cb.scale_warning(1, 5))   # 경계 = 20%
+
+  def test_collector_counts_scale_flags(self):
+    """수집기 _store 가 정기 API 행 수와 배수 표기 없음 건수를 합계에 모은다(경고의 재료 · dry-run)."""
+    from collections import Counter
+
+    import collect_customer_breakdown as ccb
+    bare = Content(text='North America deliveries were 357 vehicles.', tables=[], raw=b'')
+    rows = [_row(page=None, value=357000, quote='North America deliveries were 357 vehicles.', extractor='llm'),
+            _row(page=None, label_raw='Europe', label_ko='유럽', value=357, quote='North America deliveries were 357 vehicles.',
+                 extractor='llm')]
+    totals = Counter()
+    doc = {'id': 7, 'company_id': 'c-1', 'published_at': '2026-10-28'}
+    self.assertTrue(ccb._store(None, doc, 'STLA', bare, {}, rows, totals, 'now'))
+    self.assertEqual((totals['llm_rows'], totals['scale']), (2, 1))
+
   def test_pdf_row_needs_page(self):
     """PDF 인데 쪽 번호가 없으면 문서 전체를 근거로 삼지 않는다."""
     ok, note = cb.verify(_row(page=None), self.src)

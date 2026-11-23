@@ -11,6 +11,8 @@
 > 2026-11-23(마무리 보고의 재개 문장 「HANDOFF 맨 위 블록의 재개 지점부터 코드 리뷰 6~11번 이어서 해」 뒤, 대화 정리 후): 「계속해」
 >
 > 2026-11-23(「남은 일 더 할 거 있나?」 → 추천 3건 = 게시글 API `canReadPost` · AGENTS.md Toaster 문구 · `?secret=` 제거 제시 뒤): 「작고 효과가 분명한 것들 작업하고 WRAP-UP으로 마무리 해」
+>
+> 2026-11-23(「고객사 정기 실행 뒤 너가 알아서 체크 하는거야?」 → 아니라고 답하고 1 수집기가 스스로 경고 · 2 다음 세션 · 3 예약 실행 제시 뒤): 「1번으로 해」 — 기준·방식 미지정이라 제안값(20% · 노란 경고 `::warning::`)으로
 
 ## 범위·방법
 
@@ -117,6 +119,7 @@
 - 했음: Toaster 위치 문구 — `AGENTS.md`·`Architecture.md`·`docs/gotchas-playwright-ui.md` 세 곳을 `top-right` 로
 - 기각: 보고서 HTML iframe `sandbox` — `components/reports/report-embed.tsx` 머리 주석의 의도된 설계(걸면 영상 재생기가 죽는다)
 - 남김(결정 필요): 로그인 시도 제한·30일 토큰은 보안 정책 선택이라 사용자 결정 대기 · 나머지 수집기 갈래는 「현재 미발생」 판정 그대로
+- 했음(「1번으로 해」): 배수 표기 검사의 사후 확인을 사람 기억에서 수집기로 — `customer_breakdown.scale_warning`(정기 API 행 중 떨어진 건수 · `SCALE_WARN_RATIO` 20% 이상이면 「검사가 과할 수 있다」) · `collect_customer_breakdown.py` 가 회사마다 `::warning::`. 확인 시점의 정기 API 행 0 · 마지막 분해 11-11(소급). 워크플로 머리 주석 갱신은 인프라 파일 승인 게이트라 생략(설명 = `docs/customers-collection.md`)
 
 ### 다른 레포 (agents — 따로 회차)
 
