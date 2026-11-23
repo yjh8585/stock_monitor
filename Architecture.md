@@ -1115,7 +1115,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - `ui/` — shadcn 원자 컴포넌트 (수동 수정 금지, shadcn CLI로 추가). **Select는 base-ui 기반**이라 `value`≠라벨이면 root에 `items`가 필요 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - `layout/`, `common/`, `charts/` — 공용 / 나머지는 페이지별(`related-stocks/`, `oem/`, `hansae/`, `management/` 등)
 - **그림 클릭 확대는 `components/common/ImageLightbox.tsx` 를 재사용**(인라인 재구현 금지) — `ZoomableImage`(클릭하면 열리는 그림) / `ImageLightbox`(열림을 바깥에서 제어할 때. 조직도가 이 쪽). 원본 해상도 스크롤 + 화면 맞춤 전환 + grab-to-pan + Esc 닫기가 한 벌로 붙어 있다. 쓰는 곳은 보고서 본문(`MarkdownView` 의 `img`) · 증권사 리포트 하단 갤러리 · 조직도.
-- **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-center"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
+- **`<Toaster />`(sonner)는 `app/layout.tsx` body 끝 `position="top-right"` 고정 — 제거·이동 금지.** 자리 옆에 붙어야 하는 검증 오류는 toast 말고 인라인 `<p role="alert">`. 경위·이유 → [`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)
 - `components/customers/` — 고객사 요약·실적 표·지역·차종·점유율 절
 
 ### `lib/`

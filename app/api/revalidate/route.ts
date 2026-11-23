@@ -6,8 +6,11 @@
  *   Headers: { "x-revalidate-secret": "<NEXT_REVALIDATE_SECRET>" }
  *   Body: { "tags": ["related_stocks_view", "exchange_rates_live"] }
  *
- * 또는 단순:
- *   POST /api/revalidate?secret=XXX&tag=related_stocks_view
+ * 또는 단순(비밀값은 여전히 헤더로):
+ *   POST /api/revalidate?tag=related_stocks_view
+ *
+ * 🔴 비밀값은 헤더로만 받는다 — 주소(`?secret=`)에 실으면 접속 기록·프록시 로그에 평문으로 남는다
+ * (2026-11-20 코드 리뷰 「낮음·참고」 · 호출부 3곳 모두 헤더라 2026-11-23 주소 방식을 뺐다).
  *
  * tag=all → 모든 페이지 캐시 무효화
  */
@@ -81,7 +84,7 @@ const ALL_TAGS = [
 ];
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get('x-revalidate-secret') ?? req.nextUrl.searchParams.get('secret');
+  const secret = req.headers.get('x-revalidate-secret');
   const expected = process.env.NEXT_REVALIDATE_SECRET;
   if (!expected) {
     return NextResponse.json(

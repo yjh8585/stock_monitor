@@ -184,7 +184,7 @@ sticky 열은 `bg-background` 다 → **사용자가 두 표를 나란히 보고
 `toast.success/error(...)` 호출이 **업로드·회사등록·보고서 폼 4곳에서 아무 일도 하지 않았다** —
 에러도 경고도 없이 그냥 안 떴다.
 
-- 마운트 위치는 `app/layout.tsx` 의 body 끝, `position="top-center"`.
+- 마운트 위치는 `app/layout.tsx` 의 body 끝, `position="top-right"`.
 - 🔴 **우하단(`bottom-right`)으로 옮기지 말 것** — 챗봇 버튼(`fixed bottom-5 right-5 z-40`)이 그 자리를
   점유해서 toast 가 가려진다.
 - **toast 를 새로 썼는데 화면에 안 뜨면 이 마운트가 살아 있는지부터 확인한다.** 컴포넌트 쪽을

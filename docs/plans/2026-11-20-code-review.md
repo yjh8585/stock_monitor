@@ -9,6 +9,8 @@
 > 2026-11-20 선택(질문 대화상자): 수정 범위 = 「1~5번만」 · 반영 = 「커밋+운영 배포」 · 판정 원장 = 「레포에 저장」 · agents 레포 DART 대장 = 「따로 회차로」 · 이 문서 = 「새로 만듦」
 >
 > 2026-11-23(마무리 보고의 재개 문장 「HANDOFF 맨 위 블록의 재개 지점부터 코드 리뷰 6~11번 이어서 해」 뒤, 대화 정리 후): 「계속해」
+>
+> 2026-11-23(「남은 일 더 할 거 있나?」 → 추천 3건 = 게시글 API `canReadPost` · AGENTS.md Toaster 문구 · `?secret=` 제거 제시 뒤): 「작고 효과가 분명한 것들 작업하고 WRAP-UP으로 마무리 해」
 
 ## 범위·방법
 
@@ -107,6 +109,14 @@
 - 가이던스 선삭제 후 upsert 실패(재처리 때만, 오류가 화면에 뜸) · 중국 import 가 엑셀에 없는 연도까지 삭제 후보(현재 5% 상한이 막음) · `--add-file` 회사 불일치 미검사 · 감사보고서 주석 열 휴리스틱 · 제품 분류 변경안이 최신 값을 덮음(일회성, 적용 끝 · 170줄 주석이 거짓) · 고객사 문서 첫 조회 페이지 없음(최대 43행) · `settle.py` 실패 시 `KeyError` · `grab.py` 옛 미리보기를 성공으로.
 - 게시글 API `GET /api/posts/[id]`·목록이 `canReadPost` 를 안 씀(경영표준 17편 전부 `is_confidential=true` 라 현재 영향 없음 — 방어 보강) · 종목토론 자동 글만 있는 쪽이면 10쪽까지 · `latest_haiku()` 모듈 최상단 · 엑셀 적재 apply 동시 두 번 · 로그인 시도 제한 없음·30일 토큰 · 비밀값 `?secret=` 허용 · 보고서 HTML iframe `sandbox` 없음(관리자 스크립트만 씀).
 - `AGENTS.md` 「`<Toaster />` top-center 고정」 ↔ 코드 `top-right`(`app/layout.tsx:54-56` 주석이 의도 설명) — 문서가 낡음.
+
+#### 3회차 처리 (2026-11-23 · 「작고 효과가 분명한 것들」)
+
+- 했음: 게시글 API 두 곳 — 세션 없으면 401 · 상세는 `canReadPost` 실패면 404(html 프록시와 같은 태도) · 목록은 경영표준 열람 권한이 없으면 그 카테고리를 뺀다(`lib/reports/__tests__/posts-api-read-gate.test.ts` — 시험 먼저 실패 4 확인)
+- 했음: `?secret=` 제거 — `/api/revalidate`·`/api/revalidate/posts/[id]`·`/api/cron/sentiment` 를 헤더로만. 호출부 실측: 수집 스크립트 3곳(`lib/revalidate.py`·`collect_yt_report.py`·`collect_naver_board.ts`)과 감성 크론 GHA 가 전부 헤더 · agents 레포 호출 0
+- 했음: Toaster 위치 문구 — `AGENTS.md`·`Architecture.md`·`docs/gotchas-playwright-ui.md` 세 곳을 `top-right` 로
+- 기각: 보고서 HTML iframe `sandbox` — `components/reports/report-embed.tsx` 머리 주석의 의도된 설계(걸면 영상 재생기가 죽는다)
+- 남김(결정 필요): 로그인 시도 제한·30일 토큰은 보안 정책 선택이라 사용자 결정 대기 · 나머지 수집기 갈래는 「현재 미발생」 판정 그대로
 
 ### 다른 레포 (agents — 따로 회차)
 

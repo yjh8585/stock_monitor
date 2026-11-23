@@ -2,12 +2,13 @@ import { revalidateTag } from 'next/cache';
 import { after, NextResponse } from 'next/server';
 
 import { getCurrentUser } from '@/lib/auth/get-current-user';
-import { canPublishReports } from '@/lib/auth/permissions';
+import { canAccessMgmtStandard, canPublishReports } from '@/lib/auth/permissions';
 import logger from '@/lib/logger';
 
 export const maxDuration = 300; // PDF/웹 분석은 Claude API 호출로 최대 5분 소요
 import { fail, ok } from '@/lib/reports/api-response';
 import { createPostInputSchema, postListQuerySchema } from '@/lib/reports/dto/post.dto';
+import { MGMT_STANDARD_CATEGORY } from '@/lib/reports/mgmtStandard';
 import { PostRepository } from '@/lib/reports/repositories/post.repository';
 import { PostService } from '@/lib/reports/services/post.service';
 
@@ -18,6 +19,12 @@ const postService = new PostService(postRepo);
  * 게시글 목록 조회.
  */
 export async function GET(req: Request) {
+  // 사외비 행은 anon RLS 가 거른다. 경영표준은 RLS 밖이라 열람 권한이 없으면 카테고리째 뺀다
+  // (상세 판정 canReadPost 와 같은 기준 · 2026-11-20 코드 리뷰 「낮음·참고」).
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(fail('UNAUTHORIZED', '로그인이 필요합니다.'), { status: 401 });
+  }
   const url = new URL(req.url);
   const parsed = postListQuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
@@ -26,7 +33,9 @@ export async function GET(req: Request) {
   const { page, pageSize } = parsed.data;
 
   try {
-    const result = await postRepo.list(page, pageSize);
+    const result = await postRepo.list(page, pageSize, {
+      excludeCategories: canAccessMgmtStandard(user.role) ? [] : [MGMT_STANDARD_CATEGORY],
+    });
     return NextResponse.json(ok({ ...result, page, pageSize }));
   } catch (err) {
     logger.error({ err }, '게시글 목록 조회 실패');

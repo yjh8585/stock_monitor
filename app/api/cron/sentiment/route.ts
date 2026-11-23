@@ -16,9 +16,8 @@ function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   const auth = req.headers.get('authorization');
-  if (auth === `Bearer ${secret}`) return true;
-  if (req.nextUrl.searchParams.get('secret') === secret) return true;
-  return false;
+  // 헤더로만 받는다 — 주소(`?secret=`)는 접속 기록에 평문으로 남는다(GHA 크론은 Bearer 헤더)
+  return auth === `Bearer ${secret}`;
 }
 
 export async function GET(req: NextRequest) {

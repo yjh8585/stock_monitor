@@ -8,7 +8,8 @@ interface RouteContext {
 }
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
-  const secret = req.headers.get('x-revalidate-secret') ?? req.nextUrl.searchParams.get('secret');
+  // 비밀값은 헤더로만 — 주소(`?secret=`)는 접속 기록에 평문으로 남는다(/api/revalidate 와 같은 규칙)
+  const secret = req.headers.get('x-revalidate-secret');
   const expected = process.env.NEXT_REVALIDATE_SECRET;
   if (!expected) {
     return NextResponse.json(
