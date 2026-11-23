@@ -8,9 +8,9 @@
  */
 import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
-import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
+import { fetchAllPages } from '@/lib/supabase/fetchAllPages';
 import { getPreparedPnl } from '@/lib/pnl/source';
 import type { PreparedPnlData } from '@/lib/pnl/aggregate';
 import type { Basis } from '@/lib/pnl/types';
@@ -18,18 +18,21 @@ import type { PlanRow } from './types';
 import type { LongtermRow, LongtermSeries } from './longterm';
 
 async function fetchPlanRows(): Promise<PlanRow[]> {
-  const { data, error } = await confidentialDb
-    .from('pnl_plan')
-    .select('*')
-    .order('category', { ascending: true })
-    .order('item', { ascending: true })
-    .order('period_year', { ascending: true })
-    .order('period_month', { ascending: true });
-  if (error) {
-    logger.error({ err: error }, 'pnl_plan 조회 실패');
-    throw new Error(`Supabase pnl_plan 조회 실패: ${error.message}`);
-  }
-  return (data ?? []).map((r) => ({
+  // 정렬 = PK 전체(category, item, basis, kind, period_year, period_type, period_month) — 페이지 경계 누락·중복 방지
+  const data = await fetchAllPages('pnl_plan', (from, to) =>
+    confidentialDb
+      .from('pnl_plan')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('item', { ascending: true })
+      .order('basis', { ascending: true })
+      .order('kind', { ascending: true })
+      .order('period_year', { ascending: true })
+      .order('period_type', { ascending: true })
+      .order('period_month', { ascending: true })
+      .range(from, to)
+  );
+  return data.map((r) => ({
     ...r,
     basis: r.basis as Basis,
     kind: r.kind as PlanRow['kind'],
@@ -38,18 +41,18 @@ async function fetchPlanRows(): Promise<PlanRow[]> {
 }
 
 async function fetchLongtermRows(): Promise<LongtermRow[]> {
-  const { data, error } = await confidentialDb
-    .from('longterm_revenue_plan')
-    .select('*')
-    .order('basis_year', { ascending: true })
-    .order('basis_quarter', { ascending: true })
-    .order('series', { ascending: true })
-    .order('period_year', { ascending: true });
-  if (error) {
-    logger.error({ err: error }, 'longterm_revenue_plan 조회 실패');
-    throw new Error(`Supabase longterm_revenue_plan 조회 실패: ${error.message}`);
-  }
-  return (data ?? []).map((r) => ({
+  // 정렬 = PK 전체(basis_year, basis_quarter, series, period_year)
+  const data = await fetchAllPages('longterm_revenue_plan', (from, to) =>
+    confidentialDb
+      .from('longterm_revenue_plan')
+      .select('*')
+      .order('basis_year', { ascending: true })
+      .order('basis_quarter', { ascending: true })
+      .order('series', { ascending: true })
+      .order('period_year', { ascending: true })
+      .range(from, to)
+  );
+  return data.map((r) => ({
     ...r,
     series: r.series as LongtermSeries,
   }));

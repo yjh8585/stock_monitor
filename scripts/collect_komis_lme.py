@@ -19,7 +19,7 @@ load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 from lib.db import upsert_rows
-from lib.komis import KomisTarget, fetchWithRetry
+from lib.komis import KomisBlocked, KomisTarget, fetchWithRetry
 from lib.series_sources import (
   BACKFILL_YEARS,
   KOMIS_ALU_MNRL_CODE,
@@ -55,6 +55,8 @@ def collectKomisLme() -> None:
         failed.append(code)
         continue
       upsert_rows('market_series_daily', rows, 'series_code,trade_date')
+    except KomisBlocked:
+      raise  # 차단·거부면 다음 금속도 조회하지 않고 멈춘다(lib/komis.py BLOCKED_STATUSES)
     except Exception as e:
       logger.error(f"{code}: 조회·적재 실패 — {e}")
       failed.append(code)

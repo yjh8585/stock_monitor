@@ -152,6 +152,8 @@ PERCENT_METRICS = frozenset(('revenue_growth', 'operating_margin', 'aoi_margin',
                              'automotive_ebitda_margin', 'investment_ratio', 'bev_share', 'operating_margin_adjusted'))
 SCALE = {'million': 1e6, 'billion': 1e9, 'trillion': 1e12, 'units': 1.0, 'percent': 1.0, 'per_share': 1.0}
 MONEY_UNITS = ('million', 'billion', 'trillion', 'per_share')
+# 대수 지표 — 단위는 'units'(1_000_000 · 지시문 형식)만. 'million' 을 붙이면 대수 행에 금액 배수가 남는다(코드 리뷰 9번)
+COUNT_METRICS = frozenset(('deliveries', 'sales_units'))
 _EOK = 1e8
 
 _NUM = re.compile(r'\d[\d,]*(?:\.\d+)?')
@@ -253,6 +255,8 @@ def fix_eok(g: GuidanceRow) -> GuidanceRow:
 def unit_mismatch(g: GuidanceRow) -> str | None:
   if g.unit == 'text':
     return 'text 숫자' if g.low is not None or g.high is not None else None
+  if g.metric in COUNT_METRICS and g.unit != 'units':
+    return '대수 단위'
   return '비율 단위' if g.metric in PERCENT_METRICS and g.unit != 'percent' else None
 
 
@@ -317,9 +321,9 @@ def _token_currencies(q: str, toks: list[_Tok]) -> list[set[str]]:
   return out
 
 
-def foreign_currency(g: GuidanceRow, base: str | None) -> set[str]:
-  """값에 붙은 보고 통화 아닌 통화 표지."""
-  if not base or g.unit not in MONEY_UNITS:
+def value_currencies(g: GuidanceRow) -> set[str]:
+  """값(low·high)에 붙은 통화 표지 전부 — 금액 단위가 아니면 빈 집합."""
+  if g.unit not in MONEY_UNITS:
     return set()
   q, out = g.quote or '', set()
   toks = number_tokens(q)
@@ -329,7 +333,26 @@ def foreign_currency(g: GuidanceRow, base: str | None) -> set[str]:
       continue
     hit = {i for i, t in enumerate(toks) if _close(t.n, abs(v))} | {toks.index(t) for t in _matches(v, g.unit, toks)}
     for i in hit:
-      out |= curs[i] - {base}
+      out |= curs[i]
+  return out
+
+
+def foreign_currency(g: GuidanceRow, base: str | None) -> set[str]:
+  """값에 붙은 보고 통화 아닌 통화 표지."""
+  return value_currencies(g) - {base} if base else set()
+
+
+# 따옴표 없는 '27년' 은 20~29 만 — '20년간'·'30년 역사' 같은 기간은 연도가 아니다(검토 2회차)
+_QUOTE_YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)|(?<![a-z])[FC]Y\s?(\d{2})(?!\d)|['’‘](\d{2})(?!\d)"
+                         r"|(?<![\d.,~])(2\d)년(?!\s*(?:간|동안|째|만|이상|이내|역사))", re.I)
+
+
+def quote_years(quote: str | None) -> set[int]:
+  """quote 에 적힌 연도(2026 · FY26 · CY26 · '26 · 26년) — 없으면 빈 집합."""
+  out = set()
+  for m in _QUOTE_YEAR.finditer(quote or ''):
+    yy = m.group(1) or m.group(2) or m.group(3)
+    out.add(2000 + int(yy) if yy else int(m.group(0)))
   return out
 
 
@@ -432,6 +455,7 @@ def metric_mismatch(g: GuidanceRow) -> str | None:
 
 
 REASON_PAST_YEAR = '과거 연도'
+REASON_FUTURE_YEAR = '연도 불일치'
 REASON_RANGE = '범위 뒤집힘'
 REASON_METRIC = '지표 불일치'
 STATED_CLEARED = 'stated 근거 없음'   # 버림이 아니라 고침(행은 남고 stated 만 None) — '억→million 환산' 과 같은 갈래
@@ -458,6 +482,11 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
     elif pub_year is not None and g.metric != 'other' and int(g.period.removeprefix('FY')) < pub_year:
       # 상태 행(other — 숫자는 위 「숫자 other」가 이미 버렸다)은 연초 문서의 「작년 전망 달성·확인」이라 남긴다(잔여 Minor 4)
       reason = REASON_PAST_YEAR
+    elif (pub_year is not None and g.metric != 'other' and int(g.period.removeprefix('FY')) > pub_year
+          and (ys := quote_years(g.quote)) and int(g.period.removeprefix('FY')) not in ys):
+      # 발행 연도보다 뒤 해인데 quote 는 다른 해만 적었다 — 2026 전망을 FY2027 로 옮겨 적은 행(코드 리뷰 9번).
+      # quote 에 연도가 없으면('next year') 판정 못 해 남긴다
+      reason = REASON_FUTURE_YEAR
     elif g.low is not None and g.high is not None and g.low > g.high:
       reason = REASON_RANGE
     if reason is None:
@@ -471,6 +500,8 @@ def screen(rows: list[GuidanceRow], base_currency: str | None = None, drop: re.P
         g = replace(g, currency=None) if g.currency else g   # 비금액·보고 통화 = None(칸 뜻: None = 회사 보고 통화)
       if g.currency is None and foreign_currency(g, base_currency):
         reason = '통화'
+      elif g.currency is not None and (marks := value_currencies(g)) and g.currency not in marks:
+        reason = '통화'   # 모델이 적은 통화가 값에 붙은 표지와 다르다(코드 리뷰 9번 — 전엔 통화 칸이 차 있으면 안 봤다)
     if reason:
       why[reason] += 1
       continue
@@ -582,6 +613,8 @@ UNIT_MISS = [    # 비율 단위·text 숫자
   ('investment_ratio', 17.8, 17.8, 'trillion', '17.8조 자동차부문투자계획'),
   ('bev_share', 1000000, 1000000, 'units', '·판매 목표 2030년 : 413만대 (EV : 100만대, xHEV : 115만대)'),
   ('revenue', 89.7, 89.7, 'text', 'Sales of 89.7 next year'),
+  # 코드 리뷰 9번 — 대수 지표에 금액 배수 단위(지시문의 대수 형식은 1_000_000 · unit='units')
+  ('deliveries', 1, 1, 'million', 'The company expects deliveries of 1 million vehicles in 2026.'),
 ]
 _EOK_Q = "※ '26년목표는'25년실적대비2.1% 감소한USD 89.7억(전동화부품수주목표USD 28억포함)"
 EOK_FIX = [      # (low, high, unit, quote) → 기대 (low, high, unit)
@@ -618,6 +651,10 @@ CURRENCY_CASES = [
   ('billion', 35, 'Revenue of 35 billion in US dollars', None, 'EUR', True),
   ('billion', 35, 'Revenue of 35 billion in euros', None, 'EUR', False),
   ('billion', 35, 'Revenue of 35 billion US dollars', None, 'USD', False),
+  # 코드 리뷰 9번 — 모델이 통화 칸을 직접 적은 행도 값에 붙은 통화 표지와 대조한다(전엔 통화 칸이 차 있으면 건너뛰었다)
+  ('billion', 35, 'Group sales revenue of EUR 35 billion.', 'USD', 'EUR', True),
+  ('billion', 35, 'Revenue of 35 billion US dollars', 'USD', 'EUR', False),   # 표지와 통화 칸이 같다
+  ('billion', 35, 'Revenue of 35 billion', 'USD', 'EUR', False),             # 표지 없음 — 판정 못 해 남긴다
 ]
 # (stated, quote) — stated 는 인용 대조 밖이라 quote 에 그 낱말 어간이 있어야 남는다(최종 검토 P2)
 STATED_HIT = [   # stated 가 그대로 남아야 한다
@@ -676,6 +713,21 @@ SHAPE_CASES = [
   (2026, -10.0, -5.0, 2026, False),  # 음수 범위(€(5)~€(10) → -10~-5)
   (2026, 10.0, None, 2026, False),   # 한쪽 끝만
   (2025, 10.0, 12.0, None, False),   # 발행 연도 모름 → 연도 검사 안 함
+]
+# (기간 연도, quote, 발행 연도) → 버려지나 — 코드 리뷰 9번: 발행 연도보다 «뒤» 해인데 quote 가 다른 해만 적었다
+# (2026 전망을 FY2027 로 옮겨 적은 행). quote 에 연도가 없으면('next year') 판정 못 해 남긴다.
+FUTURE_YEAR_CASES = [
+  (2027, 'The company expects 2026 sales revenue of $5 billion.', 2026, True),
+  (2027, 'The company expects 2027 sales revenue of $5 billion.', 2026, False),
+  (2027, 'Next year we expect sales revenue of $5 billion.', 2026, False),
+  (2027, "'27년 매출 목표 5조", 2026, False),
+  (2027, 'FY27 revenue of $5 billion', 2026, False),
+  # 검토 2회차 — 따옴표 없는 '27년' · 'CY27' 도 연도다(못 읽으면 비교 연도 2026 만 보여 맞는 행을 버렸다)
+  (2027, '2026년 실적 대비 27년 매출 5조 목표', 2026, False),
+  (2027, 'CY27 revenue target of 5 trillion won, up from 2026', 2026, False),
+  (2027, '2026년 대비 20년간 누적 매출 5조 목표', 2026, True),   # '20년간' 은 기간이지 2020 이 아니다 — 2026 만 남아 버린다
+  (2030, '중장기(2030년) 영업이익률 목표 10%', 2026, False),
+  (2026, '2025년 대비 매출 10% 성장', 2026, False),   # 발행 연도의 전망 — 비교 연도만 적은 꼴
 ]
 # 상태 행(metric='other' · 숫자 없음)은 과거 연도 검사 밖(잔여 Minor 4 — 연초 문서의 「작년 전망 달성·확인」)
 STATUS_PAST_KEEP = ['Stellantis confirms that it achieved its 2025 financial guidance.']
@@ -801,6 +853,11 @@ def self_test() -> list[str]:
     _, why = screen([g], None, None, pub)
     if bool(why.get(REASON_PAST_YEAR) or why.get(REASON_RANGE)) != dropped:
       errs.append(f'SHAPE 어긋남: FY{year} {lo}~{hi} 발행 {pub}')
+  for year, q, pub, dropped in FUTURE_YEAR_CASES:
+    g = GuidanceRow('revenue', 'Revenue', f'FY{year}', 5, 5, None, 'billion', None, q)
+    _, why = screen([g], None, None, pub)
+    if bool(why.get(REASON_FUTURE_YEAR)) != dropped:
+      errs.append(f'FUTURE_YEAR 어긋남: FY{year} 발행 {pub} {q[:40]}')
   for q in STATUS_PAST_KEEP:
     g = GuidanceRow('other', 'Guidance', 'FY2025', None, None, 'confirms', 'text', None, q, 'maintained')
     kept, why = screen([g], None, None, 2026)

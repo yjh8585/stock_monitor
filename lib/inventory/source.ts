@@ -6,23 +6,24 @@
  */
 import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
-import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
+import { fetchAllPages } from '@/lib/supabase/fetchAllPages';
 import type { InventoryRow } from './types';
 
 async function fetchInventoryRows(): Promise<InventoryRow[]> {
-  const { data, error } = await confidentialDb
-    .from('inventory_entries')
-    .select('*')
-    .order('category', { ascending: true })
-    .order('item', { ascending: true })
-    .order('period_year', { ascending: true })
-    .order('period_month', { ascending: true });
-  if (error) {
-    logger.error({ err: error }, 'inventory_entries 조회 실패');
-    throw new Error(`Supabase inventory_entries 조회 실패: ${error.message}`);
-  }
-  return (data ?? []).map((r) => ({
+  // 정렬 = PK 전체(category, item, kind, period_year, period_month) — 페이지 경계 누락·중복 방지
+  const data = await fetchAllPages('inventory_entries', (from, to) =>
+    confidentialDb
+      .from('inventory_entries')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('item', { ascending: true })
+      .order('kind', { ascending: true })
+      .order('period_year', { ascending: true })
+      .order('period_month', { ascending: true })
+      .range(from, to)
+  );
+  return data.map((r) => ({
     ...r,
     kind: r.kind as InventoryRow['kind'],
   }));

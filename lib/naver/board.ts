@@ -44,9 +44,14 @@ export interface NaverBoardPost {
   postedAt: Date;
   title: string;
   body: string | null;
-  views: number;
-  likes: number;
-  dislikes: number;
+  /**
+   * 🔴 `null` = 반응을 못 받았다(조회 실패·응답에 그 글이 없음). 0 과 다르다 —
+   * 0 으로 넘기면 upsert 가 DB 의 실값을 0 으로 덮는다(2026-11-20 코드 리뷰 7번).
+   * 호출부는 null 인 글의 반응 칸을 **빼고** 저장한다.
+   */
+  views: number | null;
+  likes: number | null;
+  dislikes: number | null;
 }
 
 interface ListItem extends NaverBoardPost {
@@ -151,6 +156,9 @@ export function parseReactionsPayload(
   for (const r of arr) {
     const id = typeof r.postId === 'string' ? r.postId : String(r.postId ?? '');
     if (!id) continue;
+    // 조회수가 숫자로 안 오면 «모름»으로 둔다(Map 에서 빠져 호출부가 null → 반응 칸을 빼고 저장).
+    // 0 으로 채우면 DB 실값을 덮는다(2026-11-23 Codex 검토). Number(null) 은 0 이라 null 을 먼저 거른다.
+    if (r.viewCount == null || !Number.isFinite(Number(r.viewCount))) continue;
     out.set(id, {
       views: toNumber(r.viewCount),
       likes: toNumber(r.recommendCount),
@@ -180,8 +188,16 @@ async function fetchJson(url: string): Promise<unknown> {
   return r.json();
 }
 
-/** 조회수·공감·비공감을 채운다(목록엔 0 으로 오므로 이 단계가 없으면 통째로 0 이다). */
+/**
+ * 조회수·공감·비공감을 채운다(목록엔 0 으로 오므로 이 단계가 없으면 통째로 0 이다).
+ * 반응을 받은 글만 값을 넣고, 못 받은 글은 `null` 로 둔다(0 과 구분 — `NaverBoardPost.views`).
+ */
 async function fillReactions(items: ListItem[]): Promise<void> {
+  for (const p of items) {
+    p.views = null;
+    p.likes = null;
+    p.dislikes = null;
+  }
   for (let i = 0; i < items.length; i += REACTION_CHUNK) {
     const chunk = items.slice(i, i + REACTION_CHUNK);
     const url = `${API_BASE}/posts/reactions?postIds=${chunk.map((p) => p.postId).join('%2C')}`;
@@ -189,8 +205,9 @@ async function fillReactions(items: ListItem[]): Promise<void> {
     try {
       map = parseReactionsPayload(await fetchJson(url));
     } catch {
-      // 반응 조회는 부가 정보다 — 실패해도 글 자체는 살린다(값은 0 으로 남는다).
-      continue;
+      // 반응 조회는 부가 정보다 — 실패해도 글 자체는 살린다(반응 칸은 null 로 남아 저장에서 빠진다).
+      // 남은 묶음도 더 부르지 않는다 — 403·429 면 계속 두드리는 것이 차단을 부른다.
+      return;
     }
     for (const p of chunk) {
       const hit = map.get(p.postId);

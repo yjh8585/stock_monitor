@@ -173,17 +173,62 @@ class SourcePages:
     return self.pages[page - 1] if 1 <= page <= len(self.pages) else ''
 
 
+# 배수 표지 — 값이 quote 의 수 × 배수로만 맞을 때 그 배수가 quote 나 «같은 쪽»(표 머리 '(thousand units)')에 적혀 있어야
+# 한다. 한글 배수 글자(천·만·억·조)는 흔한 낱말에도 들어가므로 수 바로 뒤·단위 칸 꼴로만 본다.
+# 영문 낱글자(k·m·b)도 수·통화 기호 바로 뒤만 본다(검토 2회차) — 낱말 경계로 보면 '357k'·'12.3bn' 은 못 읽고
+# 'a.m.'·'3(b)'·'M&A' 에는 걸렸다.
+_SUFFIX = r'(?:\d|[$€£])\s?'
+_SCALE_MARK = {
+  1e2: re.compile(r'hundred|\d\s*백(?!만)|단위\s*[:：]?\s*백(?!만)'),
+  1e3: re.compile(rf"thousand|['’‘]000|\(000s?\)|\b000s\b|{_SUFFIX}k(?![a-z])|\d\s*천|천\s*[대명원]|단위\s*[:：]?\s*천"),   # 스텔란티스 'Shipments (000s)'
+  1e4: re.compile(r'\d\s*만|만\s*[대명]|단위\s*[:：]?\s*만'),
+  1e6: re.compile(rf'million|\bmn\b|{_SUFFIX}mn?(?![a-z&])|백만'),
+  1e8: re.compile(r'\d\s*억|억\s*원|단위\s*[:：]?\s*억'),
+  1e9: re.compile(rf'billion|\bbn\b|{_SUFFIX}bn?(?![a-z])|십억'),
+  1e12: re.compile(rf'trillion|\btn\b|{_SUFFIX}tn(?![a-z])|\d\s*조|조\s*원|단위\s*[:：]?\s*조'),
+}
+
+
+def scale_unmarked(r: Row, page_text: str) -> bool:
+  """값이 quote 의 수 그대로가 아니라 배수(×1,000 …)로만 맞는데 그 배수 표지가 quote·그 쪽 어디에도 없다.
+  quote_check 는 배수 중 하나로 맞으면 참이라(그쪽 모듈 docstring 「한계」) 'deliveries were 357 vehicles' 를 357,000 대로
+  통과시켰다(코드 리뷰 2차 9번). 비율(pct·share_pct)은 배수를 쓰지 않으니 보지 않는다.
+  SHORTCUT: 정기 API 행(extractor='llm')에만 건다 — 코드 파서는 표 머리로 배수를 정하고, 소급(manual) 검증 행 2,906 중 788 은
+  quote 에 표지가 없어(2026-11-23 실측 · 같은 쪽 본문에 있는지는 원문을 다시 받아야 안다) 재처리 때 대량으로 뒤집힐 수 있다
+  → manual 에도 걸려면 그 788 행의 문서를 받아 쪽 본문 표지를 먼저 잰다."""
+  if r.extractor != 'llm' or r.unit in ('pct', 'share_pct'):
+    return False
+  v = float(r.value)
+  close = lambda a: abs(a - v) <= max(abs(v) * 1e-9, 1e-9)
+  nums = quote_check.numbers_in(r.quote)
+  if any(close(n) for n in nums):
+    return False
+  used = [m for m in quote_check._MULTS if m != 1 and any(close(n * m) for n in nums)]
+  text = f'{r.quote}\n{page_text}'.lower()
+  return not any(m in _SCALE_MARK and _SCALE_MARK[m].search(text) for m in used)
+
+
 def verify(r: Row, src: SourcePages) -> tuple[bool, str]:
-  """(verified, note) — 결정 C8."""
+  """(verified, note) — 결정 C8.
+  PDF 는 쪽 번호가 있어야 하고 범위 안이어야 한다(코드 리뷰 2차 9번) — 없으면 문서 전체를 근거로 삼아 다른 쪽의 인용·숫자로
+  통과했고, 범위 밖이면 빈 글자층이라 두 번째 읽기만 같으면 double_read 로 통과했다."""
   why = shape_problem(r)
   if why:
     return False, f'shape:{why}'
   if looks_like_growth(r.quote, r.value):
     return False, 'growth_rate'
-  ok, note = quote_check.check_row(r, src.text_for(r.page))
+  if src.is_pdf:
+    if r.page is None:
+      return False, 'no_page'
+    if not 1 <= r.page <= len(src.pages):
+      return False, 'page_out_of_range'
+  text = src.text_for(r.page)
+  ok, note = quote_check.check_row(r, text)
   if ok:
-    return True, 'ok'
-  if r.second_value is not None:
+    return (False, 'scale_not_in_source') if scale_unmarked(r, text) else (True, 'ok')
+  # 두 번째 읽기는 «그림 속 숫자»(인용은 그 쪽에 있고 값만 밖)를 위한 것 — 인용 자체가 그 쪽에 없으면 받지 않는다
+  # (검토 2회차 · 기존 double_read 64행은 전부 value_not_in_quote 라 뒤집히는 행 0)
+  if r.second_value is not None and note.startswith('value_not_in_quote'):
     same = abs(float(r.second_value) - float(r.value)) <= max(abs(float(r.value)) * 1e-9, 1e-9)
     return (True, 'double_read') if same else (False, 'double_read_mismatch')
   if r.extractor == 'llm':
@@ -196,26 +241,36 @@ def _key(r: Row) -> tuple:
 
 
 def payloads(doc: dict, results: list[tuple[Row, bool, str]]) -> tuple[list[dict], int]:
-  """(적재 행, 충돌 수). 같은 키가 두 번 오면 먼저 온 것만 — 값이 다르면 충돌로 센다(UNIQUE 위반 방지)."""
+  """(적재 행, 충돌 수). 같은 키가 두 번 오면 하나만 남긴다(UNIQUE 위반 방지) — 값이 다르면 충돌로 센다.
+  값이 같으면 검증된 쪽을 남긴다: 먼저 온 행이 다른 쪽 quote 라 검증에 실패하고 뒤 행이 통과했는데 먼저 온 것만
+  남기면, 맞는 값이 화면(verified 만)에서 사라진다(2026-11-20 코드 리뷰 8번 (나))."""
   out, seen, conflicts = [], {}, 0
   for r, ok, note in results:
     k = _key(r)
-    if k in seen:
-      if abs(float(seen[k]) - float(r.value)) > 1e-9:
-        conflicts += 1
-      continue
-    seen[k] = r.value
     d = asdict(r)
     d.pop('second_value')
-    out.append({**d, 'company_id': doc['company_id'], 'document_id': doc['id'], 'published_at': doc['published_at'],
-                'value': float(r.value), 'verified': bool(ok), 'verify_note': note})
+    row = {**d, 'company_id': doc['company_id'], 'document_id': doc['id'], 'published_at': doc['published_at'],
+           'value': float(r.value), 'verified': bool(ok), 'verify_note': note}
+    if k in seen:
+      prev = out[seen[k]]
+      if abs(prev['value'] - row['value']) > 1e-9:
+        conflicts += 1
+      # 값이 달라도 검증된 쪽이 이긴다(검토 2회차) — 미검증 행은 화면에 안 나오니 남겨 봐야 검증된 값만 가린다
+      if ok and not prev['verified']:
+        out[seen[k]] = row
+      continue
+    seen[k] = len(out)
+    out.append(row)
   return out, conflicts
 
 
 def save_document(ws, doc_id: int, rows: list[dict], *, now: str) -> None:
   """문서 행을 지우고 다시 넣은 뒤 C 처리 표식. 0행 문서도 표식은 찍는다(다시 처리하지 않게).
-  SHORTCUT: 지우기·넣기가 한 트랜잭션이 아니다 — 넣기가 실패하면 그 문서 행이 비고 표식도 안 찍혀 다음 실행이 다시 넣는다
-  → 원자성이 필요해지면 RPC(함수 하나)로 묶는다."""
+  🔴 지우기 «전에» 표식부터 지운다 — 재처리(--doc-id·--load)는 이미 표식이 찍힌 문서라, 넣기가 실패하면 옛 표식이
+  남아 정기 실행(breakdown_at is null)이 영영 안 집고 문서 행만 빈 채로 남았다(2026-11-20 코드 리뷰 8번 (가)).
+  SHORTCUT: 지우기·넣기가 한 트랜잭션이 아니다 — 넣기가 실패하면 그 문서 행이 잠시 비지만 표식이 비어 있어 다음 정기
+  실행이 다시 넣는다 → 그 사이 빈 화면도 안 되면 RPC(함수 하나)로 묶는다."""
+  ws.table('customer_doc_summaries').update({'breakdown_at': None}).eq('doc_id', doc_id).execute()
   ws.table(TABLE).delete().eq('document_id', doc_id).execute()
   if rows:
     ws.table(TABLE).insert(rows).execute()

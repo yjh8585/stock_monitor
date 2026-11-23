@@ -11,7 +11,7 @@ KOMIS(한국광해광업공단 자원정보서비스) 광물 가격 일별 시�
 """
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime, timedelta, timezone
 
 from loguru import logger
 from playwright.sync_api import APIRequestContext, sync_playwright
@@ -21,6 +21,18 @@ from lib.series_sources import KOMIS_CHART_API, KOMIS_PRICE_CRTR_API, USER_AGENT
 # KOMIS가 GHA IP에 간헐 지연/빈응답 → 지수 백오프 재시도
 MAX_FETCH_ATTEMPTS = 3
 RETRY_BACKOFF_SEC = 10
+# 🔴 차단·인증 거부 응답 — 재시도하지 않고 즉시 멈춘다(전역 규칙 「401·403·429면 즉시 멈춤」 ·
+# 2026-11-20 코드 리뷰 11번: 빈 결과로 보고 3회 다시 두드리고 있었다).
+BLOCKED_STATUSES = frozenset({401, 403, 429})
+
+
+class KomisBlocked(RuntimeError):
+  """KOMIS 가 401·403·429 로 거부했다 — 재시도·다음 광종 조회 없이 실행을 끝낸다."""
+
+
+def _raiseIfBlocked(resp, what: str) -> None:
+  if resp.status in BLOCKED_STATUSES:
+    raise KomisBlocked(f"KOMIS: {what} HTTP {resp.status} — 차단·거부로 보고 즉시 멈춘다(재시도 안 함)")
 
 
 @dataclass(frozen=True)
@@ -59,10 +71,13 @@ def resolvePriceCode(request_ctx: APIRequestContext, target: KomisTarget) -> str
       headers=_ajaxHeaders(target),
       timeout=60000,
     )
+    _raiseIfBlocked(resp, '가격기준 조회')
     if not resp.ok:
       logger.warning(f"KOMIS: 가격기준 조회 HTTP {resp.status}")
       return None
     entries = resp.json().get('data') or []
+  except KomisBlocked:
+    raise
   except Exception as e:
     logger.error(f"KOMIS: 가격기준 조회 실패 — {e}")
     return None
@@ -105,12 +120,16 @@ def parseChartPayload(body: dict, series_code: str) -> list[dict]:
 
 def fetchDailySeries(request_ctx: APIRequestContext, target: KomisTarget, years: int) -> list[dict]:
   """KOMIS 차트 API 에서 일별 시계열을 받는다. 실패·빈 응답이면 빈 목록."""
-  end_year = date.today().year
+  # 서울 달력 연도 — GHA 러너는 UTC 라 date.today() 면 1월 1일 09시 전에 전년이 된다(검토 2회차 · ir_lists.seoul_today 와 같은 계산)
+  end_year = datetime.now(timezone(timedelta(hours=9))).year
   start_year = end_year - years
 
   # 1) GET 으로 세션 쿠키 확보
   try:
-    request_ctx.get(target.page_url, headers={'Referer': target.page_url}, timeout=60000)
+    page = request_ctx.get(target.page_url, headers={'Referer': target.page_url}, timeout=60000)
+    _raiseIfBlocked(page, '페이지 GET')
+  except KomisBlocked:
+    raise
   except Exception as e:
     logger.error(f"KOMIS: 페이지 GET 실패 — {e}")
     return []
@@ -136,10 +155,13 @@ def fetchDailySeries(request_ctx: APIRequestContext, target: KomisTarget, years:
   }
   try:
     resp = request_ctx.post(KOMIS_CHART_API, form=form, headers=_ajaxHeaders(target), timeout=60000)
+    _raiseIfBlocked(resp, '차트 API')
     if not resp.ok:
       logger.warning(f"KOMIS: HTTP {resp.status}")
       return []
     body = resp.json()
+  except KomisBlocked:
+    raise
   except Exception as e:
     logger.error(f"KOMIS: 차트 API 실패 — {e}")
     return []
@@ -151,20 +173,26 @@ def fetchDailySeries(request_ctx: APIRequestContext, target: KomisTarget, years:
 
 
 def fetchWithRetry(target: KomisTarget, years: int) -> list[dict]:
-  """브라우저 요청 컨텍스트를 열어 fetchDailySeries 를 백오프 재시도한다."""
+  """브라우저 요청 컨텍스트를 열어 fetchDailySeries 를 백오프 재시도한다.
+
+  빈 응답·일시 오류만 재시도한다. 401·403·429 는 `KomisBlocked` 를 그대로 던진다 — 호출부가 잡지 말고
+  실행을 실패로 끝내게 둔다(다음 광종도 같은 사이트라 계속 두드리면 차단이 길어진다).
+  """
   rows: list[dict] = []
   with sync_playwright() as p:
     request_ctx = p.request.new_context(
       user_agent=USER_AGENT,
       extra_http_headers={'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8'},
     )
-    for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
-      rows = fetchDailySeries(request_ctx, target, years)
-      if rows:
-        break
-      if attempt < MAX_FETCH_ATTEMPTS:
-        wait = RETRY_BACKOFF_SEC * attempt
-        logger.warning(f"KOMIS: 응답 없음 — {wait}s 후 재시도 ({attempt}/{MAX_FETCH_ATTEMPTS})")
-        time.sleep(wait)
-    request_ctx.dispose()
+    try:
+      for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
+        rows = fetchDailySeries(request_ctx, target, years)
+        if rows:
+          break
+        if attempt < MAX_FETCH_ATTEMPTS:
+          wait = RETRY_BACKOFF_SEC * attempt
+          logger.warning(f"KOMIS: 응답 없음 — {wait}s 후 재시도 ({attempt}/{MAX_FETCH_ATTEMPTS})")
+          time.sleep(wait)
+    finally:
+      request_ctx.dispose()
   return rows

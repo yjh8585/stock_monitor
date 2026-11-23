@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { parseListPayload, parseReactionsPayload, parseWrittenAt } from './board';
+import {
+  fetchNaverBoardPosts,
+  parseListPayload,
+  parseReactionsPayload,
+  parseWrittenAt,
+} from './board';
 
 /**
  * 2026-09-12 네이버 개편으로 옛 HTML 파서가 **조용히 0건**을 내고 나흘을 잃었다.
@@ -179,13 +184,75 @@ describe('parseReactionsPayload', () => {
     expect(m.get('429293678')?.views).toBe(18);
   });
 
-  it('값이 없거나 숫자가 아니면 0', () => {
-    const m = parseReactionsPayload([{ postId: '1', viewCount: null }]);
-    expect(m.get('1')).toEqual({ views: 0, likes: 0, dislikes: 0 });
+  it('공감 값이 없거나 숫자가 아니면 0', () => {
+    const m = parseReactionsPayload([{ postId: '1', viewCount: 5, recommendCount: 'x' }]);
+    expect(m.get('1')).toEqual({ views: 5, likes: 0, dislikes: 0 });
+  });
+
+  it('조회수가 비면 그 글은 «모름»으로 뺀다 — 0 으로 채우면 DB 실값을 덮는다', () => {
+    const m = parseReactionsPayload([
+      { postId: '1', viewCount: null },
+      { postId: '2', viewCount: 'n/a' },
+      { postId: '3', viewCount: 0 },
+    ]);
+    expect([...m.keys()]).toEqual(['3']); // 진짜 0 은 값이다
   });
 
   it('모양이 어긋나면 빈 Map(반응은 부가 정보라 글을 죽이지 않는다)', () => {
     expect(parseReactionsPayload(null).size).toBe(0);
     expect(parseReactionsPayload({ oops: 1 }).size).toBe(0);
+  });
+});
+
+/**
+ * 🔴 반응을 못 받은 글은 0 이 아니라 null 이다 — 0 으로 넘기면 수집기의 upsert 가
+ * DB 의 실제 조회수·공감을 0 으로 덮는다(2026-11-20 코드 리뷰 7번).
+ */
+describe('fetchNaverBoardPosts 반응 칸', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubFetch(reactions: () => Response) {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('/posts/reactions')
+        ? reactions()
+        : new Response(JSON.stringify(LIST_PAYLOAD), { status: 200 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('반응을 받은 글은 값을, 응답에 없는 글은 null 을 담는다', async () => {
+    stubFetch(() => new Response(JSON.stringify([REACTIONS_PAYLOAD[0]]), { status: 200 }));
+    const { posts } = await fetchNaverBoardPosts('069640', 36_500, 1);
+    expect(posts.map((p) => [p.postId, p.views, p.likes, p.dislikes])).toEqual([
+      ['429293678', 18, 3, 1],
+      ['429108744', null, null, null],
+    ]);
+  });
+
+  it('반응 조회가 실패하면 글은 살리고 반응 칸은 전부 null(0 이 아니다)', async () => {
+    // 글 35개 = 반응 묶음 2개(30개씩) — 첫 묶음 429 뒤 두 번째 묶음을 부르지 않는지 본다
+    const many = {
+      ...LIST_PAYLOAD,
+      lastOffset: null,
+      posts: Array.from({ length: 35 }, (_, i) => ({
+        ...LIST_PAYLOAD.posts[0],
+        id: String(500 + i),
+        orderNo: String(-500 - i),
+      })),
+    };
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('/posts/reactions')
+        ? new Response('', { status: 429 })
+        : new Response(JSON.stringify(many), { status: 200 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { posts } = await fetchNaverBoardPosts('069640', 36_500, 1);
+    expect(posts).toHaveLength(35);
+    expect(posts.every((p) => p.views === null && p.likes === null && p.dislikes === null)).toBe(
+      true
+    );
+    // 목록 1회 + 반응 1회 — 429 뒤로 더 두드리지 않는다
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

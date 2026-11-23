@@ -14,6 +14,7 @@ import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
 import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
+import { fetchAllPages } from '@/lib/supabase/fetchAllPages';
 import { preparePnlData, type PreparedPnlData } from './aggregate';
 import type { Basis, CostStructureRow, FixedVariableRow, PnlEntry } from './types';
 
@@ -87,24 +88,27 @@ export async function getPreparedPnl(): Promise<PreparedPnlData> {
 /**
  * `pnl_cost_structure` 전체 fetch + 1일 캐시(sync 시 무효화로 즉시 반영).
  *
- * ≤ 수백 행이라 페이지네이션 불필요.
+ * 지금은 수백 행이지만 해마다 늘어나므로 페이지 반복으로 읽는다(단건 조회는 1,000행에서 조용히 잘린다).
  */
 export async function getCostStructure(): Promise<CostStructureRow[]> {
   'use cache';
   cacheLife('days');
   cacheTag('pnl_cost_structure');
 
-  const { data, error } = await confidentialDb
-    .from('pnl_cost_structure')
-    .select('*')
-    .order('period_year', { ascending: true })
-    .order('period_month', { ascending: true });
-  if (error) {
-    logger.error({ err: error }, 'pnl_cost_structure 조회 실패');
-    throw new Error(`Supabase pnl_cost_structure 조회 실패: ${error.message}`);
-  }
+  // 정렬 = PK 전체(period_year, period_kind, period_month, kind, account)
+  const data = await fetchAllPages('pnl_cost_structure', (from, to) =>
+    confidentialDb
+      .from('pnl_cost_structure')
+      .select('*')
+      .order('period_year', { ascending: true })
+      .order('period_kind', { ascending: true })
+      .order('period_month', { ascending: true })
+      .order('kind', { ascending: true })
+      .order('account', { ascending: true })
+      .range(from, to)
+  );
   // Row와 CostStructureRow는 period_kind / kind만 narrow union이 필요. 나머지는 동일.
-  return (data ?? []).map((row) => ({
+  return data.map((row) => ({
     ...row,
     period_kind: row.period_kind as 'annual' | 'monthly',
     kind: row.kind as 'actual' | 'plan',
@@ -114,24 +118,30 @@ export async function getCostStructure(): Promise<CostStructureRow[]> {
 /**
  * `pnl_fixed_variable` 전체 fetch + 1일 캐시(sync 시 무효화로 즉시 반영).
  *
- * 비용 계정을 고정비/변동비로 분해한 행. ≤ 수백 행이라 페이지네이션 불필요.
+ * 비용 계정을 고정비/변동비로 분해한 행. 해마다 늘어 1,000행을 넘게 되므로(2026-11 기준 500행대)
+ * 페이지 반복으로 읽는다 — 단건 조회는 1,000행에서 오류 없이 잘린다.
  */
 export async function getFixedVariable(): Promise<FixedVariableRow[]> {
   'use cache';
   cacheLife('days');
   cacheTag('pnl_fixed_variable');
 
-  const { data, error } = await confidentialDb
-    .from('pnl_fixed_variable')
-    .select('*')
-    .order('period_year', { ascending: true })
-    .order('period_month', { ascending: true });
-  if (error) {
-    logger.error({ err: error }, 'pnl_fixed_variable 조회 실패');
-    throw new Error(`Supabase pnl_fixed_variable 조회 실패: ${error.message}`);
-  }
+  // 정렬 = PK 전체(period_year, period_kind, period_month, cost_type, category2, category3, account)
+  const data = await fetchAllPages('pnl_fixed_variable', (from, to) =>
+    confidentialDb
+      .from('pnl_fixed_variable')
+      .select('*')
+      .order('period_year', { ascending: true })
+      .order('period_kind', { ascending: true })
+      .order('period_month', { ascending: true })
+      .order('cost_type', { ascending: true })
+      .order('category2', { ascending: true })
+      .order('category3', { ascending: true })
+      .order('account', { ascending: true })
+      .range(from, to)
+  );
   // Row와 FixedVariableRow는 period_kind / cost_type만 narrow union이 필요.
-  return (data ?? []).map((row) => ({
+  return data.map((row) => ({
     ...row,
     period_kind: row.period_kind as 'annual' | 'monthly',
     cost_type: row.cost_type as FixedVariableRow['cost_type'],

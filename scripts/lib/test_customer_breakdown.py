@@ -150,6 +150,49 @@ class VerifyTest(unittest.TestCase):
     self.assertFalse(ok)
     self.assertTrue(note.startswith('image_only'))
 
+  # ---- 코드 리뷰 2차(2026-11-20) 9번 — 검사기 구멍
+  def test_scale_needs_marker(self):
+    """배수(×1,000 등)로만 맞는 값은 그 배수 표지(thousand·천·million …)가 quote 나 그 쪽에 있어야 한다."""
+    bare = cb.SourcePages(Content(text='North America deliveries were 357 vehicles.', tables=[], raw=b''))
+    row = _row(page=None, value=357000, quote='North America deliveries were 357 vehicles.', extractor='llm')
+    self.assertEqual(cb.verify(row, bare), (False, 'scale_not_in_source'))
+    row.value = 357
+    self.assertEqual(cb.verify(row, bare), (True, 'ok'))
+    # 표 머리 '(thousand units)' 가 같은 쪽에 있으면 인정(P1)
+    self.assertEqual(cb.verify(_row(extractor='llm'), self.src), (True, 'ok'))
+    # 소급(manual) 행은 아직 검사 밖(SHORTCUT — 기존 검증 행 788 이 quote 에 표지가 없다)
+    self.assertEqual(cb.verify(_row(page=None, value=357000, quote='North America deliveries were 357 vehicles.'), bare),
+                     (True, 'ok'))
+
+  def test_pdf_row_needs_page(self):
+    """PDF 인데 쪽 번호가 없으면 문서 전체를 근거로 삼지 않는다."""
+    ok, note = cb.verify(_row(page=None), self.src)
+    self.assertEqual((ok, note), (False, 'no_page'))
+
+  def test_double_read_needs_valid_page(self):
+    """두 번째 읽기가 같아도 쪽 번호가 범위 밖·없음이면 통과시키지 않는다."""
+    for page, note in ((None, 'no_page'), (9, 'page_out_of_range')):
+      row = _row(page=page, value=47, unit='pct', quote='Deliveries mix chart', second_value=47)
+      self.assertEqual(cb.verify(row, self.src), (False, note))
+
+  def test_double_read_needs_quote_on_page(self):
+    """두 번째 읽기는 «그림 속 숫자»(인용은 그 쪽에 있고 값만 밖)에만 — 인용 자체가 그 쪽에 없으면 통과 못 한다(검토 2회차)."""
+    row = _row(page=1, value=4321, quote='Europe deliveries 4,321 units (fabricated sentence)', second_value=4321)
+    self.assertEqual(cb.verify(row, self.src), (False, 'quote_not_in_source'))
+
+  def test_scale_marker_forms(self):
+    """숫자에 붙여 쓴 배수('357k'·'1.2m'·'12.3bn')는 표지로 읽고, 'a.m.'·'3(b)' 의 낱글자는 표지가 아니다(검토 2회차)."""
+    def unmarked(quote, value, page_text=''):
+      return cb.scale_unmarked(_row(page=None, value=value, quote=quote, extractor='llm'), page_text or quote)
+    self.assertFalse(unmarked('Regional deliveries reached 357k vehicles.', 357_000))
+    self.assertFalse(unmarked('Regional deliveries reached 1.2m vehicles.', 1_200_000))
+    self.assertFalse(unmarked('Europe revenue of €12.3bn in the quarter', 12_300_000_000))
+    self.assertFalse(unmarked('Europe deliveries (’000) 357', 357_000))
+    bare = 'North America deliveries were 357 vehicles.'
+    self.assertTrue(unmarked(bare, 357_000_000, bare + ' Conference call at 10:00 a.m. ET.'))
+    self.assertTrue(unmarked(bare, 357_000_000_000, bare + ' See note 3(b).'))
+    self.assertTrue(unmarked(bare, 357_000_000, bare + ' Strategy update on M&A.'))
+
   def test_non_pdf_whole_text(self):
     src = cb.SourcePages(Content(text='North America sales of $1,815 million represented 89 percent', tables=[],
                                  raw=b''))
@@ -174,6 +217,28 @@ class PayloadTest(unittest.TestCase):
     self.assertNotIn('second_value', rows[0])
     self.assertFalse(rows[1]['verified'])
     self.assertEqual(rows[1]['verify_note'], 'x')
+
+  def test_dedupe_keeps_verified_when_same_value(self):
+    """같은 키·같은 값이면 검증된 행이 이긴다 — 먼저 온 실패 행이 맞는 값을 화면에서 가리던 것(코드 리뷰 8번 (나))."""
+    a = _row(quote='other page')
+    b = _row()
+    rows, conflicts = cb.payloads(self.DOC, [(a, False, 'not_found'), (b, True, 'ok')])
+    self.assertEqual(conflicts, 0)
+    self.assertEqual(len(rows), 1)
+    self.assertTrue(rows[0]['verified'])
+    self.assertEqual(rows[0]['verify_note'], 'ok')
+    # 반대 순서(검증 행이 먼저)면 그대로 남는다
+    rows, _ = cb.payloads(self.DOC, [(b, True, 'ok'), (a, False, 'not_found')])
+    self.assertTrue(rows[0]['verified'])
+
+  def test_conflict_keeps_verified(self):
+    """값이 달라도(충돌) 검증된 행이 미검증 행을 이긴다 — 먼저 온 실패 행이 검증된 값을 가리던 것(검토 2회차)."""
+    a = _row(value=100, quote='other page')
+    b = _row()
+    rows, conflicts = cb.payloads(self.DOC, [(a, False, 'not_found'), (b, True, 'ok')])
+    self.assertEqual(conflicts, 1)
+    self.assertEqual(len(rows), 1)
+    self.assertEqual((rows[0]['value'], rows[0]['verified']), (357000.0, True))
 
   def test_row_from_dict_ignores_ids(self):
     """JSON 의 company_id·document_id 는 믿지 않는다 — 문서 행에서 채운다."""
@@ -200,13 +265,39 @@ class SaveTest(unittest.TestCase):
 
     ws = SimpleNamespace(table=lambda n: B(n))
     cb.save_document(ws, 7, [{'x': 1}], now='2026-11-12T00:00:00Z')
-    ops = [(n, op) for n, op, _, _ in calls if op in ('delete', 'insert', 'update')]
-    self.assertEqual(ops, [('customer_breakdown_ir', 'delete'), ('customer_breakdown_ir', 'insert'),
-                           ('customer_doc_summaries', 'update')])
+    ops = [(n, op, a) for n, op, a, _ in calls if op in ('delete', 'insert', 'update')]
+    # 🔴 표식을 먼저 비운다 — 넣기가 실패해도 정기 실행(breakdown_at is null)이 다시 집게(코드 리뷰 8번 (가))
+    self.assertEqual(ops, [('customer_doc_summaries', 'update', ({'breakdown_at': None},)),
+                           ('customer_breakdown_ir', 'delete', ()), ('customer_breakdown_ir', 'insert', ([{'x': 1}],)),
+                           ('customer_doc_summaries', 'update', ({'breakdown_at': '2026-11-12T00:00:00Z'},))])
     calls.clear()
     cb.save_document(ws, 7, [], now='2026-11-12T00:00:00Z')   # 0행 문서도 표식은 찍는다
     ops = [(n, op) for n, op, _, _ in calls if op in ('delete', 'insert', 'update')]
-    self.assertEqual(ops, [('customer_breakdown_ir', 'delete'), ('customer_doc_summaries', 'update')])
+    self.assertEqual(ops, [('customer_doc_summaries', 'update'), ('customer_breakdown_ir', 'delete'),
+                           ('customer_doc_summaries', 'update')])
+
+  def test_insert_failure_leaves_mark_empty(self):
+    """넣기가 실패하면 표식은 비어 있어야 한다(옛 표식이 남으면 문서가 영영 빈 채로 남는다)."""
+    marks = []
+
+    class B:
+      def __init__(self, name):
+        self.name = name
+
+      def update(self, v):
+        marks.append(v['breakdown_at'])
+        return self
+
+      def insert(self, rows):
+        raise RuntimeError('insert 실패')
+
+      def __getattr__(self, op):
+        return lambda *a, **k: self
+
+    ws = SimpleNamespace(table=lambda n: B(n))
+    with self.assertRaises(RuntimeError):
+      cb.save_document(ws, 7, [{'x': 1}], now='2026-11-12T00:00:00Z')
+    self.assertEqual(marks, [None])
 
 
 if __name__ == '__main__':

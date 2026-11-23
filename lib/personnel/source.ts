@@ -5,23 +5,23 @@
  */
 import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
-import logger from '@/lib/logger';
 import { confidentialDb } from '@/lib/supabase/confidential';
+import { fetchAllPages } from '@/lib/supabase/fetchAllPages';
 import type { PersonnelRow } from './types';
 
 async function fetchPersonnelRows(): Promise<PersonnelRow[]> {
-  const { data, error } = await confidentialDb
-    .from('personnel_entries')
-    .select('*')
-    .order('region', { ascending: true })
-    .order('detail', { ascending: true })
-    .order('kind', { ascending: true })
-    .order('period_date', { ascending: true });
-  if (error) {
-    logger.error({ err: error }, 'personnel_entries 조회 실패');
-    throw new Error(`Supabase personnel_entries 조회 실패: ${error.message}`);
-  }
-  return (data ?? []).map((r) => ({
+  // 정렬 = PK 전체(region, detail, kind, period_date) — 페이지 경계 누락·중복 방지
+  const data = await fetchAllPages('personnel_entries', (from, to) =>
+    confidentialDb
+      .from('personnel_entries')
+      .select('*')
+      .order('region', { ascending: true })
+      .order('detail', { ascending: true })
+      .order('kind', { ascending: true })
+      .order('period_date', { ascending: true })
+      .range(from, to)
+  );
+  return data.map((r) => ({
     ...r,
     region: r.region as PersonnelRow['region'],
     kind: r.kind as PersonnelRow['kind'],

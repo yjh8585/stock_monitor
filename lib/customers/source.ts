@@ -8,6 +8,7 @@ import logger from '@/lib/logger';
 import { currentYear, todaySeoul } from '@/lib/currentYear';
 import { confidentialDb } from '@/lib/supabase/confidential';
 import { createSupabaseAnonClient } from '@/lib/supabase/anon';
+import { fetchAllPages } from '@/lib/supabase/fetchAllPages';
 import { fetchPnlEntries } from '@/lib/pnl/source';
 import {
   aggregateAnnualSeries,
@@ -499,26 +500,7 @@ async function fetchRates(currencies: string[]): Promise<Map<string, RateRow[]>>
 }
 
 // ---------------------------------------------------------------- 공식 문서(공시·IR) — 전부 사외비 표
-/** `.range()` 페이지 반복 — 호출부가 PK 전체로 `.order()` 를 건다(AGENTS.md: 조건은 「유일하다」). */
-async function fetchAllPages<T>(
-  label: string,
-  page: (
-    from: number,
-    to: number
-  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await page(from, from + PAGE - 1);
-    if (error) {
-      logger.error({ err: error }, `${label} 조회 실패`);
-      throw new Error(`${label} 조회 실패: ${error.message}`);
-    }
-    out.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
-  }
-  return out;
-}
+// 페이지 반복 = `lib/supabase/fetchAllPages.ts`(경영관리 조회와 함께 쓴다).
 
 function groupBy<T extends { company_id: string }, U>(rows: T[], map: (r: T) => U) {
   const out = new Map<string, U[]>();

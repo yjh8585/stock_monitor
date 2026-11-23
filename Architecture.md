@@ -1126,6 +1126,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 - `lib/supabase/` — 클라이언트 4종 (**혼용 금지**):
   - `client.ts`(클라이언트 컴포넌트) / `admin.ts`(`service_role`, 서버 전용 RLS 우회 — 사외비는 직접 X, `confidential.ts` 경유) / `anon.ts`(공개 SELECT, `'use cache'` 안 권장) / `confidential.ts`(**사외비 테이블 전용 facade** — TS union으로 명단 외 접근 컴파일 차단 + service_role 자동 라우팅. 🔴 명단은 여기 나열하지 않는다)
   - **`.range()` 다중 페이지 fetch는 `.order()` 필수** · **집계 뷰의 `SUM`은 `::bigint` 캐스팅 필수** (각각 행 누락·문자열 직렬화를 부른다) → [`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)
+  - `fetchAllPages.ts` — 1,000행(max-rows)을 넘는 표를 끝까지 읽는 공용 반복. 호출부가 `.order()` 를 **PK 전체로** 걸어 넘긴다(고객사·손익·계획·재고·인원 조회가 쓴다 · 2026-11-23)
 - `lib/auth/` — 세션·권한·사용자. **5역할**(admin/holdings/mobility/hmobility/guest) 정의는 `roles.ts`가 SSOT. 🔴 **역할을 추가하면 `roles.ts`·`users.ts`·`permissions.ts` 3곳을 모두 갱신**해야 한다(빠뜨리면 세션 거부 → `/login` 무한 리다이렉트). 계정 env 키·랜딩 redirect 주의 → [`Architecture.md 부록 B-2`](./Architecture.md). 새 라우트 권한은 `permissions.ts`.
 - **도메인 폴더** (페이지·기능 단위, 각각 `source.ts`로 fetch+cache+mapping 격리. 페이지는 호출만). 폴더 목록·모듈 구성 정본 = [`Architecture.md §6`](./Architecture.md). 약속만:
   - `lib/reports/` — **레이어드**: `dto/`(Zod) + `repositories/post.repository.ts` + `services/*`. 단순 CRUD는 caller가 `PostRepository` 직접, 라이프사이클만 `PostService`.

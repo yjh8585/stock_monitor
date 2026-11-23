@@ -256,7 +256,7 @@ def sync_earnings_dates(client, company_id: str, rows: list[dict], dry_run: bool
   have = {(d['period'], d['event_date']) for d in client.table('customer_earnings_dates')
           .select('period,event_date').eq('company_id', company_id).execute().data}
   by_period = {r['period']: r for r in rows}  # 한 요청에 같은 PK 둘이면 upsert 가 통째로 실패한다
-  today = date.today().isoformat()
+  today = ir_lists.seoul_today().isoformat()  # GHA 는 UTC — date.today() 면 서울 오전 9시 전에 하루 이르다
   changed = [{'company_id': company_id, **r, 'published_at': today} for r in by_period.values()
              if (r['period'], r['event_date']) not in have]
   if changed and not dry_run:
@@ -353,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
   ap.add_argument('--dry-run', action='store_true', help='건수만 — 쓰지 않는다')
   args = ap.parse_args(argv)
 
-  today = date.today()
+  today = ir_lists.seoul_today()  # GHA 는 UTC — date.today() 면 서울 오전 9시 전에 하루 이르다
   since = args.since or (today - timedelta(days=760 if args.backfill else 400)).isoformat()
   try:
     since = date.fromisoformat(since).isoformat()

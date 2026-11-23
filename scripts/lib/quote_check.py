@@ -26,6 +26,9 @@ Task 7(2026-11-10, 국내 DART)에서 더한 것:
 - 가상 한국어 표본을 DART 실물 문장으로 바꿨다(띄어쓰기 변이·활용형·한국어 날짜 「M월 D일」·「M월D일」).
 Task 8(2026-11-10, 미국 EDGAR)에서 더한 것:
 - 통화 기호가 괄호 안에 있는 음수 '($2,000) million'(리비안 2025 전망 표)도 음수 — 전엔 괄호가 수에 안 붙어 양수로 읽혀 대조 실패.
+코드 리뷰 2차(2026-11-20) 9번에서 더한 것:
+- 통화 기호 바로 앞 '-'('-$50 million')도 음수 부호 — 전엔 50 으로 읽혀 부호를 뒤집은 +50 이 통과했다. '-' 를 떨군 '$50 …' 조각은 실패.
+- 일정 행의 연도는 «그 월·일에 가장 가까운» 연도여야 한다 — 다른 문장의 연도로 날짜를 확인하던 것.
 
 한계(원리상 못 막는 것 — 파서 책임):
 - 같은 quote 안의 «다른 칸» 숫자를 고르는 실수(열 선택 오류 — 당월 대신 누계, 올해 대신 전년)는 못 막는다.
@@ -70,6 +73,8 @@ def _frag_in(frag: str, src: str) -> bool:
   - 앞: 원문 '-26.2' 의 부호를 떨군 '26.2 …' 를 막는다. 공백·문장 시작 바로 뒤의 '-' 만
     부호로 본다 — 'Q3-2026' 의 '-' 는 하이픈이라 '2026 …' 조각은 통과한다"""
   pat = re.escape(frag)
+  if re.match(r'[$€£]\d', frag):
+    pat = r'(?<!\s-)' + pat   # 원문 '-$50' 의 '-' 를 떨군 '$50 …' 조각(코드 리뷰 9번)
   if frag[:1].isdigit():
     pat = r'(?<![\d,.△])(?<!\s-)(?<!△\s)' + pat   # '△89' 의 △ 를 떨군 '89 …' 도 부호를 잃은 조각이다
   if frag[-1:].isdigit():
@@ -108,6 +113,10 @@ def _number_tokens(s: str) -> list[tuple[float, bool]]:
   t = _WORD_RE.sub(lambda m: str(_WORDS[m.group(1)]), normalize(s))
   # 통화 기호가 괄호 «안»에 있는 음수 '($2,000)'(리비안 2025 전망 표) — 기호를 빼야 괄호가 수에 붙어 음수로 읽힌다
   t = re.sub(r'\(\s*[$€£]\s*(?=\d)', '(', t)
+  # 통화 기호 «바로 앞»에 붙은 '-' 도 음수 부호다('-$50 million' — 코드 리뷰 9번: 전엔 50 으로 읽혀 부호를 뒤집은 +50 이
+  # 통과했다). 띄운 범위 대시('$1,800 million - $1,900 million')와 붙은 범위('$7.55-$7.60')는 건드리지 않는다
+  # 'US$'·'USD ' 처럼 통화 약어가 끼어도 같다(검토 2회차 — '-US$70' 이 +70 으로 통과했다)
+  t = re.sub(r'(?<![0-9a-z)])-(?:(?:us)?[$€£]|(?:usd|eur|gbp|krw)\s?)(?=\d)', '-', t)
   out = []
   for m in re.finditer(r'\(?-?[\d,]*\.?\d+\)?', t):
     tok = m.group(0)
@@ -181,9 +190,17 @@ def check_date_row(row, source_text: str) -> tuple[bool, str]:
           rf'(?<!\d)0?{m}\s*월\s*0?{d}\s*일',                                # 2월 12일
           rf'{y}\s*[-./]\s*0?{m}\s*[-./]\s*0?{d}(?!\d)', rf'(?<!\d)0?{m}/0?{d}/{y}',
           rf'(?<!\d)0?{d}\.\s*0?{m}\.\s*{y}']                                # 12.02.2026
-  has_year = str(y) in q
-  has_md = any(re.search(p, q) for p in pats)
-  return (True, 'ok') if has_year and has_md else (False, 'date_not_in_quote')
+  # 연도는 «그 월·일에 가장 가까운» 연도여야 한다 — quote 어디든 있으면 되던 때는 'February 12, 2025. The 2026
+  # guidance …' 가 2026-02-12 로 통과했다(코드 리뷰 9번: 월·일은 첫 문장, 연도는 다음 문장)
+  years = [(m.start(), m.end(), int(m.group(0))) for m in re.finditer(r'(?<!\d)(?<!\d,)(?:19|20)\d{2}(?!\d|,\d)', q)]
+  for p in pats:
+    for md in re.finditer(p, q):
+      if not years:
+        continue
+      gap = lambda yr: 0 if yr[0] < md.end() and md.start() < yr[1] else min(abs(yr[0] - md.end()), abs(md.start() - yr[1]))
+      if min(years, key=gap)[2] == y:
+        return True, 'ok'
+  return False, 'date_not_in_quote'
 
 
 # ---------------------------------------------------------------- 자가 시험
@@ -219,7 +236,10 @@ _SRC = ('Total | 1,028 | 977 | 2,917 | 2,862 ' 'The Company now expects 2026 adj
         'Outlook Q3-2026 deliveries 1,500 units. Annual General Meeting 12.02.2026 '
         'Capital Markets Day Feb 11-12, 2026 12-Feb-2026 Annual General Meeting '
         # Task 8 — 리비안 2025-08-05 EX-99.1 전망 표 실물(괄호 안 통화 기호)
-        'Adj. EBITDA ($2,000) million - ($2,250) million Capital Expenditures $1,800 million - $1,900 million')
+        'Adj. EBITDA ($2,000) million - ($2,250) million Capital Expenditures $1,800 million - $1,900 million '
+        # 코드 리뷰(2026-11-20) 9번 — 가상 문장: 통화 기호 앞 음수 · 한 인용에 두 문장의 연도
+        'Adjusted EBITDA outlook is -$50 million. The event is on February 12, 2025. The 2026 guidance will follow. '
+        'Operating loss of -US$70 million and -USD 80 million in the period.')
 MUST_HIT = [
   _R('Total | 1,028 | 977 | 2,917 | 2,862', value=1028000),                    # 천 대 → 대
   _R('expects 2026 adjusted sales to be between $7.55 billion to $7.60 billion', low=7.55, high=7.60),
@@ -241,6 +261,10 @@ MUST_HIT = [
   _R('Deliveries | 1,028¹ | 977', value=1028),                                   # 위첨자 각주는 지운다
   _R('2026 deliveries 1,500 units', value=1500),                                 # 'Q3-2026' 의 '-' 는 하이픈 — 부호 아님
   _R('Adj. EBITDA | ($2,000) million - ($2,250) million', low=-2250, high=-2000),  # Task 8 — 괄호 안 통화 기호 음수
+  # 코드 리뷰 9번 — 통화 기호 앞 '-' 는 음수 부호 · 띄운 범위 대시(' - $1,900')는 그대로 양수
+  _R('Adjusted EBITDA outlook is -$50 million', value=-50),
+  _R('Capital Expenditures $1,800 million - $1,900 million', low=1800, high=1900),
+  _R('Operating loss of -US$70 million and -USD 80 million', low=-70, high=-80),   # 검토 2회차 — 통화 약어 앞 '-'
 ]
 MUST_MISS = [
   _R('Total | 1,028 | 977 | 2,917 | 2,862', value=1029000),                    # 숫자가 quote 에 없다
@@ -265,6 +289,9 @@ MUST_MISS = [
   _R('당기 영업손실-1,234 백만원', value=1234),                                  # 손실을 양수로
   _R('26.2 The Company expects 2026 sales', value=26.2),                          # 원문 '-26.2' 의 부호를 떨군 조각
   _R('Adj. EBITDA | ($2,000) million - ($2,250) million', low=2000, high=2250),   # Task 8 — 괄호 음수를 양수로
+  _R('Adjusted EBITDA outlook is -$50 million', value=50),                       # 코드 리뷰 9번 — 부호 뒤집기
+  _R('$50 million. The event is on February 12', value=50),                      # 원문 '-$50' 의 '-' 를 떨군 조각
+  _R('Operating loss of -US$70 million and -USD 80 million', low=70, high=80),     # 검토 2회차 — 부호 뒤집기
 ]
 DATE_HIT = [_R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-02-12'),
             _R('정보제공(예정)일자 2026년 1월 28일(수) 정보제공(예정)시간 14:10', event_date='2026-01-28'),  # 기아 실물
@@ -273,13 +300,16 @@ DATE_HIT = [_R('on February 12th, 2026, after market close, it will release its 
             _R('Date of disclosure: October 27, 2026', event_date='2026-10-27'),                       # 포르쉐 실물
             _R('Annual General Meeting 12.02.2026', event_date='2026-02-12'),
             _R('Capital Markets Day Feb 11-12, 2026', event_date='2026-02-12'),                        # 기간의 끝날
-            _R('12-Feb-2026 Annual General Meeting', event_date='2026-02-12')]
+            _R('12-Feb-2026 Annual General Meeting', event_date='2026-02-12'),
+            _R('The event is on February 12, 2025. The 2026 guidance will follow', event_date='2025-02-12')]
 DATE_MISS = [_R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-02-13'),
              _R('on February 12th, 2026, after market close, it will release its fourth quarter', event_date='2026-12-12'),  # 월·일 뒤바뀜
              _R('정보제공(예정)일자 2026년 1월 28일(수) 정보제공(예정)시간 14:10', event_date='2026-01-08'),
              _R('정보제공(예정)일시 2025년 4월24일(목) 행사명(장소) 보도자료 배포', event_date='2025-04-02'),
              _R('Annual General Meeting 12.02.2026', event_date='2026-12-02'),                         # D.M.Y 를 M.D.Y 로
-             _R('Capital Markets Day Feb 11-12, 2026', event_date='2026-02-13')]
+             _R('Capital Markets Day Feb 11-12, 2026', event_date='2026-02-13'),
+             # 코드 리뷰 9번 — 월·일은 첫 문장, 연도는 다음 문장(그 날짜에 가장 가까운 연도는 2025)
+             _R('The event is on February 12, 2025. The 2026 guidance will follow', event_date='2026-02-12')]
 
 
 def self_test() -> list[str]:

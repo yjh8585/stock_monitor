@@ -50,20 +50,38 @@ async function main(): Promise<void> {
         summary.push({ ticker: c.ticker, inserted: 0, total: 0, raw: rawCount });
         continue;
       }
-      const rows = posts.map((p) => ({
+      const base = (p: (typeof posts)[number]) => ({
         company_id: c.id,
         post_id: p.postId,
         posted_at: p.postedAt.toISOString(),
         title: p.title,
         body: p.body,
-        views: p.views,
-        likes: p.likes,
-        dislikes: p.dislikes,
         fetched_at: new Date().toISOString(),
-      }));
-      const { count, error: upErr } = await sb
-        .from('naver_board_posts')
-        .upsert(rows, { onConflict: 'company_id,post_id', count: 'exact' });
+      });
+      // 🔴 반응을 못 받은 글(null)은 반응 칸을 «빼고» 따로 저장한다 — 한 배열에 섞으면
+      // supabase-js 가 빠진 칸을 null 로 채워 보내 DB 의 실값을 덮는다(2026-11-20 코드 리뷰 7번).
+      // 칸을 뺀 upsert 는 기존 글이면 그 칸을 안 건드리고, 새 글이면 DB 기본값(0)을 쓴다.
+      const known = posts.filter((p) => p.views !== null);
+      const unknown = posts.filter((p) => p.views === null);
+      if (unknown.length > 0) {
+        console.warn(`${c.ticker} 반응 미확인 ${unknown.length}건 — 반응 칸은 기존 값 유지`);
+      }
+      let count = 0;
+      let upErr: { message: string } | null = null;
+      for (const rows of [
+        known.map((p) => ({ ...base(p), views: p.views, likes: p.likes, dislikes: p.dislikes })),
+        unknown.map(base),
+      ]) {
+        if (rows.length === 0) continue;
+        const res = await sb
+          .from('naver_board_posts')
+          .upsert(rows, { onConflict: 'company_id,post_id', count: 'exact' });
+        if (res.error) {
+          upErr = res.error;
+          break;
+        }
+        count += res.count ?? rows.length;
+      }
       if (upErr) {
         console.error(`${c.ticker} upsert 실패:`, upErr.message);
         failed.push(c.ticker);
@@ -72,7 +90,7 @@ async function main(): Promise<void> {
       }
       summary.push({
         ticker: c.ticker,
-        inserted: count ?? rows.length,
+        inserted: count,
         total: posts.length,
         raw: rawCount,
       });
