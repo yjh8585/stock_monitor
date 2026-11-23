@@ -10,6 +10,7 @@ lib/finance/aggregate.ts 의 CASH_FLOW_ACCOUNTS). 계정명은 걸러내지 않�
 금액 비노출: 요약은 (자회사·기간종류)별 행수·연도 커버리지·null 카운트만 출력.
 검증: 자산 == 부채 + 자본 항등식 mismatch 행수만 보고(금액 비노출, 임계 0.5%).
 사용자가 직접 실행한다. WriteSession으로 자동 revalidate('finance_entries').
+본 적재는 DB 의 [더미](입력 예시) 행을 먼저 지운 뒤 upsert 한다 — 엑셀에 남은 [더미] 행만 다시 들어간다.
 
 사용법
 -----
@@ -52,6 +53,8 @@ EXPECTED_HEADERS = {
   1: '연도', 2: '월', 3: '연결/별도', 4: '자회사', 5: '계정명', 7: '밸류(백만원)',
 }
 BATCH_SIZE = 500
+# 비고가 이 접두로 시작하면 입력 예시용 가짜 값 — lib/finance/aggregate.ts DUMMY_NOTE_PREFIX 와 같은 표식.
+DUMMY_NOTE_PREFIX = '[더미]'
 TOLERANCE_PCT = 0.5  # 자산 == 부채+자본 mismatch 임계
 
 
@@ -151,7 +154,7 @@ def summarize(entries: list[dict[str, Any]]) -> None:
       agg[k]['nulls'] += 1
     if e['note']:
       agg[k]['notes'] += 1
-      if e['note'].startswith('[더미]'):
+      if e['note'].startswith(DUMMY_NOTE_PREFIX):
         agg[k]['dummy'] += 1
   logger.info('--- 재무 요약 (자회사·기간종류) — 금액 비노출 ---')
   for k in sorted(agg.keys()):
@@ -235,6 +238,7 @@ def main() -> int:
   validate_identity(entries)
 
   if args.dry_run:
+    logger.info(f'본 적재 때 DB 의 {DUMMY_NOTE_PREFIX} 행을 먼저 지운다(엑셀에 남은 {DUMMY_NOTE_PREFIX} 행은 다시 들어간다)')
     logger.success('dry-run 완료')
     return 0
   if not entries:
@@ -242,6 +246,11 @@ def main() -> int:
     return 0
 
   with WriteSession() as w:
+    # 🔴 사용자 지시(2026-11-23 「다음에 업로드 할 때 지워」): 화면 예시용 [더미] 행은 본 적재 때마다 먼저 지운다.
+    # 적재는 upsert 만이라, 안 지우면 담당자가 채우지 않은 칸의 더미가 실제 값 옆에 영원히 남는다.
+    # 엑셀에 아직 [더미] 행이 있으면 아래 upsert 가 다시 넣는다(= DB 의 더미는 늘 최신 엑셀의 더미와 같다).
+    removed = w.table(TABLE).delete().like('note', f'{DUMMY_NOTE_PREFIX}%').execute().data or []
+    logger.info(f'DB {DUMMY_NOTE_PREFIX} 행 삭제: {len(removed)}행')
     for i in range(0, len(entries), BATCH_SIZE):
       chunk = entries[i:i + BATCH_SIZE]
       w.table(TABLE).upsert(chunk, on_conflict=CONFLICT).execute()

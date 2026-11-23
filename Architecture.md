@@ -583,7 +583,7 @@ UNIQUE: (source, note_date)
 
 | subsidiary | consolidation | period_year | period_kind('annual'|'monthly') | period_month | account | value_mwon | note |
 
-엑셀 '재무' 시트 적재(`sync_finance.py`). 대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자) + 자금수지 흐름 계정 11종(20261120000001 — 법인세 납부·리스료 지급·일회성 영업현금·CAPEX 유지보수/증설 등, 정본 `CASH_FLOW_ACCOUNTS`, 현금 기준 부호·그 달까지 누계). `note` = 시트 8열 비고(`[더미]` 접두 = 입력 예시). 시점 정규화: 과거='연간'/월=12 → annual(month=12, 연말), 당해=월별(monthly, 1~11). UI는 억원(`value_mwon/100`), 과거=연말·당해=최신월(YTD). `/management/finance`가 `FinanceLeverageChart`(자산·부채·부채비율 콤보)+`FinanceCashBridge`(자금수지 폭포 차트·표)로 렌더.
+엑셀 '재무' 시트 적재(`sync_finance.py`). 대차대조표 계정(자산·부채·자본·채권·채무·재고·유형자산·무형자산·현금성자산·차입·증자) + 자금수지 흐름 계정 11종(20261120000001 — 법인세 납부·리스료 지급·일회성 영업현금·CAPEX 유지보수/증설 등, 정본 `CASH_FLOW_ACCOUNTS`, 현금 기준 부호·그 달까지 누계). `note` = 시트 8열 비고(`[더미]` 접두 = 입력 예시 · 본 적재가 DB 의 더미를 먼저 지운다). 시점 정규화: 과거='연간'/월=12 → annual(month=12, 연말), 당해=월별(monthly, 1~11). UI는 억원(`value_mwon/100`), 과거=연말·당해=최신월(YTD). `/management/finance`가 `FinanceLeverageChart`(자산·부채·부채비율 콤보)+`FinanceCashBridge`(자금수지 폭포 차트·표)로 렌더.
 **PK**: (subsidiary, consolidation, period_year, period_kind, period_month, account)
 **인덱스**: (subsidiary, period_year, period_kind, period_month)
 **RLS**: 정책 없음 (20260610000001) → service_role 전용(`confidentialDb`).
