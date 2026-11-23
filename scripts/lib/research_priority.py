@@ -73,6 +73,18 @@ def is_robot_topic(title: str) -> bool:
     return bool(_ROBOT_TOPIC_RE.search(title or ""))
 
 
+#: 회사 자체가 휴머노이드 기업이면(휴머노이드 페이지의 `companies.robot_roles` 에 `humanoid`) 제목에 로봇 낱말이
+#: 없어도 로봇 주제로 본다(사용자 선택 2026-11-23 「휴머노이드 역할만」). 실측: 로보티즈 「수요는 견조, 공급 병목
+#: 해소가 관건」 등 4편이 4점으로 문턱 아래였다. 🔴 역할이 아무거나 있는 회사(76곳)로 넓히지 말 것 — `parts` 에는
+#: 고영·비에이치처럼 로봇이 본업이 아닌 회사가 섞여 그들의 분기 실적 리뷰가 딸려 들어온다(같은 날 모의 계산 12편).
+HUMANOID_ROLE = "humanoid"
+
+
+def is_robot_report(row: dict) -> bool:
+    """제목이 로봇 주제이거나, 대상 회사가 휴머노이드 기업인가(`robot_roles` 는 요약기가 회사에서 붙여 넣는다)."""
+    return is_robot_topic(row.get("title") or "") or HUMANOID_ROLE in (row.get("robot_roles") or [])
+
+
 def is_earnings_review(title: str) -> bool:
     """제목이 분기 실적 리뷰·프리뷰인가."""
     return bool(_EARNINGS_RE.search(title or ""))
@@ -91,7 +103,7 @@ def score_report(row: dict, today: date | None = None) -> int:
     if row.get("kind") == "industry":
         score += SCORE_INDUSTRY
 
-    robot = is_robot_topic(title)
+    robot = is_robot_report(row)
     if robot:
         score += SCORE_ROBOT_TOPIC
 

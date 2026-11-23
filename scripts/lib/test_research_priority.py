@@ -73,6 +73,23 @@ class TestScore:
     def test_조회수_가산(self):
         assert score_report(row(view_count=50_000), TODAY) > score_report(row(view_count=10), TODAY)
 
+    def test_휴머노이드_기업이면_제목에_로봇이_없어도_로봇_주제(self):
+        """2026-11-23 실측 — 로보티즈 「수요는 견조, 공급 병목 해소가 관건」이 4점으로 빠졌다."""
+        r = row(title="수요는 견조, 공급 병목 해소가 관건", company_id="c1", view_count=1540,
+                published_at="2026-08-20", robot_roles=["humanoid", "parts"])
+        assert score_report(r, TODAY) >= ONGOING_MIN_SCORE
+        assert select_ongoing([r], TODAY) == [r]
+
+    def test_부품_역할만이면_가산하지_않는다(self):
+        """고영·비에이치처럼 로봇이 본업이 아닌 회사의 실적 리뷰가 딸려 들어오면 안 된다."""
+        base = row(title="3Q 부진하나 4Q 회복", company_id="c1", published_at="2026-08-20")
+        assert score_report({**base, "robot_roles": ["parts"]}, TODAY) == score_report(base, TODAY)
+        assert select_ongoing([{**base, "robot_roles": ["parts"]}], TODAY) == []
+
+    def test_휴머노이드_기업의_실적_리뷰는_안_깎인다(self):
+        base = row(title="3Q26 Review: 분기 적자 전환", company_id="c1", published_at="2026-08-20")
+        assert score_report({**base, "robot_roles": ["humanoid"]}, TODAY) > score_report(base, TODAY)
+
     def test_날짜가_없어도_죽지_않는다(self):
         assert isinstance(score_report(row(published_at=None), TODAY), int)
 

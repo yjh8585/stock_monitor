@@ -449,8 +449,10 @@ def load_targets(client, args: argparse.Namespace) -> list[dict]:
     """
     q = (
         client.table("research_reports")
+        # 🔴 `companies(robot_roles)` — 휴머노이드 기업이면 제목에 로봇 낱말이 없어도 로봇 주제로 친다
+        #    (`research_priority.is_robot_report` · 사용자 선택 2026-11-23). 빠뜨리면 그 가산이 조용히 죽는다.
         .select("id, kind, naver_nid, target_name, ticker, company_id, title, broker, "
-                "published_at, pdf_url, is_periodic, summary, view_count")
+                "published_at, pdf_url, is_periodic, summary, view_count, companies(robot_roles)")
         .order("published_at", desc=False)
     )
     # 🔴 사람이 「빼라」고 한 것은 규칙과 별개로 데이터에 남아 있다. 선별 규칙이 나중에
@@ -464,6 +466,8 @@ def load_targets(client, args: argparse.Namespace) -> list[dict]:
             q = q.eq("kind", args.kind)
 
     rows = q.execute().data
+    for r in rows:  # 내장 조회 결과를 선별 함수가 읽는 평평한 칸으로
+        r["robot_roles"] = (r.pop("companies", None) or {}).get("robot_roles") or []
     picked = [
         r for r in rows
         if is_relevant(
