@@ -219,7 +219,7 @@ YT_RUN_DIR=$R python scripts/yt_report/settle.py --check
 #    🔴 크롭은 finalize «앞»에 돌린다 — finalize 가 새 크롭본을 골라 png_final/ 로 낸다(§2-E · 2026-11-24 D5)
 # 5) 프로덕션 확인(dev 서버 안 띄움 · 로봇 글은 --route humanoid/reports 로 한 번 더)
 YT_RUN_DIR=$R python scripts/yt_report/verify.py --ids <id들>
-# 6) 회차 끝 — 작업방식 회고(아래)
+# 6) 회차 끝 — 작업방식 회고(아래) · 🔴 retro.md·원장 넣기는 4) 업로드 «전»에 — publish.ts 가 검사하지만 업로드는 그보다 앞이다
 ```
 
 🔴 **2번은 `frame_times.json` 이 있어야 돈다** — `finalize.py` 가 쓴다(2026-11-24 D5). 정각 캡처분은
@@ -228,9 +228,32 @@ YT_RUN_DIR=$R python scripts/yt_report/verify.py --ids <id들>
 정각 그림인데 기록이 없으면 finalize 가 🔴 TIME 을 찍고 exit 1 로 끝난다(settle 이 조용히 건너뛰지 않게).
 
 🔴 **6) 회차가 끝나면 매번 작업방식을 고친다 — 문서만이 아니라 지시서·코드까지**(사용자 지시 2026-11-18).
-Codex·사용자가 잡은 결함의 유형, 검사기가 놓쳐 게시 뒤 드러난 것, 손으로 고친 단계, 회차 폴더에 새로 짠 스크립트를 하나씩
+Codex·사용자가 잡은 결함의 유형, 검사기가 놓친 것(게시 뒤 드러난 것은 다음 회차 표로), 손으로 고친 단계, 회차 폴더에 새로 짠 스크립트를 하나씩
 `prompts/write.md`·`prompts/check.md`(지시서) · `scripts/yt_report/*`(도구) · `scripts/verify_*.py`(검사기 표본) · 이 문서(§2·§3) 중
 어디에 넣었는지(또는 안 고친 이유) 표로 남긴다. 절차 정본 = `wrap-up` 스킬 3단계 「작업방식 회고」.
+
+🔴 **2026-11-24 부터 이 표는 파일 `<RUN_DIR>/retro.md` 이고, 없으면 `publish.ts` 가 게시를 거부한다**(사용자 선택 2026-11-24
+「교훈 원장 + 회고 강제」·「회차 끝 도구가 직접 거부」). 유튜브 회차(`selected.json` 있음)만 검사하고 PDF 회차는 건너뛴다.
+검사기 = `scripts/yt_report/retro_check.py`(agents 와 공통 파일) — 실패하면 `.env.local` 을 읽기도 전에 exit 1 로 멈춰 DB 게시를 막는다
+(업로드는 그 전 단계라 막지 못한다 — 그래서 `retro.md` 는 업로드 «전»에 쓴다).
+**형식·순서·원장 넣기의 정본 = agents `docs/report-from-youtube.md` §5-A 「회차 끝 회고」**(여기엔 다시 적지 않는다). 예시:
+
+```markdown
+run: 2026-11-24/yt-stock_monitor:언더스탠딩-11-24
+
+| 재료                           | 반영 자리 | 어디 · 이유                           |
+| ------------------------------ | --------- | ------------------------------------- |
+| 캡션 어미 축약이 3편에서       | 원장      | yt-report · caption                   |
+| 홍보 구간을 본문에 옮겨 적었다 | 안 고침   | 일회성 — 이번 채널만 광고가 본편 중간 |
+```
+
+이 레포에만 해당하는 것:
+
+- `run` 의 레포 이름은 `yt-stock_monitor`(이 레포에서 `yt-agents` 를 적으면 거부).
+- 원장 CLI 는 agents 에만 있다 — 원장 넣기 명령은 `cd ../agents` 에서 돌린다(옆 폴더 `../agents` 가 없으면 검사가 2로 끝난다).
+- 검사만 따로 = 이 레포 루트에서 `YT_RUN_DIR=$R PYTHONIOENCODING=utf-8 scripts/venv/Scripts/python.exe -X utf8 scripts/yt_report/retro_check.py`.
+- 이 레포의 `PROMPT-공통.md` 는 `scripts/yt_report/prompts/` 에 있다.
+- 회차 폴더(`$R`)를 지우기 «전에» `retro.md` 표를 아래 §4 갱신 이력 한 행으로 옮긴다(사용자 선택 2026-11-24 「갱신 이력으로 옮긴다」).
 
 ---
 

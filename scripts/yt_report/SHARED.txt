@@ -14,3 +14,4 @@ scripts/yt_report/montage.py	scripts/yt_report/montage.py
 scripts/yt_report/scan.py	scripts/yt_report/scan.py
 scripts/yt_report/settle.py	scripts/yt_report/settle.py
 scripts/yt_report/PROMPT-공통.md	scripts/yt_report/prompts/PROMPT-공통.md
+scripts/yt_report/retro_check.py	scripts/yt_report/retro_check.py

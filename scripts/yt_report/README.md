@@ -50,8 +50,8 @@
 7. ✍️ **프레임 선별**(vision): 몽타주를 보고 캡션이 말하는 장면/차트가 **선명한 프레임만** 골라 `selected.json`에 `slug:offset`. 토킹헤드·전환컷·손가림 드롭. → 채택된 것만 남는다.
 8. 🔧 **오버레이 크롭**(선택): 언더스탠딩 등 진행자 패널 레이아웃이면 `python scripts/yt_report/crop.py --prefix v4_,v6_ --keep 77` → `png/<slug>_<오프셋>.png`(원본 프레임은 그대로 · 72% 는 슬라이드 오른쪽 끝이 잘린 회차가 있어 2026-11-17 은 75~77). 🔴 **finalize «앞»에 돌린다**(2026-11-24 정본화 D5 · 예전엔 뒤였다). 정각을 다시 뜨면 크롭이 원본보다 오래돼 버려지니 크롭도 다시.
 9. 🔧 **조립**: `python scripts/yt_report/finalize.py` → `png_final/<slug>.png`(게시용 · 새 크롭본 우선) + `reports_final/<key>.md`(토큰→이미지, 드롭 토큰 제거) + `frame_times.json`. 정각 그림의 기록이 없으면 🔴 TIME 을 찍고 exit 1 — `capture.py --exact --only <slug>` 로 다시 뜬다. 그다음 `settle.py --check`.
-10. 🔧 **업로드**: `npx tsx scripts/yt_report/upload.ts` → `png_final/*.png` 만 `reports/<storage_folder>/` 로.
-11. 🔧 **게시**: `npx tsx scripts/yt_report/publish.ts` (source_url 기준 — 신규 INSERT). 🔴 **이미 게시된 영상이 하나라도 있으면 아무것도 쓰지 않고 멈춘다**(2026-10-27 리포트 132 를 경고 없이 덮어쓴 사고). 덮어쓰는 게 맞으면 `YT_ALLOW_UPDATE=v5,…`(또는 `all`)로 명시한다.
+10. 🔧 **업로드**: 🔴 `retro.md` 와 원장 넣기는 업로드 «전»에 — 게시 도구가 회고 없으면 멈추지만 업로드는 이미 끝난 뒤다. `npx tsx scripts/yt_report/upload.ts` → `png_final/*.png` 만 `reports/<storage_folder>/` 로.
+11. 🔧 **게시**: `npx tsx scripts/yt_report/publish.ts` (source_url 기준 — 신규 INSERT). 🔴 **이미 게시된 영상이 하나라도 있으면 아무것도 쓰지 않고 멈춘다**(2026-10-27 리포트 132 를 경고 없이 덮어쓴 사고). 덮어쓰는 게 맞으면 `YT_ALLOW_UPDATE=v5,…`(또는 `all`)로 명시한다. 🔴 **회고 검사(`retro_check.py`)가 먼저 돈다** — 유튜브 회차(`selected.json` 있음)는 `<RUN_DIR>/retro.md` 가 없거나 형식이 틀리면 DB 게시를 막고 exit 1(2026-11-24 · 업로드는 그 전 단계라 이미 끝나 있다 — 10단계). 원장 넣기(`../agents` 의 `curation-lessons.mjs`) → `retro.md` 를 업로드 «전»에 — 형식·순서 = `docs/report-from-youtube.md` §3 「6)」(정본 = agents `docs/report-from-youtube.md` §5-A).
 12. 🔧 **캐시 무효화**: `POST $NEXT_REVALIDATE_PROD_URL` 헤더 `x-revalidate-secret`, body `{"tags":["posts","post:<id>",…]}`.
 13. 🔧 **검증**: `python scripts/yt_report/verify.py --ids <id들>` → raw`**`=0·이미지깨짐0·console0 `ALL_OK`.
 

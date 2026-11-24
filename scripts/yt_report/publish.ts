@@ -14,6 +14,7 @@
  *    UPDATE 로 본문·제목·썸네일을 덮어썼다. 게시 뒤 손본 최종본은 디스크에 없어 되돌릴 수 없었다.
  *    그래서 기존 글이 하나라도 걸리면 «아무것도 쓰기 전에» 멈추고, 덮어쓸 key 를 명시해야 진행한다.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
@@ -41,7 +42,28 @@ function loadEnv(): Record<string, string> {
   return out;
 }
 
+/**
+ * 회고 표 없이 회차를 끝내지 못한다(사용자 선택 2026-11-24 「회차 끝 도구가 직접 거부」 · 공통 파일 retro_check.py).
+ * 🔴 유튜브 회차만(`selected.json` 있음 · 사용자 선택 「유튜브 회차만」) — PDF 회차는 건너뛴다. 회차 종류 판정은 upload.ts 와 같은 기준.
+ */
+function retroOk(): boolean {
+  if (!existsSync(join(RUN_DIR, 'selected.json'))) return true;
+  const py = join(ROOT, 'scripts', 'venv', 'Scripts', 'python.exe');
+  const r = spawnSync(py, ['-X', 'utf8', join(ROOT, 'scripts', 'yt_report', 'retro_check.py')], {
+    env: { ...process.env, YT_RUN_DIR: RUN_DIR, PYTHONIOENCODING: 'utf-8' },
+    stdio: 'inherit',
+    windowsHide: true,
+  });
+  // 파이썬을 아예 못 띄우면(venv 없음 등) status 가 null 이고 이유는 r.error 에만 있다
+  if (r.error) console.error(`회고 검사를 못 띄웠다: ${r.error.message}`);
+  return r.status === 0;
+}
+
 async function main() {
+  if (!retroOk()) {
+    console.error('회고 검사 실패 — 게시하지 않고 멈춘다.');
+    process.exit(1);
+  }
   const env = loadEnv();
   const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
   const batch = JSON.parse(readFileSync(join(RUN_DIR, 'batch.json'), 'utf8')) as {
