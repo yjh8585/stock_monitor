@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """회차 끝 회고 검사 — 회고 표 없이 회차를 끝내지 못하게 한다(두 레포 공통 파일 · SHARED.txt).
 
-사용자 지시(2026-11-24): 「교훈 원장 + 회고 강제」 — 회차마다 결함 유형을 원장에 쌓고, 2회차 이상
-반복 유형은 PROMPT-공통.md 로 옮기라고 띄우며, 회고 표 없이 회차를 끝내면 막는다.
+사용자 지시(2026-11-24): 「교훈 원장 + 회고 강제」 — 회차마다 결함 유형을 원장에 쌓고, 서로 다른
+2회차 이상 반복된 «채택(adopted)» 유형은 PROMPT-공통.md 로 옮기라고 띄우며, 회고 표 없이 회차를 끝내면 막는다.
 계획 = agents docs/superpowers/plans/2026-11-24-유튜브-교훈원장-회고강제.md (회고 표 형식 = 그 계획 「회고 표 형식」)
 
 부르는 곳: agents finalize_vault.py · stock_monitor publish.ts 의 main 첫머리.
@@ -100,6 +100,8 @@ def body_problems(p: dict) -> list[str]:
         if p["body"] != [NO_MATERIAL]:
             return [f"「{NO_MATERIAL}」 을 쓰면 run 줄 아래 빈 줄 아닌 줄은 그 한 줄뿐이어야 한다(코드 블록 속 예시 불가)"]
         return []
+    if any(ln.startswith("```") for ln in p["body"]):
+        return ["코드 블록(```)을 쓰지 않는다 — 예시를 감싼 표·문장도 검사 대상으로 읽힌다(재검토 Minor 2026-11-24)"]
     if p["stray"]:
         return [f"`|` 로 시작하지 않는 표 행(표에서 샌다): {ln}" for ln in p["stray"]]
     if p["table"] and not p["contiguous"]:
@@ -195,7 +197,11 @@ def check(run_dir: Path, ledger: Callable[[str], Optional[dict]] = ledger_status
     if bad:
         print("🛑 회고 표 형식 위반:\n  - " + "\n  - ".join(bad))
         return 1
-    stale = stale_problem(run_dir, f)
+    try:
+        stale = stale_problem(run_dir, f)
+    except OSError as e:
+        print(f"🛑 실행 못 함: 회차 파일 수정 시각을 못 읽었다({run_dir}): {e}")
+        return 2
     if stale:
         print(f"🛑 {stale} — 이번 회차 회고를 새로 쓴다({FORMAT_DOC})")
         return 1
