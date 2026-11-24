@@ -1,0 +1,16 @@
+# 유튜브 보고서 툴킷 — 두 레포 공통 파일 목록 (2026-11-24 정본화)
+# 이 파일 자신도 두 레포에 글자까지 같게 있다. 줄 = 「agents 경로<TAB>stock_monitor 경로」(레포 루트 기준).
+# 두 레포는 같은 부모 폴더의 형제다: agents · stock_monitor. 대조 = verify_shared.py
+# 공통 파일을 고치면 두 레포를 함께 고친다 — 전역 커밋 훅(hook_commit_guard 검사 G)이 한쪽만 고친 커밋을 막는다.
+# 레포마다 다른 값은 각 레포의 scripts/yt_report/_repo.py 에 둔다(그 파일은 공통이 아니다).
+scripts/yt_report/SHARED.txt	scripts/yt_report/SHARED.txt
+scripts/yt_report/verify_shared.py	scripts/yt_report/verify_shared.py
+scripts/yt_report/_common.py	scripts/yt_report/_common.py
+scripts/yt_report/capture.py	scripts/yt_report/capture.py
+scripts/yt_report/crop.py	scripts/yt_report/crop.py
+scripts/yt_report/fetch_subs.py	scripts/yt_report/fetch_subs.py
+scripts/yt_report/grab.py	scripts/yt_report/grab.py
+scripts/yt_report/montage.py	scripts/yt_report/montage.py
+scripts/yt_report/scan.py	scripts/yt_report/scan.py
+scripts/yt_report/settle.py	scripts/yt_report/settle.py
+scripts/yt_report/PROMPT-공통.md	scripts/yt_report/prompts/PROMPT-공통.md

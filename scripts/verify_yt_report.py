@@ -214,7 +214,20 @@ def check_review(run: Path, finals: list[Path], r: Result) -> None:
                   f"(scripts/yt_report/prompts/check.md · README 3단계)")
 
 
+def shared_ok() -> bool:
+    """두 레포 공통 툴킷 파일이 글자까지 같은가(2026-11-24 정본화 · `yt_report/verify_shared.py`). 갈림·실행 못 함이면 False."""
+    import subprocess
+
+    tool = Path(__file__).resolve().parent / "yt_report" / "verify_shared.py"
+    p = subprocess.run([sys.executable, "-X", "utf8", str(tool)], capture_output=True, text=True, encoding="utf-8",
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    print(("[공통 파일] " if p.returncode == 0 else "[FAIL 공통 파일] ") + p.stdout.strip())
+    return p.returncode == 0
+
+
 def main() -> int:
+    if not shared_ok():
+        return 1
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", required=True, help="산출물 폴더(scripts/_yt_report/<날짜>)")
     ap.add_argument("--strict", action="store_true", help="경고도 실패로 본다")

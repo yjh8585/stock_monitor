@@ -5,6 +5,8 @@ RUN_DIR/frames/<slug>_*.jpg 를 오프셋 오름차순으로 hstack → RUN_DIR/
 
 usage: python montage.py                    # RUN_DIR/shots.json 전체
        python montage.py v6_manheim_correlation v4_baden_factory_map
+
+🔴 두 레포(agents·stock_monitor) 공통 파일 — 바이트 단위로 같게 유지(레포 고유 값은 `_repo.py` · `_common.py` 머리말).
 """
 from __future__ import annotations
 
@@ -14,8 +16,7 @@ import re
 import subprocess
 import sys
 
-from _common import ensure_dir, find_ffmpeg, run_path
-from _common import NO_WINDOW
+from _common import NO_WINDOW, ensure_dir, find_ffmpeg, run_path
 
 _OFF = re.compile(r"_(\d+)\.jpg$")
 
@@ -40,7 +41,7 @@ def make(slug: str, ff: str) -> None:
     filters.append("".join(f"[v{i}]" for i in range(len(inputs))) + f"hstack=inputs={len(inputs)}[out]")
     cmd += ["-filter_complex", ";".join(filters), "-map", "[out]",
             str(run_path("montages", f"{slug}.jpg"))]
-    r = subprocess.run(cmd, check=False, creationflags=NO_WINDOW, capture_output=True)
+    r = subprocess.run(cmd, check=False, capture_output=True, creationflags=NO_WINDOW)
     print(f"{slug}\t{'OK' if r.returncode == 0 else 'ERR'}\t{len(inputs)}frames")
 
 

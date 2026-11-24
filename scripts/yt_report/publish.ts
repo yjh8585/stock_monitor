@@ -5,6 +5,8 @@
  *
  * batch.json.reports[] 필드: key, title, source_name, source_url, category, published_at,
  *                            thumb_slug, frames[]. 썸네일=pub_base/thumb_slug.png(없으면 thumb_fallback).
+ *                            🔴 png_final/ 이 있는데 thumb_slug 가 없으면(본문에서 드롭·변환 실패 → 업로드 안 됨) thumb_fallback 로
+ *                            내린다 — 안 그러면 깨진 썸네일 주소가 게시된다(2026-11-24 정본화 D5).
  * usage: npx tsx scripts/yt_report/publish.ts
  *        YT_ALLOW_UPDATE=v5,v2 npx tsx scripts/yt_report/publish.ts   # 기존 글 덮어쓰기 허용(key 목록 또는 all)
  *
@@ -12,7 +14,7 @@
  *    UPDATE 로 본문·제목·썸네일을 덮어썼다. 게시 뒤 손본 최종본은 디스크에 없어 되돌릴 수 없었다.
  *    그래서 기존 글이 하나라도 걸리면 «아무것도 쓰기 전에» 멈추고, 덮어쓸 key 를 명시해야 진행한다.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
@@ -71,9 +73,17 @@ async function main() {
   const ids: number[] = [];
   for (const r of batch.reports) {
     const content = readFileSync(join(RUN_DIR, 'reports_final', `${r.key}.md`), 'utf8');
-    const thumb = r.thumb_slug
-      ? `${batch.pub_base}/${r.thumb_slug}.png`
-      : (r.thumb_fallback ?? null);
+    // png_final/ 이 없는 회차(11-24 전 회차 재게시)는 종전처럼 pub_base/<thumb_slug>.png 를 쓴다 — 이미 올라가 있다.
+    // 폴더가 있는데 그 파일이 없을 때만(드롭·변환 실패 → 업로드 안 됨) thumb_fallback(2026-11-24 최종 검토).
+    const finalDir = join(RUN_DIR, 'png_final');
+    const thumbMissing =
+      !!r.thumb_slug && existsSync(finalDir) && !existsSync(join(finalDir, `${r.thumb_slug}.png`));
+    if (thumbMissing)
+      console.warn(`THUMB ${r.key}\tpng_final/${r.thumb_slug}.png 없음 → thumb_fallback`);
+    const thumb =
+      r.thumb_slug && !thumbMissing
+        ? `${batch.pub_base}/${r.thumb_slug}.png`
+        : (r.thumb_fallback ?? null);
 
     const existing = existingByKey.get(r.key);
     if (existing) {

@@ -2,10 +2,16 @@
 
 언더스탠딩 등 '슬라이드 + PiP 진행자 패널' 레이아웃은 우측 ~28%를 잘라 도해만 남긴다.
 RUN_DIR/selected.json에서 지정 prefix의 slug을 frames/<slug>_<offset>.jpg 에서 좌측 N% 크롭.
+출력: RUN_DIR/png/<slug>_<offset>.png — 🔴 이름에 오프셋을 넣는다(2026-11-18 Codex 검토 C2).
+  `png/<slug>.png` 였을 때는 선택을 바꾸거나 정각으로 다시 떠도 옛 크롭이 조립에 들어갔다.
+  조립 단계(finalize)는 이름의 오프셋이 선택과 같고 원본 프레임보다 새것일 때만 크롭본을 쓴다
+  (두 레포 같은 약속 · 2026-11-24 정본화 D5).
 
 usage: python crop.py --prefix v4_,v6_            # 좌측 72% (기본)
        python crop.py --prefix v5_ --keep 72
        python crop.py --slugs v6_manheim_correlation,v4_baden_factory_map
+
+🔴 두 레포(agents·stock_monitor) 공통 파일 — 바이트 단위로 같게 유지(레포 고유 값은 `_repo.py` · `_common.py` 머리말).
 """
 from __future__ import annotations
 
@@ -13,8 +19,7 @@ import argparse
 import json
 import subprocess
 
-from _common import ensure_dir, find_ffmpeg, run_path
-from _common import NO_WINDOW
+from _common import NO_WINDOW, ensure_dir, find_ffmpeg, run_path
 
 
 def main() -> int:
@@ -44,8 +49,8 @@ def main() -> int:
             continue
         r = subprocess.run(
             [ff, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
-             "-vf", crop, str(png / f"{slug}.png")],
-            check=False, creationflags=NO_WINDOW, capture_output=True,
+             "-vf", crop, str(png / f"{slug}_{int(off):02d}.png")],
+            check=False, capture_output=True, creationflags=NO_WINDOW,
         )
         ok = r.returncode == 0
         n += ok

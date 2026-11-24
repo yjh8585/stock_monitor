@@ -25,6 +25,11 @@ usage:
     python settle.py --check            # RUN_DIR/frame_times.json 의 모든 선택 프레임 검사
     python settle.py --check --only v1_q1_2026,v2_chery_russia
     python settle.py --probe --video lb92luVHn-o --at 11:03   # 한 지점만 진단표로
+
+frame_times.json 은 조립 단계(finalize)가 쓴다 — 정각 캡처분은 capture.py --exact 의 exact_times.json 을
+옮겨 적는다(두 레포 같은 약속 · 2026-11-24 정본화 D5).
+
+🔴 두 레포(agents·stock_monitor) 공통 파일 — 바이트 단위로 같게 유지(레포 고유 값은 `_repo.py` · `_common.py` 머리말).
 """
 from __future__ import annotations
 
@@ -38,8 +43,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from _common import find_ffmpeg, mmss_to_sec, run_path
-from _common import NO_WINDOW
+from _common import NO_WINDOW, find_ffmpeg, mmss_to_sec, run_path
 
 # ── 임계값 (실측으로 정한 값 — 고칠 때는 근거를 함께 남길 것) ──────────────
 #
@@ -60,7 +64,7 @@ def grab(ff: str, video: Path, t: float, out: Path) -> bool:
     r = subprocess.run(
         [ff, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.2f}",
          "-i", str(video), "-vframes", "1", "-vf", "scale=480:-1", str(out)],
-        check=False, creationflags=NO_WINDOW, capture_output=True,
+        check=False, capture_output=True, creationflags=NO_WINDOW,
     )
     return r.returncode == 0 and out.exists()
 
@@ -136,6 +140,27 @@ def settle_at(ff: str, video: Path, t: float, tmp: Path) -> dict:
     }
 
 
+def merge_report(prev: dict, out: dict, times: dict) -> dict:
+    """settle_report.json 병합 — 옛 결과는 «지금 frame_times.json 의 그 slug · 그 초»에 대한 것만 남긴다.
+
+    times = frame_times.json 전체(`--only` 로 거르기 전).
+    🔴 2026-11-18 Codex 검토 C3 — 조립이 시각을 비운 slug(🔴 TIME)이나 다시 떠서 초가 바뀐 slug 의
+       옛 「OK」가 병합으로 살아남아, 검사하지 않은 그림이 통과로 읽혔다(합성 영상 재현).
+       그래서 결과에 검사한 video_id·seconds 를 같이 적고, 지금 기록과 다르면 버린다
+       (이 칸이 없는 옛 형식 결과도 확인할 수 없으니 버린다 — 다음 --check 가 다시 채운다).
+    """
+    keep = {}
+    for slug, res in prev.items():
+        cur = times.get(slug)
+        if not cur or not isinstance(res, dict):
+            continue
+        if res.get("video_id") != cur.get("video_id") or res.get("seconds") != cur.get("seconds"):
+            continue
+        keep[slug] = res
+    keep.update(out)
+    return keep
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
@@ -160,7 +185,8 @@ def main() -> int:
             print(json.dumps(res, ensure_ascii=False, indent=1))
             return 0
 
-        times = json.loads(run_path("frame_times.json").read_text(encoding="utf-8"))
+        all_times = json.loads(run_path("frame_times.json").read_text(encoding="utf-8"))
+        times = all_times
         if args.only:
             want = set(args.only.split(","))
             times = {k: v for k, v in times.items() if k in want}
@@ -173,6 +199,7 @@ def main() -> int:
                 continue
             res = settle_at(ff, video, float(meta["seconds"]), tmp)
             res.pop("trail", None)
+            res["video_id"], res["seconds"] = meta["video_id"], meta["seconds"]  # merge_report 가 대조한다
             out[slug] = res
             if not res["ok"]:
                 bad.append(slug)
@@ -185,11 +212,11 @@ def main() -> int:
         #    2026-09-11 에 그렇게 해서 51건짜리 기록이 8건으로 줄었고,
         #    `verify_yt_report.py` 가 「정착 검사 기록이 없다」로 13건을 잡아냈다.
         rp = run_path("settle_report.json")
-        merged = {}
+        prev = {}
         if rp.exists():
-            merged = json.loads(rp.read_text(encoding="utf-8"))
-        merged.update(out)
-        rp.write_text(json.dumps(merged, ensure_ascii=False, indent=1), encoding="utf-8")
+            prev = json.loads(rp.read_text(encoding="utf-8"))
+        merged = merge_report(prev, out, all_times)
+        rp.write_text(json.dumps(merged, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
         print(f"\n검사 {len(out)}건 · 차오르는 중 {len(bad)}건")
         if bad:
             print("의심 slug: " + ",".join(bad))

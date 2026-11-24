@@ -1,22 +1,32 @@
 """videos.json → 한국어 자막 다운로드 + 정제 텍스트 생성.
 
 입력: RUN_DIR/videos.json = [{"key","id", ...}, ...]  (key는 v1,v2… 같은 짧은 식별자)
-출력: RUN_DIR/subs/<key>_<id>.ko-orig.vtt, RUN_DIR/text/<key>.txt
+출력: RUN_DIR/subs/<key>_<id>.ko-orig.vtt, RUN_DIR/text/<key>.txt(한 줄) + <key>.lines.txt(표지마다 한 줄)
      + 각 영상의 글자수·대략 길이 출력(보고서 분량 산정용).
 
 usage: python fetch_subs.py            # RUN_DIR/videos.json 사용
        python fetch_subs.py --langs ko-orig,ko,en
 전제: venv에 yt-dlp 설치(`uv pip install yt-dlp` 또는 `pip install yt-dlp`).
+
+🔴 두 레포(agents·stock_monitor) 공통 파일 — 바이트 단위로 같게 유지(레포 고유 값은 `_repo.py` · `_common.py` 머리말).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import subprocess
-import sys
 
-from _common import RUN_DIR, already_published, clean_vtt, ensure_dir, run_path, ytdlp_cmd
-from _common import NO_WINDOW
+from _common import (
+    EXISTING_LABEL,
+    NO_WINDOW,
+    RUN_DIR,
+    clean_vtt,
+    ensure_dir,
+    find_existing,
+    run_path,
+    split_by_marker,
+    ytdlp_cmd,
+)
 
 
 def main() -> int:
@@ -29,11 +39,11 @@ def main() -> int:
     with open(videos_path, encoding="utf-8") as f:
         videos = json.load(f)
 
-    # 이미 게시된 영상이면 작업 전에 멈춘다(2026-10-27 리포트 132 덮어쓰기 · _common.already_published)
-    dup = already_published(videos)
+    # 이미 만든 영상이면 작업 전에 멈춘다 — 무엇을 «이미 만든 것»으로 보나는 레포마다 다르다(_repo.find_existing)
+    dup = find_existing(videos)
     if dup:
-        for k, (pid, title) in dup.items():
-            print(f"이미 게시됨: {k} → id={pid} 「{title}」")
+        for k, shown in dup.items():
+            print(f"{EXISTING_LABEL}: {k} → {shown}")
         print("목록에서 빼거나, 다시 만드는 게 맞으면 YT_ALLOW_UPDATE=<key,…> 로 명시하라.")
         return 1
 
@@ -46,6 +56,7 @@ def main() -> int:
         key, vid = v["key"], v["id"]
         subprocess.run(
             [*ytdlp_cmd(), "--skip-download",
+             "--js-runtimes", "node",
              "--write-subs", "--write-auto-subs", "--sub-langs", args.langs,
              "--sub-format", "vtt",
              "-o", str(subs_dir / f"{key}_{vid}.%(ext)s"),
@@ -62,11 +73,13 @@ def main() -> int:
             missing.append(key)
             continue
         body, chars, dur = clean_vtt(vtt)
-        (run_path("text", f"{key}.txt")).write_text(body, encoding="utf-8")
+        (run_path("text", f"{key}.txt")).write_text(body, encoding="utf-8", newline="\n")
+        # 조수(반영·선별)가 Grep·Read 로 나눠 읽는 사본(2026-11-18)
+        (run_path("text", f"{key}.lines.txt")).write_text(split_by_marker(body), encoding="utf-8", newline="\n")
         total += chars
         print(f"{key}\t{vid}\t{chars}chars\t~{dur // 60}min")
     print(f"TOTAL\t{total}chars\t(RUN_DIR={RUN_DIR})")
-    # 🔴 2026-11-17: 13편 전부 NO_KO_SUB 인데 exit 0 이라 「받았다」로 넘어갈 뻔했다 → 한 편이라도 빠지면 실패
+    # 🔴 stock_monitor 2026-11-17: 13편 전부 NO_KO_SUB 인데 exit 0 이라 「받았다」로 넘어갈 뻔했다 → 한 편이라도 빠지면 실패
     if missing:
         print(f"자막 없음 {len(missing)}편: {','.join(missing)} — 위 ERROR 줄을 보라(진짜 자막 없음이면 목록에서 빼고 다시)")
         return 2
