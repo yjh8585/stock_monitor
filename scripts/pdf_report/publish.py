@@ -27,6 +27,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "yt_report"))
 from _common import load_env, storage_pub_base  # noqa: E402
+from retro_check import check as retro_check  # noqa: E402
 
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -48,6 +49,14 @@ def main() -> int:
     if not DATE.match(args.date):
         print(f"--date 형식이 YYYY-MM-DD 가 아니다: {args.date}")
         return 2
+    # 🔴 회고 표 없이 게시하지 않는다 — .env.local 을 읽기 전에(사용자 선택 2026-11-24 「S publish.py + A 검사기」 ·
+    #    공통 파일 retro_check.py 의 pdf 갈래 · 절차 = agents scripts/pdf_report/README.md 「회차 끝 회고」)
+    retro = retro_check(run, flow="pdf")
+    if retro != 0:
+        hint = ("회고 검사를 끝내지 못했다(회고 파일 읽기·원장 CLI) — 위 🛑 줄의 원인 확인" if retro == 2
+                else f"위 🛑 줄의 사유를 고치고 다시 돌려라({run / 'retro.md'})")
+        print(f"🛑 게시하지 않고 멈춘다 — {hint}")
+        return 1
     batch = json.loads((run / "batch.json").read_text(encoding="utf-8"))
     env = load_env()
     base = env["NEXT_PUBLIC_SUPABASE_URL"].rstrip("/")

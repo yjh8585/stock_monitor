@@ -29,10 +29,16 @@
 3. 그림 업로드: `scripts/yt_report/upload.ts`(YT_RUN_DIR=회차 폴더).
 4. 요약부(첫 인용·소제목·핵심 정리)를 본문과 맞대어 본다(§3-H) → Codex 사실 대조: `scripts/pdf_report/prompts/codex_check.md` 를
    회차 폴더로 복사해 `<…>` 만 채워 `codex_run.py run` · 결과는 원문으로 검산해 반영 · `check/codex_<이름>.md` 로 남긴다.
-5. §4 검사 → 게시: `scripts/pdf_report/publish.py`(인자 = 문서 첫머리) → 무효화 → 프로덕션 `verify.py`.
-6. **회차 끝 — 작업방식 회고**(사용자 지시 2026-11-18): 이번 회차의 결함·Codex 지적 유형·손으로 한 단계·회차 폴더에 새로 짠
-   스크립트를 하나씩 이 문서·`prompts/codex_check.md`·`publish.py`·검사기 중 어디에 넣었는지(또는 안 고친 이유) 표로 남긴다.
-   절차 정본 = `wrap-up` 스킬 3단계.
+5. **회차 끝 — 작업방식 회고 «게시 전»**(사용자 지시 2026-11-18 · 2026-11-24 회고 강제): 이번 회차의 결함·Codex 지적 유형·손으로 한
+   단계·회차 폴더에 새로 짠 스크립트를 하나씩 어디에 넣었는지(또는 안 고친 이유) `<회차 폴더>/retro.md` 표로 남긴다 — 「반영 자리」 칸은
+   여섯 낱말만 받는다: 지시서(`prompts/codex_check.md`) · 도구 코드(`publish.py`) · 검사기 · 규칙 문서(이 문서) · 원장 · 안 고침.
+   회고 «뒤»에 드러난 결함(§4 검사 — `publish.py --dry-run` 이 만든 `reports_final/` 을 읽으므로 회고 뒤에 돈다 · 게시 뒤 `verify.py`)은
+   원장에만 `add` 하고 다음 회차 회고의 재료로 넘긴다. 첫 줄 `run: YYYY-MM-DD/pdf-stock_monitor:<회차 이름>` · 결함 유형은 agents 교훈 원장 갈래 `pdf-report` 로.
+   🔴 **`publish.py` 가 회고 표·원장 기록이 없으면 게시하지 않고 멈춘다**(`--dry-run` 포함). 절차 정본 = agents
+   `scripts/pdf_report/README.md` 「회차 끝 회고」(원장 명령은 `../agents` 에서) · 반복 교훈은 `prompts/codex_check.md` 로 옮긴다
+   (agents 도구에만 맞는 교훈은 옮기지 않고 그 파일 끝 「다른 레포 교훈 — 안 옮김」 줄에 표식만).
+   회차 폴더를 지우기 전에 회고 표를 §5 갱신 이력 한 행으로 옮긴다.
+6. §4 검사 → 게시: `scripts/pdf_report/publish.py`(인자 = 문서 첫머리) → 무효화 → 프로덕션 `verify.py`.
 
 ---
 
