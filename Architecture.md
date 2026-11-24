@@ -745,6 +745,18 @@ UNIQUE: (source, note_date)
   - **부작용 주의**: 동일 값 upsert는 이제 **0행을 반환**한다. 반환 행 수로 성공을 판정하는 코드를 쓰지 말 것(현재 `upsert_rows`는 입력 길이를 반환해 무관).
   - `updated_at`처럼 매번 바뀌는 컬럼이 있는 테이블에는 붙이지 말 것(항상 값이 달라 무의미). 기존 BEFORE 트리거가 있는 `companies`·`financials`·`posts`는 상호작용 회피를 위해 제외했다.
 
+### 7-K. 다른 사이트가 같이 쓰는 표 — 「나를 찾아서」 심리검사 (2026-11-24)
+
+stock_monitor 앱은 이 표들을 읽지도 쓰지도 않는다. 별도 정적 사이트(로컬 `1.테스트/psycho` · git 아님 · Vercel 프로젝트 `psycho`)가 같은 Supabase 프로젝트를 쓴다. 작업 순서 정본 = 그 폴더의 `docs/workflow.md`.
+
+| 대상 | 내용 · 권한 | 마이그레이션 |
+| --- | --- | --- |
+| `psycho_submissions` | 응시 기록(이름·나이·100문항 답·채점 결과 — 민감) · RLS · anon 은 `id·name·age·consent·answers·result` 칸만 INSERT(`created_at` 은 서버 시각) · 빈 답·객체 아닌 `result` 는 검사 조건으로 거부 · 조회는 관리자만 | 20261124000001 · 20261124000003 |
+| `psycho_admins` | 관리자 명단(`auth.users` 참조) · anon/authenticated 권한 없음 · 대시보드/SQL 로만 관리 | 20261124000002 |
+| `psycho_is_admin()` | 「내가 관리자인가」만 답하는 security definer 함수(`search_path=''`) · authenticated 만 실행 · `psycho_submissions` 조회 정책이 이것을 쓴다 | 20261124000002 |
+
+- 🔴 이 프로젝트의 **Supabase Auth 사용자는 이 사이트 관리자 1명뿐**이다(stock_monitor 로그인은 `.env.local` 의 ADMIN_ID/PW 이지 Auth 가 아니다). Auth 설정(회원가입 열림·닫힘)을 바꾸면 이 사이트 관리자 로그인에 닿는다.
+
 ## 8. 데이터 흐름 (수집 → 적재 → 캐시 무효화)
 
 ```
