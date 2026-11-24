@@ -538,7 +538,7 @@ MarkLines 중국 전용 엑셀 3종을 그대로 담는다(전 세계 생산 `oe
 #### `market_series_live` — 지수·원자재 라이브 끝점 (현재가)
 
 | series_code (PK→market_series) | price | updated_at |  
-RLS: `anon_read`(SELECT) + `service_write`(ALL), `market_series_daily`와 동일.  
+RLS: `anon_read`(SELECT)만. 쓰기는 service_role(RLS 우회)만 — 예전 `service_write`(ALL) 정책이 roles=public·USING(true)라 공개 키로도 쓰기·삭제가 됐던 것을 20261124000005 에서 정책 삭제 + anon/authenticated 쓰기 권한 회수로 막았다.  
 수집(`collect_market_series_live.py`, 매일 매시 `collect-market-series-live.yml`): `market_series.yf_symbol`이 있고 국채(UST10Y/UST30Y)가 아닌 16종을 yfinance `fast_info.last_price`로 upsert. 일봉(`market_series_daily`) 차트 끝점을 `appendLivePoint`로 라이브 갱신(환율 `exchange_rates_live` 패턴). 국채는 제외.
 
 #### `macro_outlook_notes` (20행)
@@ -751,7 +751,7 @@ stock_monitor 앱은 이 표들을 읽지도 쓰지도 않는다. 별도 정적 
 
 | 대상 | 내용 · 권한 | 마이그레이션 |
 | --- | --- | --- |
-| `psycho_submissions` | 응시 기록(이름·나이·100문항 답·채점 결과 — 민감) · RLS · anon 은 `id·name·age·consent·answers·result` 칸만 INSERT(`created_at` 은 서버 시각) · 빈 답·객체 아닌 `result` 는 검사 조건으로 거부 · 조회는 관리자만 | 20261124000001 · 20261124000003 |
+| `psycho_submissions` | 응시 기록(이름·100문항 답·채점 결과 — 민감 · `age` 는 2026-11-24 부터 받지 않아 null 허용) · RLS · anon 은 `id·name·age·consent·answers·result` 칸만 INSERT(`created_at` 은 서버 시각) · 빈 답·객체 아닌 `result` 는 검사 조건으로 거부 · 조회는 관리자만 | 20261124000001 · 20261124000003 · 20261124000004 |
 | `psycho_admins` | 관리자 명단(`auth.users` 참조) · anon/authenticated 권한 없음 · 대시보드/SQL 로만 관리 | 20261124000002 |
 | `psycho_is_admin()` | 「내가 관리자인가」만 답하는 security definer 함수(`search_path=''`) · authenticated 만 실행 · `psycho_submissions` 조회 정책이 이것을 쓴다 | 20261124000002 |
 
