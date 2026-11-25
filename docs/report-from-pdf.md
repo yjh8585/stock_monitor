@@ -25,6 +25,8 @@
 회차 폴더 = `scripts/_pdf_report/<날짜>/`(gitignore — 원본 PDF·뽑은 글자·쪽 그림·초안이 여기).
 
 1. 원본 PDF 를 `src/` 에 두고 글자(`text.txt`)·쪽 그림을 뽑는다 → 그림은 §3-C 대로 잘라 `png/` 에.
+   글자가 그림인 슬라이드 PDF(추출이 쪽당 수백 자 미만)는 쪽 렌더를 서브에이전트에 10쪽씩 받아쓰기(수치·도표 표 포함)로 맡기고
+   그 합본을 `text.txt` 로 쓴다 — 그림 속 숫자는 메인이 쪽 렌더로 검산한다(Codex 는 받아쓰기와만 맞댄다 · 리포트 179).
 2. `report.md` 초안(그림은 `{{PUB}}/<이름>.png`) · `batch.json` = `{"storage_folder": "<영문-폴더명>"}`.
 3. 그림 업로드: `scripts/yt_report/upload.ts`(YT_RUN_DIR=회차 폴더).
 4. 요약부(첫 인용·소제목·핵심 정리)를 본문과 맞대어 본다(§3-H) → Codex 사실 대조: `scripts/pdf_report/prompts/codex_check.md` 를
@@ -39,6 +41,9 @@
    (agents 도구에만 맞는 교훈은 옮기지 않고 그 파일 끝 「다른 레포 교훈 — 안 옮김」 줄에 표식만).
    회차 폴더를 지우기 전에 회고 표를 §5 갱신 이력 한 행으로 옮긴다.
 6. §4 검사 → 게시: `scripts/pdf_report/publish.py`(인자 = 문서 첫머리) → 무효화 → 프로덕션 `verify.py`.
+   - `verify_yt_report.py` 는 영상용 `settle_report.json` 을 요구한다 — PDF 는 애니메이션이 없으니 `{}` 로 둔다(리포트 175·179 같음).
+   - 무효화 = `lib.revalidate.revalidate_tags_prod(["posts", "post:<id>"])`. 회차 폴더 스크립트에서는 루트 `.env.local` 을
+     `load_dotenv(<루트>/.env.local, override=True)` 로 직접 읽는다 — 안 읽으면 「PROD_URL 미설정」 경고만 내고 조용히 건너뛴다.
 
 ---
 
@@ -190,3 +195,4 @@ python scripts/verify_yt_report.py --run <산출물 폴더>   # 본문 기계 �
 | 2026-09-15 | §2-A 신설 — PDF 업로드가 아니라 **발행처 링크가 기본값**(사용자 지시). KATECH 링크 형식 규명                              |
 | 2026-10-30 | §3-F 작성일 하루 밀림 · KATECH 공지 키 함정 · 두꺼운 잡지의 Codex 분할 대조(리포트 147·148)                               |
 | 2026-11-17 | §3-G 강조 일괄 치환이 짝을 잘못 잡음 · 렌더 확인을 프로덕션 `verify.py` 로(리포트 175 · KIET 로봇 · Codex 10건 중 9 채택) |
+| 2026-11-25 | §1-A 그림 PDF 받아쓰기 · settle 빈 파일 · 무효화 env 경로(리포트 179 · 삼정KPMG GAES · Codex 35건 전부 채택, 숫자 오류 0) |
