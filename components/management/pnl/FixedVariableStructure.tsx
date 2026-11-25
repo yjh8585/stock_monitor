@@ -73,10 +73,14 @@ interface RowDef {
 
 const isCost = (r: FixedVariableRow) => r.cost_type === '고정비' || r.cost_type === '변동비';
 
-/** 인건비(경비관리 › 개별관리 › 인건비합계 대상): 노무비 전체 + 판관 인건비 + 연구 인건비. */
+/**
+ * 인건비(경비관리 › 개별관리 › 인건비합계 대상): 노무비 전체 + 경비-외주가공비 + 판관 인건비 + 연구 인건비.
+ * 외주가공비는 사람 손을 사 오는 비용이라 인건비로 묶는다(사용자 지시 2026-11-25).
+ */
 function isLaborAccount(cat2: string, cat3: string, account: string): boolean {
   return (
     (cat2 === '매출원가' && cat3 === '노무비') ||
+    (cat2 === '매출원가' && cat3 === '경비' && account === '외주가공비') ||
     (cat2 === '판매관리비' && cat3 === '판매관리비' && account === '판관 인건비') ||
     (cat2 === '판매관리비' && cat3 === '연구개발비' && account === '연구 인건비')
   );
@@ -91,16 +95,24 @@ function isAmortAccount(cat2: string, cat3: string, account: string): boolean {
   );
 }
 
+/** 운반비(경비관리 › 상각비합계 바로 아래 단독 행 · 사용자 지시 2026-11-25). */
+function isFreightAccount(cat2: string, cat3: string, account: string): boolean {
+  return cat2 === '판매관리비' && cat3 === '판매관리비' && account === '운반비';
+}
+
 /** 재료비(경비관리 ON 일 때 개별관리로 옮기는 대상). */
 function isMaterialAccount(cat2: string, cat3: string): boolean {
   return cat2 === '매출원가' && cat3 === '재료비';
 }
 
-/** 개별관리 아래 소계(인건비합계·상각비합계). */
-const INDIVIDUAL_SUBTOTALS = [
-  { id: '인건비합계', label: '인건비합계', is: isLaborAccount },
-  { id: '상각비합계', label: '상각비합계', is: isAmortAccount },
-] as const;
+/** 소계 행 정의 — 인건비합계는 개별관리 아래, 상각비합계는 경비관리 아래(상각비는 전부 경비성이라 · 사용자 지시 2026-11-25). */
+type Subtotal = {
+  id: string;
+  label: string;
+  is: (cat2: string, cat3: string, account: string) => boolean;
+};
+const LABOR_SUBTOTAL: Subtotal = { id: '인건비합계', label: '인건비합계', is: isLaborAccount };
+const AMORT_SUBTOTAL: Subtotal = { id: '상각비합계', label: '상각비합계', is: isAmortAccount };
 
 /** 인건비합계·상각비합계를 펼칠 때의 계정 라벨 — 원래 그룹을 떠나므로 출처를 붙인다. */
 function individualLeafLabel(cat2: string, cat3: string, account: string): string {
@@ -141,7 +153,7 @@ function byLatestTotal(totals: Map<string, number>, key: (a: string) => string) 
 
 /**
  * 매출원가·판관비 트리를 defs 에 붙인다. extracted 계정은 빼고, 비면 그룹째 생략.
- * @param offset 0=비용합계 바로 아래 · 1=경비관리 아래
+ * @param offset 0=비용합계 바로 아래 · 1=경비관리 아래(라벨에 「(상각비 제외)」 — 상각비합계가 바로 위에 따로 있다)
  */
 function pushCostTree(
   defs: RowDef[],
@@ -154,7 +166,7 @@ function pushCostTree(
   for (const node of COST_TREE) {
     defs.push({
       id: `g:${node.cat2}`,
-      label: node.label,
+      label: offset === 1 ? `${node.label}(상각비 제외)` : node.label,
       depth: offset,
       kind: 'group',
       emphasis: 'section',
@@ -189,9 +201,43 @@ function pushCostTree(
 }
 
 /**
- * 개별관리(재료비 · 인건비합계 · 상각비합계)를 defs 에 붙인다.
- * 두 소계는 「상세」와 무관하게 한 줄이고, 개별관리상세(expand)일 때만 구성 계정으로 펼친다.
+ * 소계 행(depth 1) 하나를 붙인다. 「상세」와 무관하게 한 줄이고, 개별관리상세(expand)일 때만 구성 계정으로 펼친다.
  */
+function pushSubtotal(
+  defs: RowDef[],
+  s: Subtotal,
+  expand: boolean,
+  totals: Map<string, number>
+): void {
+  defs.push({
+    id: s.id,
+    label: s.label,
+    depth: 1,
+    kind: 'group',
+    emphasis: 'subgroup',
+    match: (r) => isCost(r) && s.is(r.category2, r.category3, r.account),
+    ratioKey: null,
+  });
+  if (!expand) return;
+  const members: { cat2: string; cat3: string; account: string }[] = [];
+  for (const node of COST_TREE) {
+    for (const g of node.groups) {
+      for (const account of g.accounts) {
+        if (s.is(node.cat2, g.cat3, account))
+          members.push({ cat2: node.cat2, cat3: g.cat3, account });
+      }
+    }
+  }
+  const key = (m: (typeof members)[number]) => `${m.cat2}|${m.cat3}|${m.account}`;
+  members.sort((a, b) => (totals.get(key(b)) ?? 0) - (totals.get(key(a)) ?? 0));
+  for (const m of members) {
+    defs.push(
+      leafDef(m.cat2, m.cat3, m.account, individualLeafLabel(m.cat2, m.cat3, m.account), 2)
+    );
+  }
+}
+
+/** 개별관리(재료비 · 인건비합계)를 defs 에 붙인다. */
 function pushIndividual(defs: RowDef[], expand: boolean, totals: Map<string, number>): void {
   defs.push({
     id: '개별관리',
@@ -203,50 +249,31 @@ function pushIndividual(defs: RowDef[], expand: boolean, totals: Map<string, num
     ratioKey: null,
   });
   defs.push(leafDef('매출원가', '재료비', '재료비', '재료비', 1));
-  for (const s of INDIVIDUAL_SUBTOTALS) {
-    defs.push({
-      id: s.id,
-      label: s.label,
-      depth: 1,
-      kind: 'group',
-      emphasis: 'subgroup',
-      match: (r) => isCost(r) && s.is(r.category2, r.category3, r.account),
-      ratioKey: null,
-    });
-    if (!expand) continue;
-    const members: { cat2: string; cat3: string; account: string }[] = [];
-    for (const node of COST_TREE) {
-      for (const g of node.groups) {
-        for (const account of g.accounts) {
-          if (s.is(node.cat2, g.cat3, account))
-            members.push({ cat2: node.cat2, cat3: g.cat3, account });
-        }
-      }
-    }
-    const key = (m: (typeof members)[number]) => `${m.cat2}|${m.cat3}|${m.account}`;
-    members.sort((a, b) => (totals.get(key(b)) ?? 0) - (totals.get(key(a)) ?? 0));
-    for (const m of members) {
-      defs.push(
-        leafDef(m.cat2, m.cat3, m.account, individualLeafLabel(m.cat2, m.cat3, m.account), 2)
-      );
-    }
-  }
+  pushSubtotal(defs, LABOR_SUBTOTAL, expand, totals);
 }
 
-/** 개별관리 대상 = 인건비 ∪ 상각비 ∪ 재료비. */
+/** 개별관리 대상 = 인건비 ∪ 재료비. */
 function isIndividualAccount(cat2: string, cat3: string, account: string): boolean {
+  return isLaborAccount(cat2, cat3, account) || isMaterialAccount(cat2, cat3);
+}
+
+/**
+ * 경비관리 아래 매출원가·판관비 트리에서 빼는 계정 = 개별관리 ∪ 상각비 ∪ 운반비
+ * (상각비합계·운반비는 경비관리 바로 아래 행으로 따로 보인다).
+ */
+function isExtractedFromCostTree(cat2: string, cat3: string, account: string): boolean {
   return (
-    isLaborAccount(cat2, cat3, account) ||
+    isIndividualAccount(cat2, cat3, account) ||
     isAmortAccount(cat2, cat3, account) ||
-    isMaterialAccount(cat2, cat3)
+    isFreightAccount(cat2, cat3, account)
   );
 }
 
 /**
  * 행 정의 — 매출액 → 비용합계 → 비용 상세 → 영업이익.
  * @param detail      true=상세(계정명까지) / false=기본(분류3까지)
- * @param expenseMgmt true=경비관리 보기 — 비용을 개별관리(인건비·상각비·재료비)와
- *                    경비관리(나머지 매출원가·판관비)로 나눈다. 옮긴 계정은 원래 자리에서 빠져 이중 집계가 없다.
+ * @param expenseMgmt true=경비관리 보기 — 비용을 개별관리(재료비·인건비[외주가공비 포함])와 경비관리
+ *                    (상각비합계 · 운반비 · 나머지 매출원가·판관비)로 나눈다. 옮긴 계정은 원래 자리에서 빠져 이중 집계가 없다.
  * @param individualDetail true=개별관리상세 — 인건비합계·상각비합계를 구성 계정까지 펼친다
  */
 function buildRowDefs(
@@ -287,7 +314,9 @@ function buildRowDefs(
       match: (r) => isCost(r) && !isIndividualAccount(r.category2, r.category3, r.account),
       ratioKey: null,
     });
-    pushCostTree(defs, 1, isIndividualAccount, detail, totals);
+    pushSubtotal(defs, AMORT_SUBTOTAL, individualDetail, totals);
+    defs.push(leafDef('판매관리비', '판매관리비', '운반비', '운반비', 1));
+    pushCostTree(defs, 1, isExtractedFromCostTree, detail, totals);
   } else {
     pushCostTree(defs, 0, () => false, detail, totals);
   }
@@ -400,7 +429,8 @@ function PressToggle({
  * 2-2. 전사 고정비·변동비 구조 — 비용 계정을 고정비/변동비로 분해.
  *
  * - 우상단 토글: 기본(분류3까지)/상세(계정명까지) · 합계/고정비(열 구성) · 경비관리(개별관리·경비관리로 나눔)
- *   · 개별관리상세(경비관리일 때만 — 인건비합계·상각비합계를 구성 계정으로 펼침)
+ *   · 개별관리상세(경비관리일 때만 — 인건비합계·상각비합계를 구성 계정으로 펼침.
+ *     경비관리 바로 아래 · 매출원가 위에 상각비합계 → 운반비 순으로 둔다 — 2026-11-25)
  * - 구분 우측 「기준」 아래 변동비(%)·고정비(%) 열(기준 변동비율, 계정명 행에만. 고정비% = 1 − 변동비%).
  *   합계 모드에선 숨긴다
  * - 행: 매출액 → 비용합계 → (개별관리 · 경비관리) → 비용 상세 → 영업이익(= 매출 − 비용합계)
