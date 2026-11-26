@@ -62,6 +62,10 @@ def validate(master: dict) -> list[str]:
         if not name:
             errs.append(f'name_kr 가 빈 회사가 있다: {c!r}')
             continue
+        if '\n' in name or '\r' in name:
+            # emit 이 이름을 SQL 주석(`-- 이름`)으로 쓴다 — 줄바꿈 뒤는 주석 밖 SQL 이 된다
+            errs.append(f'{name!r}: name_kr 에 줄바꿈이 있다')
+            continue
         if name in seen:
             errs.append(f'{name}: 같은 name_kr 가 두 번 나온다')
             continue

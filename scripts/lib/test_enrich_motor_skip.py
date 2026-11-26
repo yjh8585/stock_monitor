@@ -11,10 +11,12 @@
 실행:
   scripts/venv/Scripts/python.exe -m pytest scripts/lib/test_enrich_motor_skip.py
 """
+import argparse
 import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -83,6 +85,24 @@ class NeedsMetaTest(unittest.TestCase):
     out = ec._load_targets(client, None, {'T'})
     self.assertIn('motor_types', client.cols_log[0].split(','))
     self.assertEqual(out[0]['_pages'], ['motor'])
+
+
+class EntryPointTest(unittest.TestCase):
+  def test_main_never_sends_motor_company_to_llm_meta(self):
+    # 판정 함수만 시험하면 진입점이 `_needs_meta` 를 안 불러도 통과한다(2026-11-27 Codex 지적).
+    # 일반 회사를 대조군으로 넣어 메타 경로가 실제로 돈다는 것도 함께 본다.
+    calls: list[str] = []
+    motor = _company(id='m1', name_kr='모터사', motor_types=['control'], _pages=['motor'])
+    plain = _company(id='p1', name_kr='일반사', _pages=['domestic'])
+    args = argparse.Namespace(page=None, skip_financials=True, skip_meta=False, skip_news=True)
+    with mock.patch.object(ec, 'fetch_product_categories', return_value=[]), \
+         mock.patch.object(ec, '_meta_tool_with_categories', return_value={}), \
+         mock.patch.object(ec, '_load_targets', return_value=[motor, plain]), \
+         mock.patch.object(ec, '_enrich_meta', side_effect=lambda _llm, c, _t: calls.append(c['name_kr'])), \
+         mock.patch.object(ec.time, 'sleep'), \
+         mock.patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+      ec._main_in_session(object(), args, set())
+    self.assertEqual(calls, ['일반사'])
 
 
 if __name__ == '__main__':

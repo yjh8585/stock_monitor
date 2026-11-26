@@ -104,4 +104,17 @@ describe('mapMotorStockRow', () => {
   it('supply_history 가 null 이어도 빈 배열', () => {
     expect(mapMotorStockRow(row({ supply_history: null })).supply_history).toEqual([]);
   });
+
+  it('「확인」 공급 이력은 행에 그대로 싣는다(매퍼 배선)', () => {
+    // 매퍼가 늘 빈 배열을 내도 위 시험들은 통과한다 — 실제로 싣는지를 따로 본다(2026-11-27 Codex 지적).
+    const r = mapMotorStockRow(
+      row({
+        supply_history: [
+          { customer: '현대차', field: 'auto', grade: '확인', source_url: 'https://x.kr/1' },
+          { customer: '추정사', field: 'auto', grade: '추정' },
+        ],
+      })
+    );
+    expect(r.supply_history.map((s) => s.customer)).toEqual(['현대차']);
+  });
 });

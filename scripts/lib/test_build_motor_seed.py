@@ -74,6 +74,14 @@ class TestValidate(unittest.TestCase):
         errs = seed.validate(_master(_company(), _company()))
         self.assertEqual(len(errs), 1)
 
+    def test_name_with_line_break_rejected(self):
+        # 🔴 emit 이 회사명을 SQL 주석(`-- 이름`)으로 쓴다 — 줄바꿈이 있으면 뒷줄이 주석 밖 SQL 이 된다
+        #    (2026-11-27 Codex diff 검토). strip() 은 가운데 줄바꿈을 못 지운다.
+        errs = seed.validate(_master(_company(name_kr='모터\nDROP TABLE companies;')))
+        self.assertEqual(len(errs), 1)
+        self.assertIn('줄바꿈', errs[0])
+        self.assertEqual(len(seed.validate(_master(_company(name_kr='모터\r사')))), 1)
+
     def test_product_without_name_rejected(self):
         errs = seed.validate(_master(_company(products=[{'category': '모터'}])))
         self.assertEqual(len(errs), 1)
