@@ -13,6 +13,7 @@
 사용:
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py validate <json>
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py emit <json> <out.sql>   # 검사 통과 때만 씀
+  scripts/venv/Scripts/python.exe scripts/build_motor_seed.py targets                 # 재무 대상 ticker(콤마)
 """
 from __future__ import annotations
 
@@ -263,11 +264,36 @@ def _cmd_emit(path: str, out: str) -> int:
     return 0
 
 
+def _cmd_targets() -> int:
+    """운영 DB 의 page='motor' 회사 중 재무 수집 대상 ticker 를 콤마로 출력한다(enrich 의 TARGET_TICKERS)."""
+    from lib.bootstrap import init_script
+    from lib.db import get_client
+
+    init_script(__file__)
+    client = get_client()
+    ids = [
+        r['company_id']
+        for r in client.table('company_pages').select('company_id').eq('page', 'motor').execute().data
+    ]
+    if not ids:
+        print('page=motor 회사가 없다', file=sys.stderr)
+        return 1
+    rows = (
+        client.table('companies').select('ticker,data_source').in_('id', ids).execute().data
+    )
+    tickers = financial_targets(rows)
+    print(f'motor {len(ids)}사 중 재무 대상 {len(tickers)}사', file=sys.stderr)
+    print(','.join(tickers))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if len(argv) == 2 and argv[0] == 'validate':
         return _cmd_validate(argv[1])
     if len(argv) == 3 and argv[0] == 'emit':
         return _cmd_emit(argv[1], argv[2])
+    if argv == ['targets']:
+        return _cmd_targets()
     print(__doc__)
     return 2
 
