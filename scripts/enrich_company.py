@@ -142,7 +142,7 @@ def _load_targets(client, page: str | None, target_tickers: set[str]) -> list[di
   q = client.table('companies').select(
     'id,ticker,name,name_kr,country,currency,data_source,status,'
     'products,customers,business_summary,homepage_url,dart_corp_code,'
-    'fiscal_year_end_month,market,robot_roles,valuation_usd,funding_total_usd,valuation_asof'
+    'fiscal_year_end_month,market,robot_roles,motor_types,valuation_usd,funding_total_usd,valuation_asof'
   )
 
   # 🔴 회사가 **어느 페이지들에** 속하는지 항상 함께 싣는다(`_pages`).
@@ -226,6 +226,24 @@ def _missing_meta(c: dict) -> bool:
     or needs_customers
     or (not c.get('homepage_url'))
   )
+
+
+def _skips_meta(c: dict) -> bool:
+  """모터 유형이 있는 회사는 LLM 메타 보강(설명·제품·고객사·기업가치)을 하지 않는다.
+
+  근거 = docs/superpowers/specs/2026-11-26-motor-tab-design.md 83행 — 모터 회사의 설명·제품은
+  명단 정본(git 밖 JSON → scripts/build_motor_seed.py)에서 시드하고, 이 스크립트의 LLM 보강은
+  돌리지 않는다(API 과금 · 「공개된 사실만」). 재무 보강(fnguide·DART)은 그대로 한다.
+
+  🔴 2026-11-27 최종 검토: 이 판정이 없으면 월간 enrich-company 가 설명이 빈 신규 모터 회사의
+     products 를 LLM 결과로 통째 바꾸고(시드를 다시 돌려도 안 돌아온다), 'motor' 페이지가 붙은
+     로봇 회사 5곳은 `_skips_customers` 가 거짓이 되어 주간 collect-humanoid 의 고객사 보강 대상이 된다.
+  """
+  return bool(c.get('motor_types'))
+
+
+def _needs_meta(c: dict) -> bool:
+  return (not _skips_meta(c)) and _missing_meta(c)
 
 
 # ── 재무 수집 라우팅 ─────────────────────────────────────────────────────
@@ -488,7 +506,7 @@ def _main_in_session(w, args, target_tickers: set[str]) -> None:
   for c in targets:
     if not args.skip_financials and not _has_financials(w, c['id']):
       missing_fin.append(c)
-    if not args.skip_meta and _missing_meta(c):
+    if not args.skip_meta and _needs_meta(c):
       missing_meta.append(c)
 
   logger.info(f'재무 누락 {len(missing_fin)}, 메타 누락 {len(missing_meta)}')
