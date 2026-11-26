@@ -37,6 +37,7 @@ COLUMN_TO_TAGS = {
         'parts_top100_stocks_view',
         'companies',
         'humanoid_stocks_view',
+        'motor_stocks_view',
     ],
     'financials': [
         'related_stocks_view',
@@ -44,9 +45,10 @@ COLUMN_TO_TAGS = {
         'parts_top100_stocks_view',
         'financials',
         'humanoid_stocks_view',
+        'motor_stocks_view',
     ],
-    # humanoid_stocks_view 가 JOIN 하는 원천 — company_pages 자체는 다른 곳에서 안 쓰인다.
-    'company_pages': ['humanoid_stocks_view'],
+    # humanoid·motor 뷰가 JOIN 하는 원천 — company_pages 자체는 다른 곳에서 안 쓰인다.
+    'company_pages': ['humanoid_stocks_view', 'motor_stocks_view'],
     # 네이버 증권사 리포트 — /humanoid/research 한 화면만 읽는다.
     # 수집(하루 1회)과 요약(회차당 20건)이 각각 쓰므로 뷰 태그를 딸려 넣지 않는다.
     'research_reports': ['research_reports'],

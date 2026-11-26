@@ -107,6 +107,7 @@ export type Database = {
           market: string | null;
           market_cap: number | null;
           merged_into_company_id: string | null;
+          motor_types: string[] | null;
           name: string;
           name_kr: string;
           products: Json;
@@ -115,6 +116,7 @@ export type Database = {
           sec_cik: string | null;
           status: string;
           summary_updated_at: string | null;
+          supply_history: Json | null;
           ticker: string | null;
           updated_at: string;
         };
@@ -142,6 +144,7 @@ export type Database = {
           market?: string | null;
           market_cap?: number | null;
           merged_into_company_id?: string | null;
+          motor_types?: string[] | null;
           name: string;
           name_kr: string;
           products?: Json;
@@ -150,6 +153,7 @@ export type Database = {
           sec_cik?: string | null;
           status?: string;
           summary_updated_at?: string | null;
+          supply_history?: Json | null;
           ticker?: string | null;
           updated_at?: string;
         };
@@ -177,6 +181,7 @@ export type Database = {
           market?: string | null;
           market_cap?: number | null;
           merged_into_company_id?: string | null;
+          motor_types?: string[] | null;
           name?: string;
           name_kr?: string;
           products?: Json;
@@ -185,6 +190,7 @@ export type Database = {
           sec_cik?: string | null;
           status?: string;
           summary_updated_at?: string | null;
+          supply_history?: Json | null;
           ticker?: string | null;
           updated_at?: string;
         };
@@ -3441,6 +3447,39 @@ export type Database = {
           robot_roles: string[] | null;
           sales_rank: number | null;
           status: string | null;
+          ticker: string | null;
+          valuation_asof: string | null;
+          valuation_usd: number | null;
+        };
+        Relationships: [];
+      };
+      motor_stocks_view: {
+        Row: {
+          company_type: string | null;
+          country: string | null;
+          currency: string | null;
+          customers: Json | null;
+          financials_by_year: Json | null;
+          funding_total_usd: number | null;
+          fx_fin_to_krw: number | null;
+          fx_to_krw: number | null;
+          group_name: string | null;
+          homepage_url: string | null;
+          id: string | null;
+          last_change_pct: number | null;
+          last_price: number | null;
+          last_updated_at: string | null;
+          latest_quarter: Json | null;
+          latest_revenue_krw: number | null;
+          market: string | null;
+          market_cap: number | null;
+          motor_types: string[] | null;
+          name: string | null;
+          name_kr: string | null;
+          products: Json | null;
+          sales_rank: number | null;
+          status: string | null;
+          supply_history: Json | null;
           ticker: string | null;
           valuation_asof: string | null;
           valuation_usd: number | null;

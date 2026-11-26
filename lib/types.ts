@@ -276,6 +276,7 @@ export function mapDomesticStockRow(
     | ViewRow<'domestic_stocks_view'>
     | ViewRow<'parts_top100_stocks_view'>
     | ViewRow<'humanoid_stocks_view'>
+    | ViewRow<'motor_stocks_view'>
 ): DomesticStockRow {
   return {
     id: r.id ?? '',
@@ -383,6 +384,85 @@ export function mapHumanoidStockRow(r: ViewRow<'humanoid_stocks_view'>): Humanoi
     valuation_usd: r.valuation_usd,
     funding_total_usd: r.funding_total_usd,
     valuation_asof: r.valuation_asof,
+  };
+}
+
+// ============================================================
+// /humanoid/motor 페이지 — 국내 모터·액추에이터·모터 제어 회사
+// ============================================================
+
+/** 모터 유형 4값 — DB CHECK(companies_motor_types_check)와 같은 집합. 겸업사는 여러 개 */
+export type MotorType = 'auto_motor' | 'robot_motor' | 'actuator' | 'control';
+
+/** 유형 버튼 라벨 — 표시 순서 고정 */
+export const MOTOR_TYPE_LABELS: Record<MotorType, string> = {
+  auto_motor: '자동차 모터',
+  robot_motor: '로봇·산업 모터',
+  actuator: '액추에이터',
+  control: '인버터·제어',
+};
+
+/** 공급 이력 분야 — DB·명단 JSON 과 같은 문자열 */
+export type SupplyField = 'auto' | 'robot' | 'industrial';
+
+/** 화면에 싣는 공급 이력 1건 — 등급은 「확인」만 오므로 칸이 없다 */
+export interface SupplyRecord {
+  customer: string;
+  product: string | null;
+  field: SupplyField;
+  /** 근거 원문 링크(http/https 만). 없으면 링크 없이 칩만 */
+  source_url: string | null;
+  as_of: string | null;
+}
+
+/** /humanoid/motor 행 — 휴머노이드 행 모양을 그대로 써서 표·기업가치 칸을 공유한다 */
+export interface MotorStockRow extends HumanoidStockRow {
+  motor_types: MotorType[];
+  supply_history: SupplyRecord[];
+}
+
+const MOTOR_TYPE_SET = new Set<string>(Object.keys(MOTOR_TYPE_LABELS));
+const SUPPLY_FIELD_SET = new Set<string>(['auto', 'robot', 'industrial']);
+
+function optText(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+/**
+ * supply_history jsonb → 화면용 배열.
+ * 🔴 「확인」만 남긴다 — 뷰가 이미 거르지만 뷰가 바뀌어 「추정」이 새도 화면에는 안 나가게.
+ * 깨진 원소(고객명 없음·분야 밖)는 그 원소만 버리고 나머지는 살린다.
+ */
+export function parseSupplyHistory(raw: unknown): SupplyRecord[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SupplyRecord[] = [];
+  for (const e of raw) {
+    if (!e || typeof e !== 'object') continue;
+    const o = e as Record<string, unknown>;
+    const customer = optText(o.customer);
+    if (!customer || o.grade !== '확인' || !SUPPLY_FIELD_SET.has(String(o.field))) continue;
+    const url = optText(o.source_url);
+    out.push({
+      customer,
+      product: optText(o.product),
+      field: o.field as SupplyField,
+      source_url: url && /^https?:\/\//i.test(url) ? url : null,
+      as_of: optText(o.as_of),
+    });
+  }
+  return out;
+}
+
+/** motor_stocks_view → MotorStockRow (공용 매퍼 재사용 + 모터 필드만 추가) */
+export function mapMotorStockRow(r: ViewRow<'motor_stocks_view'>): MotorStockRow {
+  return {
+    ...mapDomesticStockRow(r),
+    robot_roles: [],
+    valuation_usd: r.valuation_usd,
+    funding_total_usd: r.funding_total_usd,
+    valuation_asof: r.valuation_asof,
+    motor_types: (r.motor_types ?? []).filter((v): v is MotorType => MOTOR_TYPE_SET.has(v)),
+    supply_history: parseSupplyHistory(r.supply_history),
   };
 }
 
