@@ -1176,6 +1176,7 @@ prefix 컨벤션. 신규 스크립트는 같은 카테고리 prefix 사용.
 - **`scripts/yt_report/`**(수동 고품질 툴킷 — **커밋돼 있으니 새로 짜지 말 것**) / **`collect_yt_report.py`**(완전 자동, GHA `collect-yt-report.yml`) → [`report.md §7-B·§2-A`](./report.md) · PDF 는 **`scripts/pdf_report/`**(`report-from-pdf.md` §1-A).
 - `analyze_*` / `recheck_*` / `recollect_*` / `find_*` / `inspect_*` / `debug_*` — 진단·복원. 종료 후 **`scripts/_archive/`** 이동.
 - `seed_*` / `import_*` / `sync_*` / `gen_*` / `normalize_*` / `migrate_*.ts` — 시드·일회성. 종료 후 `_archive/` 이동. **단 정기 재실행 16종은 유지**(목록 → [`Architecture.md 부록 B-3`](./Architecture.md)). ⚠️ MarkLines 판매량·생산량 sync는 **페이지·레이아웃·파일명이 서로 달라 한쪽 코드를 복제하지 말 것**(→ [`docs/oem-collection.md`](./docs/oem-collection.md)) · `sync_org_chart.py`는 **로컬 전용**(Excel COM).
+- `build_motor_seed.py` — 휴머노이드 「모터」 탭 명단 정본(git 밖 `참고/모터회사/motor_companies.json`) 검사 → 시드 SQL 생성. 명단을 고칠 때마다 다시 돌리므로 `_archive/` 로 옮기지 않는다.
 - **사외비 적재 정책**(월별손익 sync 8종): 입력은 `참고/손익/자료정리_월별손익*.xlsx` 최신 glob. 🔴 **stdout에 금액·인원수 비노출** — dry-run 출력은 행수·연도·월·null 카운트만(합계 금지). dry-run 확인 후 본 적재. 🔴 **`sync_longterm_revenue.py`는 별개라 오케스트레이터에 등록하지 않는다**. 세부 → **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)**.
 - `_*.json` / `_*.log` / `_*.py` / `_*.md` / `_*.ts(x)` — 임시 산출물. 비활성이면 `_archive/` 이동. `scripts/` **최상위의 이 확장자들**은 `.gitignore`가 패턴으로 무시한다(사외비 본문이 담긴 산출물의 커밋 방지). 새 산출물 *폴더*는 여전히 `.gitignore`에 명시 추가해야 한다.
 
