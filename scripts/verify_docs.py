@@ -32,7 +32,7 @@ DOCS = [
   'docs/chart-guide.md', 'docs/oem-collection.md', 'docs/data-audit-2026-07-18.md',
   'docs/fnguide-wcomp-migration.md', 'docs/gotchas-playwright-ui.md',
   'docs/gotchas-data-collection.md', 'docs/gotchas-ci-deploy.md',
-  'docs/isr-write-optimization.md',
+  'docs/isr-write-optimization.md', 'docs/directory-map.md',
 ]
 
 # AGENTS.md는 매 세션 자동 로드되므로 분량 상한을 둔다.
@@ -61,6 +61,7 @@ PADDING_WARN_RATIO = 0.10      # 표 정렬 공백이 파일의 10% 넘으면 �
 # 「먼저 읽어라」 문서 상한 — 2026-10-12 착수 시점 크기 × 1.05(올림). 자동 로드만 막자 증가분이 여기로 옮겨 왔다.
 REFERENCE_DOC_LIMITS = {
   'Architecture.md': 150_975,
+  'docs/directory-map.md': 31_752,  # 2026-11-27 Architecture 부록 C 본문 분리(30,240B) × 1.05
   'docs/gotchas-ci-deploy.md': 23_075,
   'docs/gotchas-data-collection.md': 100_808,  # 2026-10-12 경위 분리(124,423 → 96,007) × 1.05
   'docs/gotchas-playwright-ui.md': 37_562,
