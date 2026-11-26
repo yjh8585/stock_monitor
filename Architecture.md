@@ -244,6 +244,7 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 | `homepage_url`                                                                      | text        | 비상장사 회사명 클릭 시 새 창 (enrich_company가 수집)                                                                    |
 | `business_summary`                                                                  | text        | 🔴 **국내 상장사는 fnguide 기업개요가 정본**(LLM 덮어쓰기 금지 · `verify_summary_source.py`) · 그 밖은 yfinance/LLM 요약 |
 | `products`, `customers`                                                             | jsonb       | LLM enrich로 채움, append-only                                                                                           |
+| `motor_types`, `supply_history`                                                     | —           | 「모터」 탭 — text[] 유형 4값 · jsonb 공급 이력(확인/추정, 화면은 확인만) · 20261126000001                               |
 | `last_price`, `last_change_pct`, `last_volume`, `last_updated_at`                   | —           | 최신 가격 캐시                                                                                                           |
 | `market_cap`                                                                        | numeric     | 시총(억원). KRX 시총 API 가 죽어 **네이버 경유**(`lib/naver_market_cap.py`, 2026-09-16)                                  |
 | `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after`     | —           | DART 수집 상태 추적                                                                                                      |
@@ -731,6 +732,10 @@ UNIQUE: (source, note_date)
 
 `/parts-top100` 페이지용. country 코드를 한글 국가명(`group_name`)으로 치환. **미래 가드**: `period_end_date <= now()` 필터로 미래 회계연도 데이터 노출 차단 (20260521000001).
 
+#### `motor_stocks_view`
+
+`/humanoid/motor` 페이지용. `company_pages.page='motor'` + `status='active'`. `humanoid_stocks_view` 골격이되 `group_name`·`customers` 는 companies 값 그대로, `robot_roles` 대신 `motor_types`, 🔴 `supply_history` 는 **「확인」 등급만** 담는다(「추정」은 명단 정본 파일·덱 전용). `security_invoker=true`. 정의 = 20261126000001.
+
 ---
 
 ### 7-J. 핵심 트리거 · 제약 · 정책
@@ -961,9 +966,12 @@ AGENTS.md 에는 각 항목의 **약속 한 줄**만 남아 있다.
 - **`companies_normalize_products`**(`20260522000003`) — `products[].category` 를
   `normalize_product_category()` 로 정규화한다(매핑이 없으면 `'기타'`).
   같은 마이그레이션에서 `company_type` 컬럼 DEFAULT 가 `'부품사'` 이고 **OEM 만 명시 입력**한다.
-- **`companies_auto_page_mapping`**(AFTER INSERT, `20260522000005`/`20260526000001`) —
-  `data_source` 별 기본 page 를 등록한다: dart/fnguide→`domestic`, yfinance/marklines→`parts-top100`,
-  **uzauto-pdf→`related-stocks`**. `related-stocks` 는 그 외에는 **수동 등록**(큐레이션)이며,
+- **`companies_auto_page_mapping`**(AFTER INSERT, `20260522000005`/`20260824000003`/`20261126000001`) —
+  `robot_roles` 가 있으면 `humanoid`, 없으면 `data_source` 별 기본 page: dart/fnguide/pykrx+dart→`domestic`,
+  yfinance/marklines→`parts-top100`. **`motor_types` 가 있으면** data_source 갈래 대신 `motor` 를 넣고,
+  자동차 납품사(`auto_motor` 유형이거나 `supply_history` 에 자동차 「확인」)일 때만 `domestic` 도 넣는다.
+  ⚠️ 옛 **uzauto-pdf→`related-stocks`** 갈래(`20260526000001`)는 `20260824000003` 재정의 때 빠졌고
+  복구하지 않았다(2026-11-26 운영 정의로 확인). `related-stocks` 는 **수동 등록**(큐레이션)이며,
   이 트리거가 page 매핑 누락(예: HL클레무브)을 막는다.
 - **`financials_auto_set_dart_status`**(`20260522000007`) — `period_type='annual' AND
 fiscal_year >= 올해-2` 인 행이 들어오면 `dart_collection_status='success'` 를 자동 SET 한다.
