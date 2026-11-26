@@ -959,6 +959,26 @@ GWM 19.8만도 같다). 즉 **국가별 값의 단순 합계는 시장 규모가
 별건으로 `NEXT_REVALIDATE_PROD_URL` 이 워크플로에서 참조되는데 GitHub Secrets 에 없다
 (없는 시크릿은 빈 값으로 넘어가 조용히 아무 일도 안 한다) — 미확인, 다음 회차 후보.
 
+## 이전 상태 · 재개 지점 (2026-11-16, **협력사 페이지 폐기 — 코드·사외비 표 삭제 · 가림 fixup 합친 기록으로 재작성**)
+
+> 사용자 지시(원문 = `docs/plans/2026-11-13-suppliers-page_최초지시.md` 5차): 「이건 쓸수 없겠다. 관련 내용 폐기하자 히스토리는 남겨놓고」 — 선택: 협력사 전체 폐기 · 가림 fixup 을 계획서 커밋에 합친 뒤 폐기 커밋.
+
+**결과**:
+
+- MarkLines 가 계정 정지 뒤 목적·경위·도구 해명을 요구했다(답장은 사용자). 실제 요청 수는 앞서 적은 「약 700회」가 아니라 **약 2,300회**(검색 198×2 · 상세 1,895 — 401 뒤에도 1,416회 계속)였다.
+- 협력사 코드(화면·탭·권한·수집기·점수·조회) 삭제 · 고쳤던 공용 파일(`permissions.ts`·`confidential.ts`·캐시 태그·`app/oem/layout.tsx`·AGENTS·Architecture)은 서버판으로 복원 · 표 5개 삭제 마이그레이션 `20261116000001`.
+- 기록은 남겼다: 협력사 커밋 전부 + 설계·계획·결정이행·지시 문서(맨 위에 「폐기됨」). 계획서 커밋의 실제 공급사 특징·품목 단어는 fixup 을 합쳐 기록에서 없앴다(커밋별 누출 검사 = 제품 이름 2개만).
+- 이미 서버에 올라간 모빌리티 권한 커밋 3개(cb74982·215daf2·6494be7)는 로컬 사본을 빼고 그 핸드오프 기록만 남겼다.
+- 교훈은 `docs/oem-collection.md` 맨 끝 절 · 전역 규칙(`~/.claude/CLAUDE.md` 보안 「외부 사이트를 긁기 전」).
+
+**MarkLines 2차 메일(11-16)**: 약관 7조 9항(자동 다운로드 금지 · 양·목적 예외 없음) 위반 가능성 → 손 서명 재발 방지 확약서 요구. 그래서 같은 날 **엑셀 자동 수집 GHA 4개를 껐고**(`sync-oem-excel`·`sync-oem-production-excel`·`sync-oem-china-excel`·`marklines-adhoc-fetch` — `gh workflow disable`, 파일은 그대로) **쿠키를 지웠다**(`scripts/.env`·`.env.local`·GitHub 비밀값).
+
+**같은 날 이어서 끝낸 것**: 수동 적재 `scripts/import_marklines_manual.py`(받은 파일을 내용으로 판별 · MarkLines 요청 0 · 절차 = `docs/oem-collection.md` 「수동 적재」) · 알림 = agents `da5c931a` `remind:marklines-excel`(월 09:00 · 봇 재기동 뒤부터) · `.env.local` 의 `MARKLINES_EMAIL`·`MARKLINES_PASSWORD` 삭제 · 로그인 브라우저 기록·시험 스크립트 삭제 · DB 표 5개 drop(`apply_migration`) · 확약서 PDF = `참고/협력사/MarkLines_Written_Statement_2026-11-16.pdf`(서명·발송은 사용자) · `Architecture.md` 상한 회복 · **원격 반영** `48032d2..dde5433`(fast-forward 30커밋 · Vercel 성공 · 옛 로컬 master = 브랜치 `backup/master-before-suppliers-discard`) · 봇 재기동(첫 알림은 다음 월요일 11-23 — 오늘 09:00 은 등록 전이라 만회 안 됨) · 마무리 때 **Vercel 운영 환경변수에도 `MARKLINES_COOKIE`·`MARKLINES_EMAIL`·`MARKLINES_PASSWORD` 가 남아 있어 지웠다**(이 커밋의 배포부터 적용) · **Codex·오퍼스 diff 검토 반영**: 적재 «뒤»에 제자리 복사(먼저 바꾸면 실패한 주가 「변경 없음」으로 영영 빠진다) · 판매 연도별 이력 파일 제외(롤링 파일로 덮으면 그 해가 두 번 더해진다 · 실물 21개 판별 확인) · 알림 만회 7일 · 전송 0건이면 실패로 남김 · **텔레그램 링크 미리보기 끔**(켜 두면 텔레그램 서버가 MarkLines 링크를 연다) · 명령을 PowerShell 에서도 도는 `-X utf8` 형태로. 기각: `.xls` 이름 판별(내용 검증은 `parse_nev_file` 이 한다) · 0행 성공(판매·생산은 구조 검증의 첫 달 문턱이 막고 중국은 기존 수집기 한계).
+
+**🔴 재개 지점**: ① 워크플로 4개를 **다시 켜지 말 것**(확약 위반) · MarkLines 에 어떤 자동 요청도 보내지 말 것 ② 쿠키·로그인 정보가 없어 `collect_marklines*.py`·`enrich_with_marklines.py` 등 옛 수집기는 이제 돌지 않는다(일부러 둔 상태) ③ `참고/협력사/`(시드·대응표 · gitignore)는 남겨 뒀다 ④ 「웹 주소로 보고서 만들기」는 **MarkLines 주소를 거절한다**(사용자 지시 11-16 · `lib/reports/services/url-guard.ts` 의 `isMarklinesHost` · 리다이렉트도 같은 검사 · 쿠키·리퍼러 코드 삭제) — 풀지 말 것.
+
+---
+
 ## 이전 상태 · 재개 지점 (2026-11-16, **KG모빌리티 판매 수집 GHA 실패 — networkidle → load · 원격 반영(협력사와 떼어 푸시)**)
 
 > 사용자 지시 원문(2026-11-16): 「gha 실패 확인해봐」 → 진행 방식 선택 「CI 진단 후 수정」 · 이번 달 적재 「로컬에서 적재」 → `/wrap-up`

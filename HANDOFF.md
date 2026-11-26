@@ -8,7 +8,14 @@
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-25, **손익 2-2 경비관리 재배치 · 삼정KPMG 26회 GAES 보고서 게시(리포트 179)**)
+## 최신 상태 · 재개 지점 (2026-11-26, **MarkLines 첫 수동 적재 · 판매·생산 받는 주소 변경 반영**)
+
+- 사용자가 파니 월요일 알림대로 브라우저에서 엑셀 6개를 받음 → `import_marklines_manual.py`(dry-run 후 본 적재) 종료 0. 판매·생산·중국 배기량·수출·승용차 2026 적재, 승용차 2025 는 「변경 없음」. 교차 검증 불일치 0. DB 6표 최신 월 = 202610(MCP 조회).
+- 사용자 알림(2026-11-26): MarkLines 판매·생산 페이지 주소가 `…/vehicle_sales/member` · `…/vehicle_production/member` 로 바뀜(옛 `search?rf=left_menu`). 반영 = 알림 문구 agents `apps/orchestrator/src/marklinesRemind.ts`(`5ad4bad3` · 시험 추가) + `docs/oem-collection.md` 「수동 적재」 표(`8cca37ff`). 봇은 tsx 로 부팅 때 한 번 읽어 재기동함(15:42 · 루프 PID 유지).
+- 옛 주소가 남은 곳: 꺼 둔 자동 수집기(`sync_oem_excel.py` · `sync_oem_production_excel.py` · `fetch_marklines_adhoc.py`)와 옛 spec — 약관상 다시 켜지 않는 코드라 그대로 둠.
+- 재개 지점: 남은 일 = (11-25 블록의) `Architecture.md` 상한 정리 1건. 다음 월요일(12-01) 알림에 member 주소가 실렸는지 한 번 보면 된다.
+
+## 이전 상태 · 재개 지점 (2026-11-25, **손익 2-2 경비관리 재배치 · 삼정KPMG 26회 GAES 보고서 게시(리포트 179)**)
 
 - (1) 손익 2-2 「전사 고정비·변동비 구조」 경비관리 보기 — 사용자 지시: 상각비합계를 경비관리 바로 아래(매출원가 위)로 · 매출원가·판관비 중분류에 「(상각비 제외)」 · 외주가공비(매출원가›경비)는 인건비합계로 · 운반비는 상각비합계 바로 아래 · 「개발서버 띄우지 말고 바로 수정한 뒤 배포하고 프로덕션에서 확인」. 커밋 `7e83f489` 푸시 · 프로덕션 확인(행 순서 · 합계 3식 참 — 금액은 출력 안 함). 개별관리 = 재료비 + 인건비합계만 남았다.
 - (2) 사용자가 준 PDF(`Downloads/삼정KPMG-26회-…-20261120.pdf`, 50쪽 · 글자 전부 그림) → 리포트 **179** 「움직이는 과녁의 시대 — 자동차 경영진 775명이 본 다섯 가지 전환」(분류 시장 · 원문 링크 kpmg.com/kr/ko/insights/eri/2026/gtl-1120.html · 발행일 2026-11-20). 그림 24장 Storage `reports/kpmg-gaes-26-2026-11/`. 프로덕션 `verify.py --ids 179` = ALL_OK(그림 24/24 · 별표 0).
@@ -107,23 +114,3 @@
 - 11-18 회차 폴더 `scripts/_yt_report/2026-11-17/`(575MB) 통째 삭제(사용자 선택) — 재사용할 것은 먼저 레포로 올렸다: `scripts/yt_report/grab.py`(미리보기) · `prompts/answer.md`·`final.md`·`audit.md`(`<RUN_DIR>` 틀). 게시 명령·지식노트 커밋엔 안내 훅 `warn-work-method-retro`(전역). 남은 일 없음.
 - 다음 유튜브·PDF 회차는 `docs/report-from-youtube.md` · `docs/report-from-pdf.md` 순서 그대로. 렌더 확인은 dev 서버가 아니라 게시 뒤 프로덕션 `verify.py`.
 - (11-18 추가) 사용자 지시 「보고서·지식노트는 끝날 때마다 작업방식(지시서·코드 포함) 업데이트」 → 두 문서의 마지막 단계 = **작업방식 회고**(정본 = `wrap-up` 3단계). PDF 게시는 회차마다 새로 짜지 말고 `scripts/pdf_report/publish.py` + 대조 틀 `scripts/pdf_report/prompts/codex_check.md`(§1-A).
-
-## 이전 상태 · 재개 지점 (2026-11-16, **협력사 페이지 폐기 — 코드·사외비 표 삭제 · 가림 fixup 합친 기록으로 재작성**)
-
-> 사용자 지시(원문 = `docs/plans/2026-11-13-suppliers-page_최초지시.md` 5차): 「이건 쓸수 없겠다. 관련 내용 폐기하자 히스토리는 남겨놓고」 — 선택: 협력사 전체 폐기 · 가림 fixup 을 계획서 커밋에 합친 뒤 폐기 커밋.
-
-**결과**:
-
-- MarkLines 가 계정 정지 뒤 목적·경위·도구 해명을 요구했다(답장은 사용자). 실제 요청 수는 앞서 적은 「약 700회」가 아니라 **약 2,300회**(검색 198×2 · 상세 1,895 — 401 뒤에도 1,416회 계속)였다.
-- 협력사 코드(화면·탭·권한·수집기·점수·조회) 삭제 · 고쳤던 공용 파일(`permissions.ts`·`confidential.ts`·캐시 태그·`app/oem/layout.tsx`·AGENTS·Architecture)은 서버판으로 복원 · 표 5개 삭제 마이그레이션 `20261116000001`.
-- 기록은 남겼다: 협력사 커밋 전부 + 설계·계획·결정이행·지시 문서(맨 위에 「폐기됨」). 계획서 커밋의 실제 공급사 특징·품목 단어는 fixup 을 합쳐 기록에서 없앴다(커밋별 누출 검사 = 제품 이름 2개만).
-- 이미 서버에 올라간 모빌리티 권한 커밋 3개(cb74982·215daf2·6494be7)는 로컬 사본을 빼고 그 핸드오프 기록만 남겼다.
-- 교훈은 `docs/oem-collection.md` 맨 끝 절 · 전역 규칙(`~/.claude/CLAUDE.md` 보안 「외부 사이트를 긁기 전」).
-
-**MarkLines 2차 메일(11-16)**: 약관 7조 9항(자동 다운로드 금지 · 양·목적 예외 없음) 위반 가능성 → 손 서명 재발 방지 확약서 요구. 그래서 같은 날 **엑셀 자동 수집 GHA 4개를 껐고**(`sync-oem-excel`·`sync-oem-production-excel`·`sync-oem-china-excel`·`marklines-adhoc-fetch` — `gh workflow disable`, 파일은 그대로) **쿠키를 지웠다**(`scripts/.env`·`.env.local`·GitHub 비밀값).
-
-**같은 날 이어서 끝낸 것**: 수동 적재 `scripts/import_marklines_manual.py`(받은 파일을 내용으로 판별 · MarkLines 요청 0 · 절차 = `docs/oem-collection.md` 「수동 적재」) · 알림 = agents `da5c931a` `remind:marklines-excel`(월 09:00 · 봇 재기동 뒤부터) · `.env.local` 의 `MARKLINES_EMAIL`·`MARKLINES_PASSWORD` 삭제 · 로그인 브라우저 기록·시험 스크립트 삭제 · DB 표 5개 drop(`apply_migration`) · 확약서 PDF = `참고/협력사/MarkLines_Written_Statement_2026-11-16.pdf`(서명·발송은 사용자) · `Architecture.md` 상한 회복 · **원격 반영** `48032d2..dde5433`(fast-forward 30커밋 · Vercel 성공 · 옛 로컬 master = 브랜치 `backup/master-before-suppliers-discard`) · 봇 재기동(첫 알림은 다음 월요일 11-23 — 오늘 09:00 은 등록 전이라 만회 안 됨) · 마무리 때 **Vercel 운영 환경변수에도 `MARKLINES_COOKIE`·`MARKLINES_EMAIL`·`MARKLINES_PASSWORD` 가 남아 있어 지웠다**(이 커밋의 배포부터 적용) · **Codex·오퍼스 diff 검토 반영**: 적재 «뒤»에 제자리 복사(먼저 바꾸면 실패한 주가 「변경 없음」으로 영영 빠진다) · 판매 연도별 이력 파일 제외(롤링 파일로 덮으면 그 해가 두 번 더해진다 · 실물 21개 판별 확인) · 알림 만회 7일 · 전송 0건이면 실패로 남김 · **텔레그램 링크 미리보기 끔**(켜 두면 텔레그램 서버가 MarkLines 링크를 연다) · 명령을 PowerShell 에서도 도는 `-X utf8` 형태로. 기각: `.xls` 이름 판별(내용 검증은 `parse_nev_file` 이 한다) · 0행 성공(판매·생산은 구조 검증의 첫 달 문턱이 막고 중국은 기존 수집기 한계).
-
-**🔴 재개 지점**: ① 워크플로 4개를 **다시 켜지 말 것**(확약 위반) · MarkLines 에 어떤 자동 요청도 보내지 말 것 ② 쿠키·로그인 정보가 없어 `collect_marklines*.py`·`enrich_with_marklines.py` 등 옛 수집기는 이제 돌지 않는다(일부러 둔 상태) ③ `참고/협력사/`(시드·대응표 · gitignore)는 남겨 뒀다 ④ 「웹 주소로 보고서 만들기」는 **MarkLines 주소를 거절한다**(사용자 지시 11-16 · `lib/reports/services/url-guard.ts` 의 `isMarklinesHost` · 리다이렉트도 같은 검사 · 쿠키·리퍼러 코드 삭제) — 풀지 말 것.
-
----
