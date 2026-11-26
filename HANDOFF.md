@@ -11,7 +11,7 @@
 ## 최신 상태 · 재개 지점 (2026-11-26, **MarkLines 첫 수동 적재 · 판매·생산 받는 주소 변경 반영**)
 
 - 사용자가 파니 월요일 알림대로 브라우저에서 엑셀 6개를 받음 → `import_marklines_manual.py`(dry-run 후 본 적재) 종료 0. 판매·생산·중국 배기량·수출·승용차 2026 적재, 승용차 2025 는 「변경 없음」. 교차 검증 불일치 0. DB 6표 최신 월 = 202610(MCP 조회).
-- 사용자 알림(2026-11-26): MarkLines 판매·생산 페이지 주소가 `…/vehicle_sales/member` · `…/vehicle_production/member` 로 바뀜(옛 `search?rf=left_menu`). 반영 = 알림 문구 agents `apps/orchestrator/src/marklinesRemind.ts`(`5ad4bad3` · 시험 추가) + `docs/oem-collection.md` 「수동 적재」 표(`8cca37ff`). 봇은 tsx 로 부팅 때 한 번 읽어 재기동함(15:42 · 루프 PID 유지).
+- 사용자 알림(2026-11-26): MarkLines 판매·생산 페이지 주소가 `…/vehicle_sales/member` · `…/vehicle_production/member` 로 바뀜(옛 `search?rf=left_menu`). 반영 = 알림 문구 agents `apps/orchestrator/src/marklinesRemind.ts`(`5ad4bad3` · 시험 추가) + `docs/oem-collection.md` 「수동 적재」 표(`d8f8a41e`). 봇은 tsx 로 부팅 때 한 번 읽어 재기동함(15:42 · 루프 PID 유지).
 - 옛 주소가 남은 곳: 꺼 둔 자동 수집기(`sync_oem_excel.py` · `sync_oem_production_excel.py` · `fetch_marklines_adhoc.py`)와 옛 spec — 약관상 다시 켜지 않는 코드라 그대로 둠.
 - 재개 지점: 남은 일 = (11-25 블록의) `Architecture.md` 상한 정리 1건. 다음 월요일(12-01) 알림에 member 주소가 실렸는지 한 번 보면 된다.
 
