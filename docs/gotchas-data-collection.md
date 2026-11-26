@@ -39,7 +39,7 @@
 
 - **국내 재무 수집기 계통 오류 (2026-07-18 감사 → 정정·근본수정 완료)** — 정정 체크리스트·재현쿼리·수정대상 파일 → [`docs/data-audit-2026-07-18.md`](./data-audit-2026-07-18.md) 상단 "정정 실행 결과". corp 레거시 오배정은 게이트가 DB corp를 신뢰하므로 **자동 교정되지 않는다**(수동 DB 정정).
 
-- **fnguide 재무 수집(`collect_financials.py`)은 도메인·구조를 자주 갈아엎는다** (2026-07 레이아웃 변경 → 2026-08 도메인 이전, 두 번 다 KR 상장사 0행) — **현재 계약은 신버전 `wcomp.fnguide.com` JSON 엔드포인트**(`getFinIncome`/`getFinBalance`, `cmp_cd`+`freq_typ=Y|Q`+`consol_typ=C|P`). 브라우저 불필요, `scripts/lib/fnguide_client.py` 경유. 계정은 이름이 아니라 **표준 `AC_CODE`로 매칭**(200000 매출·130000 부채총계 등)해 '부채총계'가 '부채및자본총계'를 집던 부류를 원천차단한다. 분기 응답이 discrete 분기값이라 Q4=연간 버그도 차단. ⚠️ **연간(Y) 응답에 `(최근분기)` 열이 섞여 오고, `(전년동기)` 열은 손익에만 있어 적재하면 반쪽 행이 온전한 행을 덮는다** → `period_columns()`의 라벨 배제 규칙을 건드리지 말 것(단 결산월과 최신분기가 겹치면 라벨이 아예 안 붙는다). 연결(C) 우선·없으면 별도(P) 자동 폴백. 구조 변경 감지 가드 `_kr_health_ok`: KR 절반↑ 0행이면 `sys.exit(2)`. **계약이 또 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**(주 1회 `verify-fnguide.yml`이 자동 실행). 대상=`get_kr_companies()`(market 있는 전 KR ~169). 회귀 `test_fnguide_wcomp.py`. 계약표 전문 → [`fnguide-wcomp-migration.md`](./fnguide-wcomp-migration.md).
+- **fnguide 재무 수집(`collect_financials.py`)은 도메인·구조를 자주 갈아엎는다**([경위](./history/gotchas-data-collection-경위.md) 「fnguide」) — **현재 계약은 신버전 `wcomp.fnguide.com` JSON 엔드포인트**, `scripts/lib/fnguide_client.py` 경유. 계정은 이름이 아니라 **표준 `AC_CODE`로 매칭**(200000 매출·130000 부채총계 등)해 '부채총계'가 '부채및자본총계'를 집던 부류를 원천차단한다. 분기 응답이 discrete 분기값이라 Q4=연간 버그도 차단. ⚠️ **연간(Y) 응답에 `(최근분기)` 열이 섞여 오고, `(전년동기)` 열은 손익에만 있어 적재하면 반쪽 행이 온전한 행을 덮는다** → `period_columns()`의 라벨 배제 규칙을 건드리지 말 것(단 결산월과 최신분기가 겹치면 라벨이 아예 안 붙는다). 연결(C) 우선·없으면 별도(P) 자동 폴백. 구조 변경 감지 가드 `_kr_health_ok`: KR 절반↑ 0행이면 `sys.exit(2)`. **계약이 또 깨졌는지는 `scripts/verify_fnguide.py`로 먼저 확인**(주 1회 `verify-fnguide.yml`이 자동 실행). 대상=`get_kr_companies()`(market 있는 전 KR ~169). 회귀 `test_fnguide_wcomp.py`. 계약표 전문 → [`fnguide-wcomp-migration.md`](./fnguide-wcomp-migration.md).
 
 - **Stellantis 북미 출하(도매) 수집기는 2개, IR 홈페이지가 primary·EDGAR가 보완** (사용자 지시 2026-07-16) — 적재처 `stellantis_shipments`.
   - `collect_stellantis_shipments_ir.py` (**primary**) — **stellantis.com IR 홈페이지**의 분기 'Estimated Consolidated Shipments' 릴리스. **2026-01부터 이 릴리스가 지역별 절대값 표를 싣는다**(첫 열 `units/000`, `North America` 당기값을 직접 → `is_derived=false`). EDGAR 재무결과보다 ~2주 먼저 나오고 차분 도출이 불필요하다. **stellantis.com은 Akamai가 requests/curl을 403 차단하므로 Playwright 실브라우저로 우회**한다(과거 "쓰지 않는다"에서 정정 — 2026 형식 변경으로 primary 승격). 목록 페이지(`/en/news/press-releases`)에서 슬러그 `stellantis-reports-q{N}-{YYYY}-estimated-consolidated-shipments`로 PR 자동 발견. ⚠️ 2026-01-01부로 **'where sold' 기준 + 마세라티 지역 합산**이라 pre-2026(EDGAR, 마세라티 별도)과 완전 동일 기준은 아니다(북미 마세라티는 작아 방향엔 영향 미미). 파싱 회귀 `scripts/lib/test_stellantis_shipments_ir.py`. 워크플로 `collect-stellantis-shipments-ir.yml`(Jan/Apr/Jul/Oct 16·22·28일, Playwright chromium).
@@ -1230,6 +1230,7 @@ literal 일 때만** 걸린다(명사 매칭은 안 걸린다). 발동 5 · 오�
 🔴 네이버는 「75조 1,461억」 같은 **한국어 문자열**로 주고(숫자 엔드포인트가 없다)
 **반환값이 이미 억원 단위**라 `EOK` 로 나누면 자릿수가 통째로 어긋난다. 파싱은 조용히
 틀리므로 실측값 표본으로 **자가 시험을 내장**해 수집 시작 전에 돌린다.
+🔴 **코넥스 종목은 두 출처 모두 시총이 없다**(2026-11-27) — 칸이 비는 건 고장이 아니다.
 
 🔴 **로컬에서 죽는다고 원격도 죽은 것은 아니다.** 로컬은 KRX 접근이 통째로 막혀
 **대조군(주가 조회)까지 함께 죽는다.** 원인을 가르려면 **대조군을 같이 돌려** 환경 문제인지

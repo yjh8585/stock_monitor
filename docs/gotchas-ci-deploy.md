@@ -27,9 +27,7 @@ gh run list --workflow=<name>.yml   # 간헐 실패는 이력으로 판단
    - `Failed to resolve action download info`
 3. `githubstatus.com/api/v2/incidents.json` 으로 확인하고 **복구를 기다린다.**
 
-실측(2026-08-06): 서로 다른 워크플로 **6건이 각 15~16분 걸려 동시에** 실패했다. 코드에는 아무 문제가
-없었고, 이때 스크립트를 "고치기" 시작했으면 멀쩡한 수집기를 망가뜨렸을 것이다. **동시다발 실패는
-거의 항상 인프라**다 — 서로 다른 워크플로가 같은 시각에 실패했다는 사실 자체가 신호다.
+**동시다발 실패는 거의 항상 인프라**다 — 서로 다른 워크플로가 같은 시각에 실패했다는 사실 자체가 신호다(실측 = [경위](./history/gotchas-ci-deploy-경위.md) §1).
 
 **🔴 단발 실패도 대개는 코드가 아니라 "요청 1회 실패"다** (2026-08-17 실측, 실패 2건 모두).
 동시다발이 아니어도 곧바로 코드를 의심하지 말고 **어느 요청이 어떻게 끊겼는지**부터 본다.
@@ -43,6 +41,9 @@ gh run list --workflow=<name>.yml   # 간헐 실패는 이력으로 판단
 **🔴 수집 워크플로 로그를 `tail` 로 읽지 말 것.** pykrx 의 stdout 이 loguru 의 stderr 와 뒤섞여
 **무해한 `KRX 로그인 실패` 메시지가 로그 맨 끝에 몰린다.** 끝만 보면 그게 진짜 실패 원인처럼 읽힌다.
 (관련: [`gotchas-data-collection.md`](./gotchas-data-collection.md) 의 `disable_pykrx_autologin` 항목)
+
+**🔴 예약 실행(cron)은 적힌 주기대로 돌지 않는다.** 매시간 예약도 실제로는 하루 몇 번뿐일 수 있다 — 새로 등록한 회사의 값이 비면
+다음 예약을 기다리지 말고 `gh workflow run <name>.yml --ref master` 로 한 번 돌린다. 러너 시계는 UTC 라 KST 새벽엔 전 거래일 값을 받는다(실측 = [경위](./history/gotchas-ci-deploy-경위.md) §1).
 
 ## 2. Vercel — "지금 프로덕션에 뭐가 떠 있나"를 확인하는 법
 
