@@ -20,7 +20,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **[`report.md`](./report.md)** — _보고서(`/reports`) 작성 규칙_. 게시 절차·본문 형식·**한국어 마크다운 렌더 함정(§4)**·이미지·Mermaid·유튜브 워크플로(§7). **보고서 본문 작성·수정 전 정독.** **⚠️ 유튜브 보고서는 주요 장면·차트를 반드시 캡처·삽입(차트 누락 금지, 사용자 지시 2026-07-18) — §7-4·§7-A·§8 필수 체크.**
 - **[`docs/chart-guide.md`](./docs/chart-guide.md)** — _차트 재사용 레퍼런스_. **차트 신규·수정 전 정독**(콤보 이중축 영역 분리 §4-F · 스타일 토큰·글자 크기 §5). `fontSize`·축 domain·범례 순서 임의 변경 금지.
 - **[`docs/report-from-youtube.md`](./docs/report-from-youtube.md)** · **[`docs/report-from-pdf.md`](./docs/report-from-pdf.md)** — _유튜브·PDF → 보고서 규칙 정본_(2026-09-11 신설, 계속 갱신). **게시 전 정독**(검사 2종은 「검증 명령」) — 도해가 차오르는 «도중» 캡처(리포트 117·122)와 캡션이 그림에 없는 것을 약속하는 결함을 막는다.
-- **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** — _수집·적재·파싱 함정 정본_. **수집기 수정 전 정독.**
+- **[`docs/gotchas-data-collection.md`](./docs/gotchas-data-collection.md)** — _수집·적재·파싱 함정 정본_. **수집기 수정 전 정독.** 기존 회사에 페이지를 붙이는 시드 전에도(휴머노이드 5번).
 - **[`docs/gotchas-playwright-ui.md`](./docs/gotchas-playwright-ui.md)** — _Playwright·UI 검증 함정_. **UI를 브라우저로 검증하기 전 정독.** 🔴 **`typecheck` 가 `.next/dev/types` 구문 오류로 실패할 때도**(내 코드 회귀 아님 — 「dev 생성 타입 파일 꼬리 중복」 절).
 - **[`docs/gotchas-ci-deploy.md`](./docs/gotchas-ci-deploy.md)** — _CI·배포·플랫폼 운영 함정_(GHA 실패 판별·Vercel 배포 확인·Supabase MCP 우회·PowerShell·훅 검사기). **워크플로를 돌리거나 배포를 확인하기 전 정독.** 🔴 **넓게 훑은 검색이 0건일 때도**(§8 — 소스의 날 NUL 바이트가 Grep 도구에서 파일을 통째로 지운다). 🔴 **Supabase 보안 경고 메일을 받았을 때도**(§10 — 기준일이 발송일보다 앞서 이미 고친 것이 다시 오고, 남은 두 경고는 의도된 설계다). **문서만 바꾼 커밋 전에도**(§12 — `format:check` 가 `*.md` 까지 본다).
 - **[`docs/oem-collection.md`](./docs/oem-collection.md)** — OEM 회사별 탭(`/oem/*`) 수집 로직·MarkLines 함정. **OEM 탭 작업 전.**

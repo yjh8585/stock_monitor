@@ -13,6 +13,7 @@
 사용:
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py validate <json>
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py emit <json> <out.sql>   # 검사 통과 때만 씀
+  scripts/venv/Scripts/python.exe scripts/build_motor_seed.py emit-products <json> <out.sql>  # 기존 회사 제품 덧붙이기
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py targets                 # 재무 대상 ticker(콤마)
 
 명단을 고쳐 다시 시드할 때(마이그레이션은 고치지 않고 새 번호로):
@@ -252,6 +253,47 @@ def render_seed_sql(master: dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
+def _append_items(c: dict) -> list[dict]:
+    """덧붙일 제품 — `same_as`(기존 DB 항목과 같은 제품이라는 표시)가 달린 것은 뺀다.
+
+    이름 완전일치만 거르면 띄어쓰기·표현만 다른 같은 제품이 붙는다(「EPS 모터」 ↔ 「EPS 모터 (조향 장치용)」).
+    products 는 append-only 라 한 번 붙은 중복은 지울 수 없어, 사람이 명단에 표시한 것을 따른다.
+    """
+    return [item for item, raw in zip(_products(c), c.get('products') or []) if not raw.get('same_as')]
+
+
+def _render_products_append(c: dict) -> str:
+    """기존 회사 제품 칸 뒤에 명단의 모터 제품을 붙인다. 이름이 이미 있으면 건너뛴다(append-only · 멱등)."""
+    return (
+        "UPDATE companies c SET products = COALESCE(c.products, '[]'::jsonb) || COALESCE(("
+        f'SELECT jsonb_agg(p.item ORDER BY p.ord) FROM jsonb_array_elements({_jsonb(_append_items(c))}) '
+        'WITH ORDINALITY AS p(item, ord) WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements('
+        "COALESCE(c.products, '[]'::jsonb)) q WHERE q->>'name' = p.item->>'name')), '[]'::jsonb) "
+        f"WHERE c.id = {_q(c['existing_company_id'])};"
+    )
+
+
+def render_products_append_sql(master: dict) -> str:
+    """기존 회사(existing_company_id)의 products 에 명단의 모터 제품을 덧붙이는 SQL.
+
+    시드(render_seed_sql)는 기존 회사 products 를 건드리지 않았다 — 덧붙이기는 사용자 승인(2026-11-27)으로
+    따로 낸다. 같은 칸을 /domestic 도 쓰므로 그 화면 제품 칸·제품군 필터도 함께 바뀐다.
+    """
+    targets = [
+        c for c in master.get('companies', []) if c.get('existing_company_id') and _append_items(c)
+    ]
+    lines = [
+        f'-- 휴머노이드 「모터」 탭 — 기존 회사 {len(targets)}곳 제품 칸에 모터 제품 덧붙이기(사용자 승인 2026-11-27)',
+        '-- 생성: scripts/build_motor_seed.py emit-products (명단 정본 = 참고/모터회사/motor_companies.json, git 밖)',
+        '-- 기존 항목은 그대로 두고 같은 이름은 건너뛴다 — 두 번 적용해도 같다.',
+        '',
+    ]
+    for c in targets:
+        lines.append(f'-- {c["name_kr"]}')
+        lines.append(_render_products_append(c))
+    return '\n'.join(lines) + '\n'
+
+
 def _cmd_validate(path: str) -> int:
     errs = validate(load_master(Path(path)))
     for e in errs:
@@ -260,7 +302,7 @@ def _cmd_validate(path: str) -> int:
     return 1 if errs else 0
 
 
-def _cmd_emit(path: str, out: str) -> int:
+def _cmd_emit(path: str, out: str, render=render_seed_sql) -> int:
     master = load_master(Path(path))
     errs = validate(master)
     if errs:
@@ -268,7 +310,7 @@ def _cmd_emit(path: str, out: str) -> int:
             print(e)
         print(f'위반 {len(errs)}건 — SQL 을 쓰지 않았다')
         return 1
-    Path(out).write_text(render_seed_sql(master), encoding='utf-8', newline='\n')
+    Path(out).write_text(render(master), encoding='utf-8', newline='\n')
     print(f'{out} 작성 — {len(master.get("companies", []))}사')
     return 0
 
@@ -301,6 +343,8 @@ def main(argv: list[str]) -> int:
         return _cmd_validate(argv[1])
     if len(argv) == 3 and argv[0] == 'emit':
         return _cmd_emit(argv[1], argv[2])
+    if len(argv) == 3 and argv[0] == 'emit-products':
+        return _cmd_emit(argv[1], argv[2], render_products_append_sql)
     if argv == ['targets']:
         return _cmd_targets()
     print(__doc__)

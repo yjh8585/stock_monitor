@@ -213,5 +213,53 @@ class TestFinancialTargets(unittest.TestCase):
         self.assertEqual(seed.financial_targets(rows), ['A', 'B'])
 
 
+class TestProductsAppendSql(unittest.TestCase):
+    """기존 회사 제품 칸에 명단의 모터 제품을 덧붙이는 SQL(사용자 승인 2026-11-27 · products 는 append-only)."""
+
+    def test_only_existing_companies_get_update(self):
+        sql = seed.render_products_append_sql(_master(
+            _company(name_kr='기존사', existing_company_id=UUID, products=[{'name': '시트 모터', 'category': '모터'}]),
+            _company(name_kr='신규사', products=[{'name': '신규 전용 제품'}]),
+        ))
+        updates = [s for s in _statements(sql) if s.startswith('UPDATE companies')]
+        self.assertEqual(len(updates), 1)
+        self.assertIn(f"c.id = '{UUID}'", updates[0])
+        self.assertIn('시트 모터', updates[0])
+        self.assertNotIn('신규 전용 제품', sql)
+
+    def test_appends_without_overwriting_and_skips_same_name(self):
+        sql = seed.render_products_append_sql(_master(
+            _company(existing_company_id=UUID, products=[{'name': 'EPB 액추에이터'}]),
+        ))
+        update = [s for s in _statements(sql) if s.startswith('UPDATE companies')][0]
+        # 기존 배열 뒤에 붙인다(덮어쓰면 다른 화면의 제품이 사라진다)
+        self.assertRegex(update, r"SET products = COALESCE\(c\.products, '\[\]'::jsonb\) \|\|")
+        # 이름이 이미 있으면 건너뛴다 — 두 번 돌려도 같다(멱등)
+        self.assertIn("q->>'name' = p.item->>'name'", update)
+
+    def test_item_marked_same_as_existing_is_not_appended(self):
+        # 띄어쓰기·표현만 다른 같은 제품(「EPS 모터」 ↔ 기존 「EPS 모터 (조향 장치용)」)은 붙이지 않는다 —
+        # products 는 append-only 라 한 번 붙은 중복은 지울 수 없다
+        sql = seed.render_products_append_sql(_master(
+            _company(existing_company_id=UUID, products=[
+                {'name': 'EPS 모터', 'same_as': 'EPS 모터 (조향 장치용)'},
+                {'name': '전동 컴프레서 모터'},
+            ]),
+            _company(name_kr='전부중복', existing_company_id='22222222-2222-3333-4444-555555555555',
+                     products=[{'name': 'DYNAMIXEL 액추에이터', 'same_as': 'DYNAMIXEL'}]),
+        ))
+        updates = [s for s in _statements(sql) if s.startswith('UPDATE companies')]
+        self.assertEqual(len(updates), 1)
+        self.assertIn('전동 컴프레서 모터', updates[0])
+        self.assertNotIn('"EPS 모터"', sql)
+        self.assertNotIn('DYNAMIXEL 액추에이터', sql)
+
+    def test_existing_company_without_products_emits_nothing(self):
+        sql = seed.render_products_append_sql(_master(
+            _company(name_kr='제품없음', existing_company_id=UUID, products=[]),
+        ))
+        self.assertEqual([s for s in _statements(sql) if s.startswith('UPDATE')], [])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -245,7 +245,7 @@ vercel.json               # 배포 설정 (Vercel cron 미사용)
 | `homepage_url`                                                                      | text        | 비상장사 회사명 클릭 시 새 창 (enrich_company가 수집)                                                                    |
 | `business_summary`                                                                  | text        | 🔴 **국내 상장사는 fnguide 기업개요가 정본**(LLM 덮어쓰기 금지 · `verify_summary_source.py`) · 그 밖은 yfinance/LLM 요약 |
 | `products`, `customers`                                                             | jsonb       | LLM enrich로 채움, append-only                                                                                           |
-| `motor_types`, `supply_history`                                                     | —           | 「모터」 탭 — text[] 유형 4값 · jsonb 공급 이력(확인/추정, 화면은 확인만) · 20261126000001                               |
+| `motor_types`, `supply_history`                                                     | —           | 「모터」 탭 — text[] 유형 4값 · jsonb 공급 이력(「확인」만 · CHECK) · 20261126000001·20261127000001                      |
 | `last_price`, `last_change_pct`, `last_volume`, `last_updated_at`                   | —           | 최신 가격 캐시                                                                                                           |
 | `market_cap`                                                                        | numeric     | 시총(억원). KRX 시총 API 가 죽어 **네이버 경유**(`lib/naver_market_cap.py`, 2026-09-16)                                  |
 | `dart_corp_code`, `dart_collection_status`, `last_collect_error`, `retry_after`     | —           | DART 수집 상태 추적                                                                                                      |
