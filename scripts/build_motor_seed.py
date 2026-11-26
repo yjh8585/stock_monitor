@@ -14,6 +14,11 @@
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py validate <json>
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py emit <json> <out.sql>   # 검사 통과 때만 씀
   scripts/venv/Scripts/python.exe scripts/build_motor_seed.py targets                 # 재무 대상 ticker(콤마)
+
+명단을 고쳐 다시 시드할 때(마이그레이션은 고치지 않고 새 번호로):
+  🔴 먼저 이미 등록된 회사의 `existing_company_id` 를 JSON 에 채운다(DB 에서 name_kr → id).
+     신규 회사 INSERT 는 `name_kr` NOT EXISTS 로 건너뛰므로, 비워 두면 정정이 조용히 안 들어간다.
+     기존 회사 UPDATE 는 motor_types·supply_history 만 바꾼다(products 는 append-only 라 안 건드림).
 """
 from __future__ import annotations
 

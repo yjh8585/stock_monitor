@@ -4,11 +4,32 @@
 직전 블록은 `## 이전 상태 …` 로 강등한다.
 
 **여기엔 최근 10블록만 둔다.** 그보다 오래된 블록은 지우지 않고
-[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **50블록** · 2026-11-20 실측)로 옮긴다.
+[`docs/handoff-archive-2026.md`](./docs/handoff-archive-2026.md)(현재 **56블록** · 2026-11-27 실측)로 옮긴다.
 
 ---
 
-## 최신 상태 · 재개 지점 (2026-11-26, **MarkLines 첫 수동 적재 · 판매·생산 받는 주소 변경 반영**)
+## 최신 상태 · 재개 지점 (2026-11-27 새벽, **휴머노이드 「모터」 탭 신설 · 국내 모터회사 54곳 등록 · 덱은 구조안 승인 대기**)
+
+- 사용자 지시(2026-11-26 · 원문 = `docs/plans/2026-11-26-motor-companies_최초지시.md`): 국내 모터회사 조사 → `/humanoid` 아래 「모터」 탭(표) + 「국내 모터회사 현황」 덱. 목적 = 한세모빌리티(기계 부품만)의 전장·로봇 진출 M&A 후보 찾기. 밤사이 진행·master 푸시는 사용자 사전 승인(밤 질문 7번: check-all·화면 캡처 통과 시 — **그 밤의 이 작업에만** 해당. 뒤의 정정 푸시는 다시 묻는다).
+- 한 것(계획 `docs/superpowers/plans/2026-11-26-motor-tab.md` Task 1~8 · 결정 이행·실행 중 판정 53줄 = 같은 폴더 `_결정이행.md`): 스키마 `20261126000001`(motor_types·supply_history·페이지 트리거·`motor_stocks_view`) · 시드 `20261126000002`(54곳 = 기존 24 UPDATE + 신규 30 INSERT · 「확인」 공급 이력 32건만) · `/humanoid/motor` 화면(`DomesticTable variant="motor"`) · 신규 상장 6곳 재무·기업개요. 자동차 납품사만 `/domestic` 에도 나간다.
+- 검증(11-27 03:39): `npm run check-all` exit 0(vitest 785) · `pytest scripts/lib` 1126 · 명단 `validate` 위반 0 · 화면 캡처는 Task 7 에서 확인(장부) · 이 블록 커밋과 함께 master 푸시.
+- 명단 정본은 git 밖 `참고/모터회사/motor_companies.json`(「추정」 포함 · 덱 재료) · 사람이 읽는 요약 = `참고/모터회사/명단요약.md`(5절 = Codex 원문 대조로 바뀐 것). 메인이 Codex 판정을 뒤집은 ①퓨트로닉→글로벌 완성차 ②신라공업→가렛 모션은 «공급 이력 한 줄»의 등급 판단이다 — 틀렸다고 보면 JSON 에서 그 줄을 「추정」으로 내리고 아래 「명단 정정」 순서로 새 마이그레이션을 내면 화면에서 그 이력만 빠진다(회사 행은 남는다).
+- 🔴 시드는 운영 DB 에 Management API 로 먼저 들어갔다(11-27 03시 · schema_migrations 이력 version 20261126180349 수동 INSERT). 최종 검토가 잡은 Critical — `motor` 페이지가 붙은 로봇사 5곳·설명 빈 신규 30곳이 정기 GHA 의 LLM 메타 보강 대상이 됨 — 을 `_skips_meta` 로 고쳤다(deeace15 · 함정 = `docs/gotchas-data-collection.md` 휴머노이드 5번). Codex diff 검토 반영 = 0546be9f.
+- 🔴 하지 말 것: 이미 적용한 시드 `20261126000002` 를 다시 돌리거나 schema_migrations 에 다시 넣지 않는다(정정은 새 번호) · 「추정」 공급 이력을 운영 DB 에 넣지 않는다 · (라) 승인 전 기존 회사 `products` 를 고치지 않는다(승인 뒤에도 덧붙이기만) · `_skips_meta` 를 지우거나 우회하지 않는다 · 주가가 비어도 로컬 KRX 로그인을 되풀이하지 않는다(11-27 4회 실패 · 계정 잠금 우려).
+- 10:45 사용자에게 물을 것(답은 `docs/plans/2026-11-26-motor-companies_최초지시.md` 에 날짜 붙여 원문 추가 · 결정은 `_결정이행.md`):
+  - (가) `Architecture.md` 상한 초과(155,749B > 150,975B · 모터 작업 전에도 153,848B) — 경위·실측 서술을 `docs/history/Architecture-경위.md` 로 옮겨 줄일지 vs 보류. `verify_docs.py` 는 check-all 밖이라 보류해도 푸시는 안 막힌다.
+  - (나) 결정 7 원안은 「DB 에 두 등급 저장, 뷰가 「확인」만」(설계서 100행). `companies` 를 비로그인(anon)이 읽을 수 있어 운영 시드엔 「확인」만 넣었다 → ① 이 저장 방식 사후 승인 ② 승인하면 DB CHECK 로 「추정」 저장을 거부할지(새 마이그레이션) — 둘을 따로 묻는다.
+  - (다) 덱 구조안 v1 — `../PPT/보고서/12.국내모터회사/2.작업/_명세/_구조확정_v1.md`(본문 14장+요약 1·부록 6 · 1순위 애드테크·브이씨텍·위즈진 · 「잠정」 표시는 Codex 대조·재무 수집으로 이제 확정 가능).
+  - (라) 따로 묻는다: ① 기존 24곳 `products` 에 모터 제품 덧붙이기(덧붙이면 `/domestic` 제품 칸·제품군 필터도 바뀜) ② 공급 이력 승격 — 이노빌→씨에이치모터스(전동 3륜 운반차 · 올리면 이노빌이 `/domestic` 에 새로 나온다)·민맥스→현대자동차(품목 미특정). 근거 = `명단요약.md` 5-3 아래 문단.
+- 🔴 다음 명단 정정 순서(정본 = `scripts/build_motor_seed.py` 첫머리 사용법): 레포 루트에서 ① Supabase 에서 `select id, name_kr from companies where name_kr = …` 로 이미 등록된 회사의 id 를 하나로 확인(0건·여러 건이면 멈추고 사용자에게) → JSON `existing_company_id` 에 넣는다 — 신규 INSERT 는 `name_kr` NOT EXISTS 로 건너뛰어, 비워 두면 정정이 조용히 안 들어간다 ② `validate` ③ `emit <json> supabase/migrations/<다음 번호>_….sql` ④ 생성 SQL 을 읽고 적용.
+- 알아 둘 것: LG이노텍·엘지마그나가 `/domestic` 기본 표(매출 100위+한세모빌리티)에 새로 들어간다 · 로컬 주가 수집 실패(이번 변경과 무관 — KRX 로그인 · yfinance curl 77 = 한글 경로 인증서).
+- 재개 지점:
+  1. 평일 09:00 뒤 GHA `collect-prices-live.yml`(평일 매시 · KST 09~15시와 22~06시) 실행이 성공했는지 `gh run list --workflow collect-prices-live.yml -L 3` → Supabase 에서 `select ticker, last_price, last_updated_at from motor_stocks_view where ticker in ('033200','052710','011070','377330','059120','496320')` 로 `last_updated_at` 이 그날인지. 빈 종목·실패 실행은 로그와 함께 사용자에게 알린다(로컬 재수집 금지).
+  2. 10:45 질문 (가)~(라).
+  3. (다) 승인 뒤 덱 — 별도 계획서로(계획 「다음 계획」 절). 착수 전 PPT `docs/gotchas-research.md` 원천 6종 점검표(1번 = 사내 지식위키) · 배수를 넣기 전 `measured-not-proxy` · `명단요약.md` 5-5 대주주 8곳 DART 원문 재확인 · 매출 구간을 운영 DB `financials`(최근 연간 매출)로 다시 나눈다(구조안의 구간 미확인 12곳). 저장 = `../PPT/보고서/12.국내모터회사/`. (라) 답이 덱에 닿는지도 본다.
+  4. 아침 보고 뒤 장부 폴더 `.superpowers/sdd/2026-11-26-motor-tab/` 삭제(판정은 `_결정이행.md` 에 사본이 있다 · git 밖 폴더라 승인 없이 지워도 기록 손실 없음).
+
+## 이전 상태 · 재개 지점 (2026-11-26, **MarkLines 첫 수동 적재 · 판매·생산 받는 주소 변경 반영**)
 
 - 사용자가 파니 월요일 알림대로 브라우저에서 엑셀 6개를 받음 → `import_marklines_manual.py`(dry-run 후 본 적재) 종료 0. 판매·생산·중국 배기량·수출·승용차 2026 적재, 승용차 2025 는 「변경 없음」. 교차 검증 불일치 0. DB 6표 최신 월 = 202610(MCP 조회).
 - 사용자 알림(2026-11-26): MarkLines 판매·생산 페이지 주소가 `…/vehicle_sales/member` · `…/vehicle_production/member` 로 바뀜(옛 `search?rf=left_menu`). 반영 = 알림 문구 agents `apps/orchestrator/src/marklinesRemind.ts`(`5ad4bad3` · 시험 추가) + `docs/oem-collection.md` 「수동 적재」 표(`d8f8a41e`). 봇은 tsx 로 부팅 때 한 번 읽어 재기동함(15:42 · 루프 PID 유지).
@@ -91,26 +112,3 @@
 - agents 와 교차 반영(28ed9dda): `verify_yt_report.py` 강조 판정을 사본 대신 정본(`~/.claude/scripts/hook_cjk_emphasis.py` `violations()`) import — 정본이 없으면 exit 2 · yt_report subprocess 11곳 `CREATE_NO_WINDOW` · 캡션 별표 이스케이프 · `prompts/write.md` 10~13번
 - 정본 판정이 넓어졌다(78b59bb): `**` 안쪽 공백 · 「한글\*\*구두점」 꼴도 위반 — 기존 게시 보고서는 소급하지 않았다
 - 재개 지점: 이 레포 쪽 남은 일 없음. agents 쪽 남은 결정 = agents `HANDOFF.md` 맨 위 블록
-
-## 이전 상태 · 재개 지점 (2026-11-17, **유튜브 12편(163~174) + KIET 로봇 PDF(175) 게시 — 프로덕션 확인 끝 · Codex 비교 기록**)
-
-> 사용자 지시(원문 = `docs/plans/2026-11-17-yt-reports_최초지시.md`): 영상 13개 → 12편(v10·v11 합침 · v12·v13 휴머노이드) · Codex 도 활용해 잘하고 못하는 것 기록 · 지시서·코드 계속 갱신 · 중복 영상 거르기 · 자세하고 쉽게. 추가: 「개발서버에서 확인하지 말고 바로 배포 → 프로덕션에서 확인」(디스크 부족) · 「남은일 끝나고 이 PDF 도 정리해 휴머노이드 보고서에 게시」.
-
-**결과**:
-
-- 게시 = 리포트 163~174(유튜브) · 175(KIET 『산업경제』 2026-10 「글로벌 로봇산업의 경쟁 구도 재편과 한국의 대응 전략」 · category 로봇 · 원문 링크 = 산업연구원 상세페이지). 연작 쌍 166↔165 · 167↔168 · 169↔170, 172 = 두 영상 합본, 173·174·175 = 로봇.
-- 프로덕션 `verify.py` 전부 OK(별표 0 · 그림 깨짐 0) — 로봇 글은 `--route humanoid/reports` 로도 확인.
-- 결정 이행 = `docs/plans/2026-11-17-yt-reports_결정이행.md`.
-
-**이번에 뒤집힌 것 · 「이건 안 되더라」**:
-
-- 합본 글은 본문에 두 번째 영상 주소가 없으면 중복 거르기(`already_published`)가 못 잡는다 → 본문에 `> 원본 영상:` 줄 필수(`docs/report-from-youtube.md` §2-K).
-- `verify_yt_report.py` 강조 검사가 손으로 적은 부호 목록이라 `»` 와 「여는 `**` 뒤 공백」을 놓쳐 175 에 별표 2곳이 나갔다 → 유니코드 부호 전체·공백 형태로 고침(표본 추가). 원인은 정규식 일괄 치환이 짝을 잘못 잡은 것(`docs/report-from-pdf.md` §3-G).
-- `verify_report_krw.py` 가 「2억1,000만 달러」 같은 복합 단위를 잘못 읽었다 → 정규식 수정·표본 추가.
-- Codex 비교(경위 = `~/.claude/docs/history/codex-vs-opus-경위.md` §2 11-17 두 줄): 유튜브 지적 49 중 48 채택, PDF 10 중 9 채택 — 오퍼스는 **요약부(첫 인용·소제목·핵심 정리)에서만** 기준연도·조건을 뺀다. 그림 자리 고르기는 Codex 가 낫지 않다(31% 대 36%).
-
-**재개 지점**:
-
-- 11-18 회차 폴더 `scripts/_yt_report/2026-11-17/`(575MB) 통째 삭제(사용자 선택) — 재사용할 것은 먼저 레포로 올렸다: `scripts/yt_report/grab.py`(미리보기) · `prompts/answer.md`·`final.md`·`audit.md`(`<RUN_DIR>` 틀). 게시 명령·지식노트 커밋엔 안내 훅 `warn-work-method-retro`(전역). 남은 일 없음.
-- 다음 유튜브·PDF 회차는 `docs/report-from-youtube.md` · `docs/report-from-pdf.md` 순서 그대로. 렌더 확인은 dev 서버가 아니라 게시 뒤 프로덕션 `verify.py`.
-- (11-18 추가) 사용자 지시 「보고서·지식노트는 끝날 때마다 작업방식(지시서·코드 포함) 업데이트」 → 두 문서의 마지막 단계 = **작업방식 회고**(정본 = `wrap-up` 3단계). PDF 게시는 회차마다 새로 짜지 말고 `scripts/pdf_report/publish.py` + 대조 틀 `scripts/pdf_report/prompts/codex_check.md`(§1-A).
