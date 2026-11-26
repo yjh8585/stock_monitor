@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
  */
 const HUMANOID_TABS = [
   { label: '기업', href: '/humanoid' },
+  { label: '모터', href: '/humanoid/motor' },
   { label: '보고서', href: '/humanoid/reports' },
   { label: '증권사 리포트', href: '/humanoid/research' },
 ] as const;

@@ -5,6 +5,8 @@ import {
   DomesticStockRow,
   DomesticSortKey,
   ExchangeRates,
+  MOTOR_TYPE_LABELS,
+  type MotorType,
   ROBOT_PRODUCT_CATEGORIES,
   ROBOT_ROLE_LABELS,
 } from '@/lib/types';
@@ -12,7 +14,7 @@ import { useIsMobile } from '@/lib/useIsMobile';
 import { buildFinancialColumns, getFinancialSortValue, resolveLatestYear } from '@/lib/stockSort';
 import StickyTable, { StickyColumn, SortDir } from '@/components/common/StickyTable';
 import DomesticFilterBar, { DomesticListingFilter } from './DomesticFilterBar';
-import DomesticRow from './DomesticRow';
+import DomesticRow, { type DomesticCell4 } from './DomesticRow';
 
 interface DomesticTableProps {
   rows: DomesticStockRow[];
@@ -28,8 +30,12 @@ interface DomesticTableProps {
    *   ③ 제품군 카테고리를 로봇 11종으로, 필터 적용 대상 판정도 robot_roles 기준으로
    * 스위치를 쪼개지 않고 하나로 묶은 이유: 호출부에서 인자 하나를 빠뜨려 기능이
    * 조용히 죽는 사고를 막기 위해서다.
+   * 'motor'(/humanoid/motor)도 같은 원칙 —
+   *   ① 네 번째 칸이 공급 이력(「확인」만, 근거 링크)
+   *   ② 유형 버튼 4개(자동차 모터·로봇·산업 모터·액추에이터·인버터·제어) + motor_types 필터
+   *   ③ 제품군 카테고리 필터를 숨긴다(유형 버튼이 그 역할을 한다)
    */
-  variant?: 'domestic' | 'humanoid';
+  variant?: 'domestic' | 'humanoid' | 'motor';
 }
 
 const FROZEN_COUNT = 3;
@@ -41,20 +47,35 @@ const ROLE_OPTIONS = [
   { value: 'parts', label: ROBOT_ROLE_LABELS.parts },
 ] as const;
 
-/** /domestic, /parts-top100, /humanoid 좌측 컬럼 + 공통 재무 컬럼 결합 */
+/** 모터 유형 버튼 — 라벨·순서 정본은 MOTOR_TYPE_LABELS */
+const MOTOR_TYPE_OPTIONS = (Object.keys(MOTOR_TYPE_LABELS) as MotorType[]).map((value) => ({
+  value,
+  label: MOTOR_TYPE_LABELS[value],
+}));
+
+/** 네 번째 칸 헤더 — 내용은 DomesticRow 의 cell4 와 짝 */
+const CELL4_COLUMN: Record<DomesticCell4, { label: string; width: number }> = {
+  customers: { label: '고객사', width: 224 },
+  // 휴머노이드에서는 고객사를 수집하지 않으므로 비상장 기업가치를 대신 싣는다.
+  valuation: { label: '기업가치', width: 150 },
+  supply: { label: '공급 이력', width: 260 },
+};
+
+/** /domestic, /parts-top100, /humanoid, /humanoid/motor 좌측 컬럼 + 공통 재무 컬럼 결합 */
 function buildColumns(
   latestYear: string,
   groupLabel: string,
-  showCustomers: boolean
+  cell4: DomesticCell4
 ): StickyColumn<DomesticSortKey>[] {
   return [
     { key: 'group_name', label: groupLabel, defaultWidth: 120 },
     { key: 'name_kr', label: '회사명', defaultWidth: 124 },
     { key: 'name_kr', label: '제품', defaultWidth: 280 },
-    // 고객사 자리 — 휴머노이드에서는 고객사를 수집하지 않으므로 비상장 기업가치를 대신 싣는다.
-    showCustomers
-      ? { key: 'name_kr' as DomesticSortKey, label: '고객사', defaultWidth: 224 }
-      : { key: 'name_kr' as DomesticSortKey, label: '기업가치', defaultWidth: 150 },
+    {
+      key: 'name_kr' as DomesticSortKey,
+      label: CELL4_COLUMN[cell4].label,
+      defaultWidth: CELL4_COLUMN[cell4].width,
+    },
     ...buildFinancialColumns<DomesticSortKey>(latestYear),
   ];
 }
@@ -87,6 +108,7 @@ export default function DomesticTable({
   variant = 'domestic',
 }: DomesticTableProps) {
   const isHumanoid = variant === 'humanoid';
+  const isMotor = variant === 'motor';
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState<DomesticSortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -95,6 +117,9 @@ export default function DomesticTable({
   const [productQuery, setProductQuery] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string[]>([]);
   const [roleFilter, setRoleFilter] = useState<string[]>(['humanoid', 'parts']);
+  const [motorTypeFilter, setMotorTypeFilter] = useState<string[]>(
+    MOTOR_TYPE_OPTIONS.map((o) => o.value)
+  );
   const [showAllRows, setShowAllRows] = useState(false);
 
   /** 100위까지 + 한세모빌리티 순위(있으면). enableRankCutoff=false면 null. */
@@ -105,11 +130,11 @@ export default function DomesticTable({
   }, [rows, enableRankCutoff]);
 
   const latestDataYear = useMemo(() => resolveLatestYear(rows), [rows]);
-  // 고객사는 휴머노이드 페이지에서 수집하지 않는다 → 컬럼 자체를 그리지 않는다.
-  const showCustomers = !isHumanoid;
+  // 고객사는 휴머노이드 페이지에서 수집하지 않는다 → 그 자리에 기업가치 / 모터 탭은 공급 이력.
+  const cell4: DomesticCell4 = isHumanoid ? 'valuation' : isMotor ? 'supply' : 'customers';
   const columns = useMemo(
-    () => buildColumns(latestDataYear, groupLabel, showCustomers),
-    [latestDataYear, groupLabel, showCustomers]
+    () => buildColumns(latestDataYear, groupLabel, cell4),
+    [latestDataYear, groupLabel, cell4]
   );
 
   // 그룹 옵션: rows에 등장하는 group_name (NULL 제외)
@@ -141,6 +166,9 @@ export default function DomesticTable({
   const handleRoleToggle = (v: string) =>
     setRoleFilter((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
 
+  const handleMotorTypeToggle = (v: string) =>
+    setMotorTypeFilter((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+
   const filtered = useMemo(() => {
     let result = rows;
     if (groupFilter.length > 0) {
@@ -157,6 +185,17 @@ export default function DomesticTable({
       result = result.filter((r) => {
         const roles = r.robot_roles ?? [];
         return roles.length === 0 || roles.some((role) => roleFilter.includes(role));
+      });
+    }
+    if (
+      isMotor &&
+      motorTypeFilter.length > 0 &&
+      motorTypeFilter.length < MOTOR_TYPE_OPTIONS.length
+    ) {
+      // 역할 필터와 같은 규칙 — 유형 태그가 빈 행은 숨기지 않는다(필터가 데이터 결함을 감추면 안 된다).
+      result = result.filter((r) => {
+        const types = r.motor_types ?? [];
+        return types.length === 0 || types.some((t) => motorTypeFilter.includes(t));
       });
     }
     if (productCategoryFilter.length > 0) {
@@ -189,7 +228,9 @@ export default function DomesticTable({
     productQuery,
     productCategoryFilter,
     roleFilter,
+    motorTypeFilter,
     isHumanoid,
+    isMotor,
     rankCutoff,
     showAllRows,
   ]);
@@ -231,9 +272,12 @@ export default function DomesticTable({
         showAllRows={showAllRows}
         onShowAllToggle={() => setShowAllRows((v) => !v)}
         productCategoryOptions={isHumanoid ? ROBOT_PRODUCT_CATEGORIES : undefined}
-        roleOptions={isHumanoid ? ROLE_OPTIONS : undefined}
-        roleFilter={roleFilter}
-        onRoleToggle={isHumanoid ? handleRoleToggle : undefined}
+        showProductCategory={!isMotor}
+        roleOptions={isHumanoid ? ROLE_OPTIONS : isMotor ? MOTOR_TYPE_OPTIONS : undefined}
+        roleFilter={isMotor ? motorTypeFilter : roleFilter}
+        onRoleToggle={isHumanoid ? handleRoleToggle : isMotor ? handleMotorTypeToggle : undefined}
+        roleLabel={isMotor ? '유형' : undefined}
+        roleTitle={isMotor ? '겸업사는 여러 유형에 모두 나타난다' : undefined}
       />
       <StickyTable
         rows={sorted}
@@ -246,7 +290,7 @@ export default function DomesticTable({
             latestYear={latestDataYear}
             colCount={colCount}
             frozenCount={isMobile ? 2 : FROZEN_COUNT}
-            showCustomers={showCustomers}
+            cell4={cell4}
           />
         )}
         sortKey={sortKey}

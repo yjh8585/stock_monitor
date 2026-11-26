@@ -145,6 +145,10 @@ export interface DomesticStockRow {
   funding_total_usd?: number | null;
   /** 위 두 값의 기준일 — /humanoid 전용 */
   valuation_asof?: string | null;
+  /** 모터 유형 태그 — /humanoid/motor 전용. 표가 variant='motor'일 때만 읽는다 */
+  motor_types?: MotorType[];
+  /** 공급 이력(「확인」만) — /humanoid/motor 전용 */
+  supply_history?: SupplyRecord[];
 }
 
 /** /domestic 정렬 키 (구분/지역 제거 + 그룹/매출순위 추가) */

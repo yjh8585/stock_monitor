@@ -85,6 +85,7 @@
 | `/oem/china`        | 중국 승용 생산·수출             | `oem_china_*` 3개 테이블 (§7-E)                         |
 | `/parts-top100`     | 부품사 TOP100                   | `parts_top100_stocks_view`                              |
 | `/humanoid`         | 휴머노이드 기업                 | `humanoid_stocks_view`                                  |
+| `/humanoid/motor`   | 국내 모터·액추에이터·모터 제어  | `motor_stocks_view`                                     |
 | `/hansae`           | 한세그룹 (3 종목 intraday)      | KIS 분봉 + pykrx 수급                                   |
 | `/etc`              | 해운·철강·환율·매크로·두바이유  | `market_series_*`, `exchange_rates_*`                   |
 | `/reports`          | 보고서 + YouTube 요약           | `posts` 테이블 + `cacheComponents` 패턴                 |
@@ -1047,6 +1048,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
 | `/oem/<slug>`             | OEM 회사별 차종 판매 — **↓ 상세**                                  |
 | `/parts-top100`           | 부품사 TOP100 (Marklines 매핑)                                     |
 | `/humanoid`               | 휴머노이드 완성품·부품 기업 (`humanoid_stocks_view`) — **↓ 상세**  |
+| `/humanoid/motor`         | 모터 회사 (`motor_stocks_view`) — 공급 이력은 「확인」만           |
 | `/humanoid/reports`       | 로봇 보고서 (`posts` category='로봇' 고정) — **↓ 상세**            |
 | `/humanoid/reports/[id]`  | 로봇 보고서 상세 (`PostDetail` 공용)                               |
 | `/humanoid/research`      | 증권사 리포트 (`research_reports`) — **↓ 상세**                    |
@@ -1154,6 +1156,7 @@ decode 화이트리스트는 `isRole` 로 자동 처리되지만, **위 갱신�
   - `lib/stellantis-forecast/` — ⚠️ **`country`의 의미가 생산=공장 국가 · 소매=판매 시장으로 정반대**이고 MarkLines 도착 시점이 달라 공통 최신월(`lastCompleteMonth`)까지만 쓴다 — **수정 전 [`Architecture.md §5-A`](./Architecture.md#5-a-경영관리management-탭-구조) 정독.** 옛 회귀·시차 상관·조건부 빈도 KPI 는 사용자 판정으로 삭제됐으니 되살리지 말 것.
   - `lib/oem/` — `source.ts` + `aggregate.ts`(pure, `aggregate.test.ts`). country×month 대용량은 **구체화 뷰**로 사전 집계하고, 🔴 **구체화 뷰는 자동 갱신되지 않으므로 원본 적재 후 `refresh_oem_agg_views()` RPC 필수**(빼먹으면 `/oem`이 옛 값을 조용히 보여준다). 경위·수치 → [`Architecture.md §7-E`](./Architecture.md)
   - `lib/humanoid/` — `/humanoid` 조회 계층(`source.ts`) + `/humanoid/research` 조회 계층(`research.ts` — `research_reports` 를 발행일 내림차순 평면 목록으로 내려준다. 수집=`collect_naver_research.py` · 요약=`summarize_naver_research.py`가 agents 레포의 헤드리스 CLI 를 부른다). 매핑은 `lib/types.ts` 의 `mapHumanoidStockRow`(내부에서 `mapDomesticStockRow` 재사용). 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
+  - `lib/motor/` — `/humanoid/motor` 조회 계층(`source.ts`) + 공급 이력 셀 순수 로직(`supply.ts`). 매핑은 `lib/types.ts` 의 `mapMotorStockRow`·`parseSupplyHistory`(「확인」만 · http(s) 링크만). 명단 정본은 git 밖 JSON → `scripts/build_motor_seed.py`. 🔴 `cacheTag('exchange_rates_live')` 를 붙이지 말 것(ISR Write).
 
     **`research_reports` 컬럼 주의(2026-08-25 개편)** — 요약 규격이 「세 꼭지·900~1,500자」에서 `report.md` §3 과 같은 「6~10섹션·3,000~6,000자」로 바뀌었다(실측 산출물 8,000자대). 그에 따라 컬럼 둘이 붙었다.
 

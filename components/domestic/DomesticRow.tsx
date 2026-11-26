@@ -13,18 +13,23 @@ import { useCompanySummary } from '@/components/common/useCompanySummary';
 import ProductCell from '@/components/related-stocks/ProductCell';
 import CustomerBadges from '@/components/related-stocks/CustomerBadges';
 import NewsModal from '@/components/related-stocks/NewsModal';
+import SupplyHistoryBadges from './SupplyHistoryBadges';
+
+/**
+ * 네 번째 칸에 무엇을 그릴지.
+ *  - customers : 고객사 로고(/domestic·/parts-top100)
+ *  - valuation : 비상장 기업가치(/humanoid — 고객사를 수집하지 않고, 재무가 없는 비상장사 규모를 보인다)
+ *  - supply    : 공급 이력(/humanoid/motor — 자동차·로봇 고객 + 근거 링크, 「확인」만)
+ */
+export type DomesticCell4 = 'customers' | 'valuation' | 'supply';
 
 interface DomesticRowProps {
   row: DomesticStockRow;
   latestYear: string;
   colCount: number;
   frozenCount: number;
-  /**
-   * 고객사 셀 표시 여부 (default true).
-   * false면 같은 자리에 비상장 기업가치를 그린다 — /humanoid 는 고객사를 수집하지 않고,
-   * 대신 재무제표가 없는 비상장사의 규모를 기업가치로 보여 준다.
-   */
-  showCustomers?: boolean;
+  /** 네 번째 칸 내용 (default 'customers') */
+  cell4?: DomesticCell4;
 }
 
 /** 비상장 기업가치 USD → 짧은 표기 (예: 39000000000 → "$39.0B") */
@@ -62,7 +67,7 @@ const DomesticRow = memo(function DomesticRow({
   latestYear,
   colCount,
   frozenCount,
-  showCustomers = true,
+  cell4 = 'customers',
 }: DomesticRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -149,10 +154,14 @@ const DomesticRow = memo(function DomesticRow({
           />
         </td>
 
-        {/* 고객사 (모두 부품사) — /humanoid 는 같은 자리에 비상장 기업가치 */}
-        {showCustomers ? (
+        {/* 고객사 (모두 부품사) — /humanoid 는 비상장 기업가치, /humanoid/motor 는 공급 이력 */}
+        {cell4 === 'customers' ? (
           <td className={TD}>
             <CustomerBadges customers={row.customers} />
+          </td>
+        ) : cell4 === 'supply' ? (
+          <td className={TD}>
+            <SupplyHistoryBadges records={row.supply_history ?? []} />
           </td>
         ) : (
           <td className={TD}>

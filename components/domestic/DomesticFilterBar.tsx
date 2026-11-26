@@ -53,6 +53,12 @@ interface DomesticFilterBarProps {
   roleOptions?: readonly { value: string; label: string }[];
   roleFilter?: readonly string[];
   onRoleToggle?: (value: string) => void;
+  /** 역할 버튼 묶음의 이름표 (default '역할'). /humanoid/motor 는 '유형' */
+  roleLabel?: string;
+  /** 역할 버튼 툴팁 (default 두 역할 안내) */
+  roleTitle?: string;
+  /** 제품군 카테고리 필터 표시 여부 (default true). /humanoid/motor 는 숨긴다 */
+  showProductCategory?: boolean;
 }
 
 export default function DomesticFilterBar({
@@ -76,6 +82,9 @@ export default function DomesticFilterBar({
   roleOptions,
   roleFilter = [],
   onRoleToggle,
+  roleLabel = '역할',
+  roleTitle = '겸업사는 두 역할에 모두 나타난다',
+  showProductCategory = true,
 }: DomesticFilterBarProps) {
   const rateLabel = formatRateLabel(rates);
 
@@ -91,7 +100,7 @@ export default function DomesticFilterBar({
       {roleOptions && onRoleToggle && (
         <>
           <span className="w-px h-4 bg-border mx-1 shrink-0" />
-          <span className="text-sm font-medium text-muted-foreground shrink-0">역할</span>
+          <span className="text-sm font-medium text-muted-foreground shrink-0">{roleLabel}</span>
           {roleOptions.map((opt) => {
             const active = roleFilter.includes(opt.value);
             return (
@@ -105,7 +114,7 @@ export default function DomesticFilterBar({
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'border-border text-muted-foreground hover:border-primary/50'
                 }`}
-                title="겸업사는 두 역할에 모두 나타난다"
+                title={roleTitle}
               >
                 {opt.label}
               </button>
@@ -152,15 +161,19 @@ export default function DomesticFilterBar({
           </button>
         </>
       )}
-      <span className="w-px h-4 bg-border mx-1 shrink-0" />
-      <span className="text-sm font-medium text-muted-foreground shrink-0">제품군</span>
-      <GroupMultiSelect
-        label="카테고리"
-        options={productCategoryOptions}
-        selected={productCategoryFilter}
-        onToggle={onProductCategoryToggle}
-        onReset={onProductCategoryReset}
-      />
+      {showProductCategory && (
+        <>
+          <span className="w-px h-4 bg-border mx-1 shrink-0" />
+          <span className="text-sm font-medium text-muted-foreground shrink-0">제품군</span>
+          <GroupMultiSelect
+            label="카테고리"
+            options={productCategoryOptions}
+            selected={productCategoryFilter}
+            onToggle={onProductCategoryToggle}
+            onReset={onProductCategoryReset}
+          />
+        </>
+      )}
       <span className="w-px h-4 bg-border mx-1 shrink-0" />
       <span className="text-sm font-medium text-muted-foreground shrink-0">제품</span>
       <div className="relative">
